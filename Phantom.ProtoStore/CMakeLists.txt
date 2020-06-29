@@ -1,4 +1,4 @@
-﻿cmake_minimum_required (VERSION 3.8)
+﻿cmake_minimum_required (VERSION 3.17)
 
 find_package(Protobuf REQUIRED)
 
@@ -14,7 +14,7 @@ protobuf_generate_cpp(
 
 add_library (
 	Phantom.ProtoStore 
-	SHARED
+	STATIC
 	"Phantom.ProtoStore.cpp"
 	"Phantom.ProtoStore.h"
 	${PROTOC_CPP}

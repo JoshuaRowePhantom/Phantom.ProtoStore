@@ -3,6 +3,13 @@
 
 #pragma once
 
-#include <iostream>
+#include <experimental/coroutine>
 
-// TODO: Reference additional headers your program requires here.
+namespace Phantom::ProtoStore 
+{
+    class IProtoStore
+    {
+    public:
+
+    };
+}

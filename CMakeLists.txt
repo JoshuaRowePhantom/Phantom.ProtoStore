@@ -1,9 +1,14 @@
 ﻿# CMakeList.txt : Top-level CMake project file, do global configuration
 # and include sub-projects here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.17)
+
+enable_testing()
 
 project ("Phantom.Scalable.Native")
 
-# Include sub-projects.
+set(CMAKE_CXX_STANDARD 17)
+
+add_subdirectory ("Phantom.System")
+add_subdirectory ("Phantom.System.Test")
 add_subdirectory ("Phantom.ProtoStore")
