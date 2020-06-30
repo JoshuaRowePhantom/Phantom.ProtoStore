@@ -7,7 +7,11 @@ enable_testing()
 
 project ("Phantom.Scalable.Native")
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+
+if (MSVC)
+	add_compile_options("/await")
+endif()
 
 add_subdirectory ("Phantom.System")
 add_subdirectory ("Phantom.System.Test")
