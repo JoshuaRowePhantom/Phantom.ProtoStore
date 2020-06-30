@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package Phantom.ProtoStore;
+
+message Header {
+	int32 Version = 1;
+	int32 LogAlignment = 2;
+	int64 LogReplayExtentNumber = 3;
+	int64 LogReplayLocation = 4;
+	int64 Epoch = 5;
+}
