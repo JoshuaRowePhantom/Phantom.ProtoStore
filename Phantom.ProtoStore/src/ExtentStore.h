@@ -7,11 +7,15 @@ namespace Phantom::ProtoStore
 {
     class IReadBuffer
     {
+    public:
         virtual google::protobuf::io::ZeroCopyInputStream* Stream() = 0;
+        virtual void ReturnToPool() = 0;
     };
 
     class IReadableExtent
     {
+        friend class Returner;
+    public:
         virtual task<pooled_ptr<IReadBuffer>> Read(
             ExtentOffset offset,
             size_t count
@@ -20,12 +24,15 @@ namespace Phantom::ProtoStore
 
     class IWriteBuffer
     {
+    public:
         virtual google::protobuf::io::ZeroCopyOutputStream* Stream() = 0;
         virtual task<> Flush() = 0;
+        virtual void ReturnToPool() = 0;
     };
 
     class IWritableExtent
     {
+    public:
         virtual task<pooled_ptr<IWriteBuffer>> Write(
             ExtentOffset offset,
             size_t count

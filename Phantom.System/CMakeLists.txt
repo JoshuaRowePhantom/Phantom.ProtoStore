@@ -6,7 +6,7 @@ add_library (
 	STATIC
 	"ThreadingProvider.cpp"
 	"ThreadingProvider.h" 
-	"pooled_ptr.h")
+	"pooled_ptr.h" "utility.h")
 
 target_link_libraries(
 	Phantom.System
