@@ -7,7 +7,7 @@ find_package(GTest REQUIRED)
 add_executable(
 	Phantom.ProtoStore.Test
 	"ProtoStoreTests.cpp"
-	"MemoryExtentStoreTest.cpp")
+	"MemoryExtentStoreTest.cpp" "ChecksumTests.cpp")
 
 target_link_libraries(
 	Phantom.ProtoStore.Test
@@ -23,4 +23,5 @@ target_include_directories(
 	$<TARGET_PROPERTY:Phantom.ProtoStore,INCLUDE_DIRECTORIES>
 )
 
-gtest_discover_tests(Phantom.ProtoStore.Test)
+gtest_discover_tests(
+	Phantom.ProtoStore.Test)

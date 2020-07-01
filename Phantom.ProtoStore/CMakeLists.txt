@@ -12,17 +12,20 @@ protobuf_generate_cpp(
 add_library (
     Phantom.ProtoStore 
     STATIC
+    "src/Checksum.cpp"
+    "src/Checksum.h"
     "src/ExtentStore.cpp"
     "src/ExtentStore.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
+    "src/MessageStore.cpp"
     "src/MessageStore.h" 
     "src/Phantom.ProtoStore.cpp"
     "src/ProtoStore.cpp"
     "include/Phantom.ProtoStore.h"
     ${PROTOC_CPP}
-    ${PROTOC_H} 
-    )
+    ${PROTOC_H})
+    
     
 target_include_directories(
     Phantom.ProtoStore

@@ -4,6 +4,9 @@
 #include <mutex>
 #include <vector>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <cppcoro/async_mutex.hpp>
+
+using namespace Phantom::System;
 
 namespace Phantom::ProtoStore
 {
@@ -14,7 +17,7 @@ namespace Phantom::ProtoStore
             public IReadableExtent,
             public IWritableExtent
         {
-            std::mutex m_mutex;
+            cppcoro::async_mutex m_mutex;
             std::shared_ptr<vector<uint8_t>> m_bytes;
 
             class ReadBuffer
@@ -81,12 +84,10 @@ namespace Phantom::ProtoStore
 
                 virtual task<> Flush() override
                 {
-                    m_extent->Write(
+                    return m_extent->Write(
                         m_originalBytes,
                         m_offset,
                         m_count);
-
-                    co_return;
                 }
 
                 virtual void ReturnToPool()
@@ -100,15 +101,12 @@ namespace Phantom::ProtoStore
                 size_t count
             ) override
             {
-                pooled_ptr<IReadBuffer> readBuffer;
+                auto lock = co_await m_mutex.scoped_lock_async();
 
-                {
-                    std::scoped_lock lock(m_mutex);
-                    readBuffer.reset(new ReadBuffer(
-                        m_bytes,
-                        offset,
-                        count));
-                }
+                pooled_ptr<IReadBuffer> readBuffer(new ReadBuffer(
+                    m_bytes,
+                    offset,
+                    count));
 
                 co_return std::move(readBuffer);
             }
@@ -118,43 +116,41 @@ namespace Phantom::ProtoStore
                 size_t count
             ) override
             {
-                pooled_ptr<IWriteBuffer> readBuffer;
+                auto lock = co_await m_mutex.scoped_lock_async();
 
+                if (offset + count > m_bytes->capacity())
                 {
-                    std::scoped_lock lock(m_mutex);
-                    if (offset + count > m_bytes->capacity())
-                    {
-                        auto newBytes = std::make_shared<std::vector<uint8_t>>();
-                        newBytes->reserve(
-                            m_bytes->capacity() * 2);
-                        newBytes->resize(
-                            offset + count);
+                    auto newBytes = std::make_shared<std::vector<uint8_t>>();
+                    newBytes->reserve(
+                        m_bytes->capacity() * 2);
+                    newBytes->resize(
+                        offset + count);
 
-                        std::copy(
-                            m_bytes->begin(), 
-                            m_bytes->end(), 
-                            newBytes->begin());
+                    std::copy(
+                        m_bytes->begin(), 
+                        m_bytes->end(), 
+                        newBytes->begin());
                         
-                        m_bytes = newBytes;
-                    }
-
-                    readBuffer.reset(new WriteBuffer(
-                        this,
-                        m_bytes,
-                        offset,
-                        count));
+                    m_bytes = newBytes;
                 }
 
-                co_return std::move(readBuffer);
+                pooled_ptr<IWriteBuffer> writeBuffer(new WriteBuffer(
+                    this,
+                    m_bytes,
+                    offset,
+                    count));
+
+                co_return std::move(
+                    writeBuffer);
             }
 
-            void Write(
+            task<> Write(
                 std::shared_ptr<vector<uint8_t>> m_originalBytes,
                 ExtentOffset offset,
                 size_t count
                 )
             {
-                std::scoped_lock lock(m_mutex);
+                auto lock = co_await m_mutex.scoped_lock_async();
 
                 if (m_originalBytes == m_bytes)
                 {

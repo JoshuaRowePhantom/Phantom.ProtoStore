@@ -8,20 +8,34 @@ namespace Phantom::ProtoStore
     typedef std::uint64_t ExtentNumber;
     typedef std::uint64_t ExtentOffset;
 
+    class IExtentStore;
+
     struct ReadMessageResult
+    {
+        ExtentOffset EndOfMessage;
+    };
+
+    struct WriteMessageResult
     {
         ExtentOffset EndOfMessage;
     };
 
     class IRandomMessageReader
     {
-        template<typename TMessage>
-        task<ReadMessageResult> Read(
+    public:
+        virtual task<ReadMessageResult> Read(
             ExtentOffset extentOffset,
-            Message& message);
+            Message& message) = 0;
     };
 
-    class IRandomMessageWriter;
+    class IRandomMessageWriter
+    {
+    public:
+        virtual task<WriteMessageResult> Write(
+            ExtentOffset extentOffset,
+            const Message& message) = 0;
+    };
+
     class ISequentialMessageReader;
     class ISequentialMessageWriter;
 
@@ -44,4 +58,7 @@ namespace Phantom::ProtoStore
             ExtentNumber extentNumber
         ) = 0;
     };
+
+    task<shared_ptr<IMessageStore>> CreateMessageStore(
+        shared_ptr<IExtentStore> extentStore);
 }
