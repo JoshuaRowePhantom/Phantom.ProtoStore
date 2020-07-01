@@ -6,6 +6,20 @@
 
 namespace Phantom::ProtoStore
 {
+    int32_t GetComputedCrc32c(
+        const pooled_ptr<IChecksumAlgorithm>& checksum)
+    {
+        uint32_t computed;
+        auto computedSpan = as_bytes(computed);
+
+        std::copy(
+            checksum->Computed().begin(),
+            checksum->Computed().end(),
+            computedSpan.begin());
+
+        return computed;
+    }
+
     TEST(ChecksumTests, DefaultChecksumIsCrc32c)
     {
         auto checksumFactory = MakeChecksumAlgorithmFactory();
@@ -42,13 +56,8 @@ namespace Phantom::ProtoStore
             }
             checksum->Finalize();
 
-            int32_t computed;
-            auto computedSpan = as_bytes(computed);
-
-            std::copy(
-                checksum->Computed().begin(),
-                checksum->Computed().end(),
-                computedSpan.begin());
+            int32_t computed = GetComputedCrc32c(
+                checksum);
 
             EXPECT_EQ(expectedResult, computed);
 
@@ -141,13 +150,8 @@ namespace Phantom::ProtoStore
         }
         checksum->Finalize();
 
-        int32_t computed;
-        auto computedSpan = as_bytes(computed);
-
-        std::copy(
-            checksum->Computed().begin(),
-            checksum->Computed().end(),
-            computedSpan.begin());
+        int32_t computed = GetComputedCrc32c(
+            checksum);
 
         ASSERT_EQ(0xe3'06'92'83, computed);
     }
@@ -198,13 +202,8 @@ namespace Phantom::ProtoStore
         }
         checksum->Finalize();
 
-        int32_t computed;
-        auto computedSpan = as_bytes(computed);
-
-        std::copy(
-            checksum->Computed().begin(),
-            checksum->Computed().end(),
-            computedSpan.begin());
+        int32_t computed = GetComputedCrc32c(
+            checksum);
 
         ASSERT_EQ(0xe3'06'92'83, computed);
     }
@@ -252,13 +251,8 @@ namespace Phantom::ProtoStore
         }
         checksum->Finalize();
 
-        int32_t computed;
-        auto computedSpan = as_bytes(computed);
-
-        std::copy(
-            checksum->Computed().begin(),
-            checksum->Computed().end(),
-            computedSpan.begin());
+        int32_t computed = GetComputedCrc32c(
+            checksum);
 
         ASSERT_EQ(0xe3'06'92'83, computed);
     }
@@ -306,13 +300,8 @@ namespace Phantom::ProtoStore
         }
         checksum->Finalize();
 
-        int32_t computed;
-        auto computedSpan = as_bytes(computed);
-
-        std::copy(
-            checksum->Computed().begin(),
-            checksum->Computed().end(),
-            computedSpan.begin());
+        int32_t computed = GetComputedCrc32c(
+            checksum);
 
         ASSERT_EQ(0xe3'06'92'83, computed);
     }
@@ -367,14 +356,166 @@ namespace Phantom::ProtoStore
         }
         checksum->Finalize();
 
-        int32_t computed;
-        auto computedSpan = as_bytes(computed);
-
-        std::copy(
-            checksum->Computed().begin(),
-            checksum->Computed().end(),
-            computedSpan.begin());
+        int32_t computed = GetComputedCrc32c(
+            checksum);
 
         ASSERT_EQ(0xe3'06'92'83, computed);
     }
+
+    TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_zero_from_empty_buffer)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+        using namespace google::protobuf::io;
+
+        {
+            ArrayOutputStream arrayOutputStream(nullptr, 0);
+            ChecksummingZeroCopyOutputStream outputStream(
+                &arrayOutputStream,
+                checksum.get());
+
+            void* data;
+            int size;
+            ASSERT_FALSE(outputStream.Next(&data, &size));
+        }
+        checksum->Finalize();
+
+        int32_t computed = GetComputedCrc32c(
+            checksum);
+
+        ASSERT_EQ(0, computed);
+    }
+
+    TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_zero_from_non_empty_buffer_with_backup)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+        using namespace google::protobuf::io;
+
+        {
+            std::string stringData;
+            StringOutputStream stringOutputStream(&stringData);
+            ChecksummingZeroCopyOutputStream outputStream(
+                &stringOutputStream,
+                checksum.get());
+
+            void* data;
+            int size;
+            ASSERT_TRUE(outputStream.Next(&data, &size));
+            ASSERT_GT(size, 0);
+            outputStream.BackUp(size);
+        }
+        checksum->Finalize();
+
+        int32_t computed = GetComputedCrc32c(
+            checksum);
+
+        ASSERT_EQ(0, computed);
+    }
+
+    TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_nonzero_from_BackUp)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+        using namespace google::protobuf::io;
+
+        {
+            std::string stringData;
+            stringData.reserve(100);
+            StringOutputStream stringOutputStream(&stringData);
+            ChecksummingZeroCopyOutputStream outputStream(
+                &stringOutputStream,
+                checksum.get());
+
+            void* data;
+            int size;
+            ASSERT_TRUE(outputStream.Next(&data, &size));
+            ASSERT_GT(size, 0);
+            memcpy_s(data, size, "123456789abcdefg", 16);
+            outputStream.BackUp(size - 9);
+        }
+        checksum->Finalize();
+
+        int32_t computed = GetComputedCrc32c(
+            checksum);
+
+        ASSERT_EQ(0xe3'06'92'83, computed);
+    }
+
+    TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_nonzero_without_BackUp)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+        using namespace google::protobuf::io;
+
+        {
+            std::string stringData;
+            stringData.resize(32);
+            ArrayOutputStream arrayOutputStream(stringData.data(), stringData.size());
+            ChecksummingZeroCopyOutputStream outputStream(
+                &arrayOutputStream,
+                checksum.get());
+
+            void* data;
+            int size;
+            ASSERT_TRUE(outputStream.Next(&data, &size));
+            ASSERT_EQ(size, 32);
+            memset(data, 0, size);
+        }
+        checksum->Finalize();
+
+        int32_t computed = GetComputedCrc32c(
+            checksum);
+
+        ASSERT_EQ(0x8a'91'36'aa, computed);
+    }
+
+    TEST(ChecksummingZeroCopyOutputStreamTests, Actually_copies_the_input_to_the_output)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+        using namespace google::protobuf::io;
+
+        std::string stringData;
+        {
+            stringData.resize(13);
+            ArrayOutputStream arrayOutputStream(stringData.data(), stringData.size(), 5);
+            ChecksummingZeroCopyOutputStream outputStream(
+                &arrayOutputStream,
+                checksum.get());
+
+            void* data;
+            int size;
+            ASSERT_TRUE(outputStream.Next(&data, &size));
+            ASSERT_EQ(size, 5);
+            ASSERT_EQ(5, outputStream.ByteCount());
+            memcpy_s(data, size, "1___1", 5);
+
+            ASSERT_TRUE(outputStream.Next(&data, &size));
+            ASSERT_EQ(size, 5);
+            ASSERT_EQ(10, outputStream.ByteCount());
+            memcpy_s(data, size, "2___2", 5);
+
+            ASSERT_TRUE(outputStream.Next(&data, &size));
+            ASSERT_EQ(size, 3);
+            ASSERT_EQ(13, outputStream.ByteCount());
+            memcpy_s(data, size, "3", 3);
+
+            outputStream.BackUp(2);
+            ASSERT_EQ(11, outputStream.ByteCount());
+        }
+        checksum->Finalize();
+
+        using namespace std::string_literals;
+
+        std::string expectedString = "1___12___23\0\0"s;
+
+        ASSERT_EQ(expectedString, stringData);
+    }
+
 }

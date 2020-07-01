@@ -225,7 +225,7 @@ namespace Phantom::ProtoStore
         public IChecksumAlgorithmFactory
     {
         // Inherited via IChecksumAlgorithmFactory
-        virtual Phantom::System::pooled_ptr<IChecksumAlgorithm> Create(
+        virtual pooled_ptr<IChecksumAlgorithm> Create(
             ChecksumAlgorithmVersion version = ChecksumAlgorithmVersion::Default) 
             const override
         {
@@ -233,7 +233,7 @@ namespace Phantom::ProtoStore
             {
             case ChecksumAlgorithmVersion::Default:
             case ChecksumAlgorithmVersion::Crc32c:
-                return Phantom::System::pooled_ptr<IChecksumAlgorithm>(
+                return pooled_ptr<IChecksumAlgorithm>(
                     new Crc32cChecksum());
             default:
                 throw std::range_error("Invalid checksum algorithm");

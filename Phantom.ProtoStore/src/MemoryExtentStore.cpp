@@ -6,8 +6,6 @@
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <cppcoro/async_mutex.hpp>
 
-using namespace Phantom::System;
-
 namespace Phantom::ProtoStore
 {
     class MemoryExtentStore::Impl

@@ -33,7 +33,7 @@ namespace Phantom::ProtoStore
     class IChecksumAlgorithmFactory
     {
     public:
-        virtual Phantom::System::pooled_ptr<IChecksumAlgorithm> Create(
+        virtual pooled_ptr<IChecksumAlgorithm> Create(
             ChecksumAlgorithmVersion version = ChecksumAlgorithmVersion::Default) const = 0;
     };
 

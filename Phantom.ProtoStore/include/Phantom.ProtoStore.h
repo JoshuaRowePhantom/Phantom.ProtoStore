@@ -17,7 +17,6 @@ namespace Phantom::ProtoStore
     using google::protobuf::Message;
     using std::shared_ptr;
     using std::unique_ptr;
-    using Phantom::System::pooled_ptr;
 
     typedef std::string IndexName;
 

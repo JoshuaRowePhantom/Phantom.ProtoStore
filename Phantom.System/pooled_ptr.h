@@ -3,7 +3,7 @@
 #include <memory>
 #include "utility.h"
 
-namespace Phantom::System
+namespace Phantom
 {
     template<typename TPooled>
     concept SelfReturnable = requires (TPooled * p)

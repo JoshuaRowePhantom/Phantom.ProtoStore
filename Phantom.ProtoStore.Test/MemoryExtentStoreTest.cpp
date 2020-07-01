@@ -7,7 +7,6 @@ namespace Phantom::ProtoStore
 {
     using google::protobuf::io::CodedOutputStream;
     using google::protobuf::io::CodedInputStream;
-    using namespace Phantom::System;
 
     TEST(MemoryExtentStoreTests, OpenExtentForRead_succeeds_on_NonExistentExtent)
     {
