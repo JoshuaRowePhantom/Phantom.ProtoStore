@@ -12,6 +12,7 @@ namespace Phantom::ProtoStore
         MemoryExtentStore();
         MemoryExtentStore(
             const MemoryExtentStore& other);
+        ~MemoryExtentStore();
 
         virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(
             ExtentNumber extentNumber)
