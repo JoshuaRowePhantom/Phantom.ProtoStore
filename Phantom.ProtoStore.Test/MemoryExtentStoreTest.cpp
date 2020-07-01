@@ -112,4 +112,37 @@ namespace Phantom::ProtoStore
             }
         );
     }
+
+    TEST(MemoryExtentStoreTests, DeleteExtent_erases_the_content)
+    {
+        run_async([]() -> task<>
+            {
+                MemoryExtentStore store;
+                vector<uint8_t> writeData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+                {
+                    auto writeExtent = co_await store.OpenExtentForWrite(0);
+                    auto writeBuffer = co_await writeExtent->Write(0, writeData.size());
+
+                    {
+                        CodedOutputStream writeStream(writeBuffer->Stream());
+                        writeStream.WriteRaw(
+                            writeData.data(),
+                            writeData.size());
+                    }
+                    co_await writeBuffer->Flush();
+                }
+
+                co_await store.DeleteExtent(0);
+
+                auto extent = co_await store.OpenExtentForRead(0);
+                ASSERT_THROW(
+                    (co_await extent->Read(
+                        0,
+                        1))
+                    ,
+                    std::out_of_range);
+            }
+        );
+    }
 }
