@@ -1,6 +1,8 @@
 #include "Phantom.ProtoStore/src/Checksum.h"
 #include "Phantom.System/utility.h"
 #include <gtest/gtest.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <vector>
 
 namespace Phantom::ProtoStore
 {
@@ -86,5 +88,293 @@ namespace Phantom::ProtoStore
     TEST(ChecksumTests, Crc32TestVectors_123456789)
     {
         ASSERT_TRUE(RunCrc32c({ "123456789" }, 0xe3'06'92'83));
+    }
+
+    TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_move_forward_and_backward)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+
+        using namespace google::protobuf::io;
+        std::string string1 = "1234";
+        std::string string2 = "56789abc";
+
+        ArrayInputStream stream1(
+            string1.data(),
+            string1.length());
+
+        ArrayInputStream stream2(
+            string2.data(),
+            string2.length());
+
+        std::vector<ZeroCopyInputStream*> inputStreams =
+        {
+            &stream1,
+            &stream2,
+        };
+
+        ConcatenatingInputStream concatenatingInputStream(
+            inputStreams.data(),
+            inputStreams.size());
+
+        {
+            ChecksummingZeroCopyInputStream checksummingInputStream(
+                &concatenatingInputStream,
+                checksum.get());
+
+            const void* data;
+            int size;
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(4, size);
+            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            checksummingInputStream.BackUp(1);
+            ASSERT_EQ(3, checksummingInputStream.ByteCount());
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(1, size);
+            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(8, size);
+            ASSERT_EQ(12, checksummingInputStream.ByteCount());
+            checksummingInputStream.BackUp(3);
+            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+        }
+        checksum->Finalize();
+
+        int32_t computed;
+        auto computedSpan = as_bytes(computed);
+
+        std::copy(
+            checksum->Computed().begin(),
+            checksum->Computed().end(),
+            computedSpan.begin());
+
+        ASSERT_EQ(0xe3'06'92'83, computed);
+    }
+
+    TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_move_forward)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+
+        using namespace google::protobuf::io;
+        std::string string1 = "1234";
+        std::string string2 = "56789";
+
+        ArrayInputStream stream1(
+            string1.data(),
+            string1.length());
+
+        ArrayInputStream stream2(
+            string2.data(),
+            string2.length());
+
+        std::vector<ZeroCopyInputStream*> inputStreams =
+        {
+            &stream1,
+            &stream2,
+        };
+
+        ConcatenatingInputStream concatenatingInputStream(
+            inputStreams.data(),
+            inputStreams.size());
+
+        {
+            ChecksummingZeroCopyInputStream checksummingInputStream(
+                &concatenatingInputStream,
+                checksum.get());
+
+            const void* data;
+            int size;
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(4, size);
+            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(5, size);
+            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+            ASSERT_FALSE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+        }
+        checksum->Finalize();
+
+        int32_t computed;
+        auto computedSpan = as_bytes(computed);
+
+        std::copy(
+            checksum->Computed().begin(),
+            checksum->Computed().end(),
+            computedSpan.begin());
+
+        ASSERT_EQ(0xe3'06'92'83, computed);
+    }
+
+    TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_skip_forward_past_eof)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+
+        using namespace google::protobuf::io;
+        std::string string1 = "1234";
+        std::string string2 = "56789";
+
+        ArrayInputStream stream1(
+            string1.data(),
+            string1.length());
+
+        ArrayInputStream stream2(
+            string2.data(),
+            string2.length());
+
+        std::vector<ZeroCopyInputStream*> inputStreams =
+        {
+            &stream1,
+            &stream2,
+        };
+
+        ConcatenatingInputStream concatenatingInputStream(
+            inputStreams.data(),
+            inputStreams.size());
+
+        {
+            ChecksummingZeroCopyInputStream checksummingInputStream(
+                &concatenatingInputStream,
+                checksum.get());
+
+            const void* data;
+            int size;
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(4, size);
+            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            ASSERT_FALSE(checksummingInputStream.Skip(10));
+            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+        }
+        checksum->Finalize();
+
+        int32_t computed;
+        auto computedSpan = as_bytes(computed);
+
+        std::copy(
+            checksum->Computed().begin(),
+            checksum->Computed().end(),
+            computedSpan.begin());
+
+        ASSERT_EQ(0xe3'06'92'83, computed);
+    }
+
+    TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_skip_forward_before_eof)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+
+        using namespace google::protobuf::io;
+        std::string string1 = "1234";
+        std::string string2 = "56789abcd";
+
+        ArrayInputStream stream1(
+            string1.data(),
+            string1.length());
+
+        ArrayInputStream stream2(
+            string2.data(),
+            string2.length());
+
+        std::vector<ZeroCopyInputStream*> inputStreams =
+        {
+            &stream1,
+            &stream2,
+        };
+
+        ConcatenatingInputStream concatenatingInputStream(
+            inputStreams.data(),
+            inputStreams.size());
+
+        {
+            ChecksummingZeroCopyInputStream checksummingInputStream(
+                &concatenatingInputStream,
+                checksum.get());
+
+            const void* data;
+            int size;
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(4, size);
+            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            ASSERT_TRUE(checksummingInputStream.Skip(5));
+            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+        }
+        checksum->Finalize();
+
+        int32_t computed;
+        auto computedSpan = as_bytes(computed);
+
+        std::copy(
+            checksum->Computed().begin(),
+            checksum->Computed().end(),
+            computedSpan.begin());
+
+        ASSERT_EQ(0xe3'06'92'83, computed);
+    }
+
+
+    TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_skip_entire_blocks)
+    {
+        auto checksumFactory = MakeChecksumAlgorithmFactory();
+        auto checksum = checksumFactory->Create(
+            ChecksumAlgorithmVersion::Crc32c);
+
+        using namespace google::protobuf::io;
+        std::string string1 = "1234";
+        std::string string2 = "567";
+        std::string string3 = "89abcd";
+
+        ArrayInputStream stream1(
+            string1.data(),
+            string1.length());
+
+        ArrayInputStream stream2(
+            string2.data(),
+            string2.length());
+
+        ArrayInputStream stream3(
+            string3.data(),
+            string3.length());
+
+        std::vector<ZeroCopyInputStream*> inputStreams =
+        {
+            &stream1,
+            &stream2,
+            &stream3,
+        };
+
+        ConcatenatingInputStream concatenatingInputStream(
+            inputStreams.data(),
+            inputStreams.size());
+
+        {
+            ChecksummingZeroCopyInputStream checksummingInputStream(
+                &concatenatingInputStream,
+                checksum.get());
+
+            const void* data;
+            int size;
+            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
+            ASSERT_EQ(4, size);
+            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            ASSERT_TRUE(checksummingInputStream.Skip(5));
+            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+        }
+        checksum->Finalize();
+
+        int32_t computed;
+        auto computedSpan = as_bytes(computed);
+
+        std::copy(
+            checksum->Computed().begin(),
+            checksum->Computed().end(),
+            computedSpan.begin());
+
+        ASSERT_EQ(0xe3'06'92'83, computed);
     }
 }
