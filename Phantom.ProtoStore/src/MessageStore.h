@@ -2,14 +2,10 @@
 
 #include <Phantom.ProtoStore/include/Phantom.ProtoStore.h>
 #include "ProtoStore.pb.h"
+#include "ExtentStore.h"
 
 namespace Phantom::ProtoStore
 {
-    typedef std::uint64_t ExtentNumber;
-    typedef std::uint64_t ExtentOffset;
-
-    class IExtentStore;
-
     struct ReadMessageResult
     {
         ExtentOffset EndOfMessage;

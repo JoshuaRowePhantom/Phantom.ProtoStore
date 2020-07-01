@@ -1,5 +1,5 @@
 #include "Checksum.h"
-#include "MessageStore.h"
+#include "MessageStoreImpl.h"
 #include "ExtentStore.h"
 #include <cppcoro/async_mutex.hpp>
 
@@ -8,273 +8,243 @@ namespace Phantom::ProtoStore
     using google::protobuf::io::CodedInputStream;
     using google::protobuf::io::CodedOutputStream;
 
-    class RandomMessageReader 
-        : 
-        public IRandomMessageReader
-    {
-        shared_ptr<IReadableExtent> m_extent;
-        shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
-
-    public:
-        RandomMessageReader(
-            shared_ptr<IReadableExtent> extent,
-            shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory)
-            :
-            m_extent(extent),
-            m_checksumAlgorithmFactory(checksumAlgorithmFactory)
-        {}
-
-        virtual task<ReadMessageResult> Read(
-            ExtentOffset extentOffset,
-            Message& message
-        ) override
-        {
-            auto messageHeaderReadBufferSize =
-                // The message size.
-                sizeof(uint32_t)
-                +
-                // The checksum algorithm.
-                sizeof(ChecksumAlgorithmVersion);
-
-            auto messageHeaderReadBuffer = co_await m_extent->Read(
-                extentOffset,
-                messageHeaderReadBufferSize);
-
-            CodedInputStream messageHeaderInputStream(
-                messageHeaderReadBuffer->Stream());
-
-            google::protobuf::uint32 messageSize;
-
-            if (!messageHeaderInputStream.ReadLittleEndian32(
-                &messageSize))
-            {
-                throw std::range_error("Invalid message size.");
-            }
-
-            ChecksumAlgorithmVersion checksumVersion;
-
-            if (!messageHeaderInputStream.ReadRaw(
-                &checksumVersion,
-                sizeof(checksumVersion)))
-            {
-                throw std::range_error("Invalid checksum version.");
-            }
-
-            auto checksum = m_checksumAlgorithmFactory->Create(
-                checksumVersion);
-
-            auto messageDataBuffer = co_await m_extent->Read(
-                extentOffset + messageHeaderReadBufferSize,
-                messageSize + checksum->SizeInBytes());
-
-            {
-                google::protobuf::io::LimitingInputStream messageDataLimitingStream(
-                    messageDataBuffer->Stream(),
-                    messageSize);
-
-                ChecksummingZeroCopyInputStream checksummingInputStream(
-                    &messageDataLimitingStream,
-                    checksum.get());
-
-                message.ParseFromZeroCopyStream(
-                    &checksummingInputStream);
-            }
-            checksum->Finalize();
-
-            {
-                CodedInputStream checksumInputStream(
-                    messageDataBuffer->Stream());
-
-                if (!checksumInputStream.ReadRaw(
-                    checksum->Comparand().data(),
-                    checksum->Comparand().size_bytes()))
-                {
-                    throw std::range_error("Invalid checksum data.");
-                }
-            }
-
-            if (!checksum->IsValid())
-            {
-                throw std::range_error("Checksum failed.");
-            }
-
-            co_return ReadMessageResult
-            {
-                extentOffset + messageHeaderReadBufferSize + messageSize,
-            };
-        }
-    };
-
-    class RandomMessageWriter
+    
+    RandomMessageReader::RandomMessageReader(
+        shared_ptr<IReadableExtent> extent,
+        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory)
         :
-        public IRandomMessageWriter
+        m_extent(extent),
+        m_checksumAlgorithmFactory(checksumAlgorithmFactory)
+    {}
+
+    task<ReadMessageResult> RandomMessageReader::Read(
+        ExtentOffset extentOffset,
+        Message& message
+    )
     {
-        shared_ptr<IWritableExtent> m_extent;
-        shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
+        auto messageHeaderReadBufferSize =
+            // The message size.
+            sizeof(uint32_t)
+            +
+            // The checksum algorithm.
+            sizeof(ChecksumAlgorithmVersion);
 
+        auto messageHeaderReadBuffer = co_await m_extent->Read(
+            extentOffset,
+            messageHeaderReadBufferSize);
 
-    public:
-        RandomMessageWriter(
-            shared_ptr<IWritableExtent> extent,
-            shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory)
-            :
-            m_extent(extent),
-            m_checksumAlgorithmFactory(checksumAlgorithmFactory)
-        {}
+        CodedInputStream messageHeaderInputStream(
+            messageHeaderReadBuffer->Stream());
 
-        virtual task<WriteMessageResult> Write(
-            ExtentOffset extentOffset,
-            const Message& message
-        ) override
+        google::protobuf::uint32 messageSize;
+
+        if (!messageHeaderInputStream.ReadLittleEndian32(
+            &messageSize))
         {
-            auto checksum = m_checksumAlgorithmFactory->Create();
+            throw std::range_error("Invalid message size.");
+        }
 
-            auto messageHeaderWriteBufferSize =
-                sizeof(uint32_t)
-                +
-                sizeof(ChecksumAlgorithmVersion);
+        ChecksumAlgorithmVersion checksumVersion;
 
-            auto messageHeaderWriteBuffer = co_await m_extent->Write(
-                extentOffset,
-                messageHeaderWriteBufferSize);
+        if (!messageHeaderInputStream.ReadRaw(
+            &checksumVersion,
+            sizeof(checksumVersion)))
+        {
+            throw std::range_error("Invalid checksum version.");
+        }
 
-            CodedOutputStream messageHeaderOutputStream(
-                messageHeaderWriteBuffer->Stream());
+        auto checksum = m_checksumAlgorithmFactory->Create(
+            checksumVersion);
 
-            auto messageSize = message.ByteSizeLong();
-            auto messageSize32 = static_cast<uint32_t>(messageSize);
-            auto messageDataSize = messageSize + checksum->SizeInBytes();
-            auto messageDataSize32 = static_cast<uint32_t>(messageDataSize);
+        auto messageDataBuffer = co_await m_extent->Read(
+            extentOffset + messageHeaderReadBufferSize,
+            messageSize + checksum->SizeInBytes());
 
-            if (messageDataSize != messageDataSize32)
-            {
-                throw std::range_error("Message too big.");
-            }
-
-            auto checksumVersion = checksum->Version();
-
-            messageHeaderOutputStream.WriteLittleEndian32(
+        {
+            google::protobuf::io::LimitingInputStream messageDataLimitingStream(
+                messageDataBuffer->Stream(),
                 messageSize);
-            messageHeaderOutputStream.WriteRaw(
-                &checksumVersion,
-                sizeof(checksumVersion));
 
-            auto messageDataBuffer = co_await m_extent->Write(
-                extentOffset + messageHeaderWriteBufferSize,
-                messageDataSize32);
+            ChecksummingZeroCopyInputStream checksummingInputStream(
+                &messageDataLimitingStream,
+                checksum.get());
 
-            {
-                ChecksummingZeroCopyOutputStream checksummingOutputStream(
-                    messageDataBuffer->Stream(),
-                    checksum.get());
-
-                message.SerializeToZeroCopyStream(
-                    &checksummingOutputStream);
-            }
-            checksum->Finalize();
-
-            if (!checksum->IsValid())
-            {
-                throw std::range_error("Checksum failed.");
-            }
-
-            co_return WriteMessageResult
-            {
-                extentOffset + messageHeaderWriteBufferSize + messageDataSize,
-            };
+            message.ParseFromZeroCopyStream(
+                &checksummingInputStream);
         }
-    };
+        checksum->Finalize();
 
-    class MessageStore
+        {
+            CodedInputStream checksumInputStream(
+                messageDataBuffer->Stream());
+
+            if (!checksumInputStream.ReadRaw(
+                checksum->Comparand().data(),
+                checksum->Comparand().size_bytes()))
+            {
+                throw std::range_error("Invalid checksum data.");
+            }
+        }
+
+        if (!checksum->IsValid())
+        {
+            throw std::range_error("Checksum failed.");
+        }
+
+        co_return ReadMessageResult
+        {
+            extentOffset + messageHeaderReadBufferSize + messageSize,
+        };
+    }
+
+    RandomMessageWriter::RandomMessageWriter(
+        shared_ptr<IWritableExtent> extent,
+        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory)
         :
-        public IMessageStore
+        m_extent(extent),
+        m_checksumAlgorithmFactory(checksumAlgorithmFactory)
+    {}
+
+    task<WriteMessageResult> RandomMessageWriter::Write(
+        ExtentOffset extentOffset,
+        const Message& message
+    )
     {
-        shared_ptr<IExtentStore> m_extentStore;
-        cppcoro::async_mutex m_asyncMutex;
-        std::map<ExtentNumber, std::weak_ptr<IReadableExtent>> m_readableExtents;
-        std::map<ExtentNumber, std::weak_ptr<IWritableExtent>> m_writableExtents;
-        shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
+        auto checksum = m_checksumAlgorithmFactory->Create();
 
-        task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-            ExtentNumber extentNumber)
+        auto messageHeaderWriteBufferSize =
+            sizeof(uint32_t)
+            +
+            sizeof(ChecksumAlgorithmVersion);
+
+        auto messageHeaderWriteBuffer = co_await m_extent->Write(
+            extentOffset,
+            messageHeaderWriteBufferSize);
+
+        CodedOutputStream messageHeaderOutputStream(
+            messageHeaderWriteBuffer->Stream());
+
+        auto messageSize = message.ByteSizeLong();
+        auto messageSize32 = static_cast<uint32_t>(messageSize);
+        auto messageDataSize = messageSize + checksum->SizeInBytes();
+        auto messageDataSize32 = static_cast<uint32_t>(messageDataSize);
+
+        if (messageDataSize != messageDataSize32)
         {
-            auto lock = co_await m_asyncMutex.scoped_lock_async();
-
-            auto readableExtent = m_readableExtents[extentNumber].lock();
-            if (!readableExtent)
-            {
-                readableExtent = co_await m_extentStore->OpenExtentForRead(
-                    extentNumber);
-                m_readableExtents[extentNumber] = readableExtent;
-            }
-
-            co_return readableExtent;
+            throw std::range_error("Message too big.");
         }
 
-        task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-            ExtentNumber extentNumber)
+        auto checksumVersion = checksum->Version();
+
+        messageHeaderOutputStream.WriteLittleEndian32(
+            messageSize);
+        messageHeaderOutputStream.WriteRaw(
+            &checksumVersion,
+            sizeof(checksumVersion));
+
+        auto messageDataBuffer = co_await m_extent->Write(
+            extentOffset + messageHeaderWriteBufferSize,
+            messageDataSize32);
+
         {
-            auto lock = co_await m_asyncMutex.scoped_lock_async();
+            ChecksummingZeroCopyOutputStream checksummingOutputStream(
+                messageDataBuffer->Stream(),
+                checksum.get());
 
-            auto& writableExtent = m_writableExtents[extentNumber].lock();
-            if (!writableExtent)
-            {
-                writableExtent = co_await m_extentStore->OpenExtentForWrite(
-                    extentNumber);
-                m_writableExtents[extentNumber] = writableExtent;
-            }
+            message.SerializeToZeroCopyStream(
+                &checksummingOutputStream);
+        }
+        checksum->Finalize();
 
-            co_return writableExtent;
+        if (!checksum->IsValid())
+        {
+            throw std::range_error("Checksum failed.");
         }
 
-    public:
-        MessageStore(
-            shared_ptr<IExtentStore> extentStore)
-            :
-            m_extentStore(extentStore),
-            m_checksumAlgorithmFactory(MakeChecksumAlgorithmFactory())
+        co_return WriteMessageResult
         {
-        }
+            extentOffset + messageHeaderWriteBufferSize + messageDataSize,
+        };
+    }
 
-        // Inherited via IMessageStore
-        virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
-            ExtentNumber extentNumber
-        ) override
+    task<shared_ptr<IReadableExtent>> MessageStore::OpenExtentForRead(
+        ExtentNumber extentNumber)
+    {
+        auto lock = co_await m_asyncMutex.scoped_lock_async();
+
+        auto readableExtent = m_readableExtents[extentNumber].lock();
+        if (!readableExtent)
         {
-            auto readableExtent = co_await OpenExtentForRead(
+            readableExtent = co_await m_extentStore->OpenExtentForRead(
                 extentNumber);
-
-            co_return make_shared<RandomMessageReader>(
-                readableExtent,
-                m_checksumAlgorithmFactory);
+            m_readableExtents[extentNumber] = readableExtent;
         }
 
-        virtual task<shared_ptr<IRandomMessageWriter>> OpenExtentForRandomWriteAccess(
-            ExtentNumber extentNumber
-        ) override
+        co_return readableExtent;
+    }
+
+    task<shared_ptr<IWritableExtent>> MessageStore::OpenExtentForWrite(
+        ExtentNumber extentNumber)
+    {
+        auto lock = co_await m_asyncMutex.scoped_lock_async();
+
+        auto& writableExtent = m_writableExtents[extentNumber].lock();
+        if (!writableExtent)
         {
-            auto writableExtent = co_await OpenExtentForWrite(
+            writableExtent = co_await m_extentStore->OpenExtentForWrite(
                 extentNumber);
-
-            co_return make_shared<RandomMessageWriter>(
-                writableExtent,
-                m_checksumAlgorithmFactory);
+            m_writableExtents[extentNumber] = writableExtent;
         }
 
-        virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialReadAccess(
-            ExtentNumber extentNumber
-        ) override
-        {
-            return task<shared_ptr<ISequentialMessageWriter>>();
-        }
+        co_return writableExtent;
+    }
 
-        virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialWriteAccess(
-            ExtentNumber extentNumber
-        ) override
-        {
-            return task<shared_ptr<ISequentialMessageWriter>>();
-        }
-    };
+    MessageStore::MessageStore(
+        shared_ptr<IExtentStore> extentStore)
+        :
+        m_extentStore(extentStore),
+        m_checksumAlgorithmFactory(MakeChecksumAlgorithmFactory())
+    {
+    }
+
+    // Inherited via IMessageStore
+    task<shared_ptr<IRandomMessageReader>> MessageStore::OpenExtentForRandomReadAccess(
+        ExtentNumber extentNumber
+    )
+    {
+        auto readableExtent = co_await OpenExtentForRead(
+            extentNumber);
+
+        co_return make_shared<RandomMessageReader>(
+            readableExtent,
+            m_checksumAlgorithmFactory);
+    }
+
+    task<shared_ptr<IRandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAccess(
+        ExtentNumber extentNumber
+    )
+    {
+        auto writableExtent = co_await OpenExtentForWrite(
+            extentNumber);
+
+        co_return make_shared<RandomMessageWriter>(
+            writableExtent,
+            m_checksumAlgorithmFactory);
+    }
+
+    task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialReadAccess(
+        ExtentNumber extentNumber
+    )
+    {
+        return task<shared_ptr<ISequentialMessageWriter>>();
+    }
+
+    task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialWriteAccess(
+        ExtentNumber extentNumber
+    ) 
+    {
+        return task<shared_ptr<ISequentialMessageWriter>>();
+    }
 
     task<shared_ptr<IMessageStore>> CreateMessageStore(
         shared_ptr<IExtentStore> extentStore)

@@ -2,6 +2,7 @@
 #include <cppcoro/sync_wait.hpp>
 #include <gtest/gtest.h>
 #include "Phantom.System/utility.h"
+#include <google/protobuf/io/coded_stream.h>
 
 namespace Phantom::ProtoStore
 {

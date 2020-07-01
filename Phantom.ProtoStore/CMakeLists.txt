@@ -20,6 +20,7 @@ add_library (
     "src/MemoryExtentStore.h"
     "src/MessageStore.cpp"
     "src/MessageStore.h" 
+    "src/MessageStoreImpl.h"
     "src/Phantom.ProtoStore.cpp"
     "src/ProtoStore.cpp"
     "include/Phantom.ProtoStore.h"

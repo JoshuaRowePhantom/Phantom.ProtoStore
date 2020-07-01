@@ -1,10 +1,18 @@
 #pragma once
 
 #include <Phantom.ProtoStore/include/Phantom.ProtoStore.h>
-#include "MessageStore.h"
+
+namespace google::protobuf::io
+{
+    class ZeroCopyInputStream;
+    class ZeroCopyOutputStream;
+}
 
 namespace Phantom::ProtoStore
 {
+    typedef std::uint64_t ExtentNumber;
+    typedef std::uint64_t ExtentOffset;
+
     class IReadBuffer
     {
     public:
