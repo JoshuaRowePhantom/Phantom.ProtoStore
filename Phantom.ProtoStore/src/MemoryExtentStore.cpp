@@ -125,16 +125,16 @@ namespace Phantom::ProtoStore
                     if (offset + count > m_bytes->capacity())
                     {
                         auto newBytes = std::make_shared<std::vector<uint8_t>>();
-                        newBytes->reserve(m_bytes->capacity() * 2);
-                        
+                        newBytes->reserve(
+                            m_bytes->capacity() * 2);
+                        newBytes->resize(
+                            offset + count);
+
                         std::copy(
                             m_bytes->begin(), 
                             m_bytes->end(), 
                             newBytes->begin());
                         
-                        newBytes->resize(
-                            offset + count);
-
                         m_bytes = newBytes;
                     }
 

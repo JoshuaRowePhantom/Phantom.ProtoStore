@@ -66,4 +66,50 @@ namespace Phantom::ProtoStore
             }
         );
     }
+
+    TEST(MemoryExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_grow)
+    {
+        run_async([]() -> task<>
+            {
+                MemoryExtentStore store;
+                std::basic_string<uint8_t> writeData1(50, '1');
+                std::basic_string<uint8_t> writeData2(500, '2');
+
+                auto writeExtent = co_await store.OpenExtentForWrite(0);
+                auto writeBuffer1 = co_await writeExtent->Write(0, writeData1.size());
+                auto writeBuffer2 = co_await writeExtent->Write(writeData1.size(), writeData2.size());
+
+                {
+                    CodedOutputStream writeStream(writeBuffer1->Stream());
+                    writeStream.WriteRaw(
+                        writeData1.data(),
+                        writeData1.size());
+                }
+
+                {
+                    CodedOutputStream writeStream(writeBuffer2->Stream());
+                    writeStream.WriteRaw(
+                        writeData2.data(),
+                        writeData2.size());
+                }
+
+                co_await writeBuffer2->Flush();
+                co_await writeBuffer1->Flush();
+
+                auto expectedData = writeData1 + writeData2;
+
+                auto readExtent = co_await store.OpenExtentForRead(0);
+                auto readBuffer = co_await readExtent->Read(0, expectedData.size());
+                CodedInputStream readStream(readBuffer->Stream());
+                std::basic_string<uint8_t> actualData(expectedData.size(), '3');
+                readStream.ReadRaw(
+                    actualData.data(),
+                    actualData.size());
+
+                ASSERT_EQ(
+                    expectedData,
+                    actualData);
+            }
+        );
+    }
 }
