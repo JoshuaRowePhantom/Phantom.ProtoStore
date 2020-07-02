@@ -3,20 +3,27 @@
 
 #pragma once
 
+#include <any>
+#include <functional>
+#include <memory>
+#include <span>
 #include <string>
+#include <type_traits>
+#include <variant>
 #include <cppcoro/task.hpp>
+#include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
 #include <Phantom.System/pooled_ptr.h>
 
 namespace Phantom::ProtoStore 
 {
     using cppcoro::task;
-    using std::vector;
-    using google::protobuf::Descriptor;
-    using google::protobuf::FieldDescriptor;
     using google::protobuf::Message;
     using std::shared_ptr;
     using std::unique_ptr;
+
+    template<typename T>
+    concept IsMessage = std::is_convertible_v<T*, Message*>;
 
     typedef std::string IndexName;
 
@@ -41,14 +48,43 @@ namespace Phantom::ProtoStore
     struct CreateIndexRequest
         : GetIndexRequest
     {
-        Descriptor* KeyDescriptor;
-        Descriptor* ValueDescriptor;
-        vector<vector<FieldDescriptor*>> DescendingFields;
+        google::protobuf::Descriptor* KeyDescriptor;
+        google::protobuf::Descriptor* ValueDescriptor;
+        std::vector<std::vector<google::protobuf::FieldDescriptor*>> DescendingFields;
     };
 
-    struct ProtoValue
+    class ProtoValue
     {
-        
+        typedef std::variant<
+            std::monostate,
+            std::span<const std::byte>
+        > message_data_type;
+
+        typedef std::variant<
+            std::monostate,
+            Message*,
+            unique_ptr<Message>
+        > message_type;
+
+    public:
+        message_data_type message_data;
+        message_type message;
+
+        ProtoValue(
+            std::span<const std::byte> bytes)
+            :
+            message_data(bytes)
+        {
+        }
+
+        ProtoValue(
+            Message* message)
+            :
+            message(message)
+        {
+        }
+
+        operator Message && ();
     };
 
     struct WriteOperation
@@ -79,10 +115,8 @@ namespace Phantom::ProtoStore
         : public OpenRequest
     {};
 
-    class ProtoStore
+    class IProtoStore
     {
-        class Impl;
-        shared_ptr<Impl> m_pImpl;
     public:
         task<ProtoIndex> CreateIndex(
             const CreateIndexRequest& createIndexRequest);

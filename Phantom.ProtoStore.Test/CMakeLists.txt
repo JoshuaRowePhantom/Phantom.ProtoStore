@@ -18,6 +18,7 @@ add_executable(
 	"MemoryExtentStoreTests.cpp"
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"
+	"ProtoValueTests.cpp"
 	${PROTOC_CPP}
     ${PROTOC_H})
 
