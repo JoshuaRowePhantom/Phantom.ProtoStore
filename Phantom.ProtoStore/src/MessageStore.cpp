@@ -93,7 +93,10 @@ namespace Phantom::ProtoStore
 
         co_return ReadMessageResult
         {
-            extentOffset + messageHeaderReadBufferSize + messageSize,
+            extentOffset 
+            + messageHeaderReadBufferSize 
+            + messageSize 
+            + checksum->SizeInBytes(),
         };
     }
 
