@@ -30,7 +30,8 @@ namespace Phantom::ProtoStore
     public:
         virtual task<WriteMessageResult> Write(
             ExtentOffset extentOffset,
-            const Message& message) = 0;
+            const Message& message,
+            FlushBehavior flushBehavior) = 0;
     };
 
     class ISequentialMessageReader;

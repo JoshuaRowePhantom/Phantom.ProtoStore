@@ -23,7 +23,8 @@ namespace Phantom::ProtoStore
 
             co_await randomMessageWriter->Write(
                 0,
-                expectedMessage);
+                expectedMessage,
+                FlushBehavior::Flush);
 
             auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(0);
 
@@ -36,6 +37,53 @@ namespace Phantom::ProtoStore
             ASSERT_TRUE(MessageDifferencer::Equals(
                 expectedMessage,
                 actualMessage));
+        });
+    }
+
+    TEST(RandomReaderWriterTest, Can_read_what_was_written_after_DontFlush_then_Flush)
+    {
+        run_async([]() -> task<>
+        {
+            MessageStoreTestMessage expectedMessage1;
+            expectedMessage1.set_string_value("hello world 1!");
+            MessageStoreTestMessage expectedMessage2;
+            expectedMessage2.set_string_value("hello world 2!");
+
+            auto extentStore = make_shared<MemoryExtentStore>();
+            auto messageStore = make_shared<MessageStore>(
+                extentStore);
+            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
+
+            auto writeResult1 = co_await randomMessageWriter->Write(
+                0,
+                expectedMessage1,
+                FlushBehavior::DontFlush);
+
+            auto writeResult2 = co_await randomMessageWriter->Write(
+                writeResult1.EndOfMessage,
+                expectedMessage2,
+                FlushBehavior::Flush);
+
+            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(0);
+
+            MessageStoreTestMessage actualMessage1;
+            MessageStoreTestMessage actualMessage2;
+
+            auto readResult1 = co_await randomMessageReader->Read(
+                0,
+                actualMessage1);
+
+            auto readResult2 = co_await randomMessageReader->Read(
+                readResult1.EndOfMessage,
+                actualMessage2);
+
+            ASSERT_TRUE(MessageDifferencer::Equals(
+                expectedMessage1,
+                actualMessage1));
+
+            ASSERT_TRUE(MessageDifferencer::Equals(
+                expectedMessage2,
+                actualMessage2));
         });
     }
 
@@ -64,7 +112,8 @@ namespace Phantom::ProtoStore
 
             auto writeResult = co_await randomMessageWriter->Write(
                 offset,
-                expectedMessage);
+                expectedMessage,
+                FlushBehavior::Flush);
 
             ASSERT_EQ(expectedEndOfMessage, writeResult.EndOfMessage);
 
@@ -109,7 +158,8 @@ namespace Phantom::ProtoStore
 
             auto writeResult = co_await randomMessageWriter->Write(
                 offset,
-                expectedMessage);
+                expectedMessage,
+                FlushBehavior::Flush);
 
             ASSERT_EQ(
                 expectedEndOfMessage, 

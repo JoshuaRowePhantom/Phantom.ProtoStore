@@ -15,8 +15,15 @@ namespace Phantom::ProtoStore
             public IReadableExtent,
             public IWritableExtent
         {
+            struct WriteOperation
+            {
+                ExtentOffset m_offset;
+                vector<uint8_t> m_bytes;
+            };
+
             cppcoro::async_mutex m_mutex;
             shared_ptr<vector<uint8_t>> m_bytes;
+            std::list<WriteOperation> m_pendingWriteOperations;
 
             class ReadBuffer
                 :
@@ -66,12 +73,6 @@ namespace Phantom::ProtoStore
                 }
             };
 
-            struct WriteOperation
-            {
-                ExtentOffset m_offset;
-                vector<uint8_t> m_bytes;
-            };
-
             class WriteBuffer
                 :
                 public IWriteBuffer
@@ -116,13 +117,7 @@ namespace Phantom::ProtoStore
                 virtual task<> Flush() override
                 {
                     co_await Commit();
-
-                    while (m_writeOperations.size() > 0)
-                    {
-                        co_await m_extent->Write(
-                            m_writeOperations.front());
-                        m_writeOperations.pop_front();
-                    }
+                    co_await m_extent->Flush();
                 }
 
                 virtual void ReturnToPool()
@@ -135,8 +130,8 @@ namespace Phantom::ProtoStore
                 {
                     if (m_currentWriteOperation)
                     {
-                        m_writeOperations.push_back(
-                            *m_currentWriteOperation);
+                        co_await m_extent->Write(
+                            move(*m_currentWriteOperation));
                         m_currentWriteOperation.reset();
                         m_outputStream.reset();
                     }
@@ -182,28 +177,45 @@ namespace Phantom::ProtoStore
             }
 
             task<> Write(
-                WriteOperation& writeOperation
-                )
+                WriteOperation&& writeOperation
+            )
             {
                 auto lock = co_await m_mutex.scoped_lock_async();
 
-                auto neededSize = writeOperation.m_bytes.size() + writeOperation.m_offset;
+                m_pendingWriteOperations.push_back(
+                    move(
+                        writeOperation));
+            }
 
-                if (neededSize > m_bytes->size())
+            task<> Flush()
+            {
+                auto lock = co_await m_mutex.scoped_lock_async();
+
+                while (!m_pendingWriteOperations.empty())
                 {
-                    auto newBytes = make_shared<vector<uint8_t>>(
-                        *m_bytes);
+                    auto& writeOperation = m_pendingWriteOperations.front();
 
-                    newBytes->resize(
-                        neededSize);
+                    auto neededSize = writeOperation.m_bytes.size() + writeOperation.m_offset;
 
-                    m_bytes = newBytes;
+                    if (neededSize > m_bytes->size())
+                    {
+                        auto newBytes = make_shared<vector<uint8_t>>(
+                            *m_bytes);
+
+                        newBytes->resize(
+                            neededSize);
+
+                        m_bytes = newBytes;
+                    }
+
+                    std::copy(
+                        writeOperation.m_bytes.begin(),
+                        writeOperation.m_bytes.end(),
+                        m_bytes->begin() + writeOperation.m_offset);
+
+                    m_pendingWriteOperations.pop_front();
                 }
 
-                std::copy(
-                    writeOperation.m_bytes.begin(),
-                    writeOperation.m_bytes.end(),
-                    m_bytes->begin() + writeOperation.m_offset);
             }
         public:
             Extent()

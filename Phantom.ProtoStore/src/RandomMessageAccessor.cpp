@@ -24,7 +24,8 @@ task<> RandomMessageAccessor::ReadMessage(
 
 task<> RandomMessageAccessor::WriteMessage(
     ExtentLocation location,
-    const Message& message
+    const Message& message,
+    FlushBehavior flushBehavior
 )
 {
     auto extent = co_await m_messageStore->OpenExtentForRandomWriteAccess(
@@ -32,7 +33,8 @@ task<> RandomMessageAccessor::WriteMessage(
 
     co_await extent->Write(
         location.extentOffset,
-        message);
+        message,
+        flushBehavior);
 }
 
 

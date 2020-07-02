@@ -39,7 +39,8 @@ namespace Phantom::ProtoStore
 
         virtual task<WriteMessageResult> Write(
             ExtentOffset extentOffset,
-            const Message& message
+            const Message& message,
+            FlushBehavior flushBehavior
         ) override;
     };
 

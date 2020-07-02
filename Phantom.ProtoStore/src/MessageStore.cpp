@@ -111,7 +111,8 @@ namespace Phantom::ProtoStore
 
     task<WriteMessageResult> RandomMessageWriter::Write(
         ExtentOffset extentOffset,
-        const Message& message
+        const Message& message,
+        FlushBehavior flushBehavior
     )
     {
         auto checksum = m_checksumAlgorithmFactory->Create();
@@ -175,7 +176,14 @@ namespace Phantom::ProtoStore
                 checksum->Computed().size_bytes());
         }
 
-        co_await writeBuffer->Flush();
+        if (flushBehavior == FlushBehavior::Flush)
+        {
+            co_await writeBuffer->Flush();
+        }
+        else
+        {
+            co_await writeBuffer->Commit();
+        }
 
         co_return WriteMessageResult
         {

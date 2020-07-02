@@ -18,7 +18,8 @@ public:
 
     virtual task<> WriteMessage(
         ExtentLocation location,
-        const Message& message
+        const Message& message,
+        FlushBehavior flushBehavior = FlushBehavior::Flush
     ) = 0;
 };
 

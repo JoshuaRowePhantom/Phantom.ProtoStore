@@ -61,4 +61,10 @@ class IHeaderAccessor;
 class IChecksumAlgorithm;
 class IChecksumAlgorithmFactory;
 
+enum class FlushBehavior
+{
+    DontFlush = 0,
+    Flush = 1,
+};
+
 }
