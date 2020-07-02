@@ -185,28 +185,36 @@ namespace Phantom::ProtoStore
         ) = 0;
 
         virtual task<void> Write(
-            const WriteRequest& writeRequest);
+            const WriteRequest& writeRequest
+        ) = 0;
 
         virtual task<ReadResult> Read(
-            const ReadRequest& readRequest);
+            const ReadRequest& readRequest
+        ) = 0;
     };
 
-    struct OpenRequest
+    class IExtentStore;
+
+    struct OpenProtoStoreRequest
     {
+        std::function<task<shared_ptr<IExtentStore>>()> ExtentStore;
     };
 
-    struct CreateRequest
-        : public OpenRequest
-    {};
+    struct CreateProtoStoreRequest
+        : public OpenProtoStoreRequest
+    {
+        size_t LogAlignment = 0;
+    };
 
     class IProtoStoreFactory
     {
-        virtual task<ProtoStore> Open(
-            const OpenRequest& openRequest
+    public:
+        virtual task<shared_ptr<IProtoStore>> Open(
+            const OpenProtoStoreRequest& openRequest
         ) = 0;
 
-        virtual task<ProtoStore> Create(
-            const CreateRequest& openRequest
+        virtual task<shared_ptr<IProtoStore>> Create(
+            const CreateProtoStoreRequest& openRequest
         ) = 0;
     };
 

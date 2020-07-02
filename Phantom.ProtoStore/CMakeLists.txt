@@ -26,13 +26,16 @@ add_library (
     "src/MessageStoreImpl.h"
     "src/Phantom.ProtoStore.cpp"
     "src/ProtoStore.cpp"
+    "src/ProtoStore.h"
+    "src/ProtoStoreFactory.cpp"
+    "src/ProtoStoreFactory.h"
     "src/RandomMessageAccessor.cpp"
     "src/RandomMessageAccessor.h"
     "src/RandomMessageAccessorImpl.h"
     "src/StandardTypes.h"
     "include/Phantom.ProtoStore.h"
     ${PROTOC_CPP}
-    ${PROTOC_H})
+    ${PROTOC_H} "src/ProtoStore.h")
     
     
 target_include_directories(

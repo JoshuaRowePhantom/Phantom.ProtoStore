@@ -11,8 +11,8 @@ namespace Phantom::ProtoStore
         :
         public IRandomMessageReader
     {
-        shared_ptr<IReadableExtent> m_extent;
-        shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
+        const shared_ptr<IReadableExtent> m_extent;
+        const shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
     public:
         RandomMessageReader(
@@ -29,8 +29,8 @@ namespace Phantom::ProtoStore
         :
         public IRandomMessageWriter
     {
-        shared_ptr<IWritableExtent> m_extent;
-        shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
+        const shared_ptr<IWritableExtent> m_extent;
+        const shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
     public:
         RandomMessageWriter(
@@ -47,7 +47,7 @@ namespace Phantom::ProtoStore
         :
         public IMessageStore
     {
-        shared_ptr<IExtentStore> m_extentStore;
+        const shared_ptr<IExtentStore> m_extentStore;
         cppcoro::async_mutex m_asyncMutex;
         map<ExtentNumber, weak_ptr<IReadableExtent>> m_readableExtents;
         map<ExtentNumber, weak_ptr<IWritableExtent>> m_writableExtents;
