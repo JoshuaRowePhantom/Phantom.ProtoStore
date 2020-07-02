@@ -25,12 +25,13 @@ namespace Phantom::ProtoStore
             {
                 MemoryExtentStore store;
                 auto extent = co_await store.OpenExtentForRead(0);
+                auto buffer = co_await extent->CreateReadBuffer();
                 ASSERT_THROW(
-                    (co_await extent->Read(
+                    (co_await buffer->Read(
                         0,
                         1))
                     ,
-                    std::out_of_range);
+                    std::range_error);
             }
         );
     }
@@ -54,7 +55,8 @@ namespace Phantom::ProtoStore
                 co_await writeBuffer->Flush();
 
                 auto readExtent = co_await store.OpenExtentForRead(0);
-                auto readBuffer = co_await readExtent->Read(0, expectedData.size());
+                auto readBuffer = co_await readExtent->CreateReadBuffer();
+                co_await readBuffer->Read(0, expectedData.size());
                 CodedInputStream readStream(readBuffer->Stream());
                 vector<uint8_t> actualData(expectedData.size());
                 readStream.ReadRaw(
@@ -103,7 +105,8 @@ namespace Phantom::ProtoStore
                 auto expectedData = writeData1 + writeData2;
 
                 auto readExtent = co_await store.OpenExtentForRead(0);
-                auto readBuffer = co_await readExtent->Read(0, expectedData.size());
+                auto readBuffer = co_await readExtent->CreateReadBuffer();
+                co_await readBuffer->Read(0, expectedData.size());
                 CodedInputStream readStream(readBuffer->Stream());
                 std::basic_string<uint8_t> actualData(expectedData.size(), '3');
                 readStream.ReadRaw(
@@ -141,12 +144,14 @@ namespace Phantom::ProtoStore
                 co_await store.DeleteExtent(0);
 
                 auto extent = co_await store.OpenExtentForRead(0);
+                auto readBuffer = co_await extent->CreateReadBuffer();
+
                 ASSERT_THROW(
-                    (co_await extent->Read(
+                    (co_await readBuffer->Read(
                         0,
                         1))
                     ,
-                    std::out_of_range);
+                    std::range_error);
             }
         );
     }

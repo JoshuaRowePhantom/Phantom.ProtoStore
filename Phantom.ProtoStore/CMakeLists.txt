@@ -14,7 +14,7 @@ add_library (
     STATIC
     "src/Checksum.cpp"
     "src/Checksum.h"
-    "src/ExtentStore.cpp"
+    
     "src/ExtentStore.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"

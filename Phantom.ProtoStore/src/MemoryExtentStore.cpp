@@ -13,6 +13,7 @@
 namespace Phantom::ProtoStore
 {
     using std::shared_ptr;
+    using std::optional;
 
     class MemoryExtentStore::Impl
     {
@@ -28,27 +29,42 @@ namespace Phantom::ProtoStore
                 :
                 public IReadBuffer
             {
+                Extent* m_extent;
                 std::shared_ptr<vector<uint8_t>> m_bytes;
-                google::protobuf::io::ArrayInputStream m_inputStream;
+                optional<google::protobuf::io::ArrayInputStream> m_inputStream;
 
             public:
                 ReadBuffer(
-                    std::shared_ptr<vector<uint8_t>> bytes,
-                    ExtentOffset offset,
-                    size_t count)
+                    Extent* extent)
                     :
-                    m_bytes(bytes),
-                    m_inputStream(bytes->data() + offset, count)
+                    m_extent(extent)
                 {
+                }
+
+                virtual task<> Read(
+                    ExtentOffset offset,
+                    size_t count
+                ) override
+                {
+                    m_inputStream.reset();
+
+                    m_bytes = co_await m_extent->Read(
+                        offset,
+                        count);
+                    
                     if (m_bytes->size() < offset + count)
                     {
-                        throw std::out_of_range("Reading past end of stream");
+                        throw std::range_error("Read past end");
                     }
+
+                    m_inputStream.emplace(
+                        m_bytes->data() + offset,
+                        count);
                 }
 
                 virtual google::protobuf::io::ZeroCopyInputStream* Stream() override
                 {
-                    return &m_inputStream;
+                    return &*m_inputStream;
                 }
 
                 virtual void ReturnToPool()
@@ -69,8 +85,8 @@ namespace Phantom::ProtoStore
             {
                 Extent* m_extent;
                 std::list<WriteOperation> m_writeOperations;
-                std::optional<WriteOperation> m_currentWriteOperation;
-                std::optional<google::protobuf::io::ArrayOutputStream> m_outputStream;
+                optional<WriteOperation> m_currentWriteOperation;
+                optional<google::protobuf::io::ArrayOutputStream> m_outputStream;
 
                 void StartWriteOperation(
                     size_t offset,
@@ -146,19 +162,21 @@ namespace Phantom::ProtoStore
                 }
             };
 
-            virtual task<pooled_ptr<IReadBuffer>> Read(
-                ExtentOffset offset,
-                size_t count
-            ) override
+            virtual task<pooled_ptr<IReadBuffer>> CreateReadBuffer() override
             {
-                auto lock = co_await m_mutex.scoped_lock_async();
-
                 pooled_ptr<IReadBuffer> readBuffer(new ReadBuffer(
-                    m_bytes,
-                    offset,
-                    count));
+                    this));
 
                 co_return std::move(readBuffer);
+            }
+
+            task<shared_ptr<vector<uint8_t>>> Read(
+                ExtentOffset offset,
+                size_t count
+            )
+            {
+                auto lock = co_await m_mutex.scoped_lock_async();
+                co_return m_bytes;
             }
 
             virtual task<pooled_ptr<IWriteBuffer>> CreateWriteBuffer() override

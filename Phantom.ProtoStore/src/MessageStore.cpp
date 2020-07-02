@@ -29,12 +29,13 @@ namespace Phantom::ProtoStore
             // The checksum algorithm.
             sizeof(ChecksumAlgorithmVersion);
 
-        auto messageHeaderReadBuffer = co_await m_extent->Read(
+        auto readBuffer = co_await m_extent->CreateReadBuffer();
+        co_await readBuffer->Read(
             extentOffset,
             messageHeaderReadBufferSize);
 
         CodedInputStream messageHeaderInputStream(
-            messageHeaderReadBuffer->Stream());
+            readBuffer->Stream());
 
         google::protobuf::uint32 messageSize;
 
@@ -56,13 +57,13 @@ namespace Phantom::ProtoStore
         auto checksum = m_checksumAlgorithmFactory->Create(
             checksumVersion);
 
-        auto messageDataBuffer = co_await m_extent->Read(
+        co_await readBuffer->Read(
             extentOffset + messageHeaderReadBufferSize,
             messageSize + checksum->SizeInBytes());
 
         {
             google::protobuf::io::LimitingInputStream messageDataLimitingStream(
-                messageDataBuffer->Stream(),
+                readBuffer->Stream(),
                 messageSize);
 
             ChecksummingZeroCopyInputStream checksummingInputStream(
@@ -76,7 +77,7 @@ namespace Phantom::ProtoStore
 
         {
             CodedInputStream checksumInputStream(
-                messageDataBuffer->Stream());
+                readBuffer->Stream());
 
             if (!checksumInputStream.ReadRaw(
                 checksum->Comparand().data(),
