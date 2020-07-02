@@ -39,7 +39,6 @@ task<CommitTransactionResult> ProtoStore::CommitTransaction(
 task<AbortTransactionResult> ProtoStore::AbortTransaction(
     const AbortTransactionRequest& abortTransactionRequest
 )
-
 {
     throw 0;
 }
@@ -47,7 +46,6 @@ task<AbortTransactionResult> ProtoStore::AbortTransaction(
 task<ProtoIndex> ProtoStore::CreateIndex(
     const CreateIndexRequest& createIndexRequest
 )
-
 {
     throw 0;
 }
@@ -55,7 +53,6 @@ task<ProtoIndex> ProtoStore::CreateIndex(
 task<ProtoIndex> ProtoStore::GetIndex(
     const GetIndexRequest& getIndexRequest
 )
-
 {
     throw 0;
 }
@@ -63,7 +60,6 @@ task<ProtoIndex> ProtoStore::GetIndex(
 task<> ProtoStore::Write(
     const WriteRequest& writeRequest
 )
-
 {
     throw 0;
 }
@@ -71,7 +67,6 @@ task<> ProtoStore::Write(
 task<ReadResult> ProtoStore::Read(
     const ReadRequest& readRequest
 )
-
 {
     throw 0;
 }
