@@ -102,17 +102,23 @@ namespace Phantom::ProtoStore
         std::optional<SequenceNumber> ExpirationSequenceNumber;
     };
 
+    enum class WriteRequestCommitBehavior
+    {
+        Prepare,
+        Commit,
+    };
+
     struct WriteRequest
     {
         SequenceNumber SequenceNumber;
         std::vector<WriteOperation> WriteOperations;
+        WriteRequestCommitBehavior CommitBehavior;
     };
 
     struct ReadOperation
     {
         ProtoIndex Index;
         ProtoValue Key;
-        ProtoValue Value;
     };
 
     struct ReadRequest
@@ -125,17 +131,51 @@ namespace Phantom::ProtoStore
     {
     };
 
-    struct OpenRequest
+    struct CommitTransactionRequest
+    {
+        SequenceNumber SequenceNumber;
+    };
+
+    struct CommitTransactionResult
     {
     };
 
-    struct CreateRequest
-        : public OpenRequest
-    {};
+    struct AbortTransactionRequest
+    {
+        SequenceNumber SequenceNumber;
+    };
+
+    struct AbortTransactionResult
+    {
+    };
+
+    struct BeginTransactionRequest
+    {
+        SequenceNumber MinimumWriteSequenceNumber;
+        SequenceNumber MinimumReadSequenceNumber;
+    };
+
+    struct BeginTransactionResult
+    {
+        SequenceNumber WriteSequenceNumber;
+        SequenceNumber ReadSequenceNumber;
+    };
 
     class IProtoStore
     {
     public:
+        virtual task<BeginTransactionResult> BeginTransaction(
+            const BeginTransactionRequest beginRequest
+        ) = 0;
+
+        virtual task<CommitTransactionResult> CommitTransaction(
+            const CommitTransactionRequest& commitTransactionRequest
+        ) = 0;
+
+        virtual task<AbortTransactionResult> AbortTransaction(
+            const AbortTransactionRequest& abortTransactionRequest
+        ) = 0;
+
         virtual task<ProtoIndex> CreateIndex(
             const CreateIndexRequest& createIndexRequest
         ) = 0;
@@ -150,6 +190,14 @@ namespace Phantom::ProtoStore
         virtual task<ReadResult> Read(
             const ReadRequest& readRequest);
     };
+
+    struct OpenRequest
+    {
+    };
+
+    struct CreateRequest
+        : public OpenRequest
+    {};
 
     class IProtoStoreFactory
     {
