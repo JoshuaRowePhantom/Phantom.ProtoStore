@@ -12,6 +12,11 @@
 #include <cppcoro/task.hpp>
 #include "Phantom.System/pooled_ptr.h"
 
+namespace google::protobuf
+{
+class Message;
+}
+
 namespace google::protobuf::io
 {
 class ZeroCopyInputStream;
@@ -35,6 +40,7 @@ using std::vector;
 using std::weak_ptr;
 using cppcoro::task;
 using Phantom::pooled_ptr;
+using google::protobuf::Message;
 using google::protobuf::io::ZeroCopyInputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
 
