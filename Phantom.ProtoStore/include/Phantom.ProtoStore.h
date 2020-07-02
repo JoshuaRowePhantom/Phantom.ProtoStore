@@ -6,6 +6,7 @@
 #include <any>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -26,6 +27,11 @@ namespace Phantom::ProtoStore
     concept IsMessage = std::is_convertible_v<T*, Message*>;
 
     typedef std::string IndexName;
+    enum class SequenceNumber : std::uint64_t
+    {
+        Zero = 0,
+        Infinite = std::numeric_limits<std::uint64_t>::max(),
+    };
 
     class ProtoStore;
     class IMessageStore;
@@ -92,23 +98,35 @@ namespace Phantom::ProtoStore
         ProtoIndex Index;
         ProtoValue Key;
         ProtoValue Value;
+        std::optional<SequenceNumber> OriginalSequenceNumber;
+        std::optional<SequenceNumber> ExpirationSequenceNumber;
     };
 
     struct WriteRequest
     {
+        SequenceNumber SequenceNumber;
         std::vector<WriteOperation> WriteOperations;
     };
 
+    struct ReadOperation
+    {
+        ProtoIndex Index;
+        ProtoValue Key;
+        ProtoValue Value;
+    };
+
     struct ReadRequest
-    {};
+    {
+        std::optional<SequenceNumber> SequenceNumber;
+        std::vector<ReadOperation> ReadOperations;
+    };
 
     struct ReadResult
-    {};
+    {
+    };
 
     struct OpenRequest
     {
-        // These can be optionally provided.
-        shared_ptr<IMessageStore> MessageStore;
     };
 
     struct CreateRequest
@@ -118,22 +136,31 @@ namespace Phantom::ProtoStore
     class IProtoStore
     {
     public:
-        task<ProtoIndex> CreateIndex(
-            const CreateIndexRequest& createIndexRequest);
+        virtual task<ProtoIndex> CreateIndex(
+            const CreateIndexRequest& createIndexRequest
+        ) = 0;
 
-        task<ProtoIndex> GetIndex(
-            const GetIndexRequest& getIndexRequest);
+        virtual task<ProtoIndex> GetIndex(
+            const GetIndexRequest& getIndexRequest
+        ) = 0;
 
-        task<void> Write(
+        virtual task<void> Write(
             const WriteRequest& writeRequest);
 
-        task<ReadResult> Read(
+        virtual task<ReadResult> Read(
             const ReadRequest& readRequest);
-
-        static task<ProtoStore> Open(
-            OpenRequest openRequest);
-
-        static task<ProtoStore> Create(
-            CreateRequest openRequest);
     };
+
+    class IProtoStoreFactory
+    {
+        virtual task<ProtoStore> Open(
+            const OpenRequest& openRequest
+        ) = 0;
+
+        virtual task<ProtoStore> Create(
+            const CreateRequest& openRequest
+        ) = 0;
+    };
+
+    shared_ptr<IProtoStoreFactory> MakeProtoStoreFactory();
 }
