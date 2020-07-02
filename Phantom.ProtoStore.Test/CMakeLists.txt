@@ -14,12 +14,12 @@ protobuf_generate_cpp(
 add_executable(
 	Phantom.ProtoStore.Test
 	"ChecksumTests.cpp" 
+	"HeaderAccessorTests.cpp"
 	"MemoryExtentStoreTests.cpp"
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"
 	${PROTOC_CPP}
-    ${PROTOC_H}
-	)
+    ${PROTOC_H})
 
 target_link_libraries(
 	Phantom.ProtoStore.Test

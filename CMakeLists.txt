@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 if (MSVC)
 	add_compile_options("/await")
+	add_compile_options("/WX")
 endif()
 
 add_subdirectory ("Phantom.System")

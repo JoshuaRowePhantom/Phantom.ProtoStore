@@ -56,6 +56,6 @@ namespace Phantom::ProtoStore
         ) = 0;
     };
 
-    task<shared_ptr<IMessageStore>> CreateMessageStore(
+    shared_ptr<IMessageStore> MakeMessageStore(
         shared_ptr<IExtentStore> extentStore);
 }

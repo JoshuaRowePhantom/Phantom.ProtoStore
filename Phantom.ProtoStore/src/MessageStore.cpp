@@ -218,7 +218,7 @@ namespace Phantom::ProtoStore
     MessageStore::MessageStore(
         shared_ptr<IExtentStore> extentStore)
         :
-        m_extentStore(extentStore),
+        m_extentStore(move(extentStore)),
         m_checksumAlgorithmFactory(MakeChecksumAlgorithmFactory())
     {
     }
@@ -262,10 +262,10 @@ namespace Phantom::ProtoStore
         return task<shared_ptr<ISequentialMessageWriter>>();
     }
 
-    task<shared_ptr<IMessageStore>> CreateMessageStore(
+    shared_ptr<IMessageStore> MakeMessageStore(
         shared_ptr<IExtentStore> extentStore)
     {
-        co_return make_shared<MessageStore>(
-            extentStore);
+        return make_shared<MessageStore>(
+            move(extentStore));
     }
 }

@@ -36,7 +36,7 @@ task<> RandomMessageAccessor::WriteMessage(
 }
 
 
-shared_ptr<IRandomMessageAccessor> CreateRandomMessageAccessor(
+shared_ptr<IRandomMessageAccessor> MakeRandomMessageAccessor(
     shared_ptr<IMessageStore> messageStore)
 {
     return make_shared<RandomMessageAccessor>(

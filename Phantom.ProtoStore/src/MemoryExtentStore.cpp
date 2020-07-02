@@ -52,7 +52,7 @@ namespace Phantom::ProtoStore
 
                     m_inputStream.emplace(
                         m_bytes->data() + offset,
-                        count);
+                        static_cast<int>(count));
                 }
 
                 virtual google::protobuf::io::ZeroCopyInputStream* Stream() override
