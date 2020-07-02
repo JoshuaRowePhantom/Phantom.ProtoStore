@@ -117,12 +117,11 @@ namespace Phantom::ProtoStore
             +
             sizeof(ChecksumAlgorithmVersion);
 
-        auto messageHeaderWriteBuffer = co_await m_extent->Write(
+        auto writeBuffer = co_await m_extent->CreateWriteBuffer();
+        
+        co_await writeBuffer->Write(
             extentOffset,
             messageHeaderWriteBufferSize);
-
-        CodedOutputStream messageHeaderOutputStream(
-            messageHeaderWriteBuffer->Stream());
 
         auto messageSize = message.ByteSizeLong();
         auto messageSize32 = static_cast<uint32_t>(messageSize);
@@ -136,30 +135,43 @@ namespace Phantom::ProtoStore
 
         auto checksumVersion = checksum->Version();
 
-        messageHeaderOutputStream.WriteLittleEndian32(
-            messageSize);
-        messageHeaderOutputStream.WriteRaw(
-            &checksumVersion,
-            sizeof(checksumVersion));
+        {
+            CodedOutputStream messageHeaderOutputStream(
+                writeBuffer->Stream());
 
-        auto messageDataBuffer = co_await m_extent->Write(
+            messageHeaderOutputStream.WriteLittleEndian32(
+                messageSize);
+            messageHeaderOutputStream.WriteRaw(
+                &checksumVersion,
+                sizeof(checksumVersion));
+        }
+        co_await writeBuffer->Commit();
+
+        co_await writeBuffer->Write(
             extentOffset + messageHeaderWriteBufferSize,
             messageDataSize32);
 
         {
             ChecksummingZeroCopyOutputStream checksummingOutputStream(
-                messageDataBuffer->Stream(),
+                writeBuffer->Stream(),
                 checksum.get());
 
             message.SerializeToZeroCopyStream(
                 &checksummingOutputStream);
         }
+
         checksum->Finalize();
 
-        if (!checksum->IsValid())
         {
-            throw std::range_error("Checksum failed.");
+            CodedOutputStream checksumOutputStream(
+                writeBuffer->Stream());
+
+            checksumOutputStream.WriteRaw(
+                checksum->Computed().data(),
+                checksum->Computed().size_bytes());
         }
+
+        co_await writeBuffer->Flush();
 
         co_return WriteMessageResult
         {

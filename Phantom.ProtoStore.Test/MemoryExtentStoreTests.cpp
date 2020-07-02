@@ -42,7 +42,8 @@ namespace Phantom::ProtoStore
                 MemoryExtentStore store;
                 vector<uint8_t> expectedData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
                 auto writeExtent = co_await store.OpenExtentForWrite(0);
-                auto writeBuffer = co_await writeExtent->Write(0, expectedData.size());
+                auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
+                co_await writeBuffer->Write(0, expectedData.size());
                 
                 {
                     CodedOutputStream writeStream(writeBuffer->Stream());
@@ -76,8 +77,11 @@ namespace Phantom::ProtoStore
                 std::basic_string<uint8_t> writeData2(500, '2');
 
                 auto writeExtent = co_await store.OpenExtentForWrite(0);
-                auto writeBuffer1 = co_await writeExtent->Write(0, writeData1.size());
-                auto writeBuffer2 = co_await writeExtent->Write(writeData1.size(), writeData2.size());
+                auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
+                co_await writeBuffer1->Write(0, writeData1.size());
+
+                auto writeBuffer2 = co_await writeExtent->CreateWriteBuffer();
+                co_await writeBuffer2->Write(writeData1.size(), writeData2.size());
 
                 {
                     CodedOutputStream writeStream(writeBuffer1->Stream());
@@ -122,7 +126,8 @@ namespace Phantom::ProtoStore
 
                 {
                     auto writeExtent = co_await store.OpenExtentForWrite(0);
-                    auto writeBuffer = co_await writeExtent->Write(0, writeData.size());
+                    auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
+                    co_await writeBuffer->Write(0, writeData.size());
 
                     {
                         CodedOutputStream writeStream(writeBuffer->Stream());

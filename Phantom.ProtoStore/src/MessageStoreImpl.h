@@ -2,6 +2,7 @@
 
 #include <cppcoro/async_mutex.hpp>
 #include "MessageStore.h"
+#include "Checksum.h"
 
 namespace Phantom::ProtoStore
 {

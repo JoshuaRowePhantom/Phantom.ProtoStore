@@ -1,13 +1,19 @@
 #include "MemoryExtentStore.h"
+#include <assert.h>
 #include <functional>
+#include <list>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <vector>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <cppcoro/async_mutex.hpp>
 
 namespace Phantom::ProtoStore
 {
+    using std::shared_ptr;
+
     class MemoryExtentStore::Impl
     {
         class Extent 
@@ -51,46 +57,92 @@ namespace Phantom::ProtoStore
                 }
             };
 
+            struct WriteOperation
+            {
+                ExtentOffset m_offset;
+                std::vector<uint8_t> m_bytes;
+            };
+
             class WriteBuffer
                 :
                 public IWriteBuffer
             {
                 Extent* m_extent;
-                std::shared_ptr<vector<uint8_t>> m_originalBytes;
-                google::protobuf::io::ArrayOutputStream m_outputStream;
-                ExtentOffset m_offset;
-                size_t m_count;
+                std::list<WriteOperation> m_writeOperations;
+                std::optional<WriteOperation> m_currentWriteOperation;
+                std::optional<google::protobuf::io::ArrayOutputStream> m_outputStream;
+
+                void StartWriteOperation(
+                    size_t offset,
+                    size_t count)
+                {
+                    assert(!m_currentWriteOperation);
+
+                    m_currentWriteOperation = WriteOperation
+                    {
+                        offset,
+                        std::vector<uint8_t>(count),
+                    };
+
+                    m_outputStream.emplace(
+                        m_currentWriteOperation->m_bytes.data(),
+                        static_cast<int>(m_currentWriteOperation->m_bytes.size()),
+                        3);
+                }
+
             public:
                 WriteBuffer(
-                    Extent* extent,
-                    std::shared_ptr<vector<uint8_t>> bytes,
-                    ExtentOffset offset,
-                    size_t count)
+                    Extent* extent)
                     :
-                    m_extent(extent),
-                    m_originalBytes(bytes),
-                    m_outputStream(bytes->data() + offset, count),
-                    m_offset(offset),
-                    m_count(count)
+                    m_extent(extent)
                 {
                 }
 
                 virtual google::protobuf::io::ZeroCopyOutputStream* Stream() override
                 {
-                    return &m_outputStream;
+                    assert(m_currentWriteOperation);
+                    return &*m_outputStream;
                 }
 
                 virtual task<> Flush() override
                 {
-                    return m_extent->Write(
-                        m_originalBytes,
-                        m_offset,
-                        m_count);
+                    co_await Commit();
+
+                    while (m_writeOperations.size() > 0)
+                    {
+                        co_await m_extent->Write(
+                            m_writeOperations.front());
+                        m_writeOperations.pop_front();
+                    }
                 }
 
                 virtual void ReturnToPool()
                 {
+                    assert(!m_currentWriteOperation);
                     delete this;
+                }
+
+                virtual task<> Commit() override
+                {
+                    if (m_currentWriteOperation)
+                    {
+                        m_writeOperations.push_back(
+                            *m_currentWriteOperation);
+                        m_currentWriteOperation.reset();
+                        m_outputStream.reset();
+                    }
+                    co_return;
+                }
+
+                virtual task<> Write(
+                    ExtentOffset offset,
+                    size_t count)
+                {
+                    co_await Commit();
+
+                    StartWriteOperation(
+                        offset,
+                        count);
                 }
             };
 
@@ -109,56 +161,38 @@ namespace Phantom::ProtoStore
                 co_return std::move(readBuffer);
             }
 
-            virtual task<pooled_ptr<IWriteBuffer>> Write(
-                ExtentOffset offset,
-                size_t count
-            ) override
+            virtual task<pooled_ptr<IWriteBuffer>> CreateWriteBuffer() override
             {
-                auto lock = co_await m_mutex.scoped_lock_async();
-
-                if (offset + count > m_bytes->capacity())
-                {
-                    auto newBytes = std::make_shared<std::vector<uint8_t>>();
-                    newBytes->reserve(
-                        m_bytes->capacity() * 2);
-                    newBytes->resize(
-                        offset + count);
-
-                    std::copy(
-                        m_bytes->begin(), 
-                        m_bytes->end(), 
-                        newBytes->begin());
-                        
-                    m_bytes = newBytes;
-                }
-
                 pooled_ptr<IWriteBuffer> writeBuffer(new WriteBuffer(
-                    this,
-                    m_bytes,
-                    offset,
-                    count));
+                    this));
 
                 co_return std::move(
                     writeBuffer);
             }
 
             task<> Write(
-                std::shared_ptr<vector<uint8_t>> m_originalBytes,
-                ExtentOffset offset,
-                size_t count
+                WriteOperation& writeOperation
                 )
             {
                 auto lock = co_await m_mutex.scoped_lock_async();
 
-                if (m_originalBytes == m_bytes)
+                auto neededSize = writeOperation.m_bytes.size() + writeOperation.m_offset;
+
+                if (neededSize > m_bytes->size())
                 {
-                    return;
+                    auto newBytes = make_shared<vector<uint8_t>>(
+                        *m_bytes);
+
+                    newBytes->resize(
+                        neededSize);
+
+                    m_bytes = newBytes;
                 }
 
                 std::copy(
-                    m_originalBytes->begin() + offset,
-                    m_originalBytes->begin() + offset + count,
-                    m_bytes->begin() + offset);
+                    writeOperation.m_bytes.begin(),
+                    writeOperation.m_bytes.end(),
+                    m_bytes->begin() + writeOperation.m_offset);
             }
         public:
             Extent()
