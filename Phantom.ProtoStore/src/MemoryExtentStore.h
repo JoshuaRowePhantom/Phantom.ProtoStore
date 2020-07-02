@@ -6,7 +6,7 @@ namespace Phantom::ProtoStore
         : public IExtentStore
     {
         class Impl;
-        std::unique_ptr<Impl> m_impl;
+        unique_ptr<Impl> m_impl;
 
     public:
         MemoryExtentStore();

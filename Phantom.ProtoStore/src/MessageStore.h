@@ -1,5 +1,6 @@
 #pragma once
 
+#include "StandardTypes.h"
 #include <Phantom.ProtoStore/include/Phantom.ProtoStore.h>
 #include "ProtoStore.pb.h"
 #include "ExtentStore.h"

@@ -1,20 +1,13 @@
+#include "StandardTypes.h"
 #include "MemoryExtentStore.h"
 #include <assert.h>
 #include <functional>
 #include <list>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <optional>
-#include <vector>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <cppcoro/async_mutex.hpp>
 
 namespace Phantom::ProtoStore
 {
-    using std::shared_ptr;
-    using std::optional;
-
     class MemoryExtentStore::Impl
     {
         class Extent 
@@ -23,14 +16,14 @@ namespace Phantom::ProtoStore
             public IWritableExtent
         {
             cppcoro::async_mutex m_mutex;
-            std::shared_ptr<vector<uint8_t>> m_bytes;
+            shared_ptr<vector<uint8_t>> m_bytes;
 
             class ReadBuffer
                 :
                 public IReadBuffer
             {
                 Extent* m_extent;
-                std::shared_ptr<vector<uint8_t>> m_bytes;
+                shared_ptr<vector<uint8_t>> m_bytes;
                 optional<google::protobuf::io::ArrayInputStream> m_inputStream;
 
             public:
@@ -54,7 +47,7 @@ namespace Phantom::ProtoStore
                     
                     if (m_bytes->size() < offset + count)
                     {
-                        throw std::range_error("Read past end");
+                        throw range_error("Read past end");
                     }
 
                     m_inputStream.emplace(
@@ -76,7 +69,7 @@ namespace Phantom::ProtoStore
             struct WriteOperation
             {
                 ExtentOffset m_offset;
-                std::vector<uint8_t> m_bytes;
+                vector<uint8_t> m_bytes;
             };
 
             class WriteBuffer
@@ -97,7 +90,7 @@ namespace Phantom::ProtoStore
                     m_currentWriteOperation = WriteOperation
                     {
                         offset,
-                        std::vector<uint8_t>(count),
+                        vector<uint8_t>(count),
                     };
 
                     m_outputStream.emplace(
@@ -167,7 +160,7 @@ namespace Phantom::ProtoStore
                 pooled_ptr<IReadBuffer> readBuffer(new ReadBuffer(
                     this));
 
-                co_return std::move(readBuffer);
+                co_return move(readBuffer);
             }
 
             task<shared_ptr<vector<uint8_t>>> Read(
@@ -184,7 +177,7 @@ namespace Phantom::ProtoStore
                 pooled_ptr<IWriteBuffer> writeBuffer(new WriteBuffer(
                     this));
 
-                co_return std::move(
+                co_return move(
                     writeBuffer);
             }
 
@@ -215,29 +208,29 @@ namespace Phantom::ProtoStore
         public:
             Extent()
                 :
-                m_bytes(std::make_shared<vector<uint8_t>>())
+                m_bytes(make_shared<vector<uint8_t>>())
             {}
         };
 
-        std::map<ExtentNumber, std::shared_ptr<Extent>> m_extents;
-        std::mutex m_extentsMutex;
+        map<ExtentNumber, shared_ptr<Extent>> m_extents;
+        cppcoro::async_mutex m_extentsMutex;
 
-        shared_ptr<Extent> GetExtent(
+        task<shared_ptr<Extent>> GetExtent(
             ExtentNumber extentNumber)
         {
-            std::scoped_lock lock(m_extentsMutex);
+            auto lock = co_await m_extentsMutex.scoped_lock_async();
 
             auto existingExtent = m_extents.find(
                 extentNumber);
 
             if (existingExtent != m_extents.end())
             {
-                return existingExtent->second;
+                co_return existingExtent->second;
             }
 
-            auto newExtent = std::make_shared<Extent>();
+            auto newExtent = make_shared<Extent>();
             m_extents[extentNumber] = newExtent;
-            return newExtent;
+            co_return newExtent;
         }
         
     public:
@@ -252,27 +245,24 @@ namespace Phantom::ProtoStore
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(
             ExtentNumber extentNumber)
         {
-            co_return GetExtent(
+            co_return co_await GetExtent(
                 extentNumber);
         }
 
         task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
             ExtentNumber extentNumber)
         {
-            co_return GetExtent(
+            co_return co_await GetExtent(
                 extentNumber);
         }
 
         task<> DeleteExtent(
             ExtentNumber extentNumber)
         {
-            {
-                std::scoped_lock lock(m_extentsMutex);
-                m_extents.erase(
-                    extentNumber);
-            }
+            auto lock = co_await m_extentsMutex.scoped_lock_async();
 
-            co_return;
+            m_extents.erase(
+                extentNumber);
         }
     };
 

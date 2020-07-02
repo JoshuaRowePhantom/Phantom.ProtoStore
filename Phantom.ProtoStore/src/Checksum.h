@@ -1,9 +1,7 @@
 #pragma once
 
-#include <span>
-#include <type_traits>
+#include "StandardTypes.h"
 #include <google/protobuf/io/zero_copy_stream.h>
-#include "Phantom.System/pooled_ptr.h"
 
 namespace Phantom::ProtoStore
 {
@@ -20,11 +18,11 @@ namespace Phantom::ProtoStore
         virtual size_t SizeInBytes() const = 0;
 
         virtual void AddData(
-            std::span<const std::byte> data) = 0;
+            span<const byte> data) = 0;
 
         virtual void Finalize() = 0;
-        virtual std::span<std::byte> Comparand() = 0;
-        virtual std::span<const std::byte> Computed() const = 0;
+        virtual span<byte> Comparand() = 0;
+        virtual span<const byte> Computed() const = 0;
         virtual bool IsValid() const = 0;
 
         virtual void ReturnToPool() = 0;
@@ -39,10 +37,10 @@ namespace Phantom::ProtoStore
 
     class ChecksummingZeroCopyInputStream
         :
-        public google::protobuf::io::ZeroCopyInputStream
+        public ZeroCopyInputStream
     {
         IChecksumAlgorithm* m_checksum;
-        google::protobuf::io::ZeroCopyInputStream* m_baseStream;
+        ZeroCopyInputStream* m_baseStream;
         
         size_t m_offset;
         size_t m_checksummedOffset;
@@ -53,7 +51,7 @@ namespace Phantom::ProtoStore
 
     public:
         ChecksummingZeroCopyInputStream(
-            google::protobuf::io::ZeroCopyInputStream* baseStream,
+            ZeroCopyInputStream* baseStream,
             IChecksumAlgorithm* checksum);
 
         ~ChecksummingZeroCopyInputStream();
@@ -76,10 +74,10 @@ namespace Phantom::ProtoStore
 
     class ChecksummingZeroCopyOutputStream
         :
-        public google::protobuf::io::ZeroCopyOutputStream
+        public ZeroCopyOutputStream
     {
         IChecksumAlgorithm* m_checksum;
-        google::protobuf::io::ZeroCopyOutputStream* m_baseStream;
+        ZeroCopyOutputStream* m_baseStream;
 
         size_t m_offset;
         size_t m_checksummedOffset;
@@ -90,7 +88,7 @@ namespace Phantom::ProtoStore
 
     public:
         ChecksummingZeroCopyOutputStream(
-            google::protobuf::io::ZeroCopyOutputStream* baseStream,
+            ZeroCopyOutputStream* baseStream,
             IChecksumAlgorithm* checksum);
 
         ~ChecksummingZeroCopyOutputStream();
@@ -107,5 +105,5 @@ namespace Phantom::ProtoStore
         virtual int64_t ByteCount() const override;
     };
 
-    std::shared_ptr<IChecksumAlgorithmFactory> MakeChecksumAlgorithmFactory();
+    shared_ptr<IChecksumAlgorithmFactory> MakeChecksumAlgorithmFactory();
 }

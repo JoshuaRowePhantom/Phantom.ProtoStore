@@ -1,3 +1,4 @@
+#include "StandardTypes.h"
 #include "Checksum.h"
 #include "MessageStoreImpl.h"
 #include "ExtentStore.h"
@@ -7,7 +8,6 @@ namespace Phantom::ProtoStore
 {
     using google::protobuf::io::CodedInputStream;
     using google::protobuf::io::CodedOutputStream;
-
     
     RandomMessageReader::RandomMessageReader(
         shared_ptr<IReadableExtent> extent,
@@ -42,7 +42,7 @@ namespace Phantom::ProtoStore
         if (!messageHeaderInputStream.ReadLittleEndian32(
             &messageSize))
         {
-            throw std::range_error("Invalid message size.");
+            throw range_error("Invalid message size.");
         }
 
         ChecksumAlgorithmVersion checksumVersion;
@@ -51,7 +51,7 @@ namespace Phantom::ProtoStore
             &checksumVersion,
             sizeof(checksumVersion)))
         {
-            throw std::range_error("Invalid checksum version.");
+            throw range_error("Invalid checksum version.");
         }
 
         auto checksum = m_checksumAlgorithmFactory->Create(
@@ -83,13 +83,13 @@ namespace Phantom::ProtoStore
                 checksum->Comparand().data(),
                 checksum->Comparand().size_bytes()))
             {
-                throw std::range_error("Invalid checksum data.");
+                throw range_error("Invalid checksum data.");
             }
         }
 
         if (!checksum->IsValid())
         {
-            throw std::range_error("Checksum failed.");
+            throw range_error("Checksum failed.");
         }
 
         co_return ReadMessageResult
@@ -134,7 +134,7 @@ namespace Phantom::ProtoStore
 
         if (messageDataSize != messageDataSize32)
         {
-            throw std::range_error("Message too big.");
+            throw range_error("Message too big.");
         }
 
         auto checksumVersion = checksum->Version();
@@ -265,7 +265,7 @@ namespace Phantom::ProtoStore
     task<shared_ptr<IMessageStore>> CreateMessageStore(
         shared_ptr<IExtentStore> extentStore)
     {
-        co_return std::make_shared<MessageStore>(
+        co_return make_shared<MessageStore>(
             extentStore);
     }
 }

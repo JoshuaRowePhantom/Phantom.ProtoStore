@@ -12,8 +12,8 @@ namespace Phantom::ProtoStore
         }
 
         m_checksum->AddData(
-            std::span(
-                reinterpret_cast<const std::byte*>(m_lastData),
+            span(
+                reinterpret_cast<const byte*>(m_lastData),
                 m_lastSize)
         );
 
@@ -100,8 +100,8 @@ namespace Phantom::ProtoStore
         }
 
         m_checksum->AddData(
-            std::span(
-                reinterpret_cast<const std::byte*>(m_lastData),
+            span(
+                reinterpret_cast<const byte*>(m_lastData),
                 m_lastSize)
         );
 
@@ -183,7 +183,7 @@ namespace Phantom::ProtoStore
         }
 
         virtual void AddData(
-            std::span<const std::byte> data
+            span<const byte> data
         ) override
         {
             m_crc.process_bytes(
@@ -196,17 +196,17 @@ namespace Phantom::ProtoStore
             m_computed = m_crc.checksum();
         }
 
-        virtual std::span<std::byte> Comparand() override
+        virtual span<byte> Comparand() override
         {
             return as_writable_bytes(
-                std::span(&m_comparand, 1)
+                span(&m_comparand, 1)
             );
         }
 
-        virtual std::span<const std::byte> Computed() const override
+        virtual span<const byte> Computed() const override
         {
             return as_bytes(
-                std::span(&m_computed, 1)
+                span(&m_computed, 1)
             );
         }
 
@@ -236,13 +236,13 @@ namespace Phantom::ProtoStore
                 return pooled_ptr<IChecksumAlgorithm>(
                     new Crc32cChecksum());
             default:
-                throw std::range_error("Invalid checksum algorithm");
+                throw range_error("Invalid checksum algorithm");
             }
         }
     };
 
-    std::shared_ptr<IChecksumAlgorithmFactory> MakeChecksumAlgorithmFactory()
+    shared_ptr<IChecksumAlgorithmFactory> MakeChecksumAlgorithmFactory()
     {
-        return std::make_shared<ChecksumAlgorithmFactory>();
+        return make_shared<ChecksumAlgorithmFactory>();
     }
 }

@@ -1,18 +1,9 @@
 #pragma once
 
-#include <Phantom.ProtoStore/include/Phantom.ProtoStore.h>
-
-namespace google::protobuf::io
-{
-    class ZeroCopyInputStream;
-    class ZeroCopyOutputStream;
-}
+#include "StandardTypes.h"
 
 namespace Phantom::ProtoStore
 {
-    typedef std::uint64_t ExtentNumber;
-    typedef std::uint64_t ExtentOffset;
-
     class IReadBuffer
     {
     public:
@@ -20,7 +11,7 @@ namespace Phantom::ProtoStore
             ExtentOffset offset,
             size_t count) = 0;
 
-        virtual google::protobuf::io::ZeroCopyInputStream* Stream() = 0;
+        virtual ZeroCopyInputStream* Stream() = 0;
 
         virtual void ReturnToPool() = 0;
     };
@@ -41,7 +32,7 @@ namespace Phantom::ProtoStore
             ExtentOffset offset,
             size_t count) = 0;
 
-        virtual google::protobuf::io::ZeroCopyOutputStream* Stream() = 0;
+        virtual ZeroCopyOutputStream* Stream() = 0;
         // Commit the data to be flushed later.  The task will complete 
         // quickly but it's possible that no IO was done.
         virtual task<> Commit() = 0;

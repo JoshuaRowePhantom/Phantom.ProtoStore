@@ -1,5 +1,6 @@
 #pragma once
 
+#include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
 #include "MessageStore.h"
 #include "Checksum.h"
@@ -48,8 +49,8 @@ namespace Phantom::ProtoStore
     {
         shared_ptr<IExtentStore> m_extentStore;
         cppcoro::async_mutex m_asyncMutex;
-        std::map<ExtentNumber, std::weak_ptr<IReadableExtent>> m_readableExtents;
-        std::map<ExtentNumber, std::weak_ptr<IWritableExtent>> m_writableExtents;
+        map<ExtentNumber, weak_ptr<IReadableExtent>> m_readableExtents;
+        map<ExtentNumber, weak_ptr<IWritableExtent>> m_writableExtents;
         shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(

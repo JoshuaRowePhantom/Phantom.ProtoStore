@@ -16,6 +16,9 @@ add_library (
     "src/Checksum.h"
     
     "src/ExtentStore.h"
+    "src/HeaderAccessor.cpp"
+    "src/HeaderAccessor.h"
+    "src/HeaderAccessorImpl.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
     "src/MessageStore.cpp"
@@ -23,6 +26,10 @@ add_library (
     "src/MessageStoreImpl.h"
     "src/Phantom.ProtoStore.cpp"
     "src/ProtoStore.cpp"
+    "src/RandomMessageAccessor.cpp"
+    "src/RandomMessageAccessor.h"
+    "src/RandomMessageAccessorImpl.h"
+    "src/StandardTypes.h"
     "include/Phantom.ProtoStore.h"
     ${PROTOC_CPP}
     ${PROTOC_H})
