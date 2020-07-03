@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
-#include "Phantom.ProtoStore/include/Phantom.ProtoStore.h"
+#include "StandardIncludes.h"
+
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 
 namespace Phantom::ProtoStore
@@ -12,11 +12,7 @@ TEST(ProtoStoreTests, CanCreate_memory_backed_store)
         auto storeFactory = MakeProtoStoreFactory();
         CreateProtoStoreRequest createRequest;
 
-        auto memoryStore = make_shared<MemoryExtentStore>();
-        createRequest.ExtentStore = [=]() -> task<shared_ptr<IExtentStore>> 
-        { 
-            co_return memoryStore; 
-        };
+        createRequest.ExtentStore = UseMemoryExtentStore();
 
         auto store = co_await storeFactory->Create(
             createRequest);

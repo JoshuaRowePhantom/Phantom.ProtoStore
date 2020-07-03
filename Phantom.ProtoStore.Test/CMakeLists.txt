@@ -19,6 +19,8 @@ add_executable(
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"
 	"ProtoValueTests.cpp"
+	"StandardIncludes.cpp"
+	"StandardIncludes.h"
 	${PROTOC_CPP}
     ${PROTOC_H})
 

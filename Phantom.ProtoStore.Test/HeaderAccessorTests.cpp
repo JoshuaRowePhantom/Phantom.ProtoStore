@@ -1,9 +1,9 @@
-#include <gtest/gtest.h>
+#include "StandardIncludes.h"
+
 #include "Phantom.ProtoStore/src/HeaderAccessorImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.ProtoStore/src/RandomMessageAccessor.h"
-#include <google/protobuf/util/message_differencer.h>
 
 using google::protobuf::util::MessageDifferencer;
 

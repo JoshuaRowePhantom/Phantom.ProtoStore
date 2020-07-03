@@ -1,11 +1,8 @@
+#include "StandardIncludes.h"
+
 #include "Phantom.ProtoStore/src/MessageStoreImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
-#include <gtest/gtest.h>
 #include "ProtoStoreTest.pb.h"
-#include <google/protobuf/util/message_differencer.h>
-
-using std::make_shared;
-using google::protobuf::util::MessageDifferencer;
 
 namespace Phantom::ProtoStore
 {

@@ -1,6 +1,5 @@
-#include "Phantom.ProtoStore/include/Phantom.ProtoStore.h"
-#include "Phantom.ProtoStore/src/StandardTypes.h"
-#include <gtest/gtest.h>
+#include "StandardIncludes.h"
+
 #include <google/protobuf/empty.pb.h>
 
 namespace Phantom::ProtoStore
