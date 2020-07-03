@@ -17,14 +17,6 @@ ProtoStore::ProtoStore(
 {
 }
 
-task<> ProtoStore::Open(
-    const OpenProtoStoreRequest& openRequest)
-{
-    Header header;
-    co_await m_headerAccessor->ReadHeader(
-        header);
-}
-
 task<> ProtoStore::Create(
     const CreateProtoStoreRequest& createRequest)
 {
@@ -41,6 +33,14 @@ task<> ProtoStore::Create(
 
     co_await Open(
         createRequest);
+}
+
+task<> ProtoStore::Open(
+    const OpenProtoStoreRequest& openRequest)
+{
+    Header header;
+    co_await m_headerAccessor->ReadHeader(
+        header);
 }
 
 task<BeginTransactionResult> ProtoStore::BeginTransaction(
