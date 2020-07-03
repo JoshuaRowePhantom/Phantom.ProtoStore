@@ -38,6 +38,9 @@ task<> ProtoStore::Create(
 
     co_await m_headerAccessor->WriteHeader(
         header);
+
+    co_await Open(
+        createRequest);
 }
 
 task<BeginTransactionResult> ProtoStore::BeginTransaction(
