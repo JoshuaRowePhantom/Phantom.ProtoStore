@@ -11,6 +11,9 @@ class ProtoStore
     public IProtoStore
 {
     const shared_ptr<IExtentStore> m_extentStore;
+    const shared_ptr<IMessageStore> m_messageStore;
+    const shared_ptr<IRandomMessageAccessor> m_messageAccessor;
+    const shared_ptr<IHeaderAccessor> m_headerAccessor;
 
 public:
     ProtoStore(

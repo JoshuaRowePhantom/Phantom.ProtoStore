@@ -1,5 +1,8 @@
 #include "ProtoStore.h"
 #include "StandardTypes.h"
+#include "MessageStore.h"
+#include "RandomMessageAccessor.h"
+#include "HeaderAccessor.h"
 
 namespace Phantom::ProtoStore
 {
@@ -7,20 +10,34 @@ namespace Phantom::ProtoStore
 ProtoStore::ProtoStore(
     shared_ptr<IExtentStore> extentStore)
     :
-    m_extentStore(move(extentStore))
+    m_extentStore(move(extentStore)),
+    m_messageStore(MakeMessageStore(m_extentStore)),
+    m_messageAccessor(MakeRandomMessageAccessor(m_messageStore)),
+    m_headerAccessor(MakeHeaderAccessor(m_messageAccessor))
 {
 }
 
 task<> ProtoStore::Open(
     const OpenProtoStoreRequest& openRequest)
 {
-    co_return;
+    Header header;
+    co_await m_headerAccessor->ReadHeader(
+        header);
 }
 
 task<> ProtoStore::Create(
     const CreateProtoStoreRequest& createRequest)
 {
-    co_return;
+    Header header;
+    header.set_version(1);
+    header.set_epoch(1);
+    header.set_logalignment(
+        createRequest.LogAlignment);
+    header.set_logreplayextentnumber(2);
+    header.set_logreplaylocation(0);
+
+    co_await m_headerAccessor->WriteHeader(
+        header);
 }
 
 task<BeginTransactionResult> ProtoStore::BeginTransaction(

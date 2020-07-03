@@ -35,4 +35,20 @@ TEST(ProtoStoreTests, CanOpen_memory_backed_store)
     });
 }
 
+TEST(ProtoStoreTests, Open_fails_on_uncreated_store)
+{
+    run_async([]() -> task<>
+    {
+        auto storeFactory = MakeProtoStoreFactory();
+        OpenProtoStoreRequest openRequest;
+
+        openRequest.ExtentStore = UseMemoryExtentStore();
+
+        ASSERT_THROW(
+            co_await storeFactory->Open(
+                openRequest),
+            range_error);
+    });
+}
+
 }
