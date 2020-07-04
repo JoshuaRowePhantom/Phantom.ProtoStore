@@ -51,19 +51,30 @@ namespace Phantom::ProtoStore
         IndexName IndexName;
     };
 
+    struct KeySchema
+    {
+        google::protobuf::Descriptor* KeyDescriptor;
+        std::vector<std::vector<google::protobuf::FieldDescriptor*>> DescendingFields;
+    };
+
+    struct ValueSchema
+    {
+        google::protobuf::Descriptor* ValueDescriptor;
+    };
+
     struct CreateIndexRequest
         : GetIndexRequest
     {
-        google::protobuf::Descriptor* KeyDescriptor;
-        google::protobuf::Descriptor* ValueDescriptor;
-        std::vector<std::vector<google::protobuf::FieldDescriptor*>> DescendingFields;
+        KeySchema KeySchema;
+        ValueSchema ValueSchema;
     };
 
     class ProtoValue
     {
         typedef std::variant<
             std::monostate,
-            std::span<const std::byte>
+            std::span<const std::byte>,
+            std::vector<std::byte>
         > message_data_type;
 
         typedef std::variant<
@@ -75,6 +86,20 @@ namespace Phantom::ProtoStore
     public:
         message_data_type message_data;
         message_type message;
+
+        ProtoValue(
+            std::vector<std::byte> bytes)
+            :
+            message_data(move(bytes))
+        {
+        }
+
+        ProtoValue(
+            std::vector<std::byte>&& bytes)
+            :
+            message_data(move(bytes))
+        {
+        }
 
         ProtoValue(
             std::span<const std::byte> bytes)

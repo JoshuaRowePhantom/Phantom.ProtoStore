@@ -16,12 +16,15 @@
 namespace google::protobuf
 {
 class Message;
+class Descriptor;
+typedef uint8_t uint8;
 }
 
 namespace google::protobuf::io
 {
 class ZeroCopyInputStream;
 class ZeroCopyOutputStream;
+class CodedInputStream;
 }
 
 namespace Phantom::ProtoStore
@@ -30,6 +33,7 @@ namespace Phantom::ProtoStore
 using std::byte;
 using std::forward;
 using std::make_shared;
+using std::make_unique;
 using std::map;
 using std::move;
 using std::optional;

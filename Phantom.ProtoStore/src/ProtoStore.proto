@@ -1,11 +1,62 @@
 syntax = "proto3";
 
+import "google/protobuf/descriptor.proto";
+
 package Phantom.ProtoStore;
 
 message Header {
-	int32 Version = 1;
-	int32 LogAlignment = 2;
-	int64 LogReplayExtentNumber = 3;
-	int64 LogReplayLocation = 4;
-	int64 Epoch = 5;
+	uint32 Version = 1;
+	uint32 LogAlignment = 2;
+	uint64 LogReplayExtentNumber = 3;
+	uint64 LogReplayLocation = 4;
+	uint64 Epoch = 5;
+}
+
+message LoggedRowWrite {
+	uint64 IndexNumber = 1;
+	bytes Key = 2;
+	bytes Value = 3;
+}
+
+message LoggedNewWriteLog {
+	uint64 ExtentNumber = 1;
+}
+
+message LogRecordExtras {
+	LoggedNewWriteLog NewWriteLog = 1;
+}
+
+message LogRecord {
+	uint32 Alignment = 1;
+	// Most log records are for rows, so put them right in the message.
+	repeated LoggedRowWrite Rows = 2;
+	// Most log records don't have extras, so put them in another message.
+	LogRecordExtras Extras = 3;
+}
+
+message MessageDescription {
+	google.protobuf.FileDescriptorSet FileDescriptors = 1;
+	string MessageName = 2;
+}
+
+message FieldDescription {
+	repeated int32 FieldNumbers = 1;
+}
+
+message FieldListDescription {
+	repeated FieldDescription Fields = 1;
+}
+
+message KeySchemaDescription {
+	MessageDescription Description = 1;
+	FieldListDescription DescendingFields = 2;
+}
+
+message ValueSchemaDescription {
+	MessageDescription Description = 1;
+}
+
+message IndexSchemaDescription {
+	KeySchemaDescription Key = 1;
+	ValueSchemaDescription Value = 2;
 }

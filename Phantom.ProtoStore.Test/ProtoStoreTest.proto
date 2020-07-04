@@ -5,3 +5,44 @@ package Phantom.ProtoStore;
 message MessageStoreTestMessage {
     string string_value = 1;
 }
+
+
+message SubKey2 {
+	string string_value = 2;
+}
+
+message SubKey1 {
+	SubKey2 subkey2_value = 1;
+	string string_value = 2;
+}
+
+message TestKey {
+	int32 int32_value = 1;
+	int64 int64_value = 2;
+	sint32 sint32_value = 3;
+	sint64 sint64_value = 4;
+	fixed32 fixed32_value = 5;
+	fixed64 fixed64_value = 6;
+	float float_value = 7;
+	double double_value = 8;
+	string string_value = 9;
+	bytes bytes_value = 10;
+	SubKey1 subkey_value = 11;
+
+	repeated int32 repeated_int32_value = 21;
+	repeated int64 repeated_int64_value = 22;
+	repeated sint32 repeated_sint32_value = 23;
+	repeated sint64 repeated_sint64_value = 24;
+	repeated fixed32 repeated_fixed32_value = 25;
+	repeated fixed64 repeated_fixed64_value = 26;
+	repeated float repeated_float_value = 27;
+	repeated double repeated_double_value = 28;
+	repeated string repeated_string_value = 29;
+	repeated bytes repeated_bytes_value = 30;
+	repeated SubKey1 repeated_subkey_value = 31;
+}
+
+message TestKey2 {
+	SubKey2 SubKeyField1 = 1;
+	SubKey2 SubKeyField2 = 2;
+}

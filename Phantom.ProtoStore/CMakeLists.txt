@@ -3,6 +3,8 @@
 find_package(Protobuf REQUIRED)
 find_package(cppcoro CONFIG REQUIRED)
 
+set(Protobuf_IMPORT_DIRS ${Protobuf_INCLUDE_DIRS})
+
 protobuf_generate_cpp(
     PROTOC_CPP
     PROTOC_H
@@ -19,8 +21,11 @@ add_library (
     "src/HeaderAccessor.cpp"
     "src/HeaderAccessor.h"
     "src/HeaderAccessorImpl.h"
+    "src/KeyComparer.cpp"
+    "src/KeyComparer.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
+    "src/MemoryTable.h"
     "src/MessageStore.cpp"
     "src/MessageStore.h" 
     "src/MessageStoreImpl.h"
@@ -35,7 +40,7 @@ add_library (
     "src/StandardTypes.h"
     "include/Phantom.ProtoStore.h"
     ${PROTOC_CPP}
-    ${PROTOC_H} "src/ProtoStore.h")
+    ${PROTOC_H})
     
     
 target_include_directories(
