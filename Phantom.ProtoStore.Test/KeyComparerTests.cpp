@@ -195,6 +195,42 @@ TEST(KeyComparerTests, TestKey_repeated_int32)
         greater);
 }
 
+TEST(KeyComparerTests, TestKey_repeated_string)
+{
+    TestKey lesser;
+    TestKey greater;
+
+    *greater.add_repeated_string_value() = "b";
+
+    DoKeyComparerTest(
+        lesser,
+        greater);
+
+    *lesser.add_repeated_string_value() = "a";
+
+    DoKeyComparerTest(
+        lesser,
+        greater);
+}
+
+TEST(KeyComparerTests, TestKey_repeated_SubKey)
+{
+    TestKey lesser;
+    TestKey greater;
+
+    greater.add_repeated_subkey_value()->set_string_value("b");
+
+    DoKeyComparerTest(
+        lesser,
+        greater);
+
+    lesser.add_repeated_subkey_value()->set_string_value("a");
+
+    DoKeyComparerTest(
+        lesser,
+        greater);
+}
+
 TEST(KeyComparerTests, Uses_lexical_order_not_tag_order)
 {
     TestKey_OutOfOrderFields lesser;
