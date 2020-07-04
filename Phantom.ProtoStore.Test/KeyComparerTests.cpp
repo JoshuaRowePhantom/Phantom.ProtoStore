@@ -201,8 +201,8 @@ TEST(KeyComparerTests, Uses_lexical_order_not_tag_order)
     TestKey_OutOfOrderFields greater;
 
     lesser.set_lexicallyfirstnumericallysecond(1);
-    greater.set_lexicallyfirstnumericallysecond(2);
     lesser.set_lexicallysecondnumericallyfirst(2);
+    greater.set_lexicallyfirstnumericallysecond(2);
     greater.set_lexicallysecondnumericallyfirst(1);
 
     DoKeyComparerTest(
