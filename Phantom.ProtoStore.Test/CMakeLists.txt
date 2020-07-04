@@ -16,6 +16,7 @@ add_executable(
 	"ChecksumTests.cpp" 
 	"HeaderAccessorTests.cpp"
 	"MemoryExtentStoreTests.cpp"
+	"KeyComparerTests.cpp"
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"
 	"ProtoValueTests.cpp"

@@ -18,14 +18,11 @@ public:
     struct compare_tag {};
 
 private:
-    KeySchemaDescription m_keySchemaDescription;
-    google::protobuf::DescriptorPool m_descriptorPool;
-    google::protobuf::DynamicMessageFactory m_dynamicMessageFactory;
     const google::protobuf::Descriptor* m_messageDescriptor;
 
 public:
     KeyComparer(
-        KeySchemaDescription keySchemaDescription);
+        const google::protobuf::Descriptor* messageDescriptor);
 
     std::weak_ordering Compare(
         std::span<const google::protobuf::uint8> value1,
@@ -75,6 +72,15 @@ public:
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
         compare_tag<std::string> tag);
+
+    std::weak_ordering KeyComparer::CompareNonRepeatedFields(
+        const google::protobuf::Message* left,
+        const google::protobuf::Message* right,
+        const google::protobuf::Reflection* leftReflection,
+        const google::protobuf::Reflection* rightReflection,
+        const google::protobuf::FieldDescriptor* leftFieldDescriptor,
+        const google::protobuf::FieldDescriptor* rightFieldDescriptor,
+        compare_tag<google::protobuf::Message> tag);
 
     template<typename T>
     std::weak_ordering CompareNonRepeatedFields(

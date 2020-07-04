@@ -10,51 +10,13 @@ namespace Phantom::ProtoStore
 
 using namespace google::protobuf;
 
-thread_local std::vector<char> tls_keyComparerInitialArena(
-    1024);
-
 KeyComparer::KeyComparer(
-    KeySchemaDescription keySchemaDescription
+    const Descriptor* messageDescriptor
 )
     :
-    m_dynamicMessageFactory(
-        &m_descriptorPool)
+    m_messageDescriptor(
+        messageDescriptor)
 {
-    for (auto& fileDescription : keySchemaDescription.description().filedescriptors().file())
-    {
-        m_descriptorPool.BuildFile(
-            fileDescription);
-    }
-
-    m_messageDescriptor = m_descriptorPool.FindMessageTypeByName(
-        keySchemaDescription.description().messagename());
-}
-
-std::weak_ordering KeyComparer::Compare(
-    std::span<const uint8> left,
-    std::span<const uint8> right)
-{
-    ArenaOptions arenaOptions;
-    arenaOptions.initial_block = tls_keyComparerInitialArena.data();
-    arenaOptions.initial_block_size = tls_keyComparerInitialArena.size();
-
-    Arena arena(
-        arenaOptions);
-
-    auto leftMessage = m_dynamicMessageFactory.GetPrototype(m_messageDescriptor)->New(&arena);
-    auto rightMessage = m_dynamicMessageFactory.GetPrototype(m_messageDescriptor)->New(&arena);
-
-    leftMessage->ParseFromArray(
-        left.data(),
-        left.size_bytes());
-
-    rightMessage->ParseFromArray(
-        right.data(),
-        right.size_bytes());
-
-    return Compare(
-        leftMessage,
-        rightMessage);
 }
 
 std::weak_ordering KeyComparer::Compare(
@@ -126,6 +88,7 @@ std::weak_ordering KeyComparer::CompareFields(
     case FieldDescriptor::CppType::CPPTYPE_STRING:
         return compareFields(compare_tag<string>());
     case FieldDescriptor::CppType::CPPTYPE_MESSAGE:
+        return compareFields(compare_tag<Message>());
     default:
         throw std::exception();
     }
@@ -176,6 +139,18 @@ std::weak_ordering CompareValues(
     return left.compare(right) <=> 0;
 }
 
+std::weak_ordering CompareValues(
+    const Message& left,
+    const Message& right)
+{
+    KeyComparer keyComparer(
+        left.GetDescriptor());
+
+    return keyComparer.Compare(
+        &left,
+        &right);
+}
+
 auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
@@ -215,7 +190,7 @@ auto GetFieldValue(
     const FieldDescriptor* fieldDescriptor,
     KeyComparer::compare_tag<uint64>)
 {
-    return reflection->GetInt64(
+    return reflection->GetUInt64(
         *message,
         fieldDescriptor);
 }
@@ -309,6 +284,28 @@ std::weak_ordering KeyComparer::CompareNonRepeatedFields(
     return CompareValues(leftString, rightString);
 }
 
+std::weak_ordering KeyComparer::CompareNonRepeatedFields(
+    const Message* left,
+    const Message* right,
+    const Reflection* leftReflection,
+    const Reflection* rightReflection,
+    const FieldDescriptor* leftFieldDescriptor,
+    const FieldDescriptor* rightFieldDescriptor,
+    compare_tag<Message> tag)
+{
+    auto& leftMessage = leftReflection->GetMessage(
+        *left,
+        leftFieldDescriptor,
+        nullptr);
+
+    auto& rightMessage = rightReflection->GetMessage(
+        *right,
+        rightFieldDescriptor,
+        nullptr);
+
+    return CompareValues(leftMessage, rightMessage);
+}
+
 template<typename T>
 std::weak_ordering KeyComparer::CompareNonRepeatedFields(
     const Message* left,
@@ -371,13 +368,13 @@ std::weak_ordering KeyComparer::CompareRepeatedFields(
         }
     }
 
-    if (leftIterator == leftEnd)
-    {
-        return std::weak_ordering::less;
-    }
-    if (rightIterator == rightEnd)
+    if (leftIterator != leftEnd)
     {
         return std::weak_ordering::greater;
+    }
+    if (rightIterator != rightEnd)
+    {
+        return std::weak_ordering::less;
     }
     return std::weak_ordering::equivalent;
 }
