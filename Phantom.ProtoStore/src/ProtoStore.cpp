@@ -3,6 +3,7 @@
 #include "MessageStore.h"
 #include "RandomMessageAccessor.h"
 #include "HeaderAccessor.h"
+#include "ProtoStoreInternal.pb.h"
 
 namespace Phantom::ProtoStore
 {

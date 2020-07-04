@@ -51,10 +51,14 @@ namespace Phantom::ProtoStore
         IndexName IndexName;
     };
 
+    typedef std::vector<const google::protobuf::FieldDescriptor*> DescendingFieldPath;
+    typedef std::set<DescendingFieldPath> DescendingFields;
+
     struct KeySchema
     {
         google::protobuf::Descriptor* KeyDescriptor;
-        std::vector<std::vector<google::protobuf::FieldDescriptor*>> DescendingFields;
+
+        DescendingFields DescendingFields;
     };
 
     struct ValueSchema

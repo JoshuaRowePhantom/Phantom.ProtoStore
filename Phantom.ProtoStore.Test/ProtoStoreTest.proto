@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package Phantom.ProtoStore;
 
+import "ProtoStore.proto";
+
 message MessageStoreTestMessage {
     string string_value = 1;
 }
@@ -45,4 +47,22 @@ message TestKey {
 message TestKey2 {
 	SubKey2 SubKeyField1 = 1;
 	SubKey2 SubKeyField2 = 2;
+}
+
+message TestKey_OutOfOrderFields {
+	int32 LexicallyFirstNumericallySecond = 2;
+	int32 LexicallySecondNumericallyFirst = 1;
+}
+
+message TestKey_DescendingSortOrder {
+	option (Phantom.ProtoStore.MessageOptions) = {
+		SortOrder: Descending;
+    };
+	int32 Value = 1;
+}
+
+message TestKey_DescendingSortOrder_Field {
+	int32 Value = 1 [(FieldOptions) = {
+		SortOrder: Descending;
+	}];
 }

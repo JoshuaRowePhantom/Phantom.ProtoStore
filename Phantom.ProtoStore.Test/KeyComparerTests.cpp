@@ -5,12 +5,13 @@
 namespace Phantom::ProtoStore
 {
 
+template<typename T>
 void DoKeyComparerTest(
-    const TestKey& lesser,
-    const TestKey& greater)
+    const T& lesser,
+    const T& greater)
 {
     KeyComparer keyComparer(
-        TestKey::GetDescriptor());
+        T::GetDescriptor());
 
     ASSERT_EQ(std::weak_ordering::less, keyComparer.Compare(&lesser, &greater));
     ASSERT_EQ(std::weak_ordering::greater, keyComparer.Compare(&greater, &lesser));
@@ -194,5 +195,32 @@ TEST(KeyComparerTests, TestKey_repeated_int32)
         greater);
 }
 
+TEST(KeyComparerTests, Uses_lexical_order_not_tag_order)
+{
+    TestKey_OutOfOrderFields lesser;
+    TestKey_OutOfOrderFields greater;
+
+    lesser.set_lexicallyfirstnumericallysecond(1);
+    greater.set_lexicallyfirstnumericallysecond(2);
+    lesser.set_lexicallysecondnumericallyfirst(2);
+    greater.set_lexicallysecondnumericallyfirst(1);
+
+    DoKeyComparerTest(
+        lesser,
+        greater);
+}
+
+TEST(KeyComparerTests, Uses_message_level_sort_order_on_outer_key)
+{
+    TestKey_DescendingSortOrder_Field lesser;
+    TestKey_DescendingSortOrder_Field greater;
+
+    lesser.set_value(2);
+    greater.set_value(1);
+
+    DoKeyComparerTest(
+        lesser,
+        greater);
+}
 
 }

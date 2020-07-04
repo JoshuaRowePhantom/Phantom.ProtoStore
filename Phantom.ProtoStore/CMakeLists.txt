@@ -8,7 +8,8 @@ set(Protobuf_IMPORT_DIRS ${Protobuf_INCLUDE_DIRS})
 protobuf_generate_cpp(
     PROTOC_CPP
     PROTOC_H
-    src/ProtoStore.proto
+    include/ProtoStore.proto
+    src/ProtoStoreInternal.proto
 )
 
 add_library (
@@ -47,9 +48,9 @@ target_include_directories(
     Phantom.ProtoStore
     PUBLIC
     ${Protobuf_INCLUDE_DIRS}
-    ..
-    PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ..
 )
 
 target_link_libraries(

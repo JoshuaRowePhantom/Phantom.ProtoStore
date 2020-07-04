@@ -2,6 +2,7 @@
 
 #include "StandardTypes.h"
 #include <compare>
+#include <concepts>
 #include "ProtoStore.pb.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
@@ -10,6 +11,12 @@ namespace Phantom::ProtoStore
 {
 
 class KeySchemaDescription;
+
+template<typename T, typename O>
+concept IsOrderedBy = requires (T t)
+{
+    { t <=> t } -> std::same_as<O>;
+};
 
 class KeyComparer
 {
@@ -20,18 +27,28 @@ public:
 private:
     const google::protobuf::Descriptor* m_messageDescriptor;
 
-public:
-    KeyComparer(
-        const google::protobuf::Descriptor* messageDescriptor);
+    template<IsOrderedBy<std::weak_ordering> T>
+    std::weak_ordering CompareValues(
+        const T& left,
+        const T& right);
 
-    std::weak_ordering Compare(
-        std::span<const google::protobuf::uint8> value1,
-        std::span<const google::protobuf::uint8> value2);
+    template<IsOrderedBy<std::strong_ordering> T>
+        std::weak_ordering CompareValues(
+            const T& left,
+            const T& right);
 
+    template<IsOrderedBy<std::partial_ordering> T>
+        std::weak_ordering CompareValues(
+            const T& left,
+            const T& right);
+    
+    std::weak_ordering KeyComparer::CompareValues(
+        const std::string& left,
+        const std::string& right);
 
-    std::weak_ordering Compare(
-        const google::protobuf::Message* value1,
-        const google::protobuf::Message* value2);
+    std::weak_ordering KeyComparer::CompareValues(
+        const google::protobuf::Message& left,
+        const google::protobuf::Message& right);
 
     std::weak_ordering KeyComparer::CompareFields(
         const google::protobuf::Message* left,
@@ -42,19 +59,6 @@ public:
         const google::protobuf::FieldDescriptor* rightFieldDescriptor);
 
     template<typename T>
-    using ReflectionFieldGetter = T(google::protobuf::Reflection::*)(
-        const google::protobuf::Message& message,
-        const google::protobuf::FieldDescriptor* fieldDescriptor
-        ) const;
-
-    template<typename T>
-    using ReflectionRepeatedFieldGetter = T(google::protobuf::Reflection::*)(
-        const google::protobuf::Message& message,
-        const google::protobuf::FieldDescriptor* fieldDescriptor,
-        int index
-        ) const;
-
-    template<typename T> 
     std::weak_ordering CompareFields(
         const google::protobuf::Message* left,
         const google::protobuf::Message* right,
@@ -101,6 +105,19 @@ public:
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
         compare_tag<T> = compare_tag<T>());
+
+    std::weak_ordering ApplySortOrder(
+        SortOrder sortOrder,
+        std::weak_ordering value);
+
+public:
+    KeyComparer(
+        const google::protobuf::Descriptor* messageDescriptor);
+
+    std::weak_ordering Compare(
+        const google::protobuf::Message* value1,
+        const google::protobuf::Message* value2);
+
 };
 
 }

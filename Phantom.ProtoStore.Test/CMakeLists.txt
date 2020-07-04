@@ -5,6 +5,10 @@ cmake_minimum_required (VERSION 3.17)
 find_package(Protobuf REQUIRED)
 find_package(GTest REQUIRED)
 
+set(Protobuf_IMPORT_DIRS 
+	${Protobuf_INCLUDE_DIRS}
+	$<TARGET_PROPERTY:Phantom.ProtoStore,INCLUDE_DIRECTORIES>)
+
 protobuf_generate_cpp(
     PROTOC_CPP
     PROTOC_H

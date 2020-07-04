@@ -4,6 +4,7 @@
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <stack>
 #include <compare>
+#include <set>
 
 namespace Phantom::ProtoStore
 {
@@ -11,12 +12,28 @@ namespace Phantom::ProtoStore
 using namespace google::protobuf;
 
 KeyComparer::KeyComparer(
-    const Descriptor* messageDescriptor
-)
+    const Descriptor* messageDescriptor)
     :
     m_messageDescriptor(
         messageDescriptor)
 {
+    vector<string> fieldNames;
+    for (int fieldIndex = 0; fieldIndex < messageDescriptor->field_count(); fieldIndex++)
+    {
+        fieldNames.push_back(messageDescriptor->field(fieldIndex)->name());
+    }
+}
+
+std::weak_ordering KeyComparer::ApplySortOrder(
+    SortOrder sortOrder,
+    std::weak_ordering value)
+{
+    if (sortOrder == SortOrder::Ascending)
+    {
+        return value;
+    }
+
+    return 0 <=> value;
 }
 
 std::weak_ordering KeyComparer::Compare(
@@ -31,7 +48,7 @@ std::weak_ordering KeyComparer::Compare(
 
     for (int fieldIndex = 0; fieldIndex < leftDescriptor->field_count(); fieldIndex++)
     {
-        auto comparisonResult = CompareFields(
+        auto fieldComparisonResult = CompareFields(
             left,
             right,
             leftReflection,
@@ -39,9 +56,18 @@ std::weak_ordering KeyComparer::Compare(
             leftDescriptor->field(fieldIndex),
             rightDescriptor->field(fieldIndex));
 
-        if (comparisonResult != std::weak_ordering::equivalent)
+        if (fieldComparisonResult != std::weak_ordering::equivalent)
         {
-            return comparisonResult;
+            auto messageSortOrder = 
+                leftDescriptor
+                ->options()
+                .GetExtension(
+                    ::Phantom::ProtoStore::MessageOptions)
+                .sortorder();
+
+            return ApplySortOrder(
+                messageSortOrder,
+                fieldComparisonResult);
         }
     }
 
@@ -56,15 +82,32 @@ std::weak_ordering KeyComparer::CompareFields(
     const FieldDescriptor* leftFieldDescriptor,
     const FieldDescriptor* rightFieldDescriptor)
 {
+    assert(leftFieldDescriptor->number() == rightFieldDescriptor->number());
+
     auto compareFields = [=]<typename T>(compare_tag<T>) -> auto
     {
-        return CompareFields<T>(
+        auto fieldComparisonResult = CompareFields<T>(
             left,
             right,
             leftReflection,
             rightReflection,
             leftFieldDescriptor,
             rightFieldDescriptor);
+
+        if (fieldComparisonResult != std::weak_ordering::equivalent)
+        {
+            auto fieldSortOrder =
+                leftFieldDescriptor
+                ->options()
+                .GetExtension(FieldOptions)
+                .sortorder();
+
+            return ApplySortOrder(
+                fieldSortOrder,
+                fieldComparisonResult);
+        }
+
+        return std::weak_ordering::equivalent;
     };
 
     switch (leftFieldDescriptor->cpp_type())
@@ -94,27 +137,24 @@ std::weak_ordering KeyComparer::CompareFields(
     }
 }
 
-template<typename T>
-requires std::is_same_v<decltype(std::declval<T>() <=> std::declval<T>()), std::weak_ordering>
-std::weak_ordering CompareValues(
+template<IsOrderedBy<std::weak_ordering> T>
+std::weak_ordering KeyComparer::CompareValues(
     const T& left,
     const T& right)
 {
     return left <=> right;
 }
 
-template<typename T>
-requires std::is_same_v<decltype(std::declval<T>() <=> std::declval<T>()), std::strong_ordering>
-std::weak_ordering CompareValues(
+template<IsOrderedBy<std::strong_ordering> T>
+std::weak_ordering KeyComparer::CompareValues(
     const T& left,
     const T& right)
 {
     return left <=> right;
 }
 
-template<typename T>
-requires std::is_same_v<decltype(std::declval<T>() <=> std::declval<T>()), std::partial_ordering>
-std::weak_ordering CompareValues(
+template<IsOrderedBy<std::partial_ordering> T>
+std::weak_ordering KeyComparer::CompareValues(
     const T& left,
     const T& right)
 {
@@ -132,21 +172,18 @@ std::weak_ordering CompareValues(
     return std::weak_ordering::less;
 }
 
-std::weak_ordering CompareValues(
+std::weak_ordering KeyComparer::CompareValues(
     const std::string& left,
     const std::string& right)
 {
     return left.compare(right) <=> 0;
 }
 
-std::weak_ordering CompareValues(
+std::weak_ordering KeyComparer::CompareValues(
     const Message& left,
     const Message& right)
 {
-    KeyComparer keyComparer(
-        left.GetDescriptor());
-
-    return keyComparer.Compare(
+    return Compare(
         &left,
         &right);
 }
@@ -281,7 +318,9 @@ std::weak_ordering KeyComparer::CompareNonRepeatedFields(
         rightFieldDescriptor,
         &rightStringCopy);
 
-    return CompareValues(leftString, rightString);
+    return CompareValues(
+        leftString, 
+        rightString);
 }
 
 std::weak_ordering KeyComparer::CompareNonRepeatedFields(
@@ -303,7 +342,9 @@ std::weak_ordering KeyComparer::CompareNonRepeatedFields(
         rightFieldDescriptor,
         nullptr);
 
-    return CompareValues(leftMessage, rightMessage);
+    return CompareValues(
+        leftMessage, 
+        rightMessage);
 }
 
 template<typename T>
@@ -328,7 +369,9 @@ std::weak_ordering KeyComparer::CompareNonRepeatedFields(
         rightFieldDescriptor,
         tag);
 
-    return CompareValues(leftValue, rightValue);
+    return CompareValues(
+        leftValue, 
+        rightValue);
 }
 
 template<typename T>
