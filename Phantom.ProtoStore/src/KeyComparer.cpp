@@ -350,7 +350,7 @@ std::weak_ordering KeyComparer::CompareRepeatedFields(
         rightFieldDescriptor);
 
     auto leftIterator = leftRepeatedField.begin();
-    auto rightIterator = rightRepeatedField.end();
+    auto rightIterator = rightRepeatedField.begin();
 
     auto leftEnd = leftRepeatedField.end();
     auto rightEnd = rightRepeatedField.end();
