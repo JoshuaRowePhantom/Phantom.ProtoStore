@@ -216,29 +216,35 @@ enum class LoggedOperationDisposition {
     Unprocessed = 1,
 };
 
+struct WriteOperationMetadata
+{
+    const TransactionId* TransactionId;
+    LoggedOperationDisposition LoggedOperationDisposition;
+};
+
 class IWritableOperation
 {
 public:
     virtual task<> AddLoggedAction(
-        const TransactionId& transactionId,
+        const WriteOperationMetadata& writeOperationMetadata,
         const Message* loggedAction,
         LoggedOperationDisposition disposition
     ) = 0;
 
     virtual task<> AddRow(
-        const TransactionId& transactionId,
+        const WriteOperationMetadata& writeOperationMetadata,
         SequenceNumber readSequenceNumber,
         const ProtoValue& key,
         const ProtoValue& value
     ) = 0;
 
     virtual task<> ResolveTransaction(
-        const TransactionId& transactionId,
+        const WriteOperationMetadata& writeOperationMetadata,
         TransactionOutcome outcome
     ) = 0;
 
     virtual task<ProtoIndex> CreateIndex(
-        const TransactionId& transactionId,
+        const WriteOperationMetadata& writeOperationMetadata,
         const CreateIndexRequest& createIndexRequest
     ) = 0;
 };
@@ -266,7 +272,8 @@ class IOperationProcessor
 {
 public:
     virtual task<> ProcessOperation(
-        WritableOperationVisitor visitor
+        IOperation* resultOperation,
+        WritableOperationVisitor sourceOperation
     ) = 0;
 };
 
