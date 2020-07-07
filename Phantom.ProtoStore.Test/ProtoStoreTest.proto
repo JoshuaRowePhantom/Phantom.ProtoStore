@@ -65,3 +65,11 @@ message TestKey_DescendingSortOrder_Field {
 		SortOrder: Descending;
 	}];
 }
+
+message StringKey {
+	string Value = 1;
+}
+
+message StringValue {
+	string Value = 2;
+}

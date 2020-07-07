@@ -31,6 +31,7 @@ concept IsMessage = std::is_convertible_v<T*, Message*>;
 typedef std::string IndexName;
 enum class SequenceNumber : std::uint64_t
 {
+    Earliest = 0,
     Latest = std::numeric_limits<std::uint64_t>::max(),
     LatestCommitted = Latest - 1,
 };
@@ -56,19 +57,14 @@ struct GetIndexRequest
     IndexName IndexName;
 };
 
-typedef std::vector<const google::protobuf::FieldDescriptor*> DescendingFieldPath;
-typedef std::set<DescendingFieldPath> DescendingFields;
-
 struct KeySchema
 {
-    google::protobuf::Descriptor* KeyDescriptor;
-
-    DescendingFields DescendingFields;
+    const google::protobuf::Descriptor* KeyDescriptor;
 };
 
 struct ValueSchema
 {
-    google::protobuf::Descriptor* ValueDescriptor;
+    const google::protobuf::Descriptor* ValueDescriptor;
 };
 
 struct CreateIndexRequest
@@ -95,6 +91,9 @@ class ProtoValue
 public:
     message_data_type message_data;
     message_type message;
+
+    ProtoValue()
+    {}
 
     ProtoValue(
         std::vector<std::byte> bytes)
@@ -124,7 +123,55 @@ public:
     {
     }
 
-    operator Message && ();
+    template<
+        typename TMessage>
+    void unpack(
+        TMessage* destination)
+    {
+        {
+            Message** source;
+            if (source = std::get_if<Message*>(&message))
+            {
+                destination->CopyFrom(**source);
+            }
+            return;
+        }
+
+        {
+            unique_ptr<Message>* source;
+            if (source = std::get_if<unique_ptr<Message>>(&message))
+            {
+                destination->CopyFrom(**source);
+            }
+            return;
+        }
+
+        {
+            std::span<const std::byte>* source;
+            if (source = std::get_if<std::span<const std::byte>>(&message_data))
+            {
+                destination->ParseFromArray(
+                    source->data(),
+                    source->size_bytes()
+                );
+            }
+            return;
+        }
+
+        {
+            std::vector<byte>* source;
+            if (source = std::get_if<std::vector<byte>>(&message_data))
+            {
+                destination->ParseFromArray(
+                    source->data(),
+                    source->size()
+                );
+            }
+            return;
+        }
+
+        destination->Clear();
+    }
 };
 
 struct WriteOperation
@@ -136,30 +183,17 @@ struct WriteOperation
     std::optional<SequenceNumber> ExpirationSequenceNumber;
 };
 
-enum class WriteRequestCommitBehavior
-{
-    Prepare,
-    Commit,
-};
-
-struct ReadOperation
+struct ReadRequest
 {
     ProtoIndex Index;
     SequenceNumber SequenceNumber = SequenceNumber::Latest;
     ProtoValue Key;
 };
 
-struct ReadRequest
-{
-};
-
-struct ReadOperationResult
-{
-};
-
 struct ReadResult
 {
     SequenceNumber SequenceNumber;
+    ProtoValue Value;
 };
 
 struct CommitTransactionRequest
@@ -182,8 +216,8 @@ struct AbortTransactionResult
 
 struct BeginTransactionRequest
 {
-    SequenceNumber MinimumWriteSequenceNumber;
-    SequenceNumber MinimumReadSequenceNumber;
+    SequenceNumber MinimumWriteSequenceNumber = SequenceNumber::Earliest;
+    SequenceNumber MinimumReadSequenceNumber = SequenceNumber::Latest;
 };
 
 struct CommitResult
@@ -202,8 +236,8 @@ public:
 };
 
 enum class OperationOutcome {
-    Commit = 0,
-    Abort = 1,
+    Committed = 0,
+    Aborted = 1,
 };
 
 enum class TransactionOutcome {
@@ -218,8 +252,8 @@ enum class LoggedOperationDisposition {
 
 struct WriteOperationMetadata
 {
-    const TransactionId* TransactionId;
-    LoggedOperationDisposition LoggedOperationDisposition;
+    const TransactionId* TransactionId = nullptr;
+    LoggedOperationDisposition LoggedOperationDisposition = LoggedOperationDisposition::Unprocessed;
 };
 
 class IWritableOperation
