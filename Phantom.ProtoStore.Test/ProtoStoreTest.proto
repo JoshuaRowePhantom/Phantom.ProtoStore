@@ -8,7 +8,6 @@ message MessageStoreTestMessage {
     string string_value = 1;
 }
 
-
 message SubKey2 {
 	string string_value = 2;
 }
