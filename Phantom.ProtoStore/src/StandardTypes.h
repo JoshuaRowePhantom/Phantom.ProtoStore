@@ -72,4 +72,6 @@ enum class FlushBehavior
     Flush = 1,
 };
 
+class LogRecord;
+
 }
