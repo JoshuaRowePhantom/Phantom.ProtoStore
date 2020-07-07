@@ -256,6 +256,10 @@ struct WriteOperationMetadata
     LoggedOperationDisposition LoggedOperationDisposition = LoggedOperationDisposition::Unprocessed;
 };
 
+class WriteConflict
+    : public std::runtime_error
+{};
+
 class IWritableOperation
 {
 public:
