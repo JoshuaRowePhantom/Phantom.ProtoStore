@@ -4,8 +4,7 @@ import "google/protobuf/descriptor.proto";
 
 package Phantom.ProtoStore;
 
-enum SortOrder
-{
+enum SortOrder {
 	Ascending = 0;
 	Descending = 1;
 };
