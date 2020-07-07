@@ -2,6 +2,8 @@
 
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "ProtoStoreTest.pb.h"
+#include <cppcoro/async_latch.hpp>
+#include <cppcoro/when_all_ready.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -72,9 +74,9 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row)
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
-        auto outcome = co_await store->ExecuteOperation(
+        co_await store->ExecuteOperation(
             BeginTransactionRequest(),
-            [&](IOperation* operation)->task<OperationOutcome>
+            [&](IOperation* operation)->task<>
         {
             CreateIndexRequest createIndexRequest;
             createIndexRequest.IndexName = "test_Index";
@@ -91,13 +93,86 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row)
                 SequenceNumber::Latest,
                 &key,
                 &expectedValue);
-
-            co_return OperationOutcome::Committed;
         });
 
-        ASSERT_EQ(
-            OperationOutcome::Committed,
-            outcome);
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
+        );
+
+        StringValue actualValue;
+        readResult.Value.unpack(&actualValue);
+    });
+}
+
+TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
+{
+    run_async([]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        ProtoIndex index;
+        StringKey key;
+        key.set_value("testKey1");
+        StringValue expectedValue;
+        expectedValue.set_value("testValue1");
+        StringValue unexpectedValue;
+        unexpectedValue.set_value("testValue2");
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            CreateIndexRequest createIndexRequest;
+            createIndexRequest.IndexName = "test_Index";
+            createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+            createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+            index = co_await operation->CreateIndex(
+                WriteOperationMetadata(),
+                createIndexRequest
+            );
+        });
+
+        cppcoro::async_latch addRowLatch(1);
+        cppcoro::async_latch continueLatch(1);
+
+        auto operation1 = store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await operation->AddRow(
+                WriteOperationMetadata(),
+                SequenceNumber::Latest,
+                &key,
+                &expectedValue);
+
+            addRowLatch.count_down();
+            co_await continueLatch;
+        });
+
+        auto operation2 = store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await addRowLatch;
+            co_await operation->AddRow(
+                WriteOperationMetadata(),
+                SequenceNumber::Latest,
+                &key,
+                &unexpectedValue);
+            continueLatch.count_down();
+        });
+
+        auto result = co_await cppcoro::when_all_ready(
+            move(operation1),
+            move(operation2));
+
+        ASSERT_NO_THROW(get<0>(result).result());
+        ASSERT_THROW(get<1>(result).result(), WriteConflict);
 
         ReadRequest readRequest;
         readRequest.Key = &key;

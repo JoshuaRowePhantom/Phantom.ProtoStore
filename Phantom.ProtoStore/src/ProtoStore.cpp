@@ -44,7 +44,7 @@ task<> ProtoStore::Open(
         header);
 }
 
-task<OperationOutcome> ProtoStore::ExecuteOperation(
+task<OperationResult> ProtoStore::ExecuteOperation(
     const BeginTransactionRequest beginRequest,
     OperationVisitor visitor
 )

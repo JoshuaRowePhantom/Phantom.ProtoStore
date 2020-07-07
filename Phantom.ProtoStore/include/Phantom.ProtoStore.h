@@ -304,7 +304,7 @@ class IOperationTransaction
 };
 
 typedef std::function<task<>(IWritableOperation*)> WritableOperationVisitor;
-typedef std::function<task<OperationOutcome>(IOperation*)> OperationVisitor;
+typedef std::function<task<>(IOperation*)> OperationVisitor;
 
 class IOperationProcessor
 {
@@ -315,11 +315,15 @@ public:
     ) = 0;
 };
 
+struct OperationResult
+{
+};
+
 class IProtoStore
     : public IReadableProtoStore
 {
 public:
-    virtual task<OperationOutcome> ExecuteOperation(
+    virtual task<OperationResult> ExecuteOperation(
         const BeginTransactionRequest beginRequest,
         OperationVisitor visitor
     ) = 0;

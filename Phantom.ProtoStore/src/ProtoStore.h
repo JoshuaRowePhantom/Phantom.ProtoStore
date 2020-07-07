@@ -27,7 +27,7 @@ public:
         const CreateProtoStoreRequest& openRequest
     );
 
-    virtual task<OperationOutcome> ExecuteOperation(
+    virtual task<OperationResult> ExecuteOperation(
         const BeginTransactionRequest beginRequest,
         OperationVisitor visitor
     ) override;
