@@ -256,8 +256,17 @@ struct WriteOperationMetadata
     LoggedOperationDisposition LoggedOperationDisposition = LoggedOperationDisposition::Unprocessed;
 };
 
+class ProtoStoreException
+    : public std::runtime_error 
+{
+};
+
 class WriteConflict
-    : public std::runtime_error
+    : public ProtoStoreException
+{};
+
+class UnresolvedTransactionConflict
+    : public ProtoStoreException
 {};
 
 class IWritableOperation

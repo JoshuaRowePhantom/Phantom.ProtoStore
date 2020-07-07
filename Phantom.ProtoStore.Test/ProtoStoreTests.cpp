@@ -186,4 +186,85 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
         readResult.Value.unpack(&actualValue);
     });
 }
-}
+
+TEST(ProtoStoreTests, Can_commit_transaction)
+{
+    run_async([]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        ProtoIndex index;
+        StringKey key;
+        key.set_value("testKey1");
+        StringValue expectedValue;
+        expectedValue.set_value("testValue1");
+        StringValue unexpectedValue;
+        unexpectedValue.set_value("testValue2");
+        TransactionId transactionId("transactionId1");
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            CreateIndexRequest createIndexRequest;
+            createIndexRequest.IndexName = "test_Index";
+            createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+            createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+            index = co_await operation->CreateIndex(
+                WriteOperationMetadata(),
+                createIndexRequest
+            );
+        });
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await operation->AddRow(
+                WriteOperationMetadata
+            {
+                .TransactionId = &transactionId,
+            },
+                SequenceNumber::Latest,
+                &key,
+                &expectedValue);
+        });
+
+        {
+            ReadRequest readRequest;
+            readRequest.Key = &key;
+            readRequest.Index = index;
+
+            ASSERT_THROW(
+                co_await store->Read(
+                    readRequest),
+                UnresolvedTransactionConflict);
+        }
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await operation->ResolveTransaction(
+                WriteOperationMetadata
+                {
+                    .TransactionId = &transactionId,
+                },
+                TransactionOutcome::Committed);
+        });
+
+        {
+            ReadRequest readRequest;
+            readRequest.Key = &key;
+            readRequest.Index = index;
+
+            auto readResult = co_await store->Read(
+                readRequest
+            );
+
+            StringValue actualValue;
+            readResult.Value.unpack(&actualValue);
+        }
+    });
+}}
