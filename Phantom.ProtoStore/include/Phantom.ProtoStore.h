@@ -12,240 +12,299 @@
 #include <type_traits>
 #include <variant>
 #include <cppcoro/task.hpp>
+#include <cppcoro/async_generator.hpp>
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
 #include <Phantom.System/pooled_ptr.h>
 
 namespace Phantom::ProtoStore 
 {
-    using cppcoro::task;
-    using google::protobuf::Message;
-    using std::shared_ptr;
-    using std::unique_ptr;
+using cppcoro::async_generator;
+using cppcoro::task;
+using google::protobuf::Message;
+using std::shared_ptr;
+using std::unique_ptr;
 
-    template<typename T>
-    concept IsMessage = std::is_convertible_v<T*, Message*>;
+template<typename T>
+concept IsMessage = std::is_convertible_v<T*, Message*>;
 
-    typedef std::string IndexName;
-    enum class SequenceNumber : std::uint64_t
+typedef std::string IndexName;
+enum class SequenceNumber : std::uint64_t
+{
+    Latest = std::numeric_limits<std::uint64_t>::max(),
+    LatestCommitted = Latest - 1,
+};
+
+typedef std::string TransactionId;
+
+class ProtoStore;
+class IMessageStore;
+
+class ProtoIndex
+{
+    class Impl;
+    Impl* m_pImpl;
+
+public:
+    ProtoStore* ProtoStore() const;
+    const IndexName& IndexName() const;
+};
+
+struct GetIndexRequest
+{
+    SequenceNumber SequenceNumber = SequenceNumber::Latest;
+    IndexName IndexName;
+};
+
+typedef std::vector<const google::protobuf::FieldDescriptor*> DescendingFieldPath;
+typedef std::set<DescendingFieldPath> DescendingFields;
+
+struct KeySchema
+{
+    google::protobuf::Descriptor* KeyDescriptor;
+
+    DescendingFields DescendingFields;
+};
+
+struct ValueSchema
+{
+    google::protobuf::Descriptor* ValueDescriptor;
+};
+
+struct CreateIndexRequest
+    : GetIndexRequest
+{
+    KeySchema KeySchema;
+    ValueSchema ValueSchema;
+};
+
+class ProtoValue
+{
+    typedef std::variant<
+        std::monostate,
+        std::span<const std::byte>,
+        std::vector<std::byte>
+    > message_data_type;
+
+    typedef std::variant<
+        std::monostate,
+        Message*,
+        unique_ptr<Message>
+    > message_type;
+
+public:
+    message_data_type message_data;
+    message_type message;
+
+    ProtoValue(
+        std::vector<std::byte> bytes)
+        :
+        message_data(move(bytes))
     {
-        Zero = 0,
-        Infinite = std::numeric_limits<std::uint64_t>::max(),
-    };
+    }
 
-    class ProtoStore;
-    class IMessageStore;
-
-    class ProtoIndex
+    ProtoValue(
+        std::vector<std::byte>&& bytes)
+        :
+        message_data(move(bytes))
     {
-        class Impl;
-        Impl* m_pImpl;
+    }
 
-    public:
-        ProtoStore* ProtoStore() const;
-        const IndexName& IndexName() const;
-    };
-
-    struct GetIndexRequest
+    ProtoValue(
+        std::span<const std::byte> bytes)
+        :
+        message_data(bytes)
     {
-        IndexName IndexName;
-    };
+    }
 
-    typedef std::vector<const google::protobuf::FieldDescriptor*> DescendingFieldPath;
-    typedef std::set<DescendingFieldPath> DescendingFields;
-
-    struct KeySchema
+    ProtoValue(
+        Message* message)
+        :
+        message(message)
     {
-        google::protobuf::Descriptor* KeyDescriptor;
+    }
 
-        DescendingFields DescendingFields;
-    };
+    operator Message && ();
+};
 
-    struct ValueSchema
-    {
-        google::protobuf::Descriptor* ValueDescriptor;
-    };
+struct WriteOperation
+{
+    ProtoIndex Index;
+    ProtoValue Key;
+    ProtoValue Value;
+    std::optional<SequenceNumber> OriginalSequenceNumber;
+    std::optional<SequenceNumber> ExpirationSequenceNumber;
+};
 
-    struct CreateIndexRequest
-        : GetIndexRequest
-    {
-        KeySchema KeySchema;
-        ValueSchema ValueSchema;
-    };
+enum class WriteRequestCommitBehavior
+{
+    Prepare,
+    Commit,
+};
 
-    class ProtoValue
-    {
-        typedef std::variant<
-            std::monostate,
-            std::span<const std::byte>,
-            std::vector<std::byte>
-        > message_data_type;
+struct ReadOperation
+{
+    ProtoIndex Index;
+    SequenceNumber SequenceNumber = SequenceNumber::Latest;
+    ProtoValue Key;
+};
 
-        typedef std::variant<
-            std::monostate,
-            Message*,
-            unique_ptr<Message>
-        > message_type;
+struct ReadRequest
+{
+};
 
-    public:
-        message_data_type message_data;
-        message_type message;
+struct ReadOperationResult
+{
+};
 
-        ProtoValue(
-            std::vector<std::byte> bytes)
-            :
-            message_data(move(bytes))
-        {
-        }
+struct ReadResult
+{
+    SequenceNumber SequenceNumber;
+};
 
-        ProtoValue(
-            std::vector<std::byte>&& bytes)
-            :
-            message_data(move(bytes))
-        {
-        }
+struct CommitTransactionRequest
+{
+    SequenceNumber SequenceNumber;
+};
 
-        ProtoValue(
-            std::span<const std::byte> bytes)
-            :
-            message_data(bytes)
-        {
-        }
+struct CommitTransactionResult
+{
+};
 
-        ProtoValue(
-            Message* message)
-            :
-            message(message)
-        {
-        }
+struct AbortTransactionRequest
+{
+    SequenceNumber SequenceNumber;
+};
 
-        operator Message && ();
-    };
+struct AbortTransactionResult
+{
+};
 
-    struct WriteOperation
-    {
-        ProtoIndex Index;
-        ProtoValue Key;
-        ProtoValue Value;
-        std::optional<SequenceNumber> OriginalSequenceNumber;
-        std::optional<SequenceNumber> ExpirationSequenceNumber;
-    };
+struct BeginTransactionRequest
+{
+    SequenceNumber MinimumWriteSequenceNumber;
+    SequenceNumber MinimumReadSequenceNumber;
+};
 
-    enum class WriteRequestCommitBehavior
-    {
-        Prepare,
-        Commit,
-    };
+struct CommitResult
+{};
 
-    struct WriteRequest
-    {
-        SequenceNumber SequenceNumber;
-        std::vector<WriteOperation> WriteOperations;
-        WriteRequestCommitBehavior CommitBehavior;
-    };
+class IReadableProtoStore
+{
+public:
+    virtual task<ProtoIndex> GetIndex(
+        const GetIndexRequest& getIndexRequest
+    ) = 0;
 
-    struct ReadOperation
-    {
-        ProtoIndex Index;
-        ProtoValue Key;
-    };
+    virtual task<ReadResult> Read(
+        ReadRequest& readRequest
+    ) = 0;
+};
 
-    struct ReadRequest
-    {
-        std::optional<SequenceNumber> SequenceNumber;
-        std::vector<ReadOperation> ReadOperations;
-    };
+enum class OperationOutcome {
+    Commit = 0,
+    Abort = 1,
+};
 
-    struct ReadResult
-    {
-    };
+enum class TransactionOutcome {
+    Committed = 0,
+    Aborted = 1,
+};
 
-    struct CommitTransactionRequest
-    {
-        SequenceNumber SequenceNumber;
-    };
+enum class LoggedOperationDisposition {
+    Processed = 0,
+    Unprocessed = 1,
+};
 
-    struct CommitTransactionResult
-    {
-    };
+class IWritableOperation
+{
+public:
+    virtual task<> AddLoggedAction(
+        const TransactionId& transactionId,
+        const Message* loggedAction,
+        LoggedOperationDisposition disposition
+    ) = 0;
 
-    struct AbortTransactionRequest
-    {
-        SequenceNumber SequenceNumber;
-    };
+    virtual task<> AddRow(
+        const TransactionId& transactionId,
+        SequenceNumber readSequenceNumber,
+        const ProtoValue& key,
+        const ProtoValue& value
+    ) = 0;
 
-    struct AbortTransactionResult
-    {
-    };
+    virtual task<> ResolveTransaction(
+        const TransactionId& transactionId,
+        TransactionOutcome outcome
+    ) = 0;
 
-    struct BeginTransactionRequest
-    {
-        SequenceNumber MinimumWriteSequenceNumber;
-        SequenceNumber MinimumReadSequenceNumber;
-    };
+    virtual task<ProtoIndex> CreateIndex(
+        const TransactionId& transactionId,
+        const CreateIndexRequest& createIndexRequest
+    ) = 0;
+};
 
-    struct BeginTransactionResult
-    {
-        SequenceNumber WriteSequenceNumber;
-        SequenceNumber ReadSequenceNumber;
-    };
+class IOperation
+    :
+    public IWritableOperation,
+    public IReadableProtoStore
+{
+public:
+};
 
-    class IProtoStore
-    {
-    public:
-        virtual task<BeginTransactionResult> BeginTransaction(
-            const BeginTransactionRequest beginRequest
-        ) = 0;
+class IOperationTransaction
+    :
+    public IOperation
+{
+    virtual task<CommitResult> Commit(
+    ) = 0;
+};
 
-        virtual task<CommitTransactionResult> CommitTransaction(
-            const CommitTransactionRequest& commitTransactionRequest
-        ) = 0;
+typedef std::function<task<>(IWritableOperation*)> WritableOperationVisitor;
+typedef std::function<task<OperationOutcome>(IOperation*)> OperationVisitor;
 
-        virtual task<AbortTransactionResult> AbortTransaction(
-            const AbortTransactionRequest& abortTransactionRequest
-        ) = 0;
+class IOperationProcessor
+{
+public:
+    virtual task<> ProcessOperation(
+        WritableOperationVisitor visitor
+    ) = 0;
+};
 
-        virtual task<ProtoIndex> CreateIndex(
-            const CreateIndexRequest& createIndexRequest
-        ) = 0;
+class IProtoStore
+    : public IReadableProtoStore
+{
+public:
+    virtual task<OperationOutcome> ExecuteOperation(
+        const BeginTransactionRequest beginRequest,
+        OperationVisitor visitor
+    ) = 0;
+};
 
-        virtual task<ProtoIndex> GetIndex(
-            const GetIndexRequest& getIndexRequest
-        ) = 0;
+class IExtentStore;
 
-        virtual task<void> Write(
-            const WriteRequest& writeRequest
-        ) = 0;
+struct OpenProtoStoreRequest
+{
+    std::function<task<shared_ptr<IExtentStore>>()> ExtentStore;
+    std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
+};
 
-        virtual task<ReadResult> Read(
-            const ReadRequest& readRequest
-        ) = 0;
-    };
+struct CreateProtoStoreRequest
+    : public OpenProtoStoreRequest
+{
+    size_t LogAlignment = 0;
+};
 
-    class IExtentStore;
+class IProtoStoreFactory
+{
+public:
+    virtual task<shared_ptr<IProtoStore>> Open(
+        const OpenProtoStoreRequest& openRequest
+    ) = 0;
 
-    struct OpenProtoStoreRequest
-    {
-        std::function<task<shared_ptr<IExtentStore>>()> ExtentStore;
-    };
+    virtual task<shared_ptr<IProtoStore>> Create(
+        const CreateProtoStoreRequest& openRequest
+    ) = 0;
+};
 
-    struct CreateProtoStoreRequest
-        : public OpenProtoStoreRequest
-    {
-        size_t LogAlignment = 0;
-    };
-
-    class IProtoStoreFactory
-    {
-    public:
-        virtual task<shared_ptr<IProtoStore>> Open(
-            const OpenProtoStoreRequest& openRequest
-        ) = 0;
-
-        virtual task<shared_ptr<IProtoStore>> Create(
-            const CreateProtoStoreRequest& openRequest
-        ) = 0;
-    };
-
-    shared_ptr<IProtoStoreFactory> MakeProtoStoreFactory();
+shared_ptr<IProtoStoreFactory> MakeProtoStoreFactory();
 }

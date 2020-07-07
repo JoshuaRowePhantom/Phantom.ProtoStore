@@ -44,28 +44,9 @@ task<> ProtoStore::Open(
         header);
 }
 
-task<BeginTransactionResult> ProtoStore::BeginTransaction(
-    const BeginTransactionRequest beginRequest)
-{
-    return task<BeginTransactionResult>();
-}
-
-task<CommitTransactionResult> ProtoStore::CommitTransaction(
-    const CommitTransactionRequest& commitTransactionRequest
-)
-{
-    throw 0;
-}
-
-task<AbortTransactionResult> ProtoStore::AbortTransaction(
-    const AbortTransactionRequest& abortTransactionRequest
-)
-{
-    throw 0;
-}
-
-task<ProtoIndex> ProtoStore::CreateIndex(
-    const CreateIndexRequest& createIndexRequest
+task<OperationOutcome> ProtoStore::ExecuteOperation(
+    const BeginTransactionRequest beginRequest,
+    OperationVisitor visitor
 )
 {
     throw 0;
@@ -78,15 +59,8 @@ task<ProtoIndex> ProtoStore::GetIndex(
     throw 0;
 }
 
-task<> ProtoStore::Write(
-    const WriteRequest& writeRequest
-)
-{
-    throw 0;
-}
-
 task<ReadResult> ProtoStore::Read(
-    const ReadRequest& readRequest
+    ReadRequest& readRequest
 )
 {
     throw 0;

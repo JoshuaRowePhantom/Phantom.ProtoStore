@@ -27,32 +27,17 @@ public:
         const CreateProtoStoreRequest& openRequest
     );
 
-    virtual task<BeginTransactionResult> BeginTransaction(
-        const BeginTransactionRequest beginRequest
-    ) override;
-
-    virtual task<CommitTransactionResult> CommitTransaction(
-        const CommitTransactionRequest& commitTransactionRequest
-    ) override;
-
-    virtual task<AbortTransactionResult> AbortTransaction(
-        const AbortTransactionRequest& abortTransactionRequest
-    ) override;
-
-    virtual task<ProtoIndex> CreateIndex(
-        const CreateIndexRequest& createIndexRequest
+    virtual task<OperationOutcome> ExecuteOperation(
+        const BeginTransactionRequest beginRequest,
+        OperationVisitor visitor
     ) override;
 
     virtual task<ProtoIndex> GetIndex(
         const GetIndexRequest& getIndexRequest
     ) override;
 
-    virtual task<void> Write(
-        const WriteRequest& writeRequest
-    ) override;
-
     virtual task<ReadResult> Read(
-        const ReadRequest& readRequest
+        ReadRequest& readRequest
     ) override;
 };
 }
