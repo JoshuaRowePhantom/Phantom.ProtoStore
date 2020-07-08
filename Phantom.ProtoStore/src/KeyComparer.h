@@ -30,25 +30,25 @@ private:
     template<IsOrderedBy<std::weak_ordering> T>
     std::weak_ordering CompareValues(
         const T& left,
-        const T& right);
+        const T& right    ) const;
 
     template<IsOrderedBy<std::strong_ordering> T>
         std::weak_ordering CompareValues(
             const T& left,
-            const T& right);
+            const T& right    ) const;
 
     template<IsOrderedBy<std::partial_ordering> T>
         std::weak_ordering CompareValues(
             const T& left,
-            const T& right);
+            const T& right    ) const;
     
     std::weak_ordering KeyComparer::CompareValues(
         const std::string& left,
-        const std::string& right);
+        const std::string& right    ) const;
 
     std::weak_ordering KeyComparer::CompareValues(
         const google::protobuf::Message& left,
-        const google::protobuf::Message& right);
+        const google::protobuf::Message& right    ) const;
 
     std::weak_ordering KeyComparer::CompareFields(
         const google::protobuf::Message* left,
@@ -56,7 +56,7 @@ private:
         const google::protobuf::Reflection* leftReflection,
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
-        const google::protobuf::FieldDescriptor* rightFieldDescriptor);
+        const google::protobuf::FieldDescriptor* rightFieldDescriptor    ) const;
 
     template<typename T>
     std::weak_ordering CompareFields(
@@ -66,7 +66,7 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<T> = compare_tag<T>());
+        compare_tag<T> = compare_tag<T>()    ) const;
 
     std::weak_ordering KeyComparer::CompareNonRepeatedFields(
         const google::protobuf::Message* left,
@@ -75,7 +75,7 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<std::string> tag);
+        compare_tag<std::string> tag    ) const;
 
     std::weak_ordering KeyComparer::CompareNonRepeatedFields(
         const google::protobuf::Message* left,
@@ -84,7 +84,7 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<google::protobuf::Message> tag);
+        compare_tag<google::protobuf::Message> tag    ) const;
 
     template<typename T>
     std::weak_ordering CompareNonRepeatedFields(
@@ -94,7 +94,7 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<T> = compare_tag<T>());
+        compare_tag<T> = compare_tag<T>()    ) const;
 
     template<typename T>
     std::weak_ordering CompareRepeatedFields(
@@ -104,11 +104,11 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<T> = compare_tag<T>());
+        compare_tag<T> = compare_tag<T>()    ) const;
 
     std::weak_ordering ApplySortOrder(
         SortOrder sortOrder,
-        std::weak_ordering value);
+        std::weak_ordering value    ) const;
 
 public:
     KeyComparer(
@@ -116,7 +116,7 @@ public:
 
     std::weak_ordering Compare(
         const google::protobuf::Message* value1,
-        const google::protobuf::Message* value2);
+        const google::protobuf::Message* value2    ) const;
 
 };
 

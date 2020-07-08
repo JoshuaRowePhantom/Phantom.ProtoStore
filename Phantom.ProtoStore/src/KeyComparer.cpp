@@ -26,7 +26,7 @@ KeyComparer::KeyComparer(
 
 std::weak_ordering KeyComparer::ApplySortOrder(
     SortOrder sortOrder,
-    std::weak_ordering value)
+    std::weak_ordering value) const
 {
     if (sortOrder == SortOrder::Ascending)
     {
@@ -38,7 +38,7 @@ std::weak_ordering KeyComparer::ApplySortOrder(
 
 std::weak_ordering KeyComparer::Compare(
     const Message* left,
-    const Message* right)
+    const Message* right) const
 {
     auto leftDescriptor = left->GetDescriptor();
     auto rightDescriptor = right->GetDescriptor();
@@ -80,7 +80,7 @@ std::weak_ordering KeyComparer::CompareFields(
     const Reflection* leftReflection,
     const Reflection* rightReflection,
     const FieldDescriptor* leftFieldDescriptor,
-    const FieldDescriptor* rightFieldDescriptor)
+    const FieldDescriptor* rightFieldDescriptor) const
 {
     assert(leftFieldDescriptor->number() == rightFieldDescriptor->number());
 
@@ -140,7 +140,7 @@ std::weak_ordering KeyComparer::CompareFields(
 template<IsOrderedBy<std::weak_ordering> T>
 std::weak_ordering KeyComparer::CompareValues(
     const T& left,
-    const T& right)
+    const T& right) const
 {
     return left <=> right;
 }
@@ -148,7 +148,7 @@ std::weak_ordering KeyComparer::CompareValues(
 template<IsOrderedBy<std::strong_ordering> T>
 std::weak_ordering KeyComparer::CompareValues(
     const T& left,
-    const T& right)
+    const T& right) const
 {
     return left <=> right;
 }
@@ -156,7 +156,7 @@ std::weak_ordering KeyComparer::CompareValues(
 template<IsOrderedBy<std::partial_ordering> T>
 std::weak_ordering KeyComparer::CompareValues(
     const T& left,
-    const T& right)
+    const T& right) const
 {
     auto result = left <=> right;
     if (result == std::partial_ordering::unordered
@@ -174,91 +174,91 @@ std::weak_ordering KeyComparer::CompareValues(
 
 std::weak_ordering KeyComparer::CompareValues(
     const std::string& left,
-    const std::string& right)
+    const std::string& right) const
 {
     return left.compare(right) <=> 0;
 }
 
 std::weak_ordering KeyComparer::CompareValues(
     const Message& left,
-    const Message& right)
+    const Message& right) const
 {
     return Compare(
         &left,
         &right);
 }
 
-auto GetFieldValue(
+static auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
     const FieldDescriptor* fieldDescriptor,
-    KeyComparer::compare_tag<int32>)
+    KeyComparer::compare_tag<int32>)
 {
     return reflection->GetInt32(
         *message,
         fieldDescriptor);
 }
 
-auto GetFieldValue(
+static auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
     const FieldDescriptor* fieldDescriptor,
-    KeyComparer::compare_tag<uint32>)
+    KeyComparer::compare_tag<uint32>)
 {
     return reflection->GetUInt32(
         *message,
         fieldDescriptor);
 }
 
-auto GetFieldValue(
+static auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
     const FieldDescriptor* fieldDescriptor,
-    KeyComparer::compare_tag<int64>)
+    KeyComparer::compare_tag<int64>)
 {
     return reflection->GetInt64(
         *message,
         fieldDescriptor);
 }
 
-auto GetFieldValue(
+static auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
     const FieldDescriptor* fieldDescriptor,
-    KeyComparer::compare_tag<uint64>)
+    KeyComparer::compare_tag<uint64>)
 {
     return reflection->GetUInt64(
         *message,
         fieldDescriptor);
 }
 
-auto GetFieldValue(
+static auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
     const FieldDescriptor* fieldDescriptor,
-    KeyComparer::compare_tag<double>)
+    KeyComparer::compare_tag<double>)
 {
     return reflection->GetDouble(
         *message,
         fieldDescriptor);
 }
 
-auto GetFieldValue(
+static auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
     const FieldDescriptor* fieldDescriptor,
-    KeyComparer::compare_tag<float>)
+    KeyComparer::compare_tag<float>)
 {
     return reflection->GetFloat(
         *message,
         fieldDescriptor);
 }
 
-auto GetFieldValue(
+static auto GetFieldValue(
     const Message* message,
     const Reflection* reflection,
     const FieldDescriptor* fieldDescriptor,
-    KeyComparer::compare_tag<bool>)
+    KeyComparer::compare_tag<bool>)
 {
     return reflection->GetBool(
         *message,
@@ -273,7 +273,7 @@ std::weak_ordering KeyComparer::CompareFields(
     const Reflection* rightReflection,
     const FieldDescriptor* leftFieldDescriptor,
     const FieldDescriptor* rightFieldDescriptor,
-    compare_tag<T> tag)
+    compare_tag<T> tag) const
 {
     if (leftFieldDescriptor->is_repeated())
     {
@@ -304,7 +304,7 @@ std::weak_ordering KeyComparer::CompareNonRepeatedFields(
     const Reflection* rightReflection,
     const FieldDescriptor* leftFieldDescriptor,
     const FieldDescriptor* rightFieldDescriptor,
-    compare_tag<string> tag)
+    compare_tag<string> tag) const
 {
     string leftStringCopy;
     auto& leftString = leftReflection->GetStringReference(
@@ -330,7 +330,7 @@ std::weak_ordering KeyComparer::CompareNonRepeatedFields(
     const Reflection* rightReflection,
     const FieldDescriptor* leftFieldDescriptor,
     const FieldDescriptor* rightFieldDescriptor,
-    compare_tag<Message> tag)
+    compare_tag<Message> tag) const
 {
     auto& leftMessage = leftReflection->GetMessage(
         *left,
@@ -355,7 +355,7 @@ std::weak_ordering KeyComparer::CompareNonRepeatedFields(
     const Reflection* rightReflection,
     const FieldDescriptor* leftFieldDescriptor,
     const FieldDescriptor* rightFieldDescriptor,
-    compare_tag<T> tag)
+    compare_tag<T> tag) const
 {
     auto leftValue = GetFieldValue(
         left,
@@ -382,7 +382,7 @@ std::weak_ordering KeyComparer::CompareRepeatedFields(
     const Reflection* rightReflection,
     const FieldDescriptor* leftFieldDescriptor,
     const FieldDescriptor* rightFieldDescriptor,
-    compare_tag<T> tag)
+    compare_tag<T> tag) const
 {
     auto leftRepeatedField = leftReflection->GetRepeatedFieldRef<T>(
         *left,
