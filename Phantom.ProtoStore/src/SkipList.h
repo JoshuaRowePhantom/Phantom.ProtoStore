@@ -154,13 +154,29 @@ private:
             return lastComparisonResult;
         }
 
+        void NavigateTo(
+            size_t level,
+            AtomicNextPointersType nextPointers,
+            Node* nextNode
+        )
+        {
+            m_value[level] =
+            {
+                nextPointers,
+                nextNode
+            };
+        }
+
         AtomicNextPointersType NextPointers(
-            size_t level)
+            size_t level
+        ) const
         {
             return std::get<AtomicNextPointersType>(m_value[level]);
         }
 
-        Node* NextNode(size_t level)
+        Node* NextNode(
+            size_t level
+        ) const
         {
             return std::get<Node*>(m_value[level]);
         }
@@ -240,15 +256,20 @@ public:
             m_head,
             m_comparer);
         
-        size_t level = MaxLevels;
-        do
         {
-            --level;
+            std::weak_ordering lastComparisonResult = std::weak_ordering::less;
 
-            auto lastComparisonResult = location.NavigateTo(
-                level + 1,
-                level,
-                key);
+            size_t level = MaxLevels;
+            do
+            {
+                --level;
+
+                lastComparisonResult = location.NavigateTo(
+                    level + 1,
+                    level,
+                    key);
+
+            } while (level != 0);
 
             // Any time we got an equivalent comparison,
             // it means the skip list contains the value and we should return.
@@ -256,12 +277,11 @@ public:
             {
                 return
                 {
-                    iterator(location.NextNode(level)),
+                    iterator(location),
                     false
                 };
             }
-
-        } while (level != 0);
+        }
 
         // Build a new node at a random level.
         auto newLevel = NewRandomLevel();
@@ -276,7 +296,7 @@ public:
         
         // Now hook this new node into the linked lists at each level
         // up to the randomly chosen level.
-        for (level = 0; level < newLevel; level++)
+        for (size_t level = 0; level < newLevel; level++)
         {
             do
             {
@@ -284,13 +304,13 @@ public:
                 // we did the original traversal.  Use that set
                 // of next pointers and expected next value.
                 auto expectedNextNode = location.NextNode(level);
-                auto prevousNextPointersAtLevel = location.NextPointers(level);
+                auto previousNextPointersAtLevel = location.NextPointers(level);
 
                 newNodeNextPointers[level].store(
                     expectedNextNode,
                     std::memory_order_relaxed);
 
-                if (prevousNextPointersAtLevel[level].compare_exchange_weak(
+                if (previousNextPointersAtLevel[level].compare_exchange_weak(
                     expectedNextNode,
                     newNode))
                 {
@@ -298,6 +318,12 @@ public:
                     // we've successfully committed the object to the list,
                     // so prevent the node from being deleted.
                     newNodeHolder.release();
+
+                    location.NavigateTo(
+                        level,
+                        previousNextPointersAtLevel,
+                        newNode);
+
                     break;
                 }
 
@@ -319,7 +345,7 @@ public:
 
                     return
                     {
-                        iterator(location.NextNode(level)),
+                        iterator(location),
                         false
                     };
                 }
@@ -328,7 +354,7 @@ public:
 
         return
         {
-            iterator(newNode),
+            iterator(location),
             true
         };
     }
@@ -351,13 +377,13 @@ public:
 
     class iterator
     {
-        Node* m_current;
+        FingerType m_finger;
         friend class SkipList;
         iterator(
-            Node* current)
-            :
-            m_current(current)
-        {}
+            const FingerType& finger)
+            : m_finger(finger)
+        {
+        }
 
     public:
 
@@ -369,43 +395,58 @@ public:
 
         reference operator*()
         {
-            return m_current->Item;
+            return m_finger.NextNode(0)->Item;
         }
 
         iterator& operator++()
         {
-            m_current = m_current->NextPointers()[0].load(
-                std::memory_order_acquire);
+            m_finger.NavigateTo(
+                0,
+                m_finger.NextNode(0)->NextPointers(),
+                m_finger.NextNode(0)->NextPointers()[0].load(
+                    std::memory_order_acquire)
+            );
             return *this;
         }
 
         value_type* operator->()
         {
-            return &m_current->Item;
+            return &m_finger.NextNode(0)->Item;
         }
 
         bool operator ==(
             const iterator& other)
         {
-            return other.m_current == m_current;
+            return other.m_finger.NextNode(0) == m_finger.NextNode(0);
         }
 
         bool operator !=(
             const iterator& other)
         {
-            return other.m_current != m_current;
+            return other.m_finger.NextNode(0) != m_finger.NextNode(0);
         }
     };
 
     iterator begin()
     {
-        return m_head[0].load(
-            std::memory_order_acquire);
+        auto finger = FingerType(
+            m_head,
+            m_comparer);
+
+        finger.NavigateTo(
+            0,
+            m_head.data(),
+            m_head[0].load(
+                std::memory_order_acquire));
+
+        return finger;
     }
 
     iterator end()
     {
-        return nullptr;
+        return FingerType(
+            m_head,
+            m_comparer);
     }
 };
 }
