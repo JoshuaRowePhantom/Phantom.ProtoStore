@@ -170,6 +170,9 @@ private:
             };
         }
 
+        // Navigate from m_head to just before the Node with
+        // the requested key.  This method always navigates
+        // at all levels.
         template<
             typename TSearchKey
         > std::weak_ordering NavigateTo(
