@@ -6,6 +6,7 @@
 #include <atomic>
 #include <compare>
 #include <iterator>
+#include <cppcoro/generator.hpp>
 #include <random>
 #include <tuple>
 #include <vector>
@@ -29,12 +30,17 @@ enum class SkipListAddResult
 };
 
 template<
-    typename TValue, 
+    typename TKey,
+    typename TValue,
     size_t MaxLevels,
     typename TComparer
 >
 class SkipList
 {
+public:
+    class iterator;
+    typedef std::pair<const TKey, TValue> value_type;
+private:
     struct Node;
     struct NextPointers;
     typedef std::atomic<Node*> AtomicNextPointer;
@@ -46,27 +52,38 @@ class SkipList
     struct Node
     {
         template <
+            typename TConstructedKey,
             typename TConstructedValue
         > static Node* Allocate(
             size_t level,
+            TConstructedKey&& key,
             TConstructedValue&& value
         )
         {
             std::unique_ptr<char[]> nodeCharArray = make_unique<char[]>(
                 sizeof(Node) + sizeof(AtomicNextPointer) * level);
             auto result = reinterpret_cast<Node*>(nodeCharArray.get());
-            new(result)Node(std::forward<TConstructedValue>(value));
+            new(result)Node(
+                std::forward<TConstructedKey>(key),
+                std::forward<TConstructedValue>(value));
             nodeCharArray.release();
             return result;
         }
 
-        template <typename TConstructedValue>
-        Node(
+        template <
+            typename TConstructedKey,
+            typename TConstructedValue
+        > Node(
+            TConstructedKey&& key,
             TConstructedValue&& value)
-            : Value(std::forward<TConstructedValue>(value))
+            : 
+            Item(
+                std::forward<TConstructedKey>(key),
+                std::forward<TConstructedValue>(value)
+            )
         {}
 
-        TValue Value;
+        value_type Item;
 
         SkipList::NextPointers NextPointers()
         {
@@ -116,6 +133,35 @@ class SkipList
 
 public:
     SkipList(
+        const SkipList&
+    ) = delete;
+
+    SkipList(
+        SkipList&& other
+    )
+        : m_comparer(std::move(other.m_comparer))
+    {
+        std::swap(m_head, other.m_head);
+    }
+
+    SkipList& operator =(
+        const SkipList&
+        ) = delete;
+
+    SkipList& operator =(
+        SkipList&& other
+        )
+    {
+        if (&other == this)
+        {
+            return *this;
+        }
+
+        m_comparer = std::move(other.m_comparer);
+        std::swap(m_head, other.m_head);
+    }
+
+    SkipList(
         TComparer comparer = TComparer()
     )
         :
@@ -146,11 +192,11 @@ public:
     }
 
     template<
-        typename TSearchValue
-    >
-    SkipListAddResult Add(
-        TSearchValue&& value,
-        SkipListReplaceAction replaceAction
+        typename TSearchKey,
+        typename TAddValue
+    > std::pair<iterator, bool> insert(
+        TSearchKey&& key,
+        TAddValue&& value
     )
     {
         // We follow the algorithm described by the SkipList authors.
@@ -175,7 +221,7 @@ public:
 
                 if (nextAtLevel == nullptr
                     ||
-                    (lastComparisonResult = m_comparer(nextAtLevel->Value, value)) != std::weak_ordering::less)
+                    (lastComparisonResult = m_comparer(nextAtLevel->Item.first, key)) != std::weak_ordering::less)
                 {
                     break;
                 }
@@ -184,12 +230,15 @@ public:
 
             } while (true);
 
-            // Any time we got an equivalent comparison, and DontReplace is in effect,
+            // Any time we got an equivalent comparison,
             // it means the skip list contains the value and we should return.
-            if (replaceAction == SkipListReplaceAction::DontReplace
-                && lastComparisonResult == std::weak_ordering::equivalent)
+            if (lastComparisonResult == std::weak_ordering::equivalent)
             {
-                return SkipListAddResult::NotReplaced;
+                return
+                {
+                    iterator(nextAtLevel),
+                    false
+                };
             }
 
             location[level] = std::make_tuple(
@@ -198,24 +247,13 @@ public:
 
         } while (level != 0);
 
-        // If we reach here with an equivalent comparison, then
-        // the policy must've been Replace, so do the replacement.
-        // If the policy wasn't replace, we would've returned above.
-        if (lastComparisonResult == std::weak_ordering::equivalent)
-        {
-            assert(replaceAction == SkipListReplaceAction::Replace);
-
-            get<Node*>(location[0])->Value.operator=(
-                std::forward<TSearchValue>(value));
-            return SkipListAddResult::Replaced;
-        }
-
         // Build a new node at a random level.
         auto newLevel = NewRandomLevel();
 
         std::unique_ptr<Node> newNodeHolder = unique_ptr<Node>(Node::Allocate(
             newLevel,
-            std::forward<TSearchValue>(value)));
+            std::forward<TSearchKey>(key),
+            std::forward<TAddValue>(value)));
 
         Node* newNode = newNodeHolder.get();
         auto newNodeNextPointers = newNode->NextPointers();
@@ -262,7 +300,7 @@ public:
                     // because "value" might have std::moved to the newNode->Value.
                     if (nextAtLevel == nullptr
                         ||
-                        (lastComparisonResult = m_comparer(nextAtLevel->Value, newNode->Value)) != std::weak_ordering::less)
+                        (lastComparisonResult = m_comparer(nextAtLevel->Item.first, newNode->Item.first)) != std::weak_ordering::less)
                     {
                         break;
                     }
@@ -276,33 +314,49 @@ public:
                     nextAtLevel);
 
                 // On level 0, it's possible that a newly inserted node
-                // has the same value.  We check for that.
+                // has the same key.  We check for that.
                 if (lastComparisonResult == std::weak_ordering::equivalent)
                 {
                     assert(level == 0);
                     assert(newNodeHolder);
 
-                    if (replaceAction == SkipListReplaceAction::Replace)
+                    return
                     {
-                        nextAtLevel->Value = std::move(newNodeHolder->Value);
-                        return SkipListAddResult::Replaced;
-                    }
-                    else
-                    {
-                        return SkipListAddResult::NotReplaced;
-                    }
+                        iterator(nextAtLevel),
+                        false
+                    };
                 }
             } while (true);
         }
 
-        return SkipListAddResult::Added;
+        return
+        {
+            iterator(newNode),
+            true
+        };
     }
 
-    class Iterator
+    template<
+        typename TKey,
+        typename TKeyGenerator,
+        typename TKeyComparer
+    > cppcoro::generator<std::tuple<const TKey&, TValue*>> Enumerate(
+            const TKeyGenerator& keyGenerator,
+            TKeyComparer keyComparer
+        )
+    {
+        for (const auto& key : keyGenerator)
+        {
+
+        }
+        co_return;
+    }
+
+    class iterator
     {
         Node* m_current;
         friend class SkipList;
-        Iterator(
+        iterator(
             Node* current)
             :
             m_current(current)
@@ -311,43 +365,48 @@ public:
     public:
 
         using difference_type = std::ptrdiff_t;
-        using value_type = std::ptrdiff_t;
-        using pointer = const TValue*;
-        using reference = const TValue&;
+        using value_type = SkipList::value_type;
+        using pointer = value_type*;
+        using reference = value_type&;
         using iterator_category = std::forward_iterator_tag;
 
         reference operator*()
         {
-            return m_current->Value;
+            return m_current->Item;
         }
 
-        Iterator& operator++()
+        iterator& operator++()
         {
             m_current = m_current->NextPointers()[0].load(
                 std::memory_order_acquire);
             return *this;
         }
 
+        value_type* operator->()
+        {
+            return &m_current->Item;
+        }
+
         bool operator ==(
-            const Iterator& other)
+            const iterator& other)
         {
             return other.m_current == m_current;
         }
 
         bool operator !=(
-            const Iterator& other)
+            const iterator& other)
         {
             return other.m_current != m_current;
         }
     };
 
-    Iterator begin()
+    iterator begin()
     {
         return m_head[0].load(
             std::memory_order_acquire);
     }
 
-    Iterator end()
+    iterator end()
     {
         return nullptr;
     }

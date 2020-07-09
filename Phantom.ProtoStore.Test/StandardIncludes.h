@@ -14,3 +14,10 @@ using google::protobuf::util::MessageDifferencer;
 std::function<task<shared_ptr<IExtentStore>>()> UseMemoryExtentStore();
 
 }
+
+
+#ifdef NDEBUG
+#define PerformanceTest(name) name
+#else
+#define PerformanceTest(name) DISABLED_ ## name
+#endif

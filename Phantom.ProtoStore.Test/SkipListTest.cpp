@@ -31,31 +31,41 @@ struct WeakComparer
 
 TEST(SkipListTests, Can_add_distinct_strings)
 {
-    SkipList<std::string, 32, WeakComparer<std::string>> skipList;
+    SkipList<std::string, int, 32, WeakComparer<std::string>> skipList;
     
-    ASSERT_EQ(SkipListAddResult::Added, skipList.Add(
+    auto insert1 = skipList.insert(
         "a",
-        SkipListReplaceAction::DontReplace
-    ));
+        1
+    );
 
-    ASSERT_EQ(SkipListAddResult::Added, skipList.Add(
+    ASSERT_EQ("a", insert1.first->first);
+    ASSERT_EQ(1, insert1.first->second);
+    ASSERT_EQ(true, insert1.second);
+
+    auto insert2 = skipList.insert(
         "c",
-        SkipListReplaceAction::DontReplace
-    ));
+        3);
 
-    ASSERT_EQ(SkipListAddResult::Added, skipList.Add(
+    ASSERT_EQ("c", insert2.first->first);
+    ASSERT_EQ(3, insert2.first->second);
+    ASSERT_EQ(true, insert2.second);
+
+    auto insert3 = skipList.insert(
         "b",
-        SkipListReplaceAction::DontReplace
-    ));
+        2);
 
-    vector<string> expectedValues
+    ASSERT_EQ("b", insert3.first->first);
+    ASSERT_EQ(2, insert3.first->second);
+    ASSERT_EQ(true, insert3.second);
+
+    vector<pair<const string, int>> expectedValues
     {
-        "a",
-        "b",
-        "c",
+        make_pair("a", 1),
+        make_pair("b", 2),
+        make_pair("c", 3),
     };
 
-    vector<string> actualValues(
+    vector<pair<const string, int>> actualValues(
         skipList.begin(),
         skipList.end());
 
@@ -163,51 +173,48 @@ struct ReentrantValue
 
 TEST(SkipListTests, Can_add_values_reentrantly)
 {
-    SkipList<ReentrantValue, 32, WeakComparer<ReentrantValue>> skipList;
+    SkipList<ReentrantValue, int, 32, WeakComparer<ReentrantValue>> skipList;
 
     auto reentrantLambda = [&]
     {
-        skipList.Add(string("b"), SkipListReplaceAction::DontReplace);
-        skipList.Add(string("c"), SkipListReplaceAction::DontReplace);
+        skipList.insert(string("b"), 2);
+        skipList.insert(string("c"), 3);
     };
 
-    ASSERT_EQ(SkipListAddResult::Added, skipList.Add(
+    skipList.insert(
         string("a"),
-        SkipListReplaceAction::DontReplace
-    ));
+        1);
 
-    ASSERT_EQ(SkipListAddResult::Added, skipList.Add(
+    skipList.insert(
         string("e"),
-        SkipListReplaceAction::DontReplace
-    ));
+        5);
 
-    ASSERT_EQ(SkipListAddResult::Added, skipList.Add(
+    skipList.insert(
         ReentrantValue(
             string("d"),
             reentrantLambda,
             1),
-        SkipListReplaceAction::DontReplace
-    ));
+        4);
 
-    vector<string> expectedValues
+    vector<pair<string, int>> expectedValues
     {
-        "a",
-        "b",
-        "c",
-        "d",
-        "e",
+        {"a", 1},
+        {"b", 2},
+        {"c", 3},
+        {"d", 4},
+        {"e", 5},
     };
 
-    vector<string> actualValues(
+    vector<pair<string, int>> actualValues(
         skipList.begin(),
         skipList.end());
 
     ASSERT_EQ(expectedValues, actualValues);
 }
 
-TEST(SkipListPerformanceTests, DISABLED_Performance_1)
+TEST(SkipListPerformanceTests, PerformanceTest(Perf1))
 {
-    vector<string> allValues;
+    vector<pair<string, int>> allValues;
     int valueCountPerThread = 1000000;
     int threadCount = 4;
     vector<thread> threads;
@@ -224,15 +231,18 @@ TEST(SkipListPerformanceTests, DISABLED_Performance_1)
             randomString[stringIndex] = distribution(rng);
         }
         allValues.push_back(
-            randomString);
+            {
+                randomString,
+                distribution(rng)
+            });
     }
 
-    vector<string> expectedValues = allValues;
+    vector<pair<string, int>> expectedValues = allValues;
     std::sort(
         expectedValues.begin(),
         expectedValues.end());
 
-    SkipList<string, 32, WeakComparer<string>> skipList;
+    SkipList<string, int, 32, WeakComparer<string>> skipList;
 
     for (int threadCounter = 0; threadCounter < threadCount; threadCounter++)
     {
@@ -242,11 +252,9 @@ TEST(SkipListPerformanceTests, DISABLED_Performance_1)
             auto end = allValues.begin() + threadCounter * valueCountPerThread + valueCountPerThread;
             for (auto value = begin; value != end; value++)
             {
-                ASSERT_EQ(
-                    SkipListAddResult::Added,
-                    skipList.Add(
-                        move(*value),
-                        SkipListReplaceAction::DontReplace));
+                skipList.insert(
+                    move(value->first),
+                    value->second);
             }
         };
 
@@ -267,7 +275,7 @@ TEST(SkipListPerformanceTests, DISABLED_Performance_1)
 
     std::cout << "SkipListPerformanceTests runtime: " << runtimeMs.count() << "\r\n";
 
-    vector<string> actualValues(
+    vector<pair<string, int>> actualValues(
         skipList.begin(),
         skipList.end());
 
@@ -275,4 +283,5 @@ TEST(SkipListPerformanceTests, DISABLED_Performance_1)
         expectedValues,
         actualValues);
 }
+
 }
