@@ -115,9 +115,11 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
     }
 
     auto insertionPoint = skipList.begin();
+    int insertionValue;
 
     auto doFindOperations = [&]()
     {
+        insertionValue;
         for (int value = 0; value < 100; value += 2)
         {
             auto findResult = skipList.find(value, insertionPoint);
@@ -151,9 +153,9 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
 
     doFindOperations();
 
-    for (int value = 0; value < 100; value += 2)
+    for (insertionValue = 0; insertionValue < 100; insertionValue += 2)
     {
-        auto insertResult = skipList.insert(value, value);
+        auto insertResult = skipList.insert(insertionValue, insertionValue);
         ASSERT_EQ(true, insertResult.first);
         ASSERT_EQ(false, insertResult.second);
         insertionPoint = insertResult.first;

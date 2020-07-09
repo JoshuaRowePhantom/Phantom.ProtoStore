@@ -117,7 +117,7 @@ private:
             size_t level,
             const TSearchKey& key)
         {
-            auto nextPointers = 
+            auto nextPointers =
                 previousLevel >= MaxLevels
                 ?
                 nullptr
@@ -152,11 +152,10 @@ private:
 
             } while (true);
 
-            m_value[level] =
-            {
+            NavigateTo(
+                level,
                 nextPointers,
-                nextNode,
-            };
+                nextNode);
 
             return lastComparisonResult;
         }
@@ -195,6 +194,79 @@ private:
                     key);
 
             } while (level != 0);
+
+            return lastComparisonResult;
+        }
+
+        // Navigate from m_head to just before the Node with
+        // the requested key.  This method uses the current
+        // finger as a hint for navigation, starting
+        // from the lowest level and working upward.
+        template<
+            typename TSearchKey
+        > std::weak_ordering NavigateToWithHint(
+            const TSearchKey& key)
+        {
+            std::weak_ordering lastComparisonResult = std::weak_ordering::greater;
+
+            size_t level = 1;
+
+            if (NextNode(0) == nullptr
+                ||
+                (lastComparisonResult = (*m_comparer)(NextNode(0)->Item.first, key)) == std::weak_ordering::less)
+            {
+                // Navigate upward and forward.
+                while (level < MaxLevels)
+                {
+                    auto nextNode = NextNode(level);
+                    if (!nextNode)
+                    {
+                        break;
+                    }
+
+                    auto nextNextPointers = nextNode->NextPointers();
+                    auto nextNextNode = nextNextPointers[level].load(
+                        std::memory_order_acquire);
+                    if (nextNextNode == nullptr)
+                    {
+                        break;
+                    }
+
+                    if ((lastComparisonResult = (*m_comparer)(nextNextNode->Item.first, key)) != std::weak_ordering::less)
+                    {
+                        break;
+                    }
+
+                    level++;
+                }
+            }
+            else
+            {
+                // Navigate upward and backward.
+                while (level < MaxLevels)
+                {
+                    auto nextNode = NextNode(level);
+
+                    if (nextNode != nullptr
+                        &&
+                        (lastComparisonResult = (*m_comparer)(nextNode->Item.first, key)) == std::weak_ordering::less)
+                    {
+                        break;
+                    }
+
+                    ++level;
+                }
+
+            }
+
+            // Navigate downward
+            do
+            {
+                lastComparisonResult = NavigateTo(
+                    level,
+                    level - 1,
+                    key);
+            } while (--level > 0);
 
             return lastComparisonResult;
         }
@@ -405,12 +477,7 @@ public:
         const TSearchKey& key,
         iterator& finger)
     {
-        auto findResult = find(
-            key);
-
-        finger = findResult.first;
-
-        return findResult.second;
+        return finger.m_finger.NavigateToWithHint(key);
     }
 
     // find the value at or just before the key,
