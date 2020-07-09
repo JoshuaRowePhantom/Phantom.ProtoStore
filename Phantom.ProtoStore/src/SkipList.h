@@ -99,6 +99,10 @@ private:
         const TComparer* m_comparer;
         Container m_value;
 
+        // Construct an invalid instance.
+        FingerType()
+        {}
+
         FingerType(
             FullAtomicNextPointersType* head,
             const TComparer* comparer
@@ -445,6 +449,10 @@ public:
         using pointer = value_type*;
         using reference = value_type&;
         using iterator_category = std::forward_iterator_tag;
+
+        // Construct an invalid instance
+        iterator()
+        {}
 
         reference operator*()
         {
