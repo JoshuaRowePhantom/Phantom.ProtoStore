@@ -153,6 +153,10 @@ public:
         SkipListReplaceAction replaceAction
     )
     {
+        // We follow the algorithm described by the SkipList authors.
+        // Collect all the pointers to the sets of next pointers and resulting next node
+        // for each level, choosing the set of next pointers that is just before
+        // the node with the value we are looking for.
         FullNextPointersType location;
         NextPointers currentNextPointers = m_head.data();
         std::weak_ordering lastComparisonResult = std::weak_ordering::less;
@@ -180,6 +184,8 @@ public:
 
             } while (true);
 
+            // Any time we got an equivalent comparison, and DontReplace is in effect,
+            // it means the skip list contains the value and we should return.
             if (replaceAction == SkipListReplaceAction::DontReplace
                 && lastComparisonResult == std::weak_ordering::equivalent)
             {
@@ -192,13 +198,19 @@ public:
 
         } while (level != 0);
 
+        // If we reach here with an equivalent comparison, then
+        // the policy must've been Replace, so do the replacement.
+        // If the policy wasn't replace, we would've returned above.
         if (lastComparisonResult == std::weak_ordering::equivalent)
         {
+            assert(replaceAction == SkipListReplaceAction::Replace);
+
             get<Node*>(location[0])->Value.operator=(
                 std::forward<TSearchValue>(value));
             return SkipListAddResult::Replaced;
         }
 
+        // Build a new node at a random level.
         auto newLevel = NewRandomLevel();
 
         std::unique_ptr<Node> newNodeHolder = unique_ptr<Node>(Node::Allocate(
@@ -208,10 +220,15 @@ public:
         Node* newNode = newNodeHolder.get();
         auto newNodeNextPointers = newNode->NextPointers();
         
+        // Now hook this new node into the linked lists at each level
+        // up to the randomly chosen level.
         for (level = 0; level < newLevel; level++)
         {
             do
             {
+                // We already figured out what the next node should be when
+                // we did the original traversal.  Use that set
+                // of next pointers and expected next value.
                 auto expectedNextNode = get<Node*>(location[level]);
 
                 newNodeNextPointers[level].store(
@@ -232,7 +249,7 @@ public:
                 }
 
                 // Hm, the old next node changed underneath us.
-                // Advance to the new next node.
+                // Advance to the new next node and try again.
                 lastComparisonResult = std::weak_ordering::less;
                 Node* nextAtLevel;
 

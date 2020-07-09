@@ -205,7 +205,7 @@ TEST(SkipListTests, Can_add_values_reentrantly)
     ASSERT_EQ(expectedValues, actualValues);
 }
 
-TEST(SkipListPerformanceTests, Performance_1)
+TEST(SkipListPerformanceTests, DISABLED_Performance_1)
 {
     vector<string> allValues;
     int valueCountPerThread = 1000000;
