@@ -194,7 +194,8 @@ public:
 
         if (lastComparisonResult == std::weak_ordering::equivalent)
         {
-            get<Node*>(location[0])->Value = value;
+            get<Node*>(location[0])->Value.operator=(
+                std::forward<TSearchValue>(value));
             return SkipListAddResult::Replaced;
         }
 
