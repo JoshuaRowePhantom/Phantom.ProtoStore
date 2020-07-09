@@ -31,7 +31,7 @@ struct WeakComparer
 
 TEST(SkipListTests, insert_distinct_strings)
 {
-    SkipList<std::string, int, 32, WeakComparer<std::string>> skipList;
+    SkipList<std::string, int, 4, WeakComparer<std::string>> skipList;
     
     auto insert1 = skipList.insert(
         "a",

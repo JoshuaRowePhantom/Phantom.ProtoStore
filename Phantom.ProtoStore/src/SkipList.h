@@ -85,40 +85,86 @@ private:
 
         value_type Item;
 
-        SkipList::NextPointers NextPointers()
+        AtomicNextPointersType NextPointers()
         {
-            return SkipList::NextPointers(
-                reinterpret_cast<AtomicNextPointersType>(this + 1));
+            return reinterpret_cast<AtomicNextPointersType>(this + 1);
         }
     };
 
-    struct NextPointers
+    struct FingerType
     {
-    private:
-        AtomicNextPointersType Value;
+        typedef std::array<std::tuple<AtomicNextPointersType, Node*>, MaxLevels> Container;
 
-    public:
-        NextPointers(){}
+        FullAtomicNextPointersType& m_head;
+        const TComparer& m_comparer;
+        Container m_value;
 
-        NextPointers(
-            AtomicNextPointersType value
-        )
-            : Value(value)
+        FingerType(
+            FullAtomicNextPointersType& head,
+            const TComparer& comparer
+        ) : 
+            m_head(head),
+            m_comparer(comparer)
         {}
 
-        AtomicNextPointer& operator[](
-            size_t index)
+        template<typename TSearchKey>
+        std::weak_ordering NavigateTo(
+            size_t previousLevel,
+            size_t level,
+            const TSearchKey& key)
         {
-            return Value[index];
+            auto nextPointers = 
+                previousLevel >= MaxLevels
+                ?
+                nullptr
+                :
+                NextPointers(
+                    previousLevel);
+
+            if (!nextPointers)
+            {
+                nextPointers = m_head.data();
+            }
+
+            std::weak_ordering lastComparisonResult = std::weak_ordering::less;
+            Node* nextNode;
+
+            do
+            {
+                nextNode = nextPointers[level].load(
+                    std::memory_order_acquire);
+
+                if (nextNode == nullptr
+                    ||
+                    (lastComparisonResult = m_comparer(nextNode->Item.first, key)) != std::weak_ordering::less)
+                {
+                    break;
+                }
+
+                nextPointers = nextNode->NextPointers();
+
+            } while (true);
+
+            m_value[level] =
+            {
+                nextPointers,
+                nextNode,
+            };
+
+            return lastComparisonResult;
         }
 
-        Node* NodePointer()
+        AtomicNextPointersType NextPointers(
+            size_t level)
         {
-            return reinterpret_cast<Node*>(Value) - 1;
+            return std::get<AtomicNextPointersType>(m_value[level]);
+        }
+
+        Node* NextNode(size_t level)
+        {
+            return std::get<Node*>(m_value[level]);
         }
     };
-
-    typedef std::array<std::tuple<NextPointers, Node*>, MaxLevels> FullNextPointersType;
 
     FullAtomicNextPointersType m_head;
     std::geometric_distribution<size_t> m_randomDistribution;
@@ -190,32 +236,19 @@ public:
         // Collect all the pointers to the sets of next pointers and resulting next node
         // for each level, choosing the set of next pointers that is just before
         // the node with the value we are looking for.
-        FullNextPointersType location;
-        NextPointers currentNextPointers = m_head.data();
-        std::weak_ordering lastComparisonResult = std::weak_ordering::less;
+        FingerType location(
+            m_head,
+            m_comparer);
         
         size_t level = MaxLevels;
         do
         {
             --level;
 
-            Node* nextAtLevel;
-
-            do
-            {
-                nextAtLevel = currentNextPointers[level].load(
-                    std::memory_order_acquire);
-
-                if (nextAtLevel == nullptr
-                    ||
-                    (lastComparisonResult = m_comparer(nextAtLevel->Item.first, key)) != std::weak_ordering::less)
-                {
-                    break;
-                }
-
-                currentNextPointers = nextAtLevel->NextPointers();
-
-            } while (true);
+            auto lastComparisonResult = location.NavigateTo(
+                level + 1,
+                level,
+                key);
 
             // Any time we got an equivalent comparison,
             // it means the skip list contains the value and we should return.
@@ -223,14 +256,10 @@ public:
             {
                 return
                 {
-                    iterator(nextAtLevel),
+                    iterator(location.NextNode(level)),
                     false
                 };
             }
-
-            location[level] = std::make_tuple(
-                currentNextPointers,
-                nextAtLevel);
 
         } while (level != 0);
 
@@ -254,15 +283,14 @@ public:
                 // We already figured out what the next node should be when
                 // we did the original traversal.  Use that set
                 // of next pointers and expected next value.
-                auto expectedNextNode = get<Node*>(location[level]);
+                auto expectedNextNode = location.NextNode(level);
+                auto prevousNextPointersAtLevel = location.NextPointers(level);
 
                 newNodeNextPointers[level].store(
                     expectedNextNode,
                     std::memory_order_relaxed);
 
-                currentNextPointers = get<NextPointers>(location[level]);
-
-                if (currentNextPointers[level].compare_exchange_weak(
+                if (prevousNextPointersAtLevel[level].compare_exchange_weak(
                     expectedNextNode,
                     newNode))
                 {
@@ -275,30 +303,12 @@ public:
 
                 // Hm, the old next node changed underneath us.
                 // Advance to the new next node and try again.
-                lastComparisonResult = std::weak_ordering::less;
-                Node* nextAtLevel;
-
-                do
-                {
-                    nextAtLevel = currentNextPointers[level].load(
-                        std::memory_order_acquire);
-
-                    // Make sure to do the comparison using the newNode->Value, 
-                    // because "value" might have std::moved to the newNode->Value.
-                    if (nextAtLevel == nullptr
-                        ||
-                        (lastComparisonResult = m_comparer(nextAtLevel->Item.first, newNode->Item.first)) != std::weak_ordering::less)
-                    {
-                        break;
-                    }
-
-                    currentNextPointers = nextAtLevel->NextPointers();
-
-                } while (lastComparisonResult == std::weak_ordering::less);
-
-                location[level] = std::make_tuple(
-                    currentNextPointers,
-                    nextAtLevel);
+                // Make sure to do the comparison using the newNode->Value, 
+                // because "value" might have std::moved to the newNode->Value.
+                auto lastComparisonResult = location.NavigateTo(
+                    level,
+                    level,
+                    newNode->Item.first);
 
                 // On level 0, it's possible that a newly inserted node
                 // has the same key.  We check for that.
@@ -309,7 +319,7 @@ public:
 
                     return
                     {
-                        iterator(nextAtLevel),
+                        iterator(location.NextNode(level)),
                         false
                     };
                 }
