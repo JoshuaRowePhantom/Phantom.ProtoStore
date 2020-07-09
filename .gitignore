@@ -2,3 +2,6 @@
 /out
 /.vs
 /TestResults
+*.pmap
+/**/*.toolbox/.settings
+/**/*.toolbox/.project

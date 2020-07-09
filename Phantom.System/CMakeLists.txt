@@ -4,9 +4,10 @@ find_package(cppcoro CONFIG REQUIRED)
 add_library (
 	Phantom.System
 	STATIC
+	"pooled_ptr.h" 
 	"ThreadingProvider.cpp"
 	"ThreadingProvider.h" 
-	"pooled_ptr.h" "utility.h")
+	"utility.h" )
 
 target_link_libraries(
 	Phantom.System

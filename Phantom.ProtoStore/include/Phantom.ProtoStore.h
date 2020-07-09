@@ -250,6 +250,11 @@ enum class LoggedOperationDisposition {
     Unprocessed = 1,
 };
 
+enum class Inclusivity {
+    Inclusive = 0,
+    Exclusive = 1,
+};
+
 struct WriteOperationMetadata
 {
     const TransactionId* TransactionId = nullptr;

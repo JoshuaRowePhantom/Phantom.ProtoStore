@@ -27,7 +27,9 @@ add_library (
     "src/KeyComparer.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
+    "src/MemoryTable.cpp"
     "src/MemoryTable.h"
+    "src/MemoryTableImpl.h"
     "src/MessageStore.cpp"
     "src/MessageStore.h" 
     "src/MessageStoreImpl.h"
@@ -42,7 +44,7 @@ add_library (
     "src/StandardTypes.h"
     "include/Phantom.ProtoStore.h"
     ${PROTOC_CPP}
-    ${PROTOC_H})
+    ${PROTOC_H} "src/SkipList.h" "src/SkipList.cpp")
     
     
 target_include_directories(

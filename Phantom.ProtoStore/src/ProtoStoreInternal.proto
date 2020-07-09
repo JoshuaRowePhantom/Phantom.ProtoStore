@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/descriptor.proto";
+import "ProtoStore.proto";
 
 package Phantom.ProtoStore;
 
@@ -32,4 +33,27 @@ message LogRecord {
 	repeated LoggedRowWrite Rows = 2;
 	// Most log records don't have extras, so put them in another message.
 	LogRecordExtras Extras = 3;
+}
+
+message InternalKeyPrefixMetadata {
+}
+
+message InternalKeySuffixMetadata {
+	uint64 SequenceNumber = 1 [(FieldOptions) = {
+		SortOrder: Descending;
+	}];
+}
+
+message InternalKey {
+	bytes KeyMessage = 20;
+
+	uint64 SequenceNumber = 30 [(FieldOptions) = {
+		SortOrder: Descending;
+	}];
+}
+
+message InternalValue {
+	oneof Value {
+		bytes ValueMessage = 20;
+    }
 }
