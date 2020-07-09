@@ -72,6 +72,39 @@ TEST(SkipListTests, insert_distinct_strings)
     ASSERT_EQ(expectedValues, actualValues);
 }
 
+TEST(SkipListTests, can_find_without_finger)
+{
+    SkipList<int, int, 8, WeakComparer<int>> skipList;
+
+    for (int value = 0; value < 100; value += 2)
+    {
+        skipList.insert(value, value);
+    }
+
+    for (int value = 0; value < 100; value += 2)
+    {
+        auto findResult = skipList.find(value);
+        ASSERT_EQ(true, findResult.first);
+        ASSERT_EQ(value, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
+    }
+
+    for (int value = -1; value < 99; value += 2)
+    {
+        auto findResult = skipList.find(value);
+        ASSERT_EQ(true, findResult.first);
+        ASSERT_EQ(value + 1, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+    }
+
+    {
+        auto findResult = skipList.find(99);
+        ASSERT_EQ(false, findResult.first);
+        ASSERT_EQ(skipList.end(), findResult.first);
+        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+    }
+}
+
 TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
 {
     SkipList<int, int, 8, WeakComparer<int>> skipList;
@@ -81,48 +114,51 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
         skipList.insert(value, value);
     }
 
-    auto insertionPoint = skipList.insert(50, 50);
+    auto insertionPoint = skipList.begin();
 
+    auto doFindOperations = [&]()
     {
-        auto findResult = skipList.find(-10, insertionPoint.first);
-        ASSERT_EQ(0, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
-    }
+        for (int value = 0; value < 100; value += 2)
+        {
+            auto findResult = skipList.find(value, insertionPoint);
+            ASSERT_EQ(true, findResult.first);
+            ASSERT_EQ(value, findResult.first->first);
+            ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
+        }
 
-    {
-        auto findResult = skipList.find(0, insertionPoint.first);
-        ASSERT_EQ(0, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
-    }
+        for (int value = -1; value < 99; value += 2)
+        {
+            auto findResult = skipList.find(value, insertionPoint);
+            ASSERT_EQ(true, findResult.first);
+            ASSERT_EQ(value + 1, findResult.first->first);
+            ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+        }
 
-    {
-        auto findResult = skipList.find(3, insertionPoint.first);
-        ASSERT_EQ(4, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
-    }
+        {
+            auto findResult = skipList.find(99, insertionPoint);
+            ASSERT_EQ(false, findResult.first);
+            ASSERT_EQ(skipList.end(), findResult.first);
+            ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+        }
 
-    {
-        auto findResult = skipList.find(50, insertionPoint.first);
-        ASSERT_EQ(50, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
-    }
+        {
+            auto findResult = skipList.find(99, insertionPoint);
+            ASSERT_EQ(false, findResult.first);
+            ASSERT_EQ(skipList.end(), findResult.first);
+            ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+        }
+    };
 
-    {
-        auto findResult = skipList.find(51, insertionPoint.first);
-        ASSERT_EQ(52, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
-    }
+    doFindOperations();
 
+    for (int value = 0; value < 100; value += 2)
     {
-        auto findResult = skipList.find(52, insertionPoint.first);
-        ASSERT_EQ(52, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
-    }
+        auto insertResult = skipList.insert(value, value);
+        ASSERT_EQ(true, insertResult.first);
+        ASSERT_EQ(false, insertResult.second);
+        insertionPoint = insertResult.first;
 
-    {
-        auto findResult = skipList.find(101, insertionPoint.first);
-        ASSERT_EQ(findResult.first, skipList.end());
-        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+        doFindOperations();
     }
 }
 

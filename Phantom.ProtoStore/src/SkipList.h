@@ -467,6 +467,11 @@ public:
         {
             return other.m_finger.NextNode(0) != m_finger.NextNode(0);
         }
+
+        operator bool() const
+        {
+            return m_finger.NextNode(0);
+        }
     };
 
     iterator begin()
