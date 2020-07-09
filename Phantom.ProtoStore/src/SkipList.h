@@ -369,6 +369,8 @@ public:
         };
     }
 
+    // find the value at or just before the key.
+    // The weak_ordering will indicate either "equivalent" or "greater".
     template<
         typename TSearchKey
     > std::pair<iterator, std::weak_ordering> find(
@@ -389,6 +391,10 @@ public:
         };
     }
 
+    // find the value at or just before the key,
+    // using and modifying the passed in iterator that acts
+    // as a hint as to where to start.
+    // The weak_ordering will indicate either "equivalent" or "greater".
     template<
         typename TSearchKey
     > std::weak_ordering find_in_place(
@@ -403,6 +409,10 @@ public:
         return findResult.second;
     }
 
+    // find the value at or just before the key,
+    // using the passed in iterator that acts
+    // as a hint as to where to start.
+    // The weak_ordering will indicate either "equivalent" or "greater".
     template<
         typename TSearchKey
     > std::pair<iterator, std::weak_ordering> find(
