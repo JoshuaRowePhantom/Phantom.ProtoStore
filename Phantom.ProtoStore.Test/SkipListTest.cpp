@@ -29,7 +29,7 @@ struct WeakComparer
     }
 };
 
-TEST(SkipListTests, Can_add_distinct_strings)
+TEST(SkipListTests, insert_distinct_strings)
 {
     SkipList<std::string, int, 32, WeakComparer<std::string>> skipList;
     
@@ -63,6 +63,83 @@ TEST(SkipListTests, Can_add_distinct_strings)
         make_pair("a", 1),
         make_pair("b", 2),
         make_pair("c", 3),
+    };
+
+    vector<pair<const string, int>> actualValues(
+        skipList.begin(),
+        skipList.end());
+
+    ASSERT_EQ(expectedValues, actualValues);
+}
+
+TEST(SkipListTests, insert_duplicate_strings_returns_false)
+{
+    SkipList<std::string, int, 32, WeakComparer<std::string>> skipList;
+
+    auto insert1 = skipList.insert(
+        "a",
+        1
+    );
+
+    ASSERT_EQ("a", insert1.first->first);
+    ASSERT_EQ(1, insert1.first->second);
+    ASSERT_EQ(true, insert1.second);
+
+    auto insert2 = skipList.insert(
+        "c",
+        3);
+
+    ASSERT_EQ("c", insert2.first->first);
+    ASSERT_EQ(3, insert2.first->second);
+    ASSERT_EQ(true, insert2.second);
+
+    auto insert3 = skipList.insert(
+        "b",
+        2);
+
+    ASSERT_EQ("b", insert3.first->first);
+    ASSERT_EQ(2, insert3.first->second);
+    ASSERT_EQ(true, insert3.second);
+
+    auto insert4 = skipList.insert(
+        "b",
+        4);
+
+    ASSERT_EQ("b", insert4.first->first);
+    ASSERT_EQ(2, insert4.first->second);
+    ASSERT_EQ(false, insert4.second);
+
+    vector<pair<const string, int>> expectedValues
+    {
+        make_pair("a", 1),
+        make_pair("b", 2),
+        make_pair("c", 3),
+    };
+
+    vector<pair<const string, int>> actualValues(
+        skipList.begin(),
+        skipList.end());
+
+    ASSERT_EQ(expectedValues, actualValues);
+}
+
+TEST(SkipListTests, insert_duplicate_strings_iterator_can_replace_value)
+{
+    SkipList<std::string, int, 32, WeakComparer<std::string>> skipList;
+
+    auto insert3 = skipList.insert(
+        "b",
+        2);
+
+    auto insert4 = skipList.insert(
+        "b",
+        4);
+
+    insert4.first->second = 6;
+
+    vector<pair<const string, int>> expectedValues
+    {
+        make_pair("b", 6),
     };
 
     vector<pair<const string, int>> actualValues(
@@ -171,7 +248,7 @@ struct ReentrantValue
     }
 };
 
-TEST(SkipListTests, Can_add_values_reentrantly)
+TEST(SkipListTests, insert_distinct_values_reentrantly_at_insertion_point_does_insertion)
 {
     SkipList<ReentrantValue, int, 32, WeakComparer<ReentrantValue>> skipList;
 
@@ -202,6 +279,50 @@ TEST(SkipListTests, Can_add_values_reentrantly)
         {"b", 2},
         {"c", 3},
         {"d", 4},
+        {"e", 5},
+    };
+
+    vector<pair<string, int>> actualValues(
+        skipList.begin(),
+        skipList.end());
+
+    ASSERT_EQ(expectedValues, actualValues);
+}
+
+TEST(SkipListTests, insert_duplicate_values_reentrantly_at_insertion_point_does_not_replace)
+{
+    SkipList<ReentrantValue, int, 32, WeakComparer<ReentrantValue>> skipList;
+
+    auto reentrantLambda = [&]
+    {
+        skipList.insert(string("b"), 2);
+        skipList.insert(string("c"), 3);
+    };
+
+    skipList.insert(
+        string("a"),
+        1);
+
+    skipList.insert(
+        string("e"),
+        5);
+
+    auto nonReplacingInsert = skipList.insert(
+        ReentrantValue(
+            string("c"),
+            reentrantLambda,
+            1),
+        6);
+
+    ASSERT_EQ("c", (const string&)nonReplacingInsert.first->first);
+    ASSERT_EQ(3, nonReplacingInsert.first->second);
+    ASSERT_EQ(false, nonReplacingInsert.second);
+
+    vector<pair<string, int>> expectedValues
+    {
+        {"a", 1},
+        {"b", 2},
+        {"c", 3},
         {"e", 5},
     };
 
