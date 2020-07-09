@@ -298,8 +298,7 @@ public:
         return SkipListAddResult::Added;
     }
 
-    class Iterator :
-        public std::input_iterator_tag
+    class Iterator
     {
         Node* m_current;
         friend class SkipList;
