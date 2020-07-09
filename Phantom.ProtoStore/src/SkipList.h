@@ -16,19 +16,6 @@ namespace Phantom::ProtoStore
 
 extern thread_local std::mt19937 tls_SkipListRng;
 
-enum class SkipListReplaceAction
-{
-    DontReplace,
-    Replace,
-};
-
-enum class SkipListAddResult
-{
-    Replaced,
-    NotReplaced,
-    Added,
-};
-
 template<
     typename TKey,
     typename TValue,
