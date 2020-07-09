@@ -360,19 +360,28 @@ public:
     }
 
     template<
-        typename TKey,
-        typename TKeyGenerator,
-        typename TKeyComparer
-    > cppcoro::generator<std::tuple<const TKey&, TValue*>> Enumerate(
-            const TKeyGenerator& keyGenerator,
-            TKeyComparer keyComparer
-        )
+        typename TSearchKey
+    > std::weak_ordering find_in_place(
+        const TSearchKey& key,
+        iterator& finger
+    )
     {
-        for (const auto& key : keyGenerator)
-        {
+        throw 0;
+    }
 
-        }
-        co_return;
+    template<
+        typename TSearchKey
+    > std::pair<iterator, std::weak_ordering> find(
+        const TSearchKey& key,
+        const iterator& finger
+    )
+    {
+        iterator result = finger;
+        return
+        {
+            result,
+            find_in_place(key, result),
+        };
     }
 
     class iterator
@@ -415,13 +424,15 @@ public:
         }
 
         bool operator ==(
-            const iterator& other)
+            const iterator& other
+        ) const
         {
             return other.m_finger.NextNode(0) == m_finger.NextNode(0);
         }
 
         bool operator !=(
-            const iterator& other)
+            const iterator& other
+        ) const
         {
             return other.m_finger.NextNode(0) != m_finger.NextNode(0);
         }

@@ -72,6 +72,60 @@ TEST(SkipListTests, insert_distinct_strings)
     ASSERT_EQ(expectedValues, actualValues);
 }
 
+TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
+{
+    SkipList<int, int, 8, WeakComparer<int>> skipList;
+
+    for (int value = 0; value < 100; value += 2)
+    {
+        skipList.insert(value, value);
+    }
+
+    auto insertionPoint = skipList.insert(50, 50);
+
+    {
+        auto findResult = skipList.find(-10, insertionPoint.first);
+        ASSERT_EQ(0, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+    }
+
+    {
+        auto findResult = skipList.find(0, insertionPoint.first);
+        ASSERT_EQ(0, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
+    }
+
+    {
+        auto findResult = skipList.find(3, insertionPoint.first);
+        ASSERT_EQ(4, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+    }
+
+    {
+        auto findResult = skipList.find(50, insertionPoint.first);
+        ASSERT_EQ(50, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
+    }
+
+    {
+        auto findResult = skipList.find(51, insertionPoint.first);
+        ASSERT_EQ(52, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+    }
+
+    {
+        auto findResult = skipList.find(52, insertionPoint.first);
+        ASSERT_EQ(52, findResult.first->first);
+        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
+    }
+
+    {
+        auto findResult = skipList.find(101, insertionPoint.first);
+        ASSERT_EQ(findResult.first, skipList.end());
+        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+    }
+}
+
 TEST(SkipListTests, insert_duplicate_strings_returns_false)
 {
     SkipList<std::string, int, 32, WeakComparer<std::string>> skipList;
