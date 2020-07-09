@@ -1,6 +1,8 @@
 #include "StandardIncludes.h"
 #include "Phantom.ProtoStore/src/SkipList.h"
+#include <algorithm>
 #include <functional>
+#include <random>
 
 using namespace std;
 
@@ -203,4 +205,74 @@ TEST(SkipListTests, Can_add_values_reentrantly)
     ASSERT_EQ(expectedValues, actualValues);
 }
 
+TEST(SkipListPerformanceTests, Performance_1)
+{
+    vector<string> allValues;
+    int valueCountPerThread = 1000000;
+    int threadCount = 4;
+    vector<thread> threads;
+
+    mt19937 rng;
+    uniform_int_distribution<int> distribution('a', 'z');
+
+    allValues.reserve(valueCountPerThread * threadCount);
+    for (int valueCounter = 0; valueCounter < valueCountPerThread * threadCount; valueCounter++)
+    {
+        string randomString(' ', 20);
+        for (int stringIndex = 0; stringIndex < randomString.size(); stringIndex++)
+        {
+            randomString[stringIndex] = distribution(rng);
+        }
+        allValues.push_back(
+            randomString);
+    }
+
+    vector<string> expectedValues = allValues;
+    std::sort(
+        expectedValues.begin(),
+        expectedValues.end());
+
+    SkipList<string, 32, WeakComparer<string>> skipList;
+
+    for (int threadCounter = 0; threadCounter < threadCount; threadCounter++)
+    {
+        auto threadLambda = [&skipList, &allValues, threadCounter, valueCountPerThread]
+        {
+            auto begin = allValues.begin() + threadCounter * valueCountPerThread;
+            auto end = allValues.begin() + threadCounter * valueCountPerThread + valueCountPerThread;
+            for (auto value = begin; value != end; value++)
+            {
+                ASSERT_EQ(
+                    SkipListAddResult::Added,
+                    skipList.Add(
+                        move(*value),
+                        SkipListReplaceAction::DontReplace));
+            }
+        };
+
+        threads.emplace_back(
+            threadLambda);
+    }
+
+    auto startTime = chrono::high_resolution_clock::now();
+
+    for (auto& thread : threads)
+    {
+        thread.join();
+    }
+
+    auto endTime = chrono::high_resolution_clock::now();
+
+    auto runtimeMs = chrono::duration_cast<chrono::milliseconds>(endTime - startTime);
+
+    std::cout << "SkipListPerformanceTests runtime: " << runtimeMs.count() << "\r\n";
+
+    vector<string> actualValues(
+        skipList.begin(),
+        skipList.end());
+
+    ASSERT_EQ(
+        expectedValues,
+        actualValues);
+}
 }
