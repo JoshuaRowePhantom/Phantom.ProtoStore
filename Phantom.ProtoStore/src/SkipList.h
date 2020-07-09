@@ -95,13 +95,13 @@ private:
     {
         typedef std::array<std::tuple<AtomicNextPointersType, Node*>, MaxLevels> Container;
 
-        FullAtomicNextPointersType& m_head;
-        const TComparer& m_comparer;
+        FullAtomicNextPointersType* m_head;
+        const TComparer* m_comparer;
         Container m_value;
 
         FingerType(
-            FullAtomicNextPointersType& head,
-            const TComparer& comparer
+            FullAtomicNextPointersType* head,
+            const TComparer* comparer
         ) : 
             m_head(head),
             m_comparer(comparer)
@@ -123,10 +123,10 @@ private:
 
             if (!nextPointers)
             {
-                nextPointers = m_head.data();
+                nextPointers = m_head->data();
             }
 
-            std::weak_ordering lastComparisonResult = std::weak_ordering::less;
+            std::weak_ordering lastComparisonResult = std::weak_ordering::greater;
             Node* nextNode;
 
             do
@@ -134,9 +134,12 @@ private:
                 nextNode = nextPointers[level].load(
                     std::memory_order_acquire);
 
-                if (nextNode == nullptr
-                    ||
-                    (lastComparisonResult = m_comparer(nextNode->Item.first, key)) != std::weak_ordering::less)
+                if (nextNode == nullptr)
+                {
+                    lastComparisonResult = std::weak_ordering::greater;
+                    break;
+                }
+                if ((lastComparisonResult = (*m_comparer)(nextNode->Item.first, key)) != std::weak_ordering::less)
                 {
                     break;
                 }
@@ -165,6 +168,28 @@ private:
                 nextPointers,
                 nextNode
             };
+        }
+
+        template<
+            typename TSearchKey
+        > std::weak_ordering NavigateTo(
+            const TSearchKey& key)
+        {
+            std::weak_ordering lastComparisonResult = std::weak_ordering::equivalent;
+
+            size_t level = MaxLevels;
+            do
+            {
+                --level;
+
+                lastComparisonResult = NavigateTo(
+                    level + 1,
+                    level,
+                    key);
+
+            } while (level != 0);
+
+            return lastComparisonResult;
         }
 
         AtomicNextPointersType NextPointers(
@@ -253,34 +278,16 @@ public:
         // for each level, choosing the set of next pointers that is just before
         // the node with the value we are looking for.
         FingerType location(
-            m_head,
-            m_comparer);
+            &m_head,
+            &m_comparer);
         
+        if (location.NavigateTo(key) == std::weak_ordering::equivalent)
         {
-            std::weak_ordering lastComparisonResult = std::weak_ordering::less;
-
-            size_t level = MaxLevels;
-            do
+            return
             {
-                --level;
-
-                lastComparisonResult = location.NavigateTo(
-                    level + 1,
-                    level,
-                    key);
-
-            } while (level != 0);
-
-            // Any time we got an equivalent comparison,
-            // it means the skip list contains the value and we should return.
-            if (lastComparisonResult == std::weak_ordering::equivalent)
-            {
-                return
-                {
-                    iterator(location),
-                    false
-                };
-            }
+                iterator(location),
+                false,
+            };
         }
 
         // Build a new node at a random level.
@@ -361,12 +368,36 @@ public:
 
     template<
         typename TSearchKey
-    > std::weak_ordering find_in_place(
-        const TSearchKey& key,
-        iterator& finger
+    > std::pair<iterator, std::weak_ordering> find(
+        const TSearchKey& key
     )
     {
-        throw 0;
+        FingerType finger(
+            &m_head,
+            &m_comparer);
+
+        auto lastComparisonResult = finger.NavigateTo(
+            key);
+
+        return
+        {
+            iterator(finger),
+            lastComparisonResult,
+        };
+    }
+
+    template<
+        typename TSearchKey
+    > std::weak_ordering find_in_place(
+        const TSearchKey& key,
+        iterator& finger)
+    {
+        auto findResult = find(
+            key);
+
+        finger = findResult.first;
+
+        return findResult.second;
     }
 
     template<
@@ -441,8 +472,8 @@ public:
     iterator begin()
     {
         auto finger = FingerType(
-            m_head,
-            m_comparer);
+            &m_head,
+            &m_comparer);
 
         finger.NavigateTo(
             0,
@@ -456,8 +487,8 @@ public:
     iterator end()
     {
         return FingerType(
-            m_head,
-            m_comparer);
+            &m_head,
+            &m_comparer);
     }
 };
 }

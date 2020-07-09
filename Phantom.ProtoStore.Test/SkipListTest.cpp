@@ -86,7 +86,7 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
     {
         auto findResult = skipList.find(-10, insertionPoint.first);
         ASSERT_EQ(0, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
     }
 
     {
@@ -98,7 +98,7 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
     {
         auto findResult = skipList.find(3, insertionPoint.first);
         ASSERT_EQ(4, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
     }
 
     {
@@ -110,7 +110,7 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
     {
         auto findResult = skipList.find(51, insertionPoint.first);
         ASSERT_EQ(52, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
     }
 
     {
@@ -122,7 +122,7 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
     {
         auto findResult = skipList.find(101, insertionPoint.first);
         ASSERT_EQ(findResult.first, skipList.end());
-        ASSERT_EQ(std::weak_ordering::less, findResult.second);
+        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
     }
 }
 
