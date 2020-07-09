@@ -344,31 +344,16 @@ public:
         }
     }
 
+private:
     template<
         typename TSearchKey,
         typename TAddValue
     > std::pair<iterator, bool> insert(
         TSearchKey&& key,
-        TAddValue&& value
+        TAddValue&& value,
+        FingerType& location
     )
     {
-        // We follow the algorithm described by the SkipList authors.
-        // Collect all the pointers to the sets of next pointers and resulting next node
-        // for each level, choosing the set of next pointers that is just before
-        // the node with the value we are looking for.
-        FingerType location(
-            &m_head,
-            &m_comparer);
-        
-        if (location.NavigateTo(key) == std::weak_ordering::equivalent)
-        {
-            return
-            {
-                iterator(location),
-                false,
-            };
-        }
-
         // Build a new node at a random level.
         auto newLevel = NewRandomLevel();
 
@@ -379,7 +364,7 @@ public:
 
         Node* newNode = newNodeHolder.get();
         auto newNodeNextPointers = newNode->NextPointers();
-        
+
         // Now hook this new node into the linked lists at each level
         // up to the randomly chosen level.
         for (size_t level = 0; level < newLevel; level++)
@@ -443,6 +428,53 @@ public:
             iterator(location),
             true
         };
+    }
+
+public:
+    template<
+        typename TSearchKey,
+        typename TAddValue
+    > std::pair<iterator, bool> insert_with_hint(
+        TSearchKey&& key,
+        TAddValue&& value,
+        iterator& finger
+    )
+    {
+        return insert(
+            std::forward<TSearchKey>(key),
+            std::forward<TAddValue>(value),
+            finger.m_finger);
+    }
+
+    template<
+        typename TSearchKey,
+        typename TAddValue
+    > std::pair<iterator, bool> insert(
+        TSearchKey&& key,
+        TAddValue&& value
+    )
+    {
+        // We follow the algorithm described by the SkipList authors.
+        // Collect all the pointers to the sets of next pointers and resulting next node
+        // for each level, choosing the set of next pointers that is just before
+        // the node with the value we are looking for.
+        FingerType location(
+            &m_head,
+            &m_comparer);
+        
+        if (location.NavigateTo(key) == std::weak_ordering::equivalent)
+        {
+            return
+            {
+                iterator(location),
+                false,
+            };
+        }
+
+        return insert(
+            std::forward<TSearchKey>(key),
+            std::forward<TAddValue>(value),
+            location);
     }
 
     // find the value at or just before the key.
