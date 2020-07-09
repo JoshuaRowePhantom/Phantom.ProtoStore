@@ -138,28 +138,15 @@ public:
 
     SkipList(
         SkipList&& other
-    )
-        : m_comparer(std::move(other.m_comparer))
-    {
-        std::swap(m_head, other.m_head);
-    }
+    ) = delete;
 
     SkipList& operator =(
         const SkipList&
-        ) = delete;
+    ) = delete;
 
     SkipList& operator =(
         SkipList&& other
-        )
-    {
-        if (&other == this)
-        {
-            return *this;
-        }
-
-        m_comparer = std::move(other.m_comparer);
-        std::swap(m_head, other.m_head);
-    }
+    ) = delete;
 
     SkipList(
         TComparer comparer = TComparer()
