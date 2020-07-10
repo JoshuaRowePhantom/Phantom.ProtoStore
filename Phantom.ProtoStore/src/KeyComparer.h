@@ -118,6 +118,10 @@ public:
         const google::protobuf::Message* value1,
         const google::protobuf::Message* value2    ) const;
 
+    std::weak_ordering operator()(
+        const google::protobuf::Message* value1,
+        const google::protobuf::Message* value2
+    ) const;
 };
 
 }

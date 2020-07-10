@@ -422,4 +422,14 @@ std::weak_ordering KeyComparer::CompareRepeatedFields(
     return std::weak_ordering::equivalent;
 }
 
+std::weak_ordering KeyComparer::operator()(
+    const google::protobuf::Message* value1,
+    const google::protobuf::Message* value2
+    ) const
+{
+    return Compare(
+        value1,
+        value2);
+}
+
 }
