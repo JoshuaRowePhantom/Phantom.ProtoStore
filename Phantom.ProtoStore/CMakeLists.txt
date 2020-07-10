@@ -41,10 +41,12 @@ add_library (
     "src/RandomMessageAccessor.cpp"
     "src/RandomMessageAccessor.h"
     "src/RandomMessageAccessorImpl.h"
+    "src/SkipList.cpp"
+    "src/SkipList.h" 
     "src/StandardTypes.h"
     "include/Phantom.ProtoStore.h"
     ${PROTOC_CPP}
-    ${PROTOC_H} "src/SkipList.h" "src/SkipList.cpp")
+    ${PROTOC_H} )
     
     
 target_include_directories(
