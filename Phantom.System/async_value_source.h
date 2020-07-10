@@ -118,6 +118,7 @@ public:
             &detail::has_exception);
     }
 
+    [[nodiscard]]
     async_value_source_operation<T> operator co_await() const noexcept
     {
         return async_value_source_operation<T>(
@@ -199,4 +200,5 @@ public:
         }
     }
 };
+
 }
