@@ -17,7 +17,7 @@ struct MemoryTableRow
 
 struct KeyRangeEnd
 {
-    const Message* Value;
+    const Message* Key;
     Inclusivity Inclusivity;
 };
 
@@ -34,8 +34,7 @@ public:
     ) = 0;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
-        SequenceNumber transactionReadSequenceNumber,
-        SequenceNumber requestedReadSequenceNumber,
+        SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high
     ) = 0;

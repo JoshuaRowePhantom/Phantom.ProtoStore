@@ -12,7 +12,6 @@ set(CMAKE_CXX_STANDARD 20)
 if (MSVC)
 	add_compile_options("/await")
 	add_compile_options("/WX")
-	add_compile_options("/FAs")
 
 	add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:/GL>")
 	add_link_options("$<$<CONFIG:RELWITHDEBINFO>:/LTCG>")

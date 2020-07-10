@@ -24,8 +24,7 @@ class MemoryTable
     {
         const Message* KeyLow;
         Inclusivity Inclusivity;
-        SequenceNumber TransactionReadSequenceNumber;
-        SequenceNumber RequestedReadSequenceNumber;
+        SequenceNumber ReadSequenceNumber;
     };
 
     class MemoryTableRowComparer
@@ -55,18 +54,12 @@ class MemoryTable
         std::weak_ordering operator()(
             const MemoryTableRow* key1,
             const EnumerationKey& key2
-        ) const
-        {
-            throw 0;
-        }
+            ) const;
 
         std::weak_ordering operator()(
             const MemoryTableRow* key1,
             const KeyRangeEnd& high
-        ) const
-        {
-            throw 0;
-        }
+            ) const;
     };
 
     struct MemoryTableValue
@@ -97,8 +90,7 @@ public:
     ) override;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
-        SequenceNumber transactionReadSequenceNumber, 
-        SequenceNumber requestedReadSequenceNumber, 
+        SequenceNumber readSequenceNumber, 
         KeyRangeEnd low, 
         KeyRangeEnd high
     ) override;

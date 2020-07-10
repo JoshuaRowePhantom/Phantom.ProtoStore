@@ -62,18 +62,16 @@ task<> MemoryTable::AddRow(
 }
 
 cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
-    SequenceNumber transactionReadSequenceNumber,
-    SequenceNumber requestedReadSequenceNumber,
+    SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high
 )
 {
     EnumerationKey enumerationKey
     {
-        low.Value,
+        low.Key,
         low.Inclusivity,
-        transactionReadSequenceNumber,
-        requestedReadSequenceNumber,
+        readSequenceNumber,
     };
 
     auto [findIterator, keyComparisonResult] = m_skipList.find(
@@ -97,10 +95,24 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
             throw UnresolvedTransactionConflict();
         }
 
-        co_yield row;
-
         enumerationKey.KeyLow = row->Key.get();
-        enumerationKey.Inclusivity = Inclusivity::Exclusive;
+
+        if (row->SequenceNumber > readSequenceNumber)
+        {
+            // We found a version of the row later than requested;
+            // change the enumeration key to be inclusive so that we'll
+            // locate the highest sequence number for the row that
+            // is lower than the requested sequence number.
+            enumerationKey.Inclusivity = Inclusivity::Inclusive;
+        }
+        else
+        {
+            // We found a version of the row to return.
+            // Change the enumeration key to be exclusive so that we'll
+            // skip all lower sequence numbers for the same row.
+            enumerationKey.Inclusivity = Inclusivity::Exclusive;
+            co_yield row;
+        }
 
         keyComparisonResult = m_skipList.find_in_place(
             enumerationKey,
@@ -134,6 +146,69 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     }
 
     return std::weak_ordering::greater;
+}
+
+std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
+    const MemoryTableRow* key1,
+    const EnumerationKey& key2
+    ) const
+{
+    auto comparisonResult = 
+        !key2.KeyLow
+        ?
+        std::weak_ordering::greater
+        :
+        (*m_keyComparer)(
+            key1->Key.get(),
+            key2.KeyLow);
+
+    if (comparisonResult == std::weak_ordering::equivalent
+        &&
+        key2.Inclusivity == Inclusivity::Exclusive)
+    {
+        return std::weak_ordering::less;
+    }
+
+    if (comparisonResult != std::weak_ordering::equivalent)
+    {
+        return comparisonResult;
+    }
+
+    if (key1->SequenceNumber > key2.ReadSequenceNumber)
+    {
+        return std::weak_ordering::less;
+    }
+
+    if (key1->SequenceNumber == key2.ReadSequenceNumber)
+    {
+        return std::weak_ordering::equivalent;
+    }
+
+    return std::weak_ordering::greater;
+}
+
+std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
+    const MemoryTableRow* key1,
+    const KeyRangeEnd& key2
+    ) const
+{
+    auto comparisonResult =
+        !key2.Key
+        ?
+        std::weak_ordering::less
+        :
+        (*m_keyComparer)(
+            key1->Key.get(),
+            key2.Key);
+
+    if (comparisonResult == std::weak_ordering::equivalent
+        &&
+        key2.Inclusivity == Inclusivity::Exclusive)
+    {
+        return std::weak_ordering::greater;
+    }
+
+    return comparisonResult;
 }
 
 }
