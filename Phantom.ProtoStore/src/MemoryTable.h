@@ -7,7 +7,7 @@
 namespace Phantom::ProtoStore
 {
 
-class MemoryTableRow
+struct MemoryTableRow
 {
     const Message* Key;
     SequenceNumber SequenceNumber;

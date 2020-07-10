@@ -264,15 +264,30 @@ struct WriteOperationMetadata
 class ProtoStoreException
     : public std::runtime_error 
 {
+public:
+    ProtoStoreException(
+        const char* message)
+        : std::runtime_error(message)
+    {}
 };
 
 class WriteConflict
     : public ProtoStoreException
-{};
+{
+public:
+    WriteConflict()
+        : ProtoStoreException("A write conflict occurred")
+    {}
+};
 
 class UnresolvedTransactionConflict
     : public ProtoStoreException
-{};
+{
+public:
+    UnresolvedTransactionConflict()
+        : ProtoStoreException("An unresolved transaction was discovered")
+    {}
+};
 
 class IWritableOperation
 {

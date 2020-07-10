@@ -9,10 +9,83 @@ class MemoryTable
     :
     public IMemoryTable
 {
-    const KeyComparer * const m_keyComparer;
+    struct InsertionKey
+    {
+        MemoryTableRow* Row;
+        SequenceNumber ReadSequenceNumber;
 
-    class MemoryTableRowComparer;
-    //SkipList<MemoryTableRow, MemoryTableRowComparer, 32> m_skipList;
+        operator MemoryTableRow* const () const
+        {
+            return Row;
+        }
+    };
+
+    struct EnumerationKey
+    {
+        const Message* KeyLow;
+        Inclusivity Inclusivity;
+        SequenceNumber TransactionReadSequenceNumber;
+        SequenceNumber RequestedReadSequenceNumber;
+    };
+
+    class MemoryTableRowComparer
+    {
+        const KeyComparer* const m_keyComparer;
+    public:
+        MemoryTableRowComparer(
+            const KeyComparer* keyComparer
+        )
+            : m_keyComparer(
+                keyComparer)
+        {}
+
+        std::weak_ordering operator()(
+            const MemoryTableRow* key1,
+            const MemoryTableRow* key2
+            ) const
+        {
+            throw 0;
+        }
+
+        std::weak_ordering operator()(
+            const MemoryTableRow* key1,
+            const InsertionKey& key2
+        ) const
+        {
+            throw 0;
+        }
+
+        std::weak_ordering operator()(
+            const MemoryTableRow* key1,
+            const EnumerationKey& key2
+        ) const
+        {
+            throw 0;
+        }
+
+        std::weak_ordering operator()(
+            const MemoryTableRow* key1,
+            const KeyRangeEnd& high
+        ) const
+        {
+            throw 0;
+        }
+    };
+
+    struct MemoryTableValue
+    {
+        MemoryTableRow* RawRow;
+        std::unique_ptr<MemoryTableRow> OwnedRow;
+
+        MemoryTableRow* Row()
+        {
+            return RawRow;
+        }
+    };
+
+    // comparer must be declared before skipList
+    const MemoryTableRowComparer m_comparer;
+    SkipList<MemoryTableRow*, MemoryTableValue, 32, MemoryTableRowComparer> m_skipList;
 
 public:
     MemoryTable(
