@@ -16,6 +16,49 @@ namespace Phantom::ProtoStore
 
 extern thread_local std::mt19937 tls_SkipListRng;
 
+namespace detail
+{
+template<
+    typename TKey,
+    typename TValue
+>
+struct SkipListTraits
+{
+    typedef std::pair<const TKey, TValue> value_type;
+    typedef TKey key_type;
+    typedef TValue insertion_value_type;
+    static const bool has_insertion_value_type = true;
+
+    static const TKey& get_key(
+        value_type& value
+    )
+    {
+        return value.first;
+    }
+};
+
+template<
+    typename TKey
+>
+struct SkipListTraits<
+    TKey,
+    void
+>
+{
+    typedef TKey value_type;
+    typedef TKey key_type;
+    typedef void void_insertion_value_type;
+    static const bool has_insertion_value_type = false;
+
+    static const TKey& get_key(
+        value_type& value
+    )
+    {
+        return value;
+    }
+};
+
+}
 template<
     typename TKey,
     typename TValue,
@@ -26,13 +69,17 @@ class SkipList
 {
 public:
     class iterator;
-    typedef std::pair<const TKey, TValue> value_type;
+    typedef detail::SkipListTraits<TKey, TValue> traits_type;
+    typedef typename traits_type::value_type value_type;
+    typedef typename traits_type::key_type key_type;
 private:
+    struct void_tag {};
     struct Node;
     struct NextPointers;
     typedef std::atomic<Node*> AtomicNextPointer;
     typedef std::array<AtomicNextPointer, MaxLevels> FullAtomicNextPointersType;
     typedef AtomicNextPointer* AtomicNextPointersType;
+    static const bool has_insertion_value_type = traits_type::has_insertion_value_type;
 
     TComparer m_comparer;
 
@@ -55,6 +102,18 @@ private:
                 std::forward<TConstructedValue>(value));
             nodeCharArray.release();
             return result;
+        }
+
+        template <
+            typename TConstructedKey
+        > Node(
+            TConstructedKey&& key,
+            void_tag value)
+            :
+            Item(
+                std::forward<TConstructedKey>(key)
+            )
+        {
         }
 
         template <
@@ -131,7 +190,7 @@ private:
                     lastComparisonResult = std::weak_ordering::greater;
                     break;
                 }
-                if ((lastComparisonResult = (*m_comparer)(nextNode->Item.first, key)) != std::weak_ordering::less)
+                if ((lastComparisonResult = (*m_comparer)(traits_type::get_key(nextNode->Item), key)) != std::weak_ordering::less)
                 {
                     break;
                 }
@@ -201,7 +260,7 @@ private:
 
             if (NextNode(0) == nullptr
                 ||
-                (lastComparisonResult = (*m_comparer)(NextNode(0)->Item.first, key)) == std::weak_ordering::less)
+                (lastComparisonResult = (*m_comparer)(traits_type::get_key(NextNode(0)->Item), key)) == std::weak_ordering::less)
             {
                 // Navigate upward and forward.
                 while (level < MaxLevels)
@@ -220,7 +279,7 @@ private:
                         break;
                     }
 
-                    if ((lastComparisonResult = (*m_comparer)(nextNextNode->Item.first, key)) != std::weak_ordering::less)
+                    if ((lastComparisonResult = (*m_comparer)(traits_type::get_key(nextNextNode->Item), key)) != std::weak_ordering::less)
                     {
                         break;
                     }
@@ -237,7 +296,7 @@ private:
 
                     if (nextNode != nullptr
                         &&
-                        (lastComparisonResult = (*m_comparer)(nextNode->Item.first, key)) == std::weak_ordering::less)
+                        (lastComparisonResult = (*m_comparer)(traits_type::get_key(nextNode->Item), key)) == std::weak_ordering::less)
                     {
                         break;
                     }
@@ -388,12 +447,12 @@ private:
 
                 // Hm, the old next node changed underneath us.
                 // Advance to the new next node and try again.
-                // Make sure to do the comparison using the newNode->Value, 
-                // because "value" might have std::moved to the newNode->Value.
+                // Make sure to do the comparison using the newNode->Item, 
+                // because "key" might have std::moved to the newNode->Value.
                 auto lastComparisonResult = location.NavigateTo(
                     level,
                     level,
-                    newNode->Item.first);
+                    traits_type::get_key(newNode->Item));
 
                 // On level 0, it's possible that a newly inserted node
                 // has the same key.  We check for that.
@@ -421,7 +480,8 @@ private:
 public:
     template<
         typename TSearchKey,
-        typename TAddValue
+        typename TAddValue,
+        typename insertion_value_type = traits_type::insertion_value_type
     > std::pair<iterator, bool> insert_with_hint(
         TSearchKey&& key,
         TAddValue&& value,
@@ -436,7 +496,8 @@ public:
 
     template<
         typename TSearchKey,
-        typename TAddValue
+        typename TAddValue,
+        typename insertion_value_type = traits_type::insertion_value_type
     > std::pair<iterator, bool> insert(
         TSearchKey&& key,
         TAddValue&& value
@@ -462,6 +523,49 @@ public:
         return insert(
             std::forward<TSearchKey>(key),
             std::forward<TAddValue>(value),
+            location);
+    }
+    template<
+        typename TAddValue,
+        typename insertion_value_type = traits_type::void_insertion_value_type
+    > std::pair<iterator, bool> insert_with_hint(
+        TAddValue&& value,
+        iterator& finger
+    )
+    {
+        return insert(
+            std::forward<TAddValue>(value),
+            void_tag(),
+            finger.m_finger);
+    }
+
+    template<
+        typename TAddValue,
+        typename insertion_value_type = traits_type::void_insertion_value_type
+    > std::pair<iterator, bool> insert(
+        TAddValue&& value
+    )
+    {
+        // We follow the algorithm described by the SkipList authors.
+        // Collect all the pointers to the sets of next pointers and resulting next node
+        // for each level, choosing the set of next pointers that is just before
+        // the node with the value we are looking for.
+        FingerType location(
+            &m_head,
+            &m_comparer);
+
+        if (location.NavigateTo(value) == std::weak_ordering::equivalent)
+        {
+            return
+            {
+                iterator(location),
+                false,
+            };
+        }
+
+        return insert(
+            std::forward<TAddValue>(value),
+            void_tag(),
             location);
     }
 

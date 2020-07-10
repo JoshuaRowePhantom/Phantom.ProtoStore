@@ -533,4 +533,31 @@ TEST(SkipListPerformanceTests, PerformanceTest(Perf1))
         actualValues);
 }
 
+TEST(SkipListTests, SkipList_using_void_value)
+{
+    SkipList<string, void, 4, WeakComparer<string>> skipList;
+
+    auto insertion1 = skipList.insert(
+        "a");
+
+    auto insertion2 = skipList.insert(
+        "b");
+
+    auto insertion3 = skipList.insert(
+        "b");
+
+    vector<string> expectedValues
+    {
+        "a",
+        "b",
+    };
+
+    vector<string> actualValues(
+        skipList.begin(),
+        skipList.end());
+
+    ASSERT_EQ(
+        expectedValues,
+        actualValues);
+}
 }
