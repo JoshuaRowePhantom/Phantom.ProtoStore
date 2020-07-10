@@ -29,13 +29,14 @@ task<> MemoryTable::AddRow(
     {
         InsertionKey insertionKey
         {
-            ownedRow.get()
+            .Row = ownedRow.get(),
+            .ReadSequenceNumber = readSequenceNumber,
         };
 
         MemoryTableValue memoryTableValue
         {
-            ownedRow.get(),
-            nullptr,
+            .RawRow = ownedRow.get(),
+            .OwnedRow = nullptr,
         };
 
         auto [iterator, succeeded] = m_skipList.insert(
@@ -55,6 +56,8 @@ task<> MemoryTable::AddRow(
     {
         row = move(
             *ownedRow);
+
+        throw;
     }
 }
 

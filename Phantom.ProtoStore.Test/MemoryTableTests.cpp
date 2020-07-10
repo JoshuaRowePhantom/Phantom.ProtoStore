@@ -64,7 +64,7 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
         StringKey key1;
         key1.set_value("key-1");
         StringValue value1;
-        key1.set_value("value-1");
+        value1.set_value("value-1");
 
         MemoryTableRow row1
         {
@@ -81,7 +81,7 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
         StringKey key2;
         key2.set_value("key-1");
         StringValue value2;
-        key2.set_value("value-1");
+        value2.set_value("value-1");
 
         MemoryTableRow row2
         {
@@ -96,6 +96,9 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
                 SequenceNumber::Earliest,
                 row2),
             WriteConflict);
+
+        ASSERT_EQ("key-1", static_cast<StringKey*>(row2.Key.get())->value());
+        ASSERT_EQ("value-1", static_cast<StringValue*>(row2.Value.get())->value());
     });
 }
 
@@ -112,7 +115,7 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
         StringKey key1;
         key1.set_value("key-1");
         StringValue value1;
-        key1.set_value("value-1");
+        value1.set_value("value-1");
 
         MemoryTableRow row1
         {
@@ -129,7 +132,7 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
         StringKey key2;
         key2.set_value("key-1");
         StringValue value2;
-        key2.set_value("value-1");
+        value2.set_value("value-1");
 
         MemoryTableRow row2
         {
@@ -144,6 +147,9 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
                 SequenceNumber::Latest,
                 row2),
             WriteConflict);
+
+        ASSERT_EQ("key-1", static_cast<StringKey*>(row2.Key.get())->value());
+        ASSERT_EQ("value-1", static_cast<StringValue*>(row2.Value.get())->value());
     });
 }
 
@@ -160,7 +166,7 @@ TEST(MemoryTableTests, Add_new_version_of_row)
         StringKey key1;
         key1.set_value("key-1");
         StringValue value1;
-        key1.set_value("value-1");
+        value1.set_value("value-1");
 
         MemoryTableRow row1
         {
@@ -177,7 +183,7 @@ TEST(MemoryTableTests, Add_new_version_of_row)
         StringKey key2;
         key2.set_value("key-1");
         StringValue value2;
-        key2.set_value("value-1");
+        value2.set_value("value-1");
 
         MemoryTableRow row2
         {
