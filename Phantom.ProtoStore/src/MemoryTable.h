@@ -9,10 +9,10 @@ namespace Phantom::ProtoStore
 
 struct MemoryTableRow
 {
-    const Message* Key;
+    unique_ptr<Message> Key;
     SequenceNumber SequenceNumber;
-    const Message* Value;
-    const TransactionId* TransactionId;
+    unique_ptr<Message> Value;
+    TransactionId* TransactionId;
 };
 
 struct KeyRangeEnd
@@ -25,10 +25,12 @@ class IMemoryTable
 {
 public:
     // Add the specified row.
-    // If there is a conflict, an exception of the proper type with be thrown.
+    // If there is a conflict, an exception of the proper type with be thrown,
+    // and the row will be left untouched.
+    // Otherwise, the content of the row are std::move'd into the memory table.
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber,
-        MemoryTableRow row
+        MemoryTableRow& row
     ) = 0;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(

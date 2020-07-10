@@ -37,4 +37,11 @@ namespace Phantom
             &value,
             1));
     }
+
+    template<typename T>
+    std::unique_ptr<T> copy_unique(
+        const T& other)
+    {
+        return make_unique<T>(other);
+    }
 }

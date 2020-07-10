@@ -50,10 +50,7 @@ class MemoryTable
         std::weak_ordering operator()(
             const MemoryTableRow* key1,
             const InsertionKey& key2
-        ) const
-        {
-            throw 0;
-        }
+            ) const;
 
         std::weak_ordering operator()(
             const MemoryTableRow* key1,
@@ -96,7 +93,7 @@ public:
 
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber, 
-        MemoryTableRow row
+        MemoryTableRow& row
     ) override;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(

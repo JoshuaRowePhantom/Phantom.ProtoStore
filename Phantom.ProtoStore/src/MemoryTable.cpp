@@ -14,33 +14,48 @@ MemoryTable::MemoryTable(
         m_comparer)
 {}
 
+MemoryTable::~MemoryTable()
+{}
+
 task<> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
-    MemoryTableRow row
+    MemoryTableRow& row
 )
 {
-    throw 0;
-    InsertionKey insertionKey
-    { 
-        &row 
-    };
+    auto ownedRow = make_unique<MemoryTableRow>(
+        move(row));
 
-    MemoryTableValue memoryTableValue
+    try
     {
-        &row,
-        nullptr,
-    };
+        InsertionKey insertionKey
+        {
+            ownedRow.get()
+        };
 
-    auto [iterator, succeeded] = m_skipList.insert(
-        insertionKey,
-        std::move(memoryTableValue));
+        MemoryTableValue memoryTableValue
+        {
+            ownedRow.get(),
+            nullptr,
+        };
 
-    if (!succeeded)
-    {
-        throw WriteConflict();
+        auto [iterator, succeeded] = m_skipList.insert(
+            insertionKey,
+            std::move(memoryTableValue));
+
+        if (!succeeded)
+        {
+            throw WriteConflict();
+        }
+
+        iterator->second.OwnedRow = move(ownedRow);
+
+        co_return;
     }
-
-    co_return;
+    catch (...)
+    {
+        row = move(
+            *ownedRow);
+    }
 }
 
 cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
@@ -81,7 +96,7 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
 
         co_yield row;
 
-        enumerationKey.KeyLow = row->Key;
+        enumerationKey.KeyLow = row->Key.get();
         enumerationKey.Inclusivity = Inclusivity::Exclusive;
 
         keyComparisonResult = m_skipList.find_in_place(
@@ -89,6 +104,33 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
             findIterator
         );
     }
+}
+
+
+std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
+    const MemoryTableRow* key1,
+    const InsertionKey& key2
+    ) const
+{
+    auto comparisonResult = (*m_keyComparer)(
+        key1->Key.get(),
+        key2.Row->Key.get());
+
+    if (comparisonResult != std::weak_ordering::equivalent)
+    {
+        return comparisonResult;
+    }
+
+    if (key1->SequenceNumber >= key2.ReadSequenceNumber
+        ||
+        key1->SequenceNumber >= key2.Row->SequenceNumber)
+    {
+        // By returning equivalent here, the SkipList
+        // won't insert the row.
+        return std::weak_ordering::equivalent;
+    }
+
+    return std::weak_ordering::greater;
 }
 
 }
