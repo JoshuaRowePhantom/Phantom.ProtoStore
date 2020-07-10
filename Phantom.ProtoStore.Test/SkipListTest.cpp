@@ -29,6 +29,42 @@ struct WeakComparer
     }
 };
 
+TEST(SkipListTests, insert_convertible_values_via_converting_constructor)
+{
+    SkipList<std::string, std::string, 4, WeakComparer<std::string>> skipList;
+
+    auto insert = skipList.insert("a", "b");
+    ASSERT_EQ("a", insert.first->first);
+    ASSERT_EQ("b", insert.first->second);
+}
+
+TEST(SkipListTests, insert_convertible_values_via_conversion_operator)
+{
+    struct Value
+    {
+        operator string() const
+        {
+            return "b";
+        }
+    };
+
+    SkipList<std::string, std::string, 4, WeakComparer<std::string>> skipList;
+
+    auto insert = skipList.insert("a", Value());
+    ASSERT_EQ("a", insert.first->first);
+    ASSERT_EQ("b", insert.first->second);
+}
+
+TEST(SkipListTests, insert_immovable_object)
+{
+    SkipList<std::string, std::unique_ptr<string>, 4, WeakComparer<std::string>> skipList;
+
+    auto value = make_unique<string>("b");
+    auto insert = skipList.insert("a", move(value));
+    ASSERT_EQ("a", insert.first->first);
+    ASSERT_EQ("b", *(insert.first->second));
+}
+
 TEST(SkipListTests, insert_distinct_strings)
 {
     SkipList<std::string, int, 4, WeakComparer<std::string>> skipList;

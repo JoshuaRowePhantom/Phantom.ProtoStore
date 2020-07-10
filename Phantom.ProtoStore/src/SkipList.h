@@ -68,7 +68,8 @@ private:
                 std::forward<TConstructedKey>(key),
                 std::forward<TConstructedValue>(value)
             )
-        {}
+        {
+        }
 
         value_type Item;
 
