@@ -88,6 +88,25 @@ TEST_F(value_publisher_tests, can_get_value_after_set_initially)
     });
 }
 
+TEST_F(value_publisher_tests, can_get_exception_after_exception_initially)
+{
+    run_async([]()->task<>
+    {
+        async_value_source<std::string> publisher;
+        try
+        {
+            throw std::range_error("foo");
+        }
+        catch (...)
+        {
+            publisher.unhandled_exception();
+        }
+        ASSERT_THROW(
+            co_await publisher, 
+            std::range_error);
+    });
+}
+
 TEST_F(value_publisher_tests, can_get_value_before_set_initially)
 {
     run_async([]()->task<>
@@ -101,6 +120,36 @@ TEST_F(value_publisher_tests, can_get_value_before_set_initially)
         auto task2 = [&]()->task<>
         {
             publisher.emplace("foo");
+            co_return;
+        } ();
+        co_await cppcoro::when_all(
+            std::move(task1),
+            std::move(task2));
+    });
+}
+
+TEST_F(value_publisher_tests, can_get_exception_before_set_initially)
+{
+    run_async([]()->task<>
+    {
+        async_value_source<std::string> publisher;
+        auto task1 = [&]()->task<>
+        {
+            ASSERT_EQ(false, publisher.is_set());
+            ASSERT_THROW(
+                co_await publisher,
+                std::range_error);
+        } ();
+        auto task2 = [&]()->task<>
+        {
+            try
+            {
+                throw std::range_error("foo");
+            }
+            catch (...)
+            {
+                publisher.unhandled_exception();
+            }
             co_return;
         } ();
         co_await cppcoro::when_all(
