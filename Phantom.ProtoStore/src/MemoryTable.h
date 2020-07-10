@@ -9,10 +9,9 @@ namespace Phantom::ProtoStore
 
 struct MemoryTableRow
 {
-    unique_ptr<Message> Key;
-    SequenceNumber SequenceNumber;
-    unique_ptr<Message> Value;
-    TransactionId* TransactionId;
+    unique_ptr<const Message> Key;
+    SequenceNumber WriteSequenceNumber;
+    unique_ptr<const Message> Value;
 };
 
 struct KeyRangeEnd

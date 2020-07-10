@@ -22,43 +22,24 @@ task<> MemoryTable::AddRow(
     MemoryTableRow& row
 )
 {
-    auto ownedRow = make_unique<MemoryTableRow>(
-        move(row));
-
-    try
+    InsertionKey insertionKey
     {
-        InsertionKey insertionKey
-        {
-            .Row = ownedRow.get(),
-            .ReadSequenceNumber = readSequenceNumber,
-        };
+        .Key = row.Key.get(),
+        .WriteSequenceNumber = row.WriteSequenceNumber,
+        .ReadSequenceNumber = readSequenceNumber,
+    };
 
-        MemoryTableValue memoryTableValue
-        {
-            .RawRow = ownedRow.get(),
-            .OwnedRow = nullptr,
-        };
+    auto [iterator, succeeded] = m_skipList.insert(
+        insertionKey);
 
-        auto [iterator, succeeded] = m_skipList.insert(
-            insertionKey,
-            std::move(memoryTableValue));
-
-        if (!succeeded)
-        {
-            throw WriteConflict();
-        }
-
-        iterator->second.OwnedRow = move(ownedRow);
-
-        co_return;
-    }
-    catch (...)
+    if (!succeeded)
     {
-        row = move(
-            *ownedRow);
-
-        throw;
+        throw WriteConflict();
     }
+
+    iterator->Row = move(row);
+
+    co_return;
 }
 
 cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
@@ -79,10 +60,10 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
 
     while (findIterator)
     {
-        const MemoryTableRow* row = findIterator->second.Row();
+        const MemoryTableValue& value = *findIterator;
 
         auto highComparisonResult = m_comparer(
-            row,
+            value,
             high);
 
         if (highComparisonResult == std::weak_ordering::greater)
@@ -90,14 +71,9 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
             co_return;
         }
 
-        if (row->TransactionId)
-        {
-            throw UnresolvedTransactionConflict();
-        }
+        enumerationKey.KeyLow = value.Key;
 
-        enumerationKey.KeyLow = row->Key.get();
-
-        if (row->SequenceNumber > readSequenceNumber)
+        if (value.Row.WriteSequenceNumber > readSequenceNumber)
         {
             // We found a version of the row later than requested;
             // change the enumeration key to be inclusive so that we'll
@@ -111,7 +87,7 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
             // Change the enumeration key to be exclusive so that we'll
             // skip all lower sequence numbers for the same row.
             enumerationKey.Inclusivity = Inclusivity::Exclusive;
-            co_yield row;
+            co_yield &value.Row;
         }
 
         keyComparisonResult = m_skipList.find_in_place(
@@ -121,24 +97,41 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
     }
 }
 
+MemoryTable::InsertionKey::operator MemoryTable::MemoryTableValue() const
+{
+    MemoryTableRow row =
+    {
+        .Key = nullptr,
+        .WriteSequenceNumber = WriteSequenceNumber,
+        .Value = nullptr,
+    };
+
+    return
+    {
+        .Key = Key,
+        .Row = move(row),
+    };
+}
 
 std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
-    const MemoryTableRow* key1,
+    const MemoryTableValue& key1,
     const InsertionKey& key2
     ) const
 {
     auto comparisonResult = (*m_keyComparer)(
-        key1->Key.get(),
-        key2.Row->Key.get());
+        key1.Key,
+        key2.Key);
 
     if (comparisonResult != std::weak_ordering::equivalent)
     {
         return comparisonResult;
     }
 
-    if (key1->SequenceNumber > key2.ReadSequenceNumber
+    auto sequenceNumber = key1.Row.WriteSequenceNumber;
+
+    if (sequenceNumber > key2.ReadSequenceNumber
         ||
-        key1->SequenceNumber >= key2.Row->SequenceNumber)
+        sequenceNumber >= key2.WriteSequenceNumber)
     {
         // By returning equivalent here, the SkipList
         // won't insert the row.
@@ -149,7 +142,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
 }
 
 std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
-    const MemoryTableRow* key1,
+    const MemoryTableValue& key1,
     const EnumerationKey& key2
     ) const
 {
@@ -159,7 +152,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         std::weak_ordering::greater
         :
         (*m_keyComparer)(
-            key1->Key.get(),
+            key1.Key,
             key2.KeyLow);
 
     if (comparisonResult == std::weak_ordering::equivalent
@@ -174,12 +167,14 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         return comparisonResult;
     }
 
-    if (key1->SequenceNumber > key2.ReadSequenceNumber)
+    auto sequenceNumber = key1.Row.WriteSequenceNumber;
+
+    if (sequenceNumber > key2.ReadSequenceNumber)
     {
         return std::weak_ordering::less;
     }
 
-    if (key1->SequenceNumber == key2.ReadSequenceNumber)
+    if (sequenceNumber == key2.ReadSequenceNumber)
     {
         return std::weak_ordering::equivalent;
     }
@@ -188,7 +183,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
 }
 
 std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
-    const MemoryTableRow* key1,
+    const MemoryTableValue& key1,
     const KeyRangeEnd& key2
     ) const
 {
@@ -198,7 +193,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         std::weak_ordering::less
         :
         (*m_keyComparer)(
-            key1->Key.get(),
+            key1.Key,
             key2.Key);
 
     if (comparisonResult == std::weak_ordering::equivalent
