@@ -4,10 +4,12 @@ find_package(cppcoro CONFIG REQUIRED)
 add_library (
 	Phantom.System
 	STATIC
+	"async_value_source.h"
+	"empty.cpp"
 	"pooled_ptr.h" 
 	"ThreadingProvider.cpp"
 	"ThreadingProvider.h" 
-	"utility.h" )
+	"utility.h")
 
 target_link_libraries(
 	Phantom.System

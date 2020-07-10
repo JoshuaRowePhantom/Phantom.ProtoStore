@@ -44,4 +44,7 @@ namespace Phantom
     {
         return make_unique<T>(other);
     }
+
+    struct empty
+    {};
 }
