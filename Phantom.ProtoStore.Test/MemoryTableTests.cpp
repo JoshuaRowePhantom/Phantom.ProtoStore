@@ -4,79 +4,77 @@
 
 namespace Phantom::ProtoStore
 {
-TEST(MemoryTableTests, Can_add_distinct_rows)
+class MemoryTableTests : public ::testing::Test
 {
-    run_async([]()->task<>
+protected:
+    KeyComparer keyComparer;
+    MemoryTable memoryTable;
+
+public:
+    MemoryTableTests()
+        : 
+        keyComparer(
+            StringKey::descriptor()),
+        memoryTable(
+            &keyComparer)
+    {}
+
+protected:
+    task<> AddRow(
+        std::string key,
+        std::string value,
+        std::uint64_t writeSequenceNumber,
+        std::uint64_t readSequenceNumber)
     {
-        KeyComparer keyComparer(
-            StringKey::descriptor());
+        StringKey rowKey;
+        rowKey.set_value(key);
+        StringValue rowValue;
+        rowValue.set_value(value);
 
-        MemoryTable memoryTable(
-            &keyComparer);
-
-        StringKey key1;
-        key1.set_value("key-1");
-        StringValue value1;
-        key1.set_value("value-1");
-
-        MemoryTableRow row1
+        MemoryTableRow row
         {
-            copy_unique(key1),
-            static_cast<SequenceNumber>(5),
-            copy_unique(value1),
-            nullptr,
+            .Key = copy_unique(rowKey),
+            .SequenceNumber = static_cast<SequenceNumber>(writeSequenceNumber),
+            .Value = copy_unique(rowValue),
+            .TransactionId = nullptr,
         };
 
         co_await memoryTable.AddRow(
-            SequenceNumber::Earliest,
-            row1);
+            static_cast<SequenceNumber>(readSequenceNumber),
+            row);
+    }
+};
 
+TEST_F(MemoryTableTests, Can_add_distinct_rows)
+{
+    run_async([&]()->task<>
+    {
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0
+        );
 
-        StringKey key2;
-        key2.set_value("key-2");
-        StringValue value2;
-        key2.set_value("value-2");
-
-        MemoryTableRow row2
-        {
-            copy_unique(key2),
-            static_cast<SequenceNumber>(5),
-            copy_unique(value2),
-            nullptr,
-        };
-
-        co_await memoryTable.AddRow(
-            SequenceNumber::Earliest,
-            row2);
+        co_await AddRow(
+            "key-2",
+            "value-2",
+            5,
+            0
+        );
     });
 }
 
-TEST(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
+TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
 {
-    run_async([]()->task<>
+    run_async([&]()->task<>
     {
-        KeyComparer keyComparer(
-            StringKey::descriptor());
-
-        MemoryTable memoryTable(
-            &keyComparer);
-
-        StringKey key1;
-        key1.set_value("key-1");
-        StringValue value1;
-        value1.set_value("value-1");
-
-        MemoryTableRow row1
-        {
-            copy_unique(key1),
-            static_cast<SequenceNumber>(5),
-            copy_unique(value1),
-            nullptr,
-        };
-
-        co_await memoryTable.AddRow(
-            SequenceNumber::Earliest,
-            row1);
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0
+        );
 
         StringKey key2;
         key2.set_value("key-1");
@@ -102,32 +100,16 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
     });
 }
 
-TEST(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
+TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
 {
-    run_async([]()->task<>
+    run_async([&]()->task<>
     {
-        KeyComparer keyComparer(
-            StringKey::descriptor());
-
-        MemoryTable memoryTable(
-            &keyComparer);
-
-        StringKey key1;
-        key1.set_value("key-1");
-        StringValue value1;
-        value1.set_value("value-1");
-
-        MemoryTableRow row1
-        {
-            copy_unique(key1),
-            static_cast<SequenceNumber>(5),
-            copy_unique(value1),
-            nullptr,
-        };
-
-        co_await memoryTable.AddRow(
-            SequenceNumber::Earliest,
-            row1);
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0
+        );
 
         StringKey key2;
         key2.set_value("key-1");
@@ -137,14 +119,14 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
         MemoryTableRow row2
         {
             copy_unique(key2),
-            static_cast<SequenceNumber>(4),
+            static_cast<SequenceNumber>(5),
             copy_unique(value2),
             nullptr,
         };
 
         ASSERT_THROW(
             co_await memoryTable.AddRow(
-                SequenceNumber::Latest,
+                static_cast<SequenceNumber>(7),
                 row2),
             WriteConflict);
 
@@ -153,48 +135,51 @@ TEST(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
     });
 }
 
-TEST(MemoryTableTests, Add_new_version_of_row)
+TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_write)
 {
-    run_async([]()->task<>
+    run_async([&]()->task<>
     {
-        KeyComparer keyComparer(
-            StringKey::descriptor());
+        auto version1 = 5;
+        auto version2 = 6;
 
-        MemoryTable memoryTable(
-            &keyComparer);
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            version1,
+            0
+        );
 
-        StringKey key1;
-        key1.set_value("key-1");
-        StringValue value1;
-        value1.set_value("value-1");
-
-        MemoryTableRow row1
-        {
-            copy_unique(key1),
-            static_cast<SequenceNumber>(5),
-            copy_unique(value1),
-            nullptr,
-        };
-
-        co_await memoryTable.AddRow(
-            SequenceNumber::Earliest,
-            row1);
-
-        StringKey key2;
-        key2.set_value("key-1");
-        StringValue value2;
-        value2.set_value("value-1");
-
-        MemoryTableRow row2
-        {
-            copy_unique(key2),
-            static_cast<SequenceNumber>(6),
-            copy_unique(value2),
-            nullptr,
-        };
-
-        co_await memoryTable.AddRow(
-            SequenceNumber::Latest,
-            row2);
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            version2,
+            version1
+        );
     });
-}}
+}
+
+TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_version)
+{
+    run_async([&]()->task<>
+    {
+        auto version1 = 5;
+        auto version2 = 6;
+        auto version3 = 7;
+
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            version1,
+            0
+        );
+
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            version3,
+            version2
+        );
+    });
+}
+
+}

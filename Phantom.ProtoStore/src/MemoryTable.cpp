@@ -124,7 +124,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         return comparisonResult;
     }
 
-    if (key1->SequenceNumber >= key2.ReadSequenceNumber
+    if (key1->SequenceNumber > key2.ReadSequenceNumber
         ||
         key1->SequenceNumber >= key2.Row->SequenceNumber)
     {
