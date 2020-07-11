@@ -2,7 +2,7 @@
 
 #include "StandardTypes.h"
 #include <cppcoro/async_generator.hpp>
-#include <any>
+#include <cppcoro/shared_task.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -23,13 +23,16 @@ struct KeyRangeEnd
 class IMemoryTable
 {
 public:
+    typedef cppcoro::shared_task<OperationOutcome> OperationOutcomeTask;
+
     // Add the specified row.
     // If there is a conflict, an exception of the proper type with be thrown,
     // and the row will be left untouched.
     // Otherwise, the content of the row are std::move'd into the memory table.
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber,
-        MemoryTableRow& row
+        MemoryTableRow& row,
+        OperationOutcomeTask operationOutcome
     ) = 0;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(

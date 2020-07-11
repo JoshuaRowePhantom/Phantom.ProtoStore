@@ -19,13 +19,15 @@ MemoryTable::~MemoryTable()
 
 task<> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
-    MemoryTableRow& row
+    MemoryTableRow& row,
+    OperationOutcomeTask operationOutcome
 )
 {
     InsertionKey insertionKey
     {
         .Key = row.Key.get(),
         .WriteSequenceNumber = row.WriteSequenceNumber,
+        .OperationOutcome = operationOutcome,
         .ReadSequenceNumber = readSequenceNumber,
     };
 
@@ -110,6 +112,7 @@ MemoryTable::InsertionKey::operator MemoryTable::MemoryTableValue() const
     {
         .Key = Key,
         .Row = move(row),
+        .OperationOutcome = move(OperationOutcome),
     };
 }
 

@@ -26,6 +26,9 @@ class MemoryTable
         //      2.  WriteSequenceNumber can be changed at any time
         //          if the owning operation has not completed.
         MemoryTableRow Row;
+
+        // The outcome of the owning operation.
+        OperationOutcomeTask OperationOutcome;
     };
 
     struct InsertionKey
@@ -33,6 +36,8 @@ class MemoryTable
         const Message* Key;
         SequenceNumber WriteSequenceNumber;
         const Message* Value;
+
+        OperationOutcomeTask& OperationOutcome;
 
         SequenceNumber ReadSequenceNumber;
 
@@ -95,7 +100,8 @@ public:
 
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber, 
-        MemoryTableRow& row
+        MemoryTableRow& row,
+        OperationOutcomeTask operationOutcome
     ) override;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(

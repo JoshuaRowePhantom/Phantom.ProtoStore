@@ -26,11 +26,18 @@ public:
     {}
 
 protected:
+    MemoryTable::OperationOutcomeTask WithOutcome(
+        OperationOutcome outcome)
+    {
+        co_return outcome;
+    }
+
     task<> AddRow(
         string key,
         string value,
         uint64_t writeSequenceNumber,
-        uint64_t readSequenceNumber)
+        uint64_t readSequenceNumber,
+        OperationOutcome outcome = OperationOutcome::Committed)
     {
         StringKey rowKey;
         rowKey.set_value(key);
@@ -46,7 +53,8 @@ protected:
 
         co_await memoryTable.AddRow(
             static_cast<SequenceNumber>(readSequenceNumber),
-            row);
+            row,
+            WithOutcome(outcome));
     }
 
     struct ExpectedRow
@@ -169,7 +177,8 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
         ASSERT_THROW(
             co_await memoryTable.AddRow(
                 SequenceNumber::Earliest,
-                row2),
+                row2,
+                WithOutcome(OperationOutcome::Committed)),
             WriteConflict);
 
         ASSERT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
@@ -217,7 +226,8 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
         ASSERT_THROW(
             co_await memoryTable.AddRow(
                 static_cast<SequenceNumber>(7),
-                row2),
+                row2,
+                WithOutcome(OperationOutcome::Committed)),
             WriteConflict);
 
         ASSERT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
