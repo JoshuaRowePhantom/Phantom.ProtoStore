@@ -282,6 +282,7 @@ struct ReentrantValue
     string m_value;
     std::function<void()> m_moveTask;
     int m_targetMovementCount;
+    int m_totalMovementCount;
 
     ReentrantValue(
         const string& value,
@@ -290,14 +291,16 @@ struct ReentrantValue
     )
         : m_value(value),
         m_moveTask(moveTask),
-        m_targetMovementCount(targetMovementCount)
+        m_targetMovementCount(targetMovementCount),
+        m_totalMovementCount(0)
     {}
 
     ReentrantValue(
         string&& value)
         :
         m_value(value),
-        m_targetMovementCount(std::numeric_limits<int>::max())
+        m_targetMovementCount(std::numeric_limits<int>::max()),
+        m_totalMovementCount(0)
     {
     }
 
@@ -307,7 +310,8 @@ struct ReentrantValue
         : 
         m_value(move(other.m_value)),
         m_moveTask(move(other.m_moveTask)),
-        m_targetMovementCount(other.m_targetMovementCount - 1)
+        m_targetMovementCount(other.m_targetMovementCount - 1),
+        m_totalMovementCount(other.m_totalMovementCount + 1)
     {
         if (m_targetMovementCount == 0)
         {
@@ -332,6 +336,7 @@ struct ReentrantValue
         m_value = other.m_value;
         m_moveTask = move(other.m_moveTask);
         m_targetMovementCount = other.m_targetMovementCount - 1;
+        m_totalMovementCount = other.m_totalMovementCount + 1;
 
         if (m_targetMovementCount == 0)
         {
@@ -354,7 +359,7 @@ struct ReentrantValue
         string&& other
         )
     {
-        m_value = other;
+        m_value = move(other);
         return *this;
     }
 
@@ -417,7 +422,7 @@ TEST(SkipListTests, insert_distinct_values_reentrantly_at_insertion_point_does_i
     ASSERT_EQ(expectedValues, actualValues);
 }
 
-TEST(SkipListTests, insert_duplicate_values_reentrantly_at_insertion_point_does_not_replace)
+TEST(SkipListTests, insert_duplicate_values_reentrantly_at_insertion_point_does_not_replace_and_puts_key_back)
 {
     SkipList<ReentrantValue, int, 32, WeakComparer<ReentrantValue>> skipList;
 
@@ -435,16 +440,20 @@ TEST(SkipListTests, insert_duplicate_values_reentrantly_at_insertion_point_does_
         string("e"),
         5);
 
+    auto reentrantValue = ReentrantValue(
+        string("c"),
+        reentrantLambda,
+        1);
+
     auto nonReplacingInsert = skipList.insert(
-        ReentrantValue(
-            string("c"),
-            reentrantLambda,
-            1),
+        move(reentrantValue),
         6);
 
     ASSERT_EQ("c", (const string&)nonReplacingInsert.first->first);
     ASSERT_EQ(3, nonReplacingInsert.first->second);
     ASSERT_EQ(false, nonReplacingInsert.second);
+    ASSERT_EQ("c", reentrantValue.m_value);
+    ASSERT_EQ(2, reentrantValue.m_totalMovementCount);
 
     vector<pair<string, int>> expectedValues
     {

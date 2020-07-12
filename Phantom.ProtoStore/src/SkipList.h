@@ -10,6 +10,7 @@
 #include <random>
 #include <tuple>
 #include <vector>
+#include "Phantom.System/put_back.h"
 
 namespace Phantom::ProtoStore
 {
@@ -18,6 +19,8 @@ extern thread_local std::mt19937 tls_SkipListRng;
 
 namespace detail
 {
+struct void_tag {};
+
 template<
     typename TKey,
     typename TValue
@@ -29,11 +32,18 @@ struct SkipListTraits
     typedef TValue insertion_value_type;
     static const bool has_insertion_value_type = true;
 
-    static const TKey& get_key(
+    static TKey& get_key(
         value_type& value
     )
     {
-        return value.first;
+        return const_cast<TKey&>(value.first);
+    }
+
+    static TValue& get_value(
+        value_type& value
+    )
+    {
+        return value.second;
     }
 };
 
@@ -50,11 +60,18 @@ struct SkipListTraits<
     typedef void void_insertion_value_type;
     static const bool has_insertion_value_type = false;
 
-    static const TKey& get_key(
+    static TKey& get_key(
         value_type& value
     )
     {
         return value;
+    }
+
+    static void_tag get_value(
+        value_type& value
+    )
+    {
+        return void_tag();
     }
 };
 
@@ -73,7 +90,6 @@ public:
     typedef typename traits_type::value_type value_type;
     typedef typename traits_type::key_type key_type;
 private:
-    struct void_tag {};
     struct Node;
     struct NextPointers;
     typedef std::atomic<Node*> AtomicNextPointer;
@@ -108,7 +124,7 @@ private:
             typename TConstructedKey
         > Node(
             TConstructedKey&& key,
-            void_tag value)
+            detail::void_tag value)
             :
             Item(
                 std::forward<TConstructedKey>(key)
@@ -392,6 +408,7 @@ public:
     }
 
 private:
+    
     template<
         typename TSearchKey,
         typename TAddValue
@@ -460,6 +477,16 @@ private:
                 {
                     assert(level == 0);
                     assert(newNodeHolder);
+
+                    put_back(
+                        std::forward<TSearchKey>(key),
+                        std::move(traits_type::get_key(newNode->Item))
+                    );
+
+                    put_back(
+                        std::forward<TAddValue>(value),
+                        std::move(traits_type::get_value(newNode->Item))
+                    );
 
                     return
                     {
@@ -535,7 +562,7 @@ public:
     {
         return insert(
             std::forward<TAddValue>(value),
-            void_tag(),
+            detail::void_tag(),
             finger.m_finger);
     }
 
@@ -565,7 +592,7 @@ public:
 
         return insert(
             std::forward<TAddValue>(value),
-            void_tag(),
+            detail::void_tag(),
             location);
     }
 
