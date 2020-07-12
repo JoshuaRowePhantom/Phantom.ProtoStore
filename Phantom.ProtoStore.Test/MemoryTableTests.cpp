@@ -26,10 +26,15 @@ public:
     {}
 
 protected:
-    MemoryTable::OperationOutcomeTask WithOutcome(
-        OperationOutcome outcome)
+    MemoryTableOperationOutcomeTask WithOutcome(
+        OperationOutcome outcome,
+        uint64_t writeSequenceNumber)
     {
-        co_return outcome;
+        co_return MemoryTableOperationOutcome
+        {
+            .Outcome = outcome,
+            .WriteSequenceNumber = static_cast<SequenceNumber>(writeSequenceNumber),
+        };
     }
 
     task<> AddRow(
@@ -54,7 +59,7 @@ protected:
         co_await memoryTable.AddRow(
             static_cast<SequenceNumber>(readSequenceNumber),
             row,
-            WithOutcome(outcome));
+            WithOutcome(outcome, writeSequenceNumber));
     }
 
     struct ExpectedRow
@@ -120,8 +125,32 @@ protected:
         ASSERT_EQ(
             expectedRows,
             storedRows);
+
+        co_await memoryTable.Join();
     }
 };
+
+TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
+{
+    run_async([&]()->task<>
+    {
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0
+        );
+
+        co_await EnumerateExpectedRows(
+            5,
+            {
+                {"key-1", "value-1", 5},
+            }
+        );
+
+        co_await memoryTable.Join();
+    });
+}
 
 TEST_F(MemoryTableTests, Can_add_distinct_rows)
 {
@@ -148,6 +177,38 @@ TEST_F(MemoryTableTests, Can_add_distinct_rows)
                 {"key-2", "value-2", 5},
             }
         );
+
+        co_await memoryTable.Join();
+    });
+}
+
+TEST_F(MemoryTableTests, Skips_aborted_rows)
+{
+    run_async([&]()->task<>
+    {
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0
+        );
+
+        co_await AddRow(
+            "key-2",
+            "value-2",
+            5,
+            0,
+            OperationOutcome::Aborted
+        );
+
+        co_await EnumerateExpectedRows(
+            5,
+            {
+                {"key-1", "value-1", 5},
+            }
+        );
+
+        co_await memoryTable.Join();
     });
 }
 
@@ -178,7 +239,9 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
             co_await memoryTable.AddRow(
                 SequenceNumber::Earliest,
                 row2,
-                WithOutcome(OperationOutcome::Committed)),
+                WithOutcome(
+                    OperationOutcome::Committed,
+                    6)),
             WriteConflict);
 
         ASSERT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
@@ -196,7 +259,9 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
             {
                 {"key-1", "value-1", 5},
             }
-        );    
+        );
+
+        co_await memoryTable.Join();
     });
 }
 
@@ -227,7 +292,7 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
             co_await memoryTable.AddRow(
                 static_cast<SequenceNumber>(7),
                 row2,
-                WithOutcome(OperationOutcome::Committed)),
+                WithOutcome(OperationOutcome::Committed, 7)),
             WriteConflict);
 
         ASSERT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
@@ -245,7 +310,44 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
             {
                 {"key-1", "value-1", 5},
             }
-        );    
+        );
+
+        co_await memoryTable.Join();
+    });
+}
+
+TEST_F(MemoryTableTests, Succed_to_add_conflicting_row_if_operation_aborted)
+{
+    run_async([&]()->task<>
+    {
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0
+        );
+
+        co_await AddRow(
+            "key-1",
+            "value-1-2",
+            5,
+            0
+        );
+
+        co_await EnumerateExpectedRows(
+            5,
+            {
+            }
+        );
+
+        co_await EnumerateExpectedRows(
+            6,
+            {
+                {"key-1", "value-1-2", 5},
+            }
+        );
+
+        co_await memoryTable.Join();
     });
 }
 
@@ -296,6 +398,8 @@ TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_write)
                 {"key-1", "value-1-2", version2},
             }
         );
+
+        co_await memoryTable.Join();
     });
 }
 
@@ -354,6 +458,8 @@ TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_version
                 {"key-1", "value-1-2", version3},
             }
         );
+
+        co_await memoryTable.Join();
     });
 }
 

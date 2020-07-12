@@ -236,8 +236,9 @@ public:
 };
 
 enum class OperationOutcome {
-    Committed = 0,
-    Aborted = 1,
+    Unknown = 0,
+    Committed = 1,
+    Aborted = 2,
 };
 
 enum class TransactionOutcome {

@@ -1,6 +1,9 @@
 #include "MemoryTable.h"
 #include "KeyComparer.h"
 #include "SkipList.h"
+#include <atomic>
+#include <cppcoro/async_mutex.hpp>
+#include <cppcoro/async_scope.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -9,46 +12,87 @@ class MemoryTable
     :
     public IMemoryTable
 {
-    struct MemoryTableValue
-    {
-        // The raw pointers to the key.  This value is 
-        // the same as MemoryTableRow.Key after an insertion
-        // operation is complete.  This value
-        // is never changed once a node is inserted
-        // into the skip list.
-        const Message* Key;
-
-        // This contains owning copies of the row data.
-        // It is not updated until after the initial insertion completes.
-        // Important notes for accessing its members:
-        //      1.  Neither Key nor Value should be read
-        //          unless the owning operation has completed.
-        //      2.  WriteSequenceNumber can be changed at any time
-        //          if the owning operation has not completed.
-        MemoryTableRow Row;
-
-        // The outcome of the owning operation.
-        OperationOutcomeTask OperationOutcome;
-    };
+    struct MemoryTableValue;
 
     struct InsertionKey
     {
-        const Message* Key;
-        SequenceNumber WriteSequenceNumber;
-        const Message* Value;
+        InsertionKey(
+            MemoryTableRow& row,
+            MemoryTableOperationOutcomeTask memoryTableOperationOutcomeTask,
+            SequenceNumber readSequenceNumber);
 
-        OperationOutcomeTask& OperationOutcome;
+        InsertionKey(
+            const InsertionKey&
+        ) = delete;
 
+        InsertionKey& operator=(
+            const InsertionKey&
+        ) = delete;
+
+        // The SkipList might want to move a MemoryTableValue
+        // back to the insertion key.
+        InsertionKey& operator=(
+            MemoryTableValue&& memoryTableValue);
+
+        MemoryTableRow& Row;
+        MemoryTableOperationOutcomeTask& AsyncOperationOutcome;
         SequenceNumber ReadSequenceNumber;
+    };
 
-        operator MemoryTableValue() const;
+    struct MemoryTableValue
+    {
+        // We can only be constructed by a movable InsertionKey.
+        MemoryTableValue(
+            InsertionKey&& other);
+
+        // Memory table is not copyable nor movable.
+        MemoryTableValue(
+            const MemoryTableValue&
+        ) = delete;
+
+        MemoryTableValue& operator=(
+            const MemoryTableValue&
+        ) = delete;
+
+        MemoryTableValue& operator=(
+            MemoryTableValue&&
+            ) = delete;
+
+        // The sequence number the row was either added
+        // or committed at.  The protocol to write this
+        // value after adding to the skip list is to first
+        // write it, then write to OperationOutcome with Release.
+        SequenceNumber WriteSequenceNumber;
+
+        // The commit / abort status of the row.
+        // When this is set to Committed or Aborted,
+        // it is safe to access the Row.Value member of this structure.
+        // Otherwise, the mutex must be acquired and this
+        // value re-checked before accessing Row.Value and AsyncOperationOutcome.
+        std::atomic<OperationOutcome> OperationOutcome;
+
+        // This mutex controls reading and writing Row and AsyncOperationOutcome
+        // after the row has been added to the SkipList.
+        cppcoro::async_mutex Mutex;
+
+        // This contains owning copies of the row data.
+        // .Value must not be read unless OperationOutcome indicates Committed
+        // or the Mutex is acquired.
+        // The Key in it must never be replaced, as it is used in a thread-unsafe way
+        // after the skip list node is created.
+        MemoryTableRow Row;
+
+        // The outcome of the owning operation.
+        // It must only be checked while the Mutex is held.
+        MemoryTableOperationOutcomeTask AsyncOperationOutcome;
     };
 
     struct EnumerationKey
     {
         const Message* KeyLow;
-        Inclusivity Inclusivity;
+        Inclusivity KeyLowInclusivity;
         SequenceNumber ReadSequenceNumber;
+        optional<SequenceNumber> SequenceNumberToSkipForKeyLow;
     };
 
     class MemoryTableRowComparer
@@ -90,6 +134,19 @@ class MemoryTable
     // so that m_skipList can point to it.
     const MemoryTableRowComparer m_comparer;
     SkipList<MemoryTableValue, void, 32, MemoryTableRowComparer> m_skipList;
+    cppcoro::async_scope m_asyncScope;
+
+    // Resolve a memory table row's outcome using the passed-in
+    // task.  Does not acquire the row's mutex.
+    task<OperationOutcome> ResolveMemoryTableRowOutcome(
+        MemoryTableValue& memoryTableValue,
+        MemoryTableOperationOutcomeTask task
+    );
+
+    // Resolve a memory table row with acquiring the mutex.
+    task<OperationOutcome> ResolveMemoryTableRowOutcome(
+        MemoryTableValue& memoryTableValue
+    );
 
 public:
     MemoryTable(
@@ -101,13 +158,16 @@ public:
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber, 
         MemoryTableRow& row,
-        OperationOutcomeTask operationOutcome
+        MemoryTableOperationOutcomeTask asyncOperationOutcome
     ) override;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
         SequenceNumber readSequenceNumber, 
         KeyRangeEnd low, 
         KeyRangeEnd high
+    ) override;
+
+    virtual task<> Join(
     ) override;
 };
 

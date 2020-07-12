@@ -20,10 +20,17 @@ struct KeyRangeEnd
     Inclusivity Inclusivity;
 };
 
+struct MemoryTableOperationOutcome
+{
+    OperationOutcome Outcome;
+    SequenceNumber WriteSequenceNumber;
+};
+
+typedef cppcoro::shared_task<MemoryTableOperationOutcome> MemoryTableOperationOutcomeTask;
+
 class IMemoryTable
 {
 public:
-    typedef cppcoro::shared_task<OperationOutcome> OperationOutcomeTask;
 
     // Add the specified row.
     // If there is a conflict, an exception of the proper type with be thrown,
@@ -32,13 +39,20 @@ public:
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber,
         MemoryTableRow& row,
-        OperationOutcomeTask operationOutcome
+        MemoryTableOperationOutcomeTask outcomeTask
     ) = 0;
 
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high
+    ) = 0;
+
+    // Indicate that no more operations are incoming,
+    // and the memory table should complete all
+    // async operations.  The task will return when
+    // it is safe to destroy the MemoryTable.
+    virtual task<> Join(
     ) = 0;
 };
 }
