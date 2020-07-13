@@ -12,7 +12,7 @@
 #include <vector>
 #include <cppcoro/task.hpp>
 #include "Phantom.System/pooled_ptr.h"
-#include <Phantom.ProtoStore/include/Phantom.ProtoStore.h>
+#include <Phantom.ProtoStore/Phantom.ProtoStore.h>
 
 namespace google::protobuf
 {

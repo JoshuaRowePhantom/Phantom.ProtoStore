@@ -1,14 +1,14 @@
 ﻿cmake_minimum_required (VERSION 3.17)
 
-find_package(Protobuf REQUIRED)
-find_package(cppcoro CONFIG REQUIRED)
-
-set(Protobuf_IMPORT_DIRS ${Protobuf_INCLUDE_DIRS})
-
-protobuf_generate_cpp(
+phantom_protobuf_generate_cpp(
     PROTOC_CPP
     PROTOC_H
-    include/ProtoStore.proto
+    IMPORTDIRECTORY
+    include
+    ${Protobuf_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    PROTO
+    Phantom.ProtoStore/ProtoStore.proto
     src/ProtoStoreInternal.proto
 )
 
@@ -27,7 +27,7 @@ add_library (
     "src/KeyComparer.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
-    "src/MemoryTable.cpp"
+    "src/MemoryTable.cpp" 
     "src/MemoryTable.h"
     "src/MemoryTableImpl.h"
     "src/MessageStore.cpp"
@@ -44,7 +44,7 @@ add_library (
     "src/SkipList.cpp"
     "src/SkipList.h" 
     "src/StandardTypes.h"
-    "include/Phantom.ProtoStore.h"
+    "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
     ${PROTOC_CPP}
     ${PROTOC_H} )
     
@@ -52,14 +52,18 @@ add_library (
 target_include_directories(
     Phantom.ProtoStore
     PUBLIC
+    include
+    ${Boost_INCLUDE_DIR}
     ${Protobuf_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ..
 )
 
 target_link_libraries(
     Phantom.ProtoStore
-    ${Protobuf_LIBRARIES}
+    PUBLIC
+    cppcoro
+    libprotobuf
+    PRIVATE
     Phantom.System
+    boost_crc
 )

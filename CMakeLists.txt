@@ -15,7 +15,12 @@ if (MSVC)
 
 	add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:/GL>")
 	add_link_options("$<$<CONFIG:RELWITHDEBINFO>:/LTCG>")
+	add_compile_definitions(_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS)
+	add_compile_definitions(_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS)
 endif()
+
+include("googletest")
+include("cmake/PhantomProtobuf.cmake")
 
 add_subdirectory ("Phantom.System")
 add_subdirectory ("Phantom.System.Test")

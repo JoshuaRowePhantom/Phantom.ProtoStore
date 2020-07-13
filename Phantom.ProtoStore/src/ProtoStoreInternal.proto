@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/descriptor.proto";
-import "ProtoStore.proto";
+import "Phantom.ProtoStore/ProtoStore.proto";
 
 package Phantom.ProtoStore;
 

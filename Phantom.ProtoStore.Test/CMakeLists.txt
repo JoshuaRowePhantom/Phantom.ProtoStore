@@ -2,16 +2,15 @@
 # and include sub-projects here.
 #
 cmake_minimum_required (VERSION 3.17)
-find_package(Protobuf REQUIRED)
-find_package(GTest REQUIRED)
 
-set(Protobuf_IMPORT_DIRS 
-	${Protobuf_INCLUDE_DIRS}
-	$<TARGET_PROPERTY:Phantom.ProtoStore,INCLUDE_DIRECTORIES>)
-
-protobuf_generate_cpp(
+phantom_protobuf_generate_cpp(
     PROTOC_CPP
     PROTOC_H
+    IMPORTDIRECTORY
+	${Protobuf_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+	../Phantom.ProtoStore/include
+	PROTO
     ProtoStoreTest.proto
 )
 
@@ -35,15 +34,13 @@ target_link_libraries(
 	Phantom.ProtoStore.Test
 	Phantom.System
 	Phantom.ProtoStore
-	${GTEST_LIBRARIES}
-	${Protobuf_LIBRARIES}
-	GTest::Main
+	gtest
+	gtest_main
 )
 
 target_include_directories(
 	Phantom.ProtoStore.Test
 	PRIVATE
-	$<TARGET_PROPERTY:Phantom.ProtoStore,INCLUDE_DIRECTORIES>
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 

@@ -81,7 +81,7 @@ namespace Phantom::ProtoStore
 
             if (!checksumInputStream.ReadRaw(
                 checksum->Comparand().data(),
-                checksum->Comparand().size_bytes()))
+                static_cast<int>(checksum->Comparand().size_bytes())))
             {
                 throw range_error("Invalid checksum data.");
             }
@@ -145,7 +145,7 @@ namespace Phantom::ProtoStore
                 writeBuffer->Stream());
 
             messageHeaderOutputStream.WriteLittleEndian32(
-                messageSize);
+                static_cast<google::protobuf::uint32>(messageSize));
             messageHeaderOutputStream.WriteRaw(
                 &checksumVersion,
                 sizeof(checksumVersion));
@@ -173,7 +173,7 @@ namespace Phantom::ProtoStore
 
             checksumOutputStream.WriteRaw(
                 checksum->Computed().data(),
-                checksum->Computed().size_bytes());
+                static_cast<int>(checksum->Computed().size_bytes()));
         }
 
         if (flushBehavior == FlushBehavior::Flush)

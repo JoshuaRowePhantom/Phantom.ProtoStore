@@ -4,7 +4,7 @@
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.ProtoStore/src/RandomMessageAccessor.h"
-#include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal.pb.h"
 
 using google::protobuf::util::MessageDifferencer;
 

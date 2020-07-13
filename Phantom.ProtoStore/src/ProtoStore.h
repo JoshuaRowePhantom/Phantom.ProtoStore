@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Phantom.ProtoStore/include/Phantom.ProtoStore.h>
+#include <Phantom.ProtoStore/Phantom.ProtoStore.h>
 #include "StandardTypes.h"
 
 namespace Phantom::ProtoStore

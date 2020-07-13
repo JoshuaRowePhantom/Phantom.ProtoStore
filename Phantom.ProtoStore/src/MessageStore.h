@@ -1,8 +1,8 @@
 #pragma once
 
 #include "StandardTypes.h"
-#include <Phantom.ProtoStore/include/Phantom.ProtoStore.h>
-#include "ProtoStore.pb.h"
+#include "Phantom.ProtoStore/Phantom.ProtoStore.h"
+#include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include "ExtentStore.h"
 
 namespace Phantom::ProtoStore

@@ -3,7 +3,7 @@
 #include "MessageStore.h"
 #include "RandomMessageAccessor.h"
 #include "HeaderAccessor.h"
-#include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal.pb.h"
 
 namespace Phantom::ProtoStore
 {
@@ -24,8 +24,8 @@ task<> ProtoStore::Create(
     Header header;
     header.set_version(1);
     header.set_epoch(1);
-    header.set_logalignment(
-        createRequest.LogAlignment);
+    header.set_logalignment(static_cast<google::protobuf::uint32>(
+        createRequest.LogAlignment));
     header.set_logreplayextentnumber(2);
     header.set_logreplaylocation(0);
 

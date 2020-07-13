@@ -1,6 +1,6 @@
 #include "StandardTypes.h"
 #include "KeyComparer.h"
-#include "ProtoStore.pb.h"
+#include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <stack>
 #include <compare>

@@ -1,5 +1,3 @@
-find_package(GTest REQUIRED)
-find_package(cppcoro CONFIG REQUIRED)
 
 add_executable(
 	Phantom.System.Test
@@ -13,9 +11,15 @@ add_executable(
 target_link_libraries(
 	Phantom.System.Test
 	Phantom.System
-	${GTEST_LIBRARIES}
-	GTest::Main
+	gtest
+	gtest_main
 	cppcoro
+)
+
+target_include_directories(
+	Phantom.System.Test
+	PRIVATE
+	gtest
 )
 
 gtest_discover_tests(Phantom.System.Test)

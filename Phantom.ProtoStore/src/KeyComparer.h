@@ -3,7 +3,7 @@
 #include "StandardTypes.h"
 #include <compare>
 #include <concepts>
-#include "ProtoStore.pb.h"
+#include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
 

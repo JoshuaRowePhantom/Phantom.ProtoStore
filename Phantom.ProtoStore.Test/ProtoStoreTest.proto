@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package Phantom.ProtoStore;
 
-import "ProtoStore.proto";
+import "Phantom.ProtoStore/ProtoStore.proto";
 
 message MessageStoreTestMessage {
     string string_value = 1;
