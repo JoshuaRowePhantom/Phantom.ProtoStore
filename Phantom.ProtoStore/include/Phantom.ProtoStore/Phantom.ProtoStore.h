@@ -62,6 +62,7 @@ class IIndex;
 class ProtoIndex
 {
     friend class ProtoStore;
+    friend class Operation;
     ProtoStore* m_protoStore;
     IIndex* m_index;
 
@@ -212,8 +213,8 @@ public:
             if (source)
             {
                 destination->CopyFrom(**source);
+                return;
             }
-            return;
         }
 
         {
@@ -221,8 +222,19 @@ public:
             if (source)
             {
                 destination->CopyFrom(**source);
+                return;
             }
-            return;
+        }
+
+        {
+            auto source = std::get_if<std::string>(&message_data);
+            if (source)
+            {
+                destination->ParseFromString(
+                    *source
+                );
+                return;
+            }
         }
 
         {
@@ -233,8 +245,8 @@ public:
                     source->data(),
                     source->size_bytes()
                 );
+                return;
             }
-            return;
         }
 
         {
@@ -245,8 +257,8 @@ public:
                     source->data(),
                     source->size()
                 );
+                return;
             }
-            return;
         }
 
         destination->Clear();
@@ -271,7 +283,7 @@ enum ReadValueDisposition
 struct ReadRequest
 {
     ProtoIndex Index;
-    SequenceNumber SequenceNumber = SequenceNumber::Latest;
+    SequenceNumber SequenceNumber = SequenceNumber::LatestCommitted;
     ProtoValue Key;
     ReadValueDisposition ReadValueDisposition = ReadValueDisposition::ReadValue;
 };
@@ -310,7 +322,7 @@ struct AbortTransactionResult
 struct BeginTransactionRequest
 {
     SequenceNumber MinimumWriteSequenceNumber = SequenceNumber::Earliest;
-    SequenceNumber MinimumReadSequenceNumber = SequenceNumber::Latest;
+    SequenceNumber MinimumReadSequenceNumber = SequenceNumber::LatestCommitted;
 };
 
 struct CommitResult
@@ -395,6 +407,7 @@ public:
     virtual task<> AddRow(
         const WriteOperationMetadata& writeOperationMetadata,
         SequenceNumber readSequenceNumber,
+        ProtoIndex protoIndex,
         const ProtoValue& key,
         const ProtoValue& value
     ) = 0;

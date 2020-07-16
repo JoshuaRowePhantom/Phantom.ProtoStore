@@ -3,6 +3,10 @@
 #include <Phantom.ProtoStore/Phantom.ProtoStore.h>
 #include "StandardTypes.h"
 #include "Phantom.System/async_reader_writer_lock.h"
+#include <cppcoro/async_mutex.hpp>
+#include <cppcoro/async_scope.hpp>
+#include <cppcoro/inline_scheduler.hpp>
+#include <cppcoro/sequence_barrier.hpp>
 #include <cppcoro/shared_task.hpp>
 
 namespace Phantom::ProtoStore
@@ -24,11 +28,19 @@ class ProtoStore
     const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
 
+    cppcoro::async_scope m_asyncScope;
+    cppcoro::inline_scheduler m_inlineScheduler;
+    cppcoro::sequence_barrier<uint64_t> m_writeSequenceNumberBarrier;
+    std::atomic<uint64_t> m_nextWriteSequenceNumber;
+
+    cppcoro::async_mutex m_headerMutex;
     async_reader_writer_lock m_indexesByNumberLock;
 
     shared_ptr<IIndex> m_indexesByNumberIndex;
     shared_ptr<IIndex> m_indexesByNameIndex;
     shared_ptr<IIndex> m_nextIndexNumberIndex;
+
+    shared_ptr<ISequentialMessageWriter> m_logWriter;
 
     cppcoro::shared_task<> m_joinTask;
 
@@ -67,6 +79,15 @@ class ProtoStore
 
     task<> Replay(
         const LogRecord& logRecord);
+
+    task<> WriteLogRecord(
+        const LogRecord& logRecord);
+
+    task<> OpenLogWriter();
+
+    task<> UpdateHeader(
+        std::function<task<>(Header&)> modifier
+    );
 
     friend class Operation;
 

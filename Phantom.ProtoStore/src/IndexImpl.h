@@ -29,9 +29,11 @@ public:
     );
 
     virtual task<> AddRow(
+        SequenceNumber readSequenceNumber,
         const ProtoValue& key,
         const ProtoValue& value,
-        SequenceNumber writeSequenceNumber
+        SequenceNumber writeSequenceNumber,
+        MemoryTableOperationOutcomeTask operationOutcomeTask
     ) override;
 
     virtual task<ReadResult> Read(

@@ -26,8 +26,6 @@ struct MemoryTableOperationOutcome
     SequenceNumber WriteSequenceNumber;
 };
 
-typedef cppcoro::shared_task<MemoryTableOperationOutcome> MemoryTableOperationOutcomeTask;
-
 class IMemoryTable
 {
 public:

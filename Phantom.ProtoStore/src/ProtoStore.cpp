@@ -6,8 +6,10 @@
 #include "Schema.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "IndexImpl.h"
+#include "Phantom.System/async_value_source.h"
 #include <cppcoro/sync_wait.hpp>
 #include <cppcoro/when_all.hpp>
+#include <cppcoro/on_scope_exit.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -28,6 +30,7 @@ ProtoStore::ProtoStore(
     m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
     m_joinTask(InternalJoinTask())
 {
+    m_writeSequenceNumberBarrier.publish(0);
 }
 
 ProtoStore::~ProtoStore()
@@ -48,6 +51,8 @@ cppcoro::shared_task<> ProtoStore::InternalJoinTask()
 
     co_await cppcoro::when_all(
         move(joinTasks));
+
+    co_await m_asyncScope.join();
 }
 
 task<> ProtoStore::Create(
@@ -65,6 +70,7 @@ task<> ProtoStore::Create(
         nextIndexNumberValue.set_nextindexnumber(1000);
         auto nextIndexNumberRow = logRecord.add_rows();
         nextIndexNumberRow->set_indexnumber(2);
+        nextIndexNumberRow->set_sequencenumber(0);
         nextIndexNumberKey.AppendToString(
             nextIndexNumberRow->mutable_key());
         nextIndexNumberValue.AppendToString(
@@ -80,8 +86,7 @@ task<> ProtoStore::Create(
     header.set_epoch(1);
     header.set_logalignment(static_cast<google::protobuf::uint32>(
         createRequest.LogAlignment));
-    header.set_logreplayextentnumber(0);
-    header.set_logreplaylocation(0);
+    header.add_logreplayextentnumbers(0);
 
     co_await m_headerAccessor->WriteHeader(
         header);
@@ -158,10 +163,65 @@ task<> ProtoStore::Open(
     m_indexesByNumber[m_indexesByNameIndex->GetIndexNumber()] = m_indexesByNameIndex;
     m_indexesByNumber[m_nextIndexNumberIndex->GetIndexNumber()] = m_nextIndexNumberIndex;
 
-    co_await Replay(
-        header.logreplayextentnumber());
-    
+    for (auto logReplayExtentNumber : header.logreplayextentnumbers())
+    {
+        co_await Replay(
+            logReplayExtentNumber);
+    }
+
+    co_await OpenLogWriter();
+
     co_return;
+}
+
+task<> ProtoStore::OpenLogWriter()
+{
+    auto logExtentNumber = 0;
+
+    co_await UpdateHeader([&](Header& header)->task<>
+    {
+        std::set<ExtentNumber> usedExtents;
+        for (auto usedExtent : header.logreplayextentnumbers())
+        {
+            usedExtents.insert(usedExtent);
+        }
+
+        while (usedExtents.contains(logExtentNumber))
+        {
+            logExtentNumber++;
+        }
+
+        header.add_logreplayextentnumbers(logExtentNumber);
+
+        co_return;
+    });
+
+    m_logWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
+        logExtentNumber);
+}
+
+task<> ProtoStore::UpdateHeader(
+    std::function<task<>(Header&)> modifier
+)
+{
+    auto lock = co_await m_headerMutex.scoped_lock_async();
+    Header header;
+    co_await m_headerAccessor->ReadHeader(
+        header);
+    co_await modifier(
+        header);
+    co_await m_headerAccessor->WriteHeader(
+        header);
+}
+
+task<> ProtoStore::WriteLogRecord(
+    const LogRecord& logRecord
+)
+{
+    co_await m_logWriter->Write(
+        logRecord,
+        FlushBehavior::Flush
+    );
 }
 
 task<> ProtoStore::Replay(
@@ -185,6 +245,7 @@ task<> ProtoStore::Replay(
         }
         catch (std::range_error)
         {
+            co_return;
         }
     }
 }
@@ -198,9 +259,18 @@ task<> ProtoStore::Replay(
             loggedRowWrite.indexnumber());
 
         co_await index->AddRow(
+            SequenceNumber::Latest,
             loggedRowWrite.key(),
             loggedRowWrite.value(),
-            ToSequenceNumber(loggedRowWrite.sequencenumber()));
+            ToSequenceNumber(loggedRowWrite.sequencenumber()),
+            [&]()->MemoryTableOperationOutcomeTask
+        {
+            co_return MemoryTableOperationOutcome
+            {
+                .Outcome = OperationOutcome::Committed,
+                .WriteSequenceNumber = ToSequenceNumber(loggedRowWrite.sequencenumber()),
+            };
+        }());
     }
 }
 
@@ -223,7 +293,8 @@ task<ReadResult> ProtoStore::Read(
     ReadRequest& readRequest
 )
 {
-    throw 0;
+    return readRequest.Index.m_index->Read(
+        readRequest);
 }
 
 class Operation
@@ -231,12 +302,43 @@ class Operation
     public IOperationTransaction
 {
     ProtoStore& m_protoStore;
+    unique_ptr<LogRecord> m_logRecord;
+    async_value_source<MemoryTableOperationOutcome> m_outcomeValueSource;
+    MemoryTableOperationOutcomeTask m_operationOutcomeTask;
+    SequenceNumber m_initialWriteSequenceNumber;
+
+    MemoryTableOperationOutcomeTask GetOperationOutcome()
+    {
+        co_return co_await m_outcomeValueSource;
+    }
+
 public:
     Operation(
-        ProtoStore& protoStore)
+        ProtoStore& protoStore,
+        SequenceNumber initialWriteSequenceNumber
+    )
     :
-        m_protoStore(protoStore)
-    {}
+        m_protoStore(protoStore),
+        m_logRecord(make_unique<LogRecord>()),
+        m_initialWriteSequenceNumber(initialWriteSequenceNumber)
+    {
+        m_operationOutcomeTask = GetOperationOutcome();
+    }
+
+    ~Operation()
+    {
+        if (!m_outcomeValueSource.is_set())
+        {
+            MemoryTableOperationOutcome outcome =
+            {
+                .Outcome = OperationOutcome::Aborted,
+            };
+
+            m_outcomeValueSource.emplace(
+                outcome
+            );
+        }
+    }
 
     // Inherited via IOperation
     virtual task<> AddLoggedAction(
@@ -251,11 +353,20 @@ public:
     virtual task<> AddRow(
         const WriteOperationMetadata& writeOperationMetadata, 
         SequenceNumber readSequenceNumber, 
-        const ProtoValue& key, 
+        ProtoIndex protoIndex,
+        const ProtoValue& key,
         const ProtoValue& value
     ) override
     {
-        return task<>();
+        auto index = protoIndex.m_index;
+
+        co_await index->AddRow(
+            readSequenceNumber,
+            key,
+            value,
+            m_initialWriteSequenceNumber,
+            m_operationOutcomeTask
+        );
     }
 
     virtual task<> ResolveTransaction(
@@ -270,21 +381,38 @@ public:
         const GetIndexRequest& getIndexRequest
     ) override
     {
-        return task<ProtoIndex>();
+        return m_protoStore.GetIndex(
+            getIndexRequest);
     }
 
     virtual task<ReadResult> Read(
         ReadRequest& readRequest
     ) override
     {
-        return task<ReadResult>();
+        return m_protoStore.Read(
+            readRequest);
     }
 
     // Inherited via IOperationTransaction
     virtual task<CommitResult> Commit(
     ) override
     {
-        return task<CommitResult>();
+        MemoryTableOperationOutcome outcome =
+        {
+            .Outcome = OperationOutcome::Committed,
+            .WriteSequenceNumber = m_initialWriteSequenceNumber,
+        };
+
+        m_outcomeValueSource.emplace(
+            outcome);
+
+        co_await m_protoStore.WriteLogRecord(
+            *m_logRecord
+        );
+
+        co_return CommitResult
+        {
+        };
     }
 };
 
@@ -293,11 +421,39 @@ task<OperationResult> ProtoStore::ExecuteOperation(
     OperationVisitor visitor
 )
 {
-    Operation operation(
-        *this);
-    co_await visitor(&operation);
-    co_await operation.Commit();
-    co_return OperationResult{};
+    auto previousWriteSequenceNumber = m_nextWriteSequenceNumber.fetch_add(
+        1,
+        std::memory_order_acq_rel);
+    auto thisWriteSequenceNumber = previousWriteSequenceNumber + 1;
+
+    auto executionOperationTask = [&]() -> shared_task<OperationResult>
+    {
+        Operation operation(
+            *this,
+            ToSequenceNumber(thisWriteSequenceNumber));
+
+        co_await visitor(&operation);
+        co_await operation.Commit();
+
+        co_return OperationResult{};
+    }();
+
+    auto publishTask = [=]() -> task<>
+    {
+        co_await executionOperationTask.when_ready();
+
+        co_await m_writeSequenceNumberBarrier.wait_until_published(
+            previousWriteSequenceNumber,
+            m_inlineScheduler);
+
+        m_writeSequenceNumberBarrier.publish(
+            thisWriteSequenceNumber);
+    }();
+
+    m_asyncScope.spawn(move(
+        publishTask));
+
+    co_return co_await executionOperationTask;
 }
 
 task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
@@ -330,38 +486,42 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
 
 task<IndexNumber> ProtoStore::AllocateIndexNumber()
 {
+    IndexNumber allocatedIndexNumber;
+
     while(true)
     {
         try
         {
-            NextIndexNumberKey nextIndexNumberKey;
+            co_await ExecuteOperation(
+                BeginTransactionRequest(),
+                [&](IOperation* operation)->task<>
+            {
+                NextIndexNumberKey nextIndexNumberKey;
 
-            ReadRequest readRequest;
-            readRequest.Key = &nextIndexNumberKey;
-            readRequest.ReadValueDisposition = ReadValueDisposition::ReadValue;
+                ReadRequest readRequest;
+                readRequest.SequenceNumber = SequenceNumber::Latest;
+                readRequest.Index = ProtoIndex(this, &*m_nextIndexNumberIndex);
+                readRequest.Key = &nextIndexNumberKey;
+                readRequest.ReadValueDisposition = ReadValueDisposition::ReadValue;
 
-            auto readResult = co_await m_nextIndexNumberIndex->Read(
-                readRequest);
+                auto readResult = co_await operation->Read(
+                    readRequest);
 
-            auto nextIndexNumberValue = readResult.Value.cast_if<NextIndexNumberValue>();
+                auto nextIndexNumberValue = readResult.Value.cast_if<NextIndexNumberValue>();
 
-            auto allocatedIndexNumber = nextIndexNumberValue->nextindexnumber();
+                allocatedIndexNumber = nextIndexNumberValue->nextindexnumber();
 
-            NextIndexNumberValue newNextIndexNumberValue;
-            newNextIndexNumberValue.set_nextindexnumber(allocatedIndexNumber + 1);
+                NextIndexNumberValue newNextIndexNumberValue;
+                newNextIndexNumberValue.set_nextindexnumber(allocatedIndexNumber + 1);
 
-            Operation operation(
-                *this);
-
-            WriteOperationMetadata writeOperationMetadata;
-            co_await operation.AddRow(
-                writeOperationMetadata,
-                readResult.WriteSequenceNumber,
-                &nextIndexNumberKey,
-                &newNextIndexNumberValue
-            );
-
-            co_await operation.Commit();
+                WriteOperationMetadata writeOperationMetadata;
+                co_await operation->AddRow(
+                    writeOperationMetadata,
+                    readResult.WriteSequenceNumber,
+                    ProtoIndex(this, &*m_nextIndexNumberIndex),
+                    &nextIndexNumberKey,
+                    &newNextIndexNumberValue);
+            });
 
             co_return allocatedIndexNumber;
         }
@@ -391,30 +551,37 @@ task<ProtoIndex> ProtoStore::CreateIndex(
         createIndexRequest.ValueSchema.ValueDescriptor
     );
 
-    WriteOperationMetadata metadata;
+    co_await ExecuteOperation(
+        BeginTransactionRequest(),
+        [&](IOperation* operation)->task<>
+    {
+        WriteOperationMetadata metadata;
 
-    Operation operation(*this);
-    co_await operation.AddRow(
-        metadata,
-        SequenceNumber::Earliest,
-        &indexesByNumberKey,
-        &indexesByNumberValue);
+        co_await operation->AddRow(
+            metadata,
+            SequenceNumber::Earliest,
+            ProtoIndex(this, &*m_indexesByNumberIndex),
+            &indexesByNumberKey,
+            &indexesByNumberValue
+        );
 
-    IndexesByNameKey indexesByNameKey;
-    IndexesByNameValue indexesByNameValue;
+        IndexesByNameKey indexesByNameKey;
+        IndexesByNameValue indexesByNameValue;
 
-    indexesByNameKey.set_indexname(
-        indexesByNumberValue.indexname());
-    indexesByNameValue.set_indexnumber(
-        indexNumber);
+        indexesByNameKey.set_indexname(
+            indexesByNumberValue.indexname());
+        indexesByNameValue.set_indexnumber(
+            indexNumber);
 
-    co_await operation.AddRow(
-        metadata,
-        SequenceNumber::Earliest,
-        &indexesByNameKey,
-        &indexesByNameValue);
+        co_await operation->AddRow(
+            metadata,
+            SequenceNumber::Earliest,
+            ProtoIndex(this, &*m_indexesByNameIndex),
+            &indexesByNameKey,
+            &indexesByNameValue
+        );
 
-    co_await operation.Commit();
+    });
 
     auto index = co_await GetIndexInternal(
         indexNumber);

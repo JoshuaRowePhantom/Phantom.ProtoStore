@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 #include <cppcoro/task.hpp>
+#include <cppcoro/shared_task.hpp>
 #include "Phantom.System/pooled_ptr.h"
 #include <Phantom.ProtoStore/Phantom.ProtoStore.h>
 
@@ -51,6 +52,7 @@ using std::unordered_map;
 using std::vector;
 using std::weak_ptr;
 using cppcoro::task;
+using cppcoro::shared_task;
 using Phantom::pooled_ptr;
 using google::protobuf::Message;
 using google::protobuf::Descriptor;
@@ -81,7 +83,10 @@ class IRandomMessageAccessor;
 class IHeaderAccessor;
 class IChecksumAlgorithm;
 class IChecksumAlgorithmFactory;
+class ISequentialMessageWriter;
 class KeyComparer;
+struct MemoryTableOperationOutcome;
+typedef cppcoro::shared_task<MemoryTableOperationOutcome> MemoryTableOperationOutcomeTask;
 
 enum class FlushBehavior
 {
@@ -89,6 +94,7 @@ enum class FlushBehavior
     Flush = 1,
 };
 
+class Header;
 class LogRecord;
 class IndexesByNameKey;
 class IndexesByNameValue;

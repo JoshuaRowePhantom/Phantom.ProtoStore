@@ -9,8 +9,7 @@ package Phantom.ProtoStore;
 message Header {
 	uint32 Version = 1;
 	uint32 LogAlignment = 2;
-	uint64 LogReplayExtentNumber = 3;
-	uint64 LogReplayLocation = 4;
+	repeated uint64 LogReplayExtentNumbers = 3;
 	uint64 Epoch = 5;
 }
 

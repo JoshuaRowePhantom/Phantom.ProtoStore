@@ -36,9 +36,11 @@ const IndexName& Index::GetIndexName() const
 }
 
 task<> Index::AddRow(
+    SequenceNumber readSequenceNumber,
     const ProtoValue& key,
     const ProtoValue& value,
-    SequenceNumber writeSequenceNumber)
+    SequenceNumber writeSequenceNumber,
+    MemoryTableOperationOutcomeTask operationOutcomeTask)
 {
     MemoryTableRow row;
 
@@ -55,16 +57,9 @@ task<> Index::AddRow(
     row.WriteSequenceNumber = writeSequenceNumber;
 
     co_await m_currentMemoryTable->AddRow(
-        SequenceNumber::Latest,
-        row,
-        [=]()->MemoryTableOperationOutcomeTask
-    {
-        co_return MemoryTableOperationOutcome
-        {
-            .Outcome = OperationOutcome::Committed,
-            .WriteSequenceNumber = writeSequenceNumber,
-        };
-    }());
+        readSequenceNumber,
+        row, 
+        operationOutcomeTask);
 }
 
 task<ReadResult> Index::Read(

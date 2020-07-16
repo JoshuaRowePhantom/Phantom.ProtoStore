@@ -362,7 +362,15 @@ namespace Phantom::ProtoStore
         ExtentNumber extentNumber
     )
     {
-        return task<shared_ptr<ISequentialMessageReader>>();
+        auto readableExtent = co_await OpenExtentForRead(
+            extentNumber);
+        
+        auto randomMessageReader = make_shared<RandomMessageReader>(
+            readableExtent,
+            m_checksumAlgorithmFactory);
+
+        co_return make_shared<SequentialMessageReader>(
+            randomMessageReader);
     }
 
     task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialWriteAccess(

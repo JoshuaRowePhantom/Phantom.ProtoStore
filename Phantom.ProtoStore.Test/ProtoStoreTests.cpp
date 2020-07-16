@@ -96,6 +96,7 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row)
             co_await operation->AddRow(
                 WriteOperationMetadata(),
                 SequenceNumber::Latest,
+                index,
                 &key,
                 &expectedValue);
         });
@@ -110,6 +111,10 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row)
 
         StringValue actualValue;
         readResult.Value.unpack(&actualValue);
+
+        ASSERT_TRUE(MessageDifferencer::Equals(
+            expectedValue,
+            actualValue));
     });
 }
 
@@ -141,6 +146,7 @@ TEST(ProtoStoreTests, Can_read_written_row_during_operation)
             co_await operation->AddRow(
                 WriteOperationMetadata(),
                 SequenceNumber::Latest,
+                index,
                 &key,
                 &expectedValue);
 
@@ -194,6 +200,7 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
             co_await operation->AddRow(
                 WriteOperationMetadata(),
                 SequenceNumber::Latest,
+                index,
                 &key,
                 &expectedValue);
 
@@ -209,6 +216,7 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
             co_await operation->AddRow(
                 WriteOperationMetadata(),
                 SequenceNumber::Latest,
+                index,
                 &key,
                 &unexpectedValue);
             continueLatch.count_down();
@@ -268,6 +276,7 @@ TEST(ProtoStoreTests, Can_commit_transaction)
                 .TransactionId = &transactionId,
             },
                 SequenceNumber::Latest,
+                index,
                 &key,
                 &expectedValue);
         });

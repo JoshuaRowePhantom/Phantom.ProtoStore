@@ -9,9 +9,11 @@ class IIndex
 {
 public:
     virtual task<> AddRow(
+        SequenceNumber readSequenceNumber,
         const ProtoValue& key,
         const ProtoValue& value,
-        SequenceNumber writeSequenceNumber
+        SequenceNumber writeSequenceNumber,
+        MemoryTableOperationOutcomeTask operationOutcomeTask
     ) = 0;
 
     virtual task<ReadResult> Read(
