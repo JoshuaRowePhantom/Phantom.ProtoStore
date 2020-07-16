@@ -13,7 +13,9 @@ task<shared_ptr<IProtoStore>> CreateMemoryStore()
     auto storeFactory = MakeProtoStoreFactory();
     CreateProtoStoreRequest createRequest;
 
-    createRequest.ExtentStore = UseMemoryExtentStore();
+    createRequest.HeaderExtentStore = UseMemoryExtentStore();
+    createRequest.LogExtentStore = UseMemoryExtentStore();
+    createRequest.DataExtentStore = UseMemoryExtentStore();
 
     co_return co_await storeFactory->Create(
         createRequest);
@@ -35,7 +37,9 @@ TEST(ProtoStoreTests, CanOpen_memory_backed_store)
         auto storeFactory = MakeProtoStoreFactory();
         CreateProtoStoreRequest createRequest;
 
-        createRequest.ExtentStore = UseMemoryExtentStore();
+        createRequest.HeaderExtentStore = UseMemoryExtentStore();
+        createRequest.LogExtentStore = UseMemoryExtentStore();
+        createRequest.DataExtentStore = UseMemoryExtentStore();
 
         auto store = co_await storeFactory->Create(
             createRequest);
@@ -53,7 +57,9 @@ TEST(ProtoStoreTests, Open_fails_on_uncreated_store)
         auto storeFactory = MakeProtoStoreFactory();
         OpenProtoStoreRequest openRequest;
 
-        openRequest.ExtentStore = UseMemoryExtentStore();
+        openRequest.HeaderExtentStore = UseMemoryExtentStore();
+        openRequest.LogExtentStore = UseMemoryExtentStore();
+        openRequest.DataExtentStore = UseMemoryExtentStore();
 
         ASSERT_THROW(
             co_await storeFactory->Open(

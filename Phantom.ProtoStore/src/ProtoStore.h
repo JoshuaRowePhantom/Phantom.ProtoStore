@@ -3,6 +3,7 @@
 #include <Phantom.ProtoStore/Phantom.ProtoStore.h>
 #include "StandardTypes.h"
 #include "Phantom.System/async_reader_writer_lock.h"
+#include <cppcoro/shared_task.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -13,9 +14,15 @@ class ProtoStore
     :
     public IProtoStore
 {
-    const shared_ptr<IExtentStore> m_extentStore;
-    const shared_ptr<IMessageStore> m_messageStore;
-    const shared_ptr<IRandomMessageAccessor> m_messageAccessor;
+    const shared_ptr<IExtentStore> m_headerExtentStore;
+    const shared_ptr<IExtentStore> m_logExtentStore;
+    const shared_ptr<IExtentStore> m_dataExtentStore;
+    const shared_ptr<IMessageStore> m_headerMessageStore;
+    const shared_ptr<IMessageStore> m_logMessageStore;
+    const shared_ptr<IMessageStore> m_dataMessageStore;
+    const shared_ptr<IRandomMessageAccessor> m_headerMessageAccessor;
+    const shared_ptr<IRandomMessageAccessor> m_logMessageAccessor;
+    const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
 
     async_reader_writer_lock m_indexesByNumberLock;
@@ -23,6 +30,8 @@ class ProtoStore
     shared_ptr<IIndex> m_indexesByNumberIndex;
     shared_ptr<IIndex> m_indexesByNameIndex;
     shared_ptr<IIndex> m_nextIndexNumberIndex;
+
+    cppcoro::shared_task<> m_joinTask;
 
     typedef unordered_map<google::protobuf::uint64, shared_ptr<IIndex>> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;
@@ -52,7 +61,8 @@ class ProtoStore
     );
 
     task<IndexNumber> AllocateIndexNumber();
-
+    cppcoro::shared_task<> InternalJoinTask();
+    
     friend class Operation;
 
 public:
@@ -75,7 +85,11 @@ public:
         ) = delete;
 
     ProtoStore(
-        shared_ptr<IExtentStore> extentStore);
+        shared_ptr<IExtentStore> headerStore,
+        shared_ptr<IExtentStore> logStore,
+        shared_ptr<IExtentStore> dataStore);
+
+    ~ProtoStore();
 
     task<> Open(
         const OpenProtoStoreRequest& openRequest

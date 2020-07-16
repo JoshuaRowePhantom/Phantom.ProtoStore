@@ -6,18 +6,49 @@
 #include "Schema.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "IndexImpl.h"
+#include <cppcoro/sync_wait.hpp>
+#include <cppcoro/when_all.hpp>
 
 namespace Phantom::ProtoStore
 {
 
 ProtoStore::ProtoStore(
-    shared_ptr<IExtentStore> extentStore)
+    shared_ptr<IExtentStore> headerExtentStore,
+    shared_ptr<IExtentStore> logExtentStore,
+    shared_ptr<IExtentStore> dataExtentStore)
     :
-    m_extentStore(move(extentStore)),
-    m_messageStore(MakeMessageStore(m_extentStore)),
-    m_messageAccessor(MakeRandomMessageAccessor(m_messageStore)),
-    m_headerAccessor(MakeHeaderAccessor(m_messageAccessor))
+    m_headerExtentStore(move(headerExtentStore)),
+    m_logExtentStore(move(logExtentStore)),
+    m_dataExtentStore(move(dataExtentStore)),
+    m_headerMessageStore(MakeMessageStore(m_headerExtentStore)),
+    m_logMessageStore(MakeMessageStore(m_logExtentStore)),
+    m_dataMessageStore(MakeMessageStore(m_dataExtentStore)),
+    m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
+    m_logMessageAccessor(MakeRandomMessageAccessor(m_logMessageStore)),
+    m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
+    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
+    m_joinTask(InternalJoinTask())
 {
+}
+
+ProtoStore::~ProtoStore()
+{
+    cppcoro::sync_wait(
+        m_joinTask);
+}
+
+cppcoro::shared_task<> ProtoStore::InternalJoinTask()
+{
+    vector<task<>> joinTasks;
+
+    for (auto index : m_indexesByNumber)
+    {
+        joinTasks.push_back(
+            index.second->Join());
+    }
+
+    co_await cppcoro::when_all(
+        move(joinTasks));
 }
 
 task<> ProtoStore::Create(
@@ -429,7 +460,7 @@ shared_ptr<IIndex> ProtoStore::MakeIndex(
 
 task<> ProtoStore::Join()
 {
-    co_return;
+    co_await m_joinTask;
 }
 
 }

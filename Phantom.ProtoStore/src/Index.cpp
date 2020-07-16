@@ -83,7 +83,7 @@ task<ReadResult> Index::Read(
 
 task<> Index::Join()
 {
-    co_return;
+    co_await m_currentMemoryTable->Join();
 }
 
 }

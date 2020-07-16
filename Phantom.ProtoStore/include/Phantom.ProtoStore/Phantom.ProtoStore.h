@@ -449,7 +449,9 @@ class IExtentStore;
 
 struct OpenProtoStoreRequest
 {
-    std::function<task<shared_ptr<IExtentStore>>()> ExtentStore;
+    std::function<task<shared_ptr<IExtentStore>>()> HeaderExtentStore;
+    std::function<task<shared_ptr<IExtentStore>>()> LogExtentStore;
+    std::function<task<shared_ptr<IExtentStore>>()> DataExtentStore;
     std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
 };
 
