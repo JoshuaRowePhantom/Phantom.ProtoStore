@@ -1,6 +1,7 @@
 #include "IndexImpl.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "KeyComparer.h"
+#include "MemoryTableImpl.h"
 
 namespace Phantom::ProtoStore
 {
@@ -20,6 +21,8 @@ Index::Index(
     m_valueFactory(valueFactory),
     m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor()))
 {
+    m_currentMemoryTable = make_shared<MemoryTable>(
+        &*m_keyComparer);
 }
 
 IndexNumber Index::GetIndexNumber() const
