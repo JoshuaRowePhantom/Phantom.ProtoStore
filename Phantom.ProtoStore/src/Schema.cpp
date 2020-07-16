@@ -1,5 +1,7 @@
 #include "Schema.h"
 #include "src/ProtoStoreInternal.pb.h"
+#include <google/protobuf/dynamic_message.h>
+#include <array>
 
 namespace Phantom::ProtoStore
 {
@@ -41,6 +43,96 @@ void Schema::MakeMessageDescription(
         messageDescription.mutable_filedescriptors(),
         messageDescriptor->file()
     );
+}
+
+class ProtoStoreMessageFactory
+    : public IMessageFactory
+{
+    std::any m_extraData;
+    const Message* m_prototype;
+
+public:
+    ProtoStoreMessageFactory(
+        const Message* protoType,
+        std::any extraData
+        );
+
+    virtual const Message* GetPrototype(
+    ) const override;
+};
+
+ProtoStoreMessageFactory::ProtoStoreMessageFactory(
+    const Message* protoType,
+    std::any extraData
+)
+:
+    m_extraData(extraData),
+    m_prototype(protoType)
+{}
+
+const Message* ProtoStoreMessageFactory::GetPrototype(
+) const
+{
+    return m_prototype;
+}
+
+shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
+    const Message* prototype)
+{
+    return make_shared<ProtoStoreMessageFactory>(
+        prototype,
+        std::any());
+}
+
+shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
+    const MessageDescription& messageDescription
+)
+{
+    auto generatedDescriptorPool = google::protobuf::DescriptorPool::generated_pool();
+    auto generatedDescriptor = generatedDescriptorPool->FindMessageTypeByName(
+        messageDescription.messagename());
+
+    if (generatedDescriptor)
+    {
+        auto generatedMessageFactory = google::protobuf::MessageFactory::generated_factory();
+        auto generatedPrototype = generatedMessageFactory->GetPrototype(
+            generatedDescriptor);
+
+        return MakeMessageFactory(
+            generatedPrototype);
+    }
+
+    auto descriptorPool = make_shared<google::protobuf::DescriptorPool>();
+    for (const auto& fileDescriptorProto : messageDescription.filedescriptors().file())
+    {
+        if (!descriptorPool->BuildFile(
+            fileDescriptorProto))
+        {
+            throw std::exception("Error building descriptor");
+        }
+    }
+    auto messageDescriptor = descriptorPool->FindMessageTypeByName(
+        messageDescription.messagename());
+    if (!messageDescriptor)
+    {
+        throw std::exception("Error finding message descriptor");
+    }
+
+    auto messageFactory = make_shared<google::protobuf::DynamicMessageFactory>();
+    auto protoType = messageFactory->GetPrototype(
+        messageDescriptor);
+
+    // Construct an object to hold the shared pointers
+    // that will be destroyed in the correct order.
+    std::array holders =
+    {
+        std::any(descriptorPool),
+        std::any(messageFactory),
+    };
+
+    return make_shared<ProtoStoreMessageFactory>(
+        protoType,
+        holders);
 }
 
 }

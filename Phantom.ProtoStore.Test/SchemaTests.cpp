@@ -6,7 +6,7 @@
 namespace Phantom::ProtoStore
 {
 
-TEST(SchemaTests, Can_initialize_from_message_descriptor)
+TEST(SchemaTests, Can_round_trip_to_message_descriptor_with_compiled_class)
 {
     MessageDescription messageDescription;
 
@@ -15,6 +15,13 @@ TEST(SchemaTests, Can_initialize_from_message_descriptor)
         TestKey::descriptor());
 
     ASSERT_EQ("Phantom.ProtoStore.TestKey", messageDescription.messagename());
+
+    auto messageFactory = Schema::MakeMessageFactory(
+        messageDescription);
+
+    ASSERT_EQ(
+        TestKey::descriptor(),
+        messageFactory->GetPrototype()->GetDescriptor());
 }
 
 }
