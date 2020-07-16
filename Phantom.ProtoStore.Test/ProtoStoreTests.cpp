@@ -74,20 +74,19 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row)
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
             [&](IOperation* operation)->task<>
         {
-            CreateIndexRequest createIndexRequest;
-            createIndexRequest.IndexName = "test_Index";
-            createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-            createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-            index = co_await operation->CreateIndex(
-                WriteOperationMetadata(),
-                createIndexRequest
-            );
-
             co_await operation->AddRow(
                 WriteOperationMetadata(),
                 SequenceNumber::Latest,
@@ -120,20 +119,19 @@ TEST(ProtoStoreTests, Can_read_written_row_during_operation)
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
             [&](IOperation* operation)->task<>
         {
-            CreateIndexRequest createIndexRequest;
-            createIndexRequest.IndexName = "test_Index";
-            createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-            createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-            index = co_await operation->CreateIndex(
-                WriteOperationMetadata(),
-                createIndexRequest
-            );
-
             co_await operation->AddRow(
                 WriteOperationMetadata(),
                 SequenceNumber::Latest,
@@ -171,20 +169,14 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
         StringValue unexpectedValue;
         unexpectedValue.set_value("testValue2");
 
-        co_await store->ExecuteOperation(
-            BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
-        {
-            CreateIndexRequest createIndexRequest;
-            createIndexRequest.IndexName = "test_Index";
-            createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-            createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
 
-            index = co_await operation->CreateIndex(
-                WriteOperationMetadata(),
-                createIndexRequest
-            );
-        });
+        index = co_await store->CreateIndex(
+            createIndexRequest
+        );
 
         cppcoro::async_latch addRowLatch(1);
         cppcoro::async_latch continueLatch(1);
@@ -251,20 +243,14 @@ TEST(ProtoStoreTests, Can_commit_transaction)
         unexpectedValue.set_value("testValue2");
         TransactionId transactionId("transactionId1");
 
-        co_await store->ExecuteOperation(
-            BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
-        {
-            CreateIndexRequest createIndexRequest;
-            createIndexRequest.IndexName = "test_Index";
-            createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-            createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
 
-            index = co_await operation->CreateIndex(
-                WriteOperationMetadata(),
-                createIndexRequest
-            );
-        });
+        index = co_await store->CreateIndex(
+            createIndexRequest
+        );
 
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),

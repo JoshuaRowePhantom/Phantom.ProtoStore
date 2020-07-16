@@ -40,7 +40,6 @@ message FieldListDescription {
 
 message KeySchemaDescription {
 	MessageDescription Description = 1;
-	FieldListDescription DescendingFields = 2;
 }
 
 message ValueSchemaDescription {

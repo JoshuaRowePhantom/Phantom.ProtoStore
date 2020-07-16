@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/descriptor.proto";
+import "google/protobuf/any.proto";
 import "Phantom.ProtoStore/ProtoStore.proto";
 
 package Phantom.ProtoStore;
@@ -23,8 +24,22 @@ message LoggedNewWriteLog {
 	uint64 ExtentNumber = 1;
 }
 
+message LoggedCreateIndex {
+	IndexesByNumberKey IndexesByNumberKey = 1;
+	IndexesByNumberValue IndexesByNumberValue = 2;
+	uint64 CreateSequenceNumber = 3;
+}
+
+message LoggedAction {
+	oneof LoggedActionType {
+		google.protobuf.Any ArbitraryAction = 1;
+		LoggedNewWriteLog NewWriteLog = 2;
+		LoggedCreateIndex CreateIndex = 3;
+    }
+}
+
 message LogRecordExtras {
-	LoggedNewWriteLog NewWriteLog = 1;
+	repeated LoggedAction LoggedActions = 1;
 }
 
 message LogRecord {
@@ -56,4 +71,27 @@ message InternalValue {
 	oneof Value {
 		bytes ValueMessage = 20;
     }
+}
+
+message IndexesByNameKey {
+	string IndexName = 1;
+}
+
+message IndexesByNameValue {
+	uint64 IndexNumber = 1;
+}
+
+message IndexesByNumberKey {
+	uint64 IndexNumber = 1;
+}
+
+message IndexesByNumberValue {
+	IndexSchemaDescription Schema = 1;
+	string IndexName = 2;
+	uint64 CreateSequenceNumber = 3;
+}
+
+message NextIndexNumberKey {}
+message NextIndexNumberValue {
+	uint64 NextIndexNumber = 1;
 }

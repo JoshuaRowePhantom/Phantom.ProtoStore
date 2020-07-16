@@ -56,15 +56,31 @@ inline std::uint64_t ToUint64(
 
 typedef std::string TransactionId;
 
-class ProtoStore;
 class IMessageStore;
+class IIndex;
 
 class ProtoIndex
 {
-    class Impl;
-    Impl* m_pImpl;
+    friend class ProtoStore;
+    ProtoStore* m_protoStore;
+    IIndex* m_index;
+
+    ProtoIndex(
+        ProtoStore* protoStore,
+        IIndex* index)
+        :
+        m_protoStore(protoStore),
+        m_index(index)
+    {
+    }
 
 public:
+    ProtoIndex()
+        :
+        m_protoStore(nullptr),
+        m_index(nullptr)
+    {}
+
     ProtoStore* ProtoStore() const;
     const IndexName& IndexName() const;
 };
@@ -142,8 +158,47 @@ public:
     }
 
     template<
-        typename TMessage>
-    void unpack(
+        typename TMessage
+    > TMessage* cast_if()
+    {
+        {
+            Message** source;
+            if (source = std::get_if<Message*>(&message))
+            {
+                if (!*source)
+                {
+                    return nullptr;
+                }
+
+                if ((*source)->GetDescriptor() == TMessage::descriptor())
+                {
+                    return static_cast<TMessage*>(*source);
+                }
+            }
+        }
+
+        {
+            unique_ptr<Message>* source;
+            if (source = std::get_if<unique_ptr<Message>>(&message))
+            {
+                if (!*source)
+                {
+                    return nullptr;
+                }
+
+                if ((*source)->GetDescriptor() == TMessage::descriptor())
+                {
+                    return static_cast<TMessage*>(source->get());
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
+    template<
+        typename TMessage
+    > void unpack(
         TMessage* destination)
     {
         {
@@ -201,17 +256,31 @@ struct WriteOperation
     std::optional<SequenceNumber> ExpirationSequenceNumber;
 };
 
+enum ReadValueDisposition
+{
+    ReadValue = 0,
+    DontReadValue = 1,
+};
+
 struct ReadRequest
 {
     ProtoIndex Index;
     SequenceNumber SequenceNumber = SequenceNumber::Latest;
     ProtoValue Key;
+    ReadValueDisposition ReadValueDisposition = ReadValueDisposition::ReadValue;
+};
+
+enum ReadStatus
+{
+    HasValue = 0,
+    NoValue = 1,
 };
 
 struct ReadResult
 {
-    SequenceNumber SequenceNumber;
+    SequenceNumber WriteSequenceNumber;
     ProtoValue Value;
+    ReadStatus ReadStatus;
 };
 
 struct CommitTransactionRequest
@@ -328,11 +397,6 @@ public:
         const WriteOperationMetadata& writeOperationMetadata,
         TransactionOutcome outcome
     ) = 0;
-
-    virtual task<ProtoIndex> CreateIndex(
-        const WriteOperationMetadata& writeOperationMetadata,
-        const CreateIndexRequest& createIndexRequest
-    ) = 0;
 };
 
 class IOperation
@@ -374,6 +438,13 @@ public:
     virtual task<OperationResult> ExecuteOperation(
         const BeginTransactionRequest beginRequest,
         OperationVisitor visitor
+    ) = 0;
+
+    virtual task<ProtoIndex> CreateIndex(
+        const CreateIndexRequest& createIndexRequest
+    ) = 0;
+
+    virtual task<> Join(
     ) = 0;
 };
 
