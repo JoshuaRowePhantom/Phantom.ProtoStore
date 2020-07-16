@@ -18,6 +18,7 @@ message LoggedRowWrite {
 	uint64 IndexNumber = 1;
 	bytes Key = 2;
 	bytes Value = 3;
+	uint64 SequenceNumber = 4;
 }
 
 message LoggedNewWriteLog {

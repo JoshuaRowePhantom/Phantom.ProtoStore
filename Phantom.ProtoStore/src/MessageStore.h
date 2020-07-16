@@ -14,7 +14,11 @@ namespace Phantom::ProtoStore
 
     struct WriteMessageResult
     {
-        ExtentOffset EndOfMessage;
+        ExtentOffsetRange DataRange;
+        ExtentOffsetRange MessageLengthRange;
+        ExtentOffsetRange ChecksumAlgorithmRange;
+        ExtentOffsetRange MessageRange;
+        ExtentOffsetRange ChecksumRange;
     };
 
     class IRandomMessageReader
@@ -34,8 +38,22 @@ namespace Phantom::ProtoStore
             FlushBehavior flushBehavior) = 0;
     };
 
-    class ISequentialMessageReader;
-    class ISequentialMessageWriter;
+    class ISequentialMessageReader
+    {
+    public:
+        virtual task<ReadMessageResult> Read(
+            Message& message
+        ) = 0;
+    };
+
+    class ISequentialMessageWriter
+    {
+    public:
+        virtual task<WriteMessageResult> Write(
+            const Message& message,
+            FlushBehavior flushBehavior
+        ) = 0;
+    };
 
     class IMessageStore
     {
@@ -48,7 +66,7 @@ namespace Phantom::ProtoStore
             ExtentNumber extentNumber
         ) = 0;
 
-        virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialReadAccess(
+        virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
             ExtentNumber extentNumber
         ) = 0;
 

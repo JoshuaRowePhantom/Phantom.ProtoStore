@@ -24,7 +24,6 @@ ProtoStore::ProtoStore(
     m_logMessageStore(MakeMessageStore(m_logExtentStore)),
     m_dataMessageStore(MakeMessageStore(m_dataExtentStore)),
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
-    m_logMessageAccessor(MakeRandomMessageAccessor(m_logMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
     m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
     m_joinTask(InternalJoinTask())
@@ -54,12 +53,34 @@ cppcoro::shared_task<> ProtoStore::InternalJoinTask()
 task<> ProtoStore::Create(
     const CreateProtoStoreRequest& createRequest)
 {
+    // Write out the log record that initializes a database.
+    {
+        auto logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
+            0);
+
+        LogRecord logRecord;
+
+        NextIndexNumberKey nextIndexNumberKey;
+        NextIndexNumberValue nextIndexNumberValue;
+        nextIndexNumberValue.set_nextindexnumber(1000);
+        auto nextIndexNumberRow = logRecord.add_rows();
+        nextIndexNumberRow->set_indexnumber(2);
+        nextIndexNumberKey.AppendToString(
+            nextIndexNumberRow->mutable_key());
+        nextIndexNumberValue.AppendToString(
+            nextIndexNumberRow->mutable_value());
+
+        co_await logMessageWriter->Write(
+            logRecord,
+            FlushBehavior::Flush);
+    }
+
     Header header;
     header.set_version(1);
     header.set_epoch(1);
     header.set_logalignment(static_cast<google::protobuf::uint32>(
         createRequest.LogAlignment));
-    header.set_logreplayextentnumber(2);
+    header.set_logreplayextentnumber(0);
     header.set_logreplaylocation(0);
 
     co_await m_headerAccessor->WriteHeader(
@@ -137,7 +158,50 @@ task<> ProtoStore::Open(
     m_indexesByNumber[m_indexesByNameIndex->GetIndexNumber()] = m_indexesByNameIndex;
     m_indexesByNumber[m_nextIndexNumberIndex->GetIndexNumber()] = m_nextIndexNumberIndex;
 
+    co_await Replay(
+        header.logreplayextentnumber());
+    
     co_return;
+}
+
+task<> ProtoStore::Replay(
+    ExtentNumber extentNumber
+)
+{
+    auto logReader = co_await m_logMessageStore->OpenExtentForSequentialReadAccess(
+        extentNumber
+    );
+
+    while (true)
+    {
+        try
+        {
+            LogRecord logRecord;
+            co_await logReader->Read(
+                logRecord);
+
+            co_await Replay(
+                logRecord);
+        }
+        catch (std::range_error)
+        {
+        }
+    }
+}
+
+task<> ProtoStore::Replay(
+    const LogRecord& logRecord)
+{
+    for (auto loggedRowWrite : logRecord.rows())
+    {
+        auto index = co_await GetIndexInternal(
+            loggedRowWrite.indexnumber());
+
+        co_await index->AddRow(
+            loggedRowWrite.key(),
+            loggedRowWrite.value(),
+            ToSequenceNumber(loggedRowWrite.sequencenumber()));
+    }
 }
 
 task<ProtoIndex> ProtoStore::GetIndex(

@@ -28,6 +28,12 @@ public:
         shared_ptr<IMessageFactory> valueFactory
     );
 
+    virtual task<> AddRow(
+        const ProtoValue& key,
+        const ProtoValue& value,
+        SequenceNumber writeSequenceNumber
+    ) override;
+
     virtual task<ReadResult> Read(
         const ReadRequest& readRequest
     ) override;

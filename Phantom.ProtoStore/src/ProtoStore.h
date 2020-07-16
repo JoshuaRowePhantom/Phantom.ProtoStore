@@ -21,7 +21,6 @@ class ProtoStore
     const shared_ptr<IMessageStore> m_logMessageStore;
     const shared_ptr<IMessageStore> m_dataMessageStore;
     const shared_ptr<IRandomMessageAccessor> m_headerMessageAccessor;
-    const shared_ptr<IRandomMessageAccessor> m_logMessageAccessor;
     const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
 
@@ -63,6 +62,12 @@ class ProtoStore
     task<IndexNumber> AllocateIndexNumber();
     cppcoro::shared_task<> InternalJoinTask();
     
+    task<> Replay(
+        ExtentNumber logExtent);
+
+    task<> Replay(
+        const LogRecord& logRecord);
+
     friend class Operation;
 
 public:

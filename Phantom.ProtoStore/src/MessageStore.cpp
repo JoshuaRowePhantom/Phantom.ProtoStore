@@ -106,8 +106,52 @@ namespace Phantom::ProtoStore
         shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory)
         :
         m_extent(extent),
-        m_checksumAlgorithmFactory(checksumAlgorithmFactory)
-    {}
+        m_checksumAlgorithmFactory(checksumAlgorithmFactory),
+        m_checksumSize(checksumAlgorithmFactory->Create()->SizeInBytes())
+    {
+    }
+
+    WriteMessageResult RandomMessageWriter::GetWriteMessageResult(
+        ExtentOffset extentOffset,
+        size_t messageSize
+    )
+    {
+        WriteMessageResult result;
+        result.MessageLengthRange =
+        {
+            .Beginning = extentOffset,
+            .End = extentOffset + sizeof(google::protobuf::uint32),
+        };
+        result.ChecksumAlgorithmRange =
+        {
+            .Beginning = result.MessageLengthRange.End,
+            .End = result.MessageLengthRange.End + sizeof(ChecksumAlgorithmVersion),
+        };
+        result.MessageRange =
+        {
+            .Beginning = result.ChecksumAlgorithmRange.End,
+            .End = result.ChecksumAlgorithmRange.End + messageSize,
+        };
+        result.ChecksumRange =
+        {
+            .Beginning = result.MessageRange.End,
+            .End = result.MessageRange.End + m_checksumSize,
+        };
+        result.DataRange =
+        {
+            .Beginning = extentOffset,
+            .End = result.ChecksumRange.End,
+        };
+
+        auto dataSize = result.DataRange.End - result.DataRange.Beginning;
+        auto dataSize32 = static_cast<uint32_t>(dataSize);
+        if (dataSize != dataSize32)
+        {
+            throw range_error("Message too big.");
+        }
+
+        return result;
+    }
 
     task<WriteMessageResult> RandomMessageWriter::Write(
         ExtentOffset extentOffset,
@@ -115,28 +159,33 @@ namespace Phantom::ProtoStore
         FlushBehavior flushBehavior
     )
     {
+        auto writeMessageResult = GetWriteMessageResult(
+            extentOffset,
+            message.ByteSizeLong());
+
+        co_await Write(
+            writeMessageResult,
+            message,
+            flushBehavior);
+
+        co_return writeMessageResult;
+    }
+
+    task<> RandomMessageWriter::Write(
+        const WriteMessageResult& writeMessageResult,
+        const Message& message,
+        FlushBehavior flushBehavior
+    )
+    {
         auto checksum = m_checksumAlgorithmFactory->Create();
 
-        auto messageHeaderWriteBufferSize =
-            sizeof(uint32_t)
-            +
-            sizeof(ChecksumAlgorithmVersion);
-
+        auto writeBufferSize = writeMessageResult.DataRange.End - writeMessageResult.DataRange.Beginning;
+        auto messageSize = writeMessageResult.MessageRange.End - writeMessageResult.MessageRange.Beginning;
         auto writeBuffer = co_await m_extent->CreateWriteBuffer();
-        
+
         co_await writeBuffer->Write(
-            extentOffset,
-            messageHeaderWriteBufferSize);
-
-        auto messageSize = message.ByteSizeLong();
-        auto messageSize32 = static_cast<uint32_t>(messageSize);
-        auto messageDataSize = messageSize + checksum->SizeInBytes();
-        auto messageDataSize32 = static_cast<uint32_t>(messageDataSize);
-
-        if (messageDataSize != messageDataSize32)
-        {
-            throw range_error("Message too big.");
-        }
+            writeMessageResult.DataRange.Beginning,
+            writeBufferSize);
 
         auto checksumVersion = checksum->Version();
 
@@ -150,11 +199,6 @@ namespace Phantom::ProtoStore
                 &checksumVersion,
                 sizeof(checksumVersion));
         }
-        co_await writeBuffer->Commit();
-
-        co_await writeBuffer->Write(
-            extentOffset + messageHeaderWriteBufferSize,
-            messageDataSize32);
 
         {
             ChecksummingZeroCopyOutputStream checksummingOutputStream(
@@ -184,11 +228,69 @@ namespace Phantom::ProtoStore
         {
             co_await writeBuffer->Commit();
         }
+    }
 
-        co_return WriteMessageResult
+    SequentialMessageReader::SequentialMessageReader(
+        shared_ptr<RandomMessageReader> randomMessageReader
+    )
+        : m_randomMessageReader(randomMessageReader),
+        m_currentOffset(0)
+    {
+    }
+
+    task<ReadMessageResult> SequentialMessageReader::Read(
+        Message& message
+    )
+    {
+        auto readResult = co_await m_randomMessageReader->Read(
+            m_currentOffset,
+            message);
+
+        m_currentOffset = readResult.EndOfMessage;
+
+        co_return readResult;
+    }
+
+    SequentialMessageWriter::SequentialMessageWriter(
+        shared_ptr<RandomMessageWriter> randomMessageWriter
+    )
+        : 
+        m_randomMessageWriter(randomMessageWriter),
+        m_currentOffset(0)
+    {}
+
+    task<WriteMessageResult> SequentialMessageWriter::Write(
+        const Message& message,
+        FlushBehavior flushBehavior
+    )
+    {
+        auto messageSize = message.ByteSizeLong();
+        WriteMessageResult writeMessageResult;
+
+        while (true)
         {
-            extentOffset + messageHeaderWriteBufferSize + messageDataSize,
-        };
+            auto offset = m_currentOffset.load(
+                std::memory_order_relaxed);
+
+            writeMessageResult = m_randomMessageWriter->GetWriteMessageResult(
+                offset,
+                messageSize);
+
+            if (m_currentOffset.compare_exchange_strong(
+                offset,
+                writeMessageResult.DataRange.End,
+                std::memory_order_acq_rel))
+            {
+                break;
+            }
+        }
+
+        co_await m_randomMessageWriter->Write(
+            writeMessageResult,
+            message,
+            flushBehavior);
+
+        co_return writeMessageResult;
     }
 
     task<shared_ptr<IReadableExtent>> MessageStore::OpenExtentForRead(
@@ -256,18 +358,26 @@ namespace Phantom::ProtoStore
             m_checksumAlgorithmFactory);
     }
 
-    task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialReadAccess(
+    task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequentialReadAccess(
         ExtentNumber extentNumber
     )
     {
-        return task<shared_ptr<ISequentialMessageWriter>>();
+        return task<shared_ptr<ISequentialMessageReader>>();
     }
 
     task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialWriteAccess(
         ExtentNumber extentNumber
     ) 
     {
-        return task<shared_ptr<ISequentialMessageWriter>>();
+        auto writableExtent = co_await OpenExtentForWrite(
+            extentNumber);
+
+        auto randomMessageWriter = make_shared<RandomMessageWriter>(
+            writableExtent,
+            m_checksumAlgorithmFactory);
+
+        co_return make_shared<SequentialMessageWriter>(
+            randomMessageWriter);
     }
 
     shared_ptr<IMessageStore> MakeMessageStore(

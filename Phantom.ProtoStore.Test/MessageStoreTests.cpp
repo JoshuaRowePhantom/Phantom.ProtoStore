@@ -57,7 +57,7 @@ namespace Phantom::ProtoStore
                 FlushBehavior::DontFlush);
 
             auto writeResult2 = co_await randomMessageWriter->Write(
-                writeResult1.EndOfMessage,
+                writeResult1.DataRange.End,
                 expectedMessage2,
                 FlushBehavior::Flush);
 
@@ -112,7 +112,7 @@ namespace Phantom::ProtoStore
                 expectedMessage,
                 FlushBehavior::Flush);
 
-            ASSERT_EQ(expectedEndOfMessage, writeResult.EndOfMessage);
+            ASSERT_EQ(expectedEndOfMessage, writeResult.DataRange.End);
 
             auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(0);
 
@@ -160,7 +160,7 @@ namespace Phantom::ProtoStore
 
             ASSERT_EQ(
                 expectedEndOfMessage, 
-                writeResult.EndOfMessage);
+                writeResult.DataRange.End);
 
             uint8_t lastChecksumByte;
             {

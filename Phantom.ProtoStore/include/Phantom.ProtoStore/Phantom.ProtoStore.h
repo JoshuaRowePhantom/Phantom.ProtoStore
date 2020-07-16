@@ -113,7 +113,8 @@ class ProtoValue
     typedef std::variant<
         std::monostate,
         std::span<const std::byte>,
-        std::vector<std::byte>
+        std::vector<std::byte>,
+        std::string
     > message_data_type;
 
     typedef std::variant<
@@ -128,6 +129,13 @@ public:
 
     ProtoValue()
     {}
+
+    ProtoValue(
+        std::string bytes)
+        :
+        message_data(move(bytes))
+    {
+    }
 
     ProtoValue(
         std::vector<std::byte> bytes)
@@ -194,13 +202,14 @@ public:
     }
 
     template<
-        typename TMessage
+        typename TMessage = Message
     > void unpack(
-        TMessage* destination)
+        TMessage* destination
+    ) const
     {
         {
-            const Message** source;
-            if (source = std::get_if<const Message*>(&message))
+            auto source = std::get_if<const Message*>(&message);
+            if (source)
             {
                 destination->CopyFrom(**source);
             }
@@ -208,8 +217,8 @@ public:
         }
 
         {
-            unique_ptr<const Message>* source;
-            if (source = std::get_if<unique_ptr<const Message>>(&message))
+            auto source = std::get_if<unique_ptr<const Message>>(&message);
+            if (source)
             {
                 destination->CopyFrom(**source);
             }
@@ -217,8 +226,8 @@ public:
         }
 
         {
-            std::span<const std::byte>* source;
-            if (source = std::get_if<std::span<const std::byte>>(&message_data))
+            auto source = std::get_if<std::span<const std::byte>>(&message_data);
+            if (source)
             {
                 destination->ParseFromArray(
                     source->data(),
@@ -229,8 +238,8 @@ public:
         }
 
         {
-            std::vector<byte>* source;
-            if (source = std::get_if<std::vector<byte>>(&message_data))
+            auto source = std::get_if<std::vector<byte>>(&message_data);
+            if (source)
             {
                 destination->ParseFromArray(
                     source->data(),

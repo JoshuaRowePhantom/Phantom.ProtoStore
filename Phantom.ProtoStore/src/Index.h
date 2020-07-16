@@ -8,6 +8,12 @@ namespace Phantom::ProtoStore
 class IIndex
 {
 public:
+    virtual task<> AddRow(
+        const ProtoValue& key,
+        const ProtoValue& value,
+        SequenceNumber writeSequenceNumber
+    ) = 0;
+
     virtual task<ReadResult> Read(
         const ReadRequest& readRequest
     ) = 0;

@@ -60,6 +60,12 @@ using google::protobuf::io::ZeroCopyOutputStream;
 typedef std::uint64_t ExtentNumber;
 typedef std::uint64_t ExtentOffset;
 
+struct ExtentOffsetRange
+{
+    ExtentOffset Beginning;
+    ExtentOffset End;
+};
+
 typedef string IndexName;
 typedef google::protobuf::uint64 IndexNumber;
 

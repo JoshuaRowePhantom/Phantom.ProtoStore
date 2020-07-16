@@ -35,6 +35,38 @@ const IndexName& Index::GetIndexName() const
     return m_indexName;
 }
 
+task<> Index::AddRow(
+    const ProtoValue& key,
+    const ProtoValue& value,
+    SequenceNumber writeSequenceNumber)
+{
+    MemoryTableRow row;
+
+    unique_ptr<Message> keyMessage(
+        m_keyFactory->GetPrototype()->New());
+    key.unpack<>(keyMessage.get());
+
+    unique_ptr<Message> valueMessage(
+        m_valueFactory->GetPrototype()->New());
+    value.unpack<>(valueMessage.get());
+
+    row.Key = move(keyMessage);
+    row.Value = move(valueMessage);
+    row.WriteSequenceNumber = writeSequenceNumber;
+
+    co_await m_currentMemoryTable->AddRow(
+        SequenceNumber::Latest,
+        row,
+        [=]()->MemoryTableOperationOutcomeTask
+    {
+        co_return MemoryTableOperationOutcome
+        {
+            .Outcome = OperationOutcome::Committed,
+            .WriteSequenceNumber = writeSequenceNumber,
+        };
+    }());
+}
+
 task<ReadResult> Index::Read(
     const ReadRequest& readRequest
 )

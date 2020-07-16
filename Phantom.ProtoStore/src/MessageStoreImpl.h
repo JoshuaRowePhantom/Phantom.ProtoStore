@@ -31,15 +31,57 @@ namespace Phantom::ProtoStore
     {
         const shared_ptr<IWritableExtent> m_extent;
         const shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
+        const size_t m_checksumSize;
 
     public:
         RandomMessageWriter(
             shared_ptr<IWritableExtent> extent,
             shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
 
+        WriteMessageResult GetWriteMessageResult(
+            ExtentOffset extentOffset,
+            size_t messageSize);
+
+        task<> Write(
+            const WriteMessageResult& writeMessageResult,
+            const Message& message,
+            FlushBehavior flushBehavior
+        );
+
         virtual task<WriteMessageResult> Write(
             ExtentOffset extentOffset,
             const Message& message,
+            FlushBehavior flushBehavior
+        ) override;
+    };
+
+    class SequentialMessageReader
+        :
+        public ISequentialMessageReader
+    {
+        const shared_ptr<RandomMessageReader> m_randomMessageReader;
+        ExtentOffset m_currentOffset;
+    public:
+        SequentialMessageReader(
+            shared_ptr<RandomMessageReader> randomMessageReader);
+
+        virtual task<ReadMessageResult> Read(
+            Message& message
+        ) override;
+    };
+
+    class SequentialMessageWriter
+        :
+        public ISequentialMessageWriter
+    {
+        const shared_ptr<RandomMessageWriter> m_randomMessageWriter;
+        std::atomic<ExtentOffset> m_currentOffset;
+    public:
+        SequentialMessageWriter(
+            shared_ptr<RandomMessageWriter> randomMessageWriter);
+
+        virtual task<WriteMessageResult> Write(
+            const Message& message, 
             FlushBehavior flushBehavior
         ) override;
     };
@@ -73,7 +115,7 @@ namespace Phantom::ProtoStore
             ExtentNumber extentNumber
         ) override;
 
-        virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialReadAccess(
+        virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
             ExtentNumber extentNumber
         ) override;
 
