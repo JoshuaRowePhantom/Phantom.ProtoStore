@@ -12,6 +12,21 @@ class MemoryTable
     :
     public IMemoryTable
 {
+    enum class MemoryTableOutcomeAndSequenceNumber;
+
+    static MemoryTableOutcomeAndSequenceNumber ToMemoryTableOutcomeAndSequenceNumber(
+        SequenceNumber sequenceNumber,
+        OperationOutcome operationOutcome);
+
+    static MemoryTableOutcomeAndSequenceNumber ToOutcomeUnknownSubsequentInsertion(
+        SequenceNumber sequenceNumber);
+
+    static OperationOutcome GetOperationOutcome(
+        MemoryTableOutcomeAndSequenceNumber value);
+
+    static SequenceNumber ToSequenceNumber(
+        MemoryTableOutcomeAndSequenceNumber value);
+
     struct MemoryTableValue;
 
     struct InsertionKey
@@ -59,17 +74,10 @@ class MemoryTable
             ) = delete;
 
         // The sequence number the row was either added
-        // or committed at.  The protocol to write this
-        // value after adding to the skip list is to first
-        // write it, then write to OperationOutcome with Release.
-        SequenceNumber WriteSequenceNumber;
-
-        // The commit / abort status of the row.
-        // When this is set to Committed or Aborted,
-        // it is safe to access the Row.Value member of this structure.
-        // Otherwise, the mutex must be acquired and this
-        // value re-checked before accessing Row.Value and AsyncOperationOutcome.
-        std::atomic<OperationOutcome> OperationOutcome;
+        // or committed at, and the operation outcome.  The protocol to write this
+        // value after adding to the skip list is to write
+        // the contents of Row, the write this with Release semantics.
+        std::atomic<MemoryTableOutcomeAndSequenceNumber> WriteSequenceNumber;
 
         // This mutex controls reading and writing Row and AsyncOperationOutcome
         // after the row has been added to the SkipList.
@@ -137,8 +145,9 @@ class MemoryTable
     cppcoro::async_scope m_asyncScope;
 
     // Resolve a memory table row's outcome using the passed-in
-    // task.  Does not acquire the row's mutex.
+    // task and original sequence number.  Does not acquire the row's mutex.
     task<OperationOutcome> ResolveMemoryTableRowOutcome(
+        MemoryTableOutcomeAndSequenceNumber writeSequenceNumber,
         MemoryTableValue& memoryTableValue,
         MemoryTableOperationOutcomeTask task
     );

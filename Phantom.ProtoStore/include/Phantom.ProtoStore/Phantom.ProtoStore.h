@@ -36,6 +36,24 @@ enum class SequenceNumber : std::uint64_t
     LatestCommitted = Latest - 1,
 };
 
+inline SequenceNumber ToSequenceNumber(
+    std::uint64_t sequenceNumber)
+{
+    if (sequenceNumber >= 0x4000000000000000ULL)
+    {
+        throw std::out_of_range(
+            "SequenceNumber was out of range.");
+    }
+
+    return static_cast<SequenceNumber>(sequenceNumber << 2);
+}
+
+inline std::uint64_t ToUint64(
+    SequenceNumber sequenceNumber)
+{
+    return static_cast<std::uint64_t>(sequenceNumber) >> 2;
+}
+
 typedef std::string TransactionId;
 
 class ProtoStore;

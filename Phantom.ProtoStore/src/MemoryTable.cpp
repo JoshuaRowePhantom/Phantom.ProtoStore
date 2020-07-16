@@ -3,6 +3,54 @@
 namespace Phantom::ProtoStore
 {
 
+enum class MemoryTable::MemoryTableOutcomeAndSequenceNumber
+{
+    Earliest = 0,
+    NumberMask = 0xfffffffffffffffc,
+    OutcomeMask = 0x3,
+    // These values must match those in OperationOutcome.
+    OutcomeUnknown = 0x0,
+    OutcomeCommitted = 0x1,
+    OutcomeAborted = 0x2,
+    // This value indicates that the value may not be atomically replaced.
+    OutcomeUnknownSubsequentInsertion = 0x3,
+};
+
+MemoryTable::MemoryTableOutcomeAndSequenceNumber MemoryTable::ToMemoryTableOutcomeAndSequenceNumber(
+    SequenceNumber sequenceNumber,
+    OperationOutcome operationOutcome)
+{
+    return static_cast<MemoryTableOutcomeAndSequenceNumber>(
+        static_cast<std::uint64_t>(sequenceNumber)
+        | static_cast<std::uint64_t>(operationOutcome));
+}
+
+MemoryTable::MemoryTableOutcomeAndSequenceNumber MemoryTable::ToOutcomeUnknownSubsequentInsertion(
+    SequenceNumber sequenceNumber)
+{
+    return static_cast<MemoryTableOutcomeAndSequenceNumber>(
+        static_cast<std::uint64_t>(sequenceNumber)
+        | static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeUnknownSubsequentInsertion));
+}
+
+OperationOutcome MemoryTable::GetOperationOutcome(
+    MemoryTableOutcomeAndSequenceNumber value
+)
+{
+    return static_cast<OperationOutcome>(
+        static_cast<std::uint64_t>(value)
+        & static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeMask));
+}
+
+SequenceNumber MemoryTable::ToSequenceNumber(
+    MemoryTableOutcomeAndSequenceNumber value
+)
+{
+    return static_cast<SequenceNumber>(
+        static_cast<std::uint64_t>(value)
+        & static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::NumberMask));
+}
+
 MemoryTable::MemoryTable(
     const KeyComparer* keyComparer
 )
@@ -31,15 +79,74 @@ task<> MemoryTable::AddRow(
     auto [iterator, succeeded] = m_skipList.insert(
         move(insertionKey));
 
-    if (!succeeded)
-    {
-        throw WriteConflict();
-    }
+    auto memoryTableWriteSequenceNumber = ToMemoryTableOutcomeAndSequenceNumber(
+        row.WriteSequenceNumber,
+        OperationOutcome::Unknown);
 
-    m_asyncScope.spawn(
-        ResolveMemoryTableRowOutcome(
+    if (succeeded)
+    {
+        // Use the transaction resolver without acquiring a mutex.
+        m_asyncScope.spawn(
+            ResolveMemoryTableRowOutcome(
+                memoryTableWriteSequenceNumber,
+                *iterator,
+                asyncOperationOutcome));
+    }
+    else
+    {
+        // Do a cursory check to see what the outcome was.
+        // We expect that most transactions commit.  The outcome is likely to be "Committed".
+        // The cursory check for this is better than acquiring the mutex.
+        auto previousMemoryTableWriteSequenceNumber = iterator->WriteSequenceNumber.load(
+            std::memory_order_relaxed);
+
+        auto previousOperationOutcome = GetOperationOutcome(
+            previousMemoryTableWriteSequenceNumber);
+
+        if (previousOperationOutcome == OperationOutcome::Committed)
+        {
+            throw WriteConflict();
+        }
+
+        // The cursory check shows the result is either Aborted or Unknown.
+        // Since we'll want to check the operation outcome's task,
+        // then replace the Value and Task, we acquire the lock now.
+        auto lock = co_await iterator->Mutex.scoped_lock_async();
+
+        // This should be fast if the transaction outcome is known,
+        // so there's no point in re-checking the fast outcome variable.
+        // If the outcome wasn't known, we'll have to wait anyway.
+        previousOperationOutcome = co_await ResolveMemoryTableRowOutcome(
+            previousMemoryTableWriteSequenceNumber,
             *iterator,
-            asyncOperationOutcome));
+            iterator->AsyncOperationOutcome);
+
+        // Now we might discover there's a committed transaction.
+        if (previousOperationOutcome == OperationOutcome::Committed)
+        {
+            throw WriteConflict();
+        }
+
+        assert(previousOperationOutcome == OperationOutcome::Aborted);
+
+        // Oh jolly joy!  The previous write aborted, so this one
+        // can proceed.
+        iterator->Row.WriteSequenceNumber = row.WriteSequenceNumber;
+        iterator->Row.Value = std::move(row.Value);
+        iterator->AsyncOperationOutcome = asyncOperationOutcome;
+
+        memoryTableWriteSequenceNumber = ToOutcomeUnknownSubsequentInsertion(
+            row.WriteSequenceNumber);
+
+        iterator->WriteSequenceNumber.store(
+            memoryTableWriteSequenceNumber,
+            std::memory_order_release);
+
+        // Use the transaction resolve that acquires the mutex.
+        m_asyncScope.spawn(
+            ResolveMemoryTableRowOutcome(
+                *iterator));
+    }
 
     co_return;
 }
@@ -85,10 +192,15 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
         // Since the write sequence number being too high is expected
         // to be the rare case, i.e. readers are reading recently committed rows,
         // acquire the WriteSequenceNumber now.
-        auto rowOperationOutcome = memoryTableValue.OperationOutcome.load(
+        auto memoryTableWriteSequenceNumber = memoryTableValue.WriteSequenceNumber.load(
             std::memory_order_acquire);
 
-        if (memoryTableValue.WriteSequenceNumber > readSequenceNumber)
+        auto writeSequenceNumber = ToSequenceNumber(
+            memoryTableWriteSequenceNumber);
+        auto operationOutcome = GetOperationOutcome(
+            memoryTableWriteSequenceNumber);
+
+        if (writeSequenceNumber > readSequenceNumber)
         {
             // We found a version of the row later than requested.
             // The actual outcome doesn't matter, because we wouldn't have returned the row anyway.
@@ -99,22 +211,22 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
             // As a hint to the skip list, we can increment the iterator to do one less comparison.
             ++findIterator;
             enumerationKey.KeyLowInclusivity = Inclusivity::Inclusive;
-            enumerationKey.SequenceNumberToSkipForKeyLow = memoryTableValue.WriteSequenceNumber;
+            enumerationKey.SequenceNumberToSkipForKeyLow = writeSequenceNumber;
         }
         // We potentially found a version of the row to return, but we have to check its outcome.
         else
         {
-            if (rowOperationOutcome == OperationOutcome::Unknown)
+            if (operationOutcome == OperationOutcome::Unknown)
             {
                 // We need to wait for resolution of this row.
-                rowOperationOutcome = co_await ResolveMemoryTableRowOutcome(
+                operationOutcome = co_await ResolveMemoryTableRowOutcome(
                     memoryTableValue);
                 
-                assert(rowOperationOutcome == OperationOutcome::Aborted
-                    || rowOperationOutcome == OperationOutcome::Committed);
+                assert(operationOutcome == OperationOutcome::Aborted
+                    || operationOutcome == OperationOutcome::Committed);
             }
 
-            if (rowOperationOutcome == OperationOutcome::Aborted)
+            if (operationOutcome == OperationOutcome::Aborted)
             {
                 // We found a version of the row later than requested.
                 // Change the enumeration key to be inclusive so that we'll
@@ -123,7 +235,7 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
                 // As a hint to the skip list, we can increment the iterator to do one less comparison.
                 ++findIterator;
                 enumerationKey.KeyLowInclusivity = Inclusivity::Inclusive;
-                enumerationKey.SequenceNumberToSkipForKeyLow = memoryTableValue.WriteSequenceNumber;
+                enumerationKey.SequenceNumberToSkipForKeyLow = writeSequenceNumber;
             }
             else
             {
@@ -133,6 +245,8 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
 
                 // Change the enumeration key to be exclusive so that we'll
                 // skip all lower sequence numbers for the same row.
+                // As a hint to the skip list, we can increment the iterator to do one less comparison.
+                ++findIterator;
                 enumerationKey.KeyLowInclusivity = Inclusivity::Exclusive;
                 enumerationKey.SequenceNumberToSkipForKeyLow.reset();
             }
@@ -146,6 +260,7 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
 }
 
 task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
+    MemoryTableOutcomeAndSequenceNumber writeSequenceNumber,
     MemoryTableValue& memoryTableValue,
     MemoryTableOperationOutcomeTask task
 )
@@ -155,20 +270,23 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     assert(memoryTableOperationOutcome.Outcome == OperationOutcome::Aborted
         || memoryTableOperationOutcome.Outcome == OperationOutcome::Committed);
 
+    auto newWriteSequenceNumber = ToMemoryTableOutcomeAndSequenceNumber(
+        memoryTableOperationOutcome.WriteSequenceNumber,
+        memoryTableOperationOutcome.Outcome);
+
     if (memoryTableOperationOutcome.Outcome == OperationOutcome::Committed)
     {
         // The completed operation must happen at a sequence number at least as
         // late as the current row, or snapshot isolation will have failed.
-        assert(memoryTableOperationOutcome.WriteSequenceNumber >= memoryTableValue.WriteSequenceNumber);
+        assert(memoryTableOperationOutcome.WriteSequenceNumber >= ToSequenceNumber(memoryTableValue.WriteSequenceNumber.load(std::memory_order_relaxed)));
 
         // The transaction committed, and we can safely write the 
         // completion information to the transaction.
-        memoryTableValue.WriteSequenceNumber = memoryTableOperationOutcome.WriteSequenceNumber;
-        
-        memoryTableValue.OperationOutcome.store(
-            OperationOutcome::Committed,
-            std::memory_order_release
-        );
+        memoryTableValue.Row.WriteSequenceNumber = memoryTableOperationOutcome.WriteSequenceNumber;
+
+        memoryTableValue.WriteSequenceNumber.store(
+            newWriteSequenceNumber,
+            std::memory_order_release);
     }
     else
     {
@@ -176,13 +294,11 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
         // have noticed and may have already written the outcome,
         // and yet another AddRow might have replaced the outcome,
         // so conditionally write the outcome if it is still Unknown.
-        OperationOutcome expected = OperationOutcome::Unknown;
-
-        memoryTableValue.OperationOutcome.compare_exchange_strong(
-            expected,
-            OperationOutcome::Aborted,
-            std::memory_order_relaxed
-        );
+        // In those cases, AddRow will have used an outcome of OutcomeUnknownSubsequentInsertion.
+        memoryTableValue.WriteSequenceNumber.compare_exchange_strong(
+            writeSequenceNumber,
+            newWriteSequenceNumber,
+            std::memory_order_relaxed);
     }
 
     co_return memoryTableOperationOutcome.Outcome;
@@ -193,8 +309,11 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
 )
 {
     auto lock = co_await memoryTableValue.Mutex.scoped_lock_async();
-    auto outcome = memoryTableValue.OperationOutcome.load(
+    auto writeSequenceNumber = memoryTableValue.WriteSequenceNumber.load(
         std::memory_order_acquire);
+
+    auto outcome = GetOperationOutcome(
+        writeSequenceNumber);
 
     if (outcome != OperationOutcome::Unknown)
     {
@@ -202,8 +321,9 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     }
 
     co_return co_await ResolveMemoryTableRowOutcome(
+        writeSequenceNumber,
         memoryTableValue,
-        memoryTableValue.AsyncOperationOutcome);
+        MemoryTableOperationOutcomeTask(memoryTableValue.AsyncOperationOutcome));
 }
 
 task<> MemoryTable::Join()
@@ -216,9 +336,13 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
 )
     :
     Row { move(other.Row) },
-    WriteSequenceNumber { other.Row.WriteSequenceNumber },
-    AsyncOperationOutcome { move(other.AsyncOperationOutcome) },
-    OperationOutcome { OperationOutcome::Unknown }
+    WriteSequenceNumber 
+{
+        ToMemoryTableOutcomeAndSequenceNumber(
+            other.Row.WriteSequenceNumber,
+            OperationOutcome::Unknown)
+    },
+    AsyncOperationOutcome { other.AsyncOperationOutcome }
 {
 }
 

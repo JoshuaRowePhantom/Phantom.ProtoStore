@@ -33,7 +33,7 @@ protected:
         co_return MemoryTableOperationOutcome
         {
             .Outcome = outcome,
-            .WriteSequenceNumber = static_cast<SequenceNumber>(writeSequenceNumber),
+            .WriteSequenceNumber = ToSequenceNumber(writeSequenceNumber),
         };
     }
 
@@ -52,12 +52,12 @@ protected:
         MemoryTableRow row
         {
             .Key = copy_unique(rowKey),
-            .WriteSequenceNumber = static_cast<SequenceNumber>(writeSequenceNumber),
+            .WriteSequenceNumber = ToSequenceNumber(writeSequenceNumber),
             .Value = copy_unique(rowValue),
         };
 
         co_await memoryTable.AddRow(
-            static_cast<SequenceNumber>(readSequenceNumber),
+            ToSequenceNumber(readSequenceNumber),
             row,
             WithOutcome(outcome, writeSequenceNumber));
     }
@@ -99,7 +99,7 @@ protected:
         }
 
         auto enumeration = memoryTable.Enumerate(
-            static_cast<SequenceNumber>(readSequenceNumber),
+            ToSequenceNumber(readSequenceNumber),
             {
                 .Key = keyLowMessagePointer,
                 .Inclusivity = keyLowInclusivity,
@@ -117,7 +117,7 @@ protected:
                 {
                     .Key = static_cast<const StringKey*>(row->Key.get())->value(),
                     .Value = static_cast<const StringKey*>(row->Value.get())->value(),
-                    .SequenceNumber = static_cast<uint64_t>(row->WriteSequenceNumber),
+                    .SequenceNumber = ToUint64(row->WriteSequenceNumber),
                 }
             );
         }
@@ -231,7 +231,7 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
         MemoryTableRow row2
         {
             .Key = copy_unique(key2),
-            .WriteSequenceNumber = static_cast<SequenceNumber>(6),
+            .WriteSequenceNumber = ToSequenceNumber(6),
             .Value = copy_unique(value2),
         };
 
@@ -284,13 +284,13 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
         MemoryTableRow row2
         {
             .Key = copy_unique(key2),
-            .WriteSequenceNumber = static_cast<SequenceNumber>(5),
+            .WriteSequenceNumber = ToSequenceNumber(5),
             .Value = copy_unique(value2),
         };
 
         ASSERT_THROW(
             co_await memoryTable.AddRow(
-                static_cast<SequenceNumber>(7),
+                ToSequenceNumber(7),
                 row2,
                 WithOutcome(OperationOutcome::Committed, 7)),
             WriteConflict);
@@ -316,7 +316,7 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
     });
 }
 
-TEST_F(MemoryTableTests, Succed_to_add_conflicting_row_if_operation_aborted)
+TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_number_if_operation_aborted)
 {
     run_async([&]()->task<>
     {
@@ -324,7 +324,8 @@ TEST_F(MemoryTableTests, Succed_to_add_conflicting_row_if_operation_aborted)
             "key-1",
             "value-1",
             5,
-            0
+            0,
+            OperationOutcome::Aborted
         );
 
         co_await AddRow(
@@ -336,12 +337,6 @@ TEST_F(MemoryTableTests, Succed_to_add_conflicting_row_if_operation_aborted)
 
         co_await EnumerateExpectedRows(
             5,
-            {
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            6,
             {
                 {"key-1", "value-1-2", 5},
             }
