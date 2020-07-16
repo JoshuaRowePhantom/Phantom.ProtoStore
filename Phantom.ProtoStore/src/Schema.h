@@ -9,6 +9,9 @@ namespace Phantom::ProtoStore
 class IMessageFactory
 {
 public:
+    virtual const Descriptor* GetDescriptor(
+    ) const = 0;
+
     virtual const Message* GetPrototype(
     ) const = 0;
 };

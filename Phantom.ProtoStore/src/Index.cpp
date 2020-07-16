@@ -1,5 +1,6 @@
 #include "IndexImpl.h"
 #include "src/ProtoStoreInternal.pb.h"
+#include "KeyComparer.h"
 
 namespace Phantom::ProtoStore
 {
@@ -13,7 +14,11 @@ Index::Index(
 )
     :
     m_indexName(indexName),
-    m_indexNumber(indexNumber)
+    m_indexNumber(indexNumber),
+    m_createSequenceNumber(createSequenceNumber),
+    m_keyFactory(keyFactory),
+    m_valueFactory(valueFactory),
+    m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor()))
 {
 }
 
@@ -31,7 +36,46 @@ task<ReadResult> Index::Read(
     const ReadRequest& readRequest
 )
 {
-    throw 0;
+    unique_ptr<Message> unpackedKey;
+
+    KeyRangeEnd keyLow
+    {
+        .Key = readRequest.Key.as_message_if(),
+        .Inclusivity = Inclusivity::Inclusive,
+    };
+
+    if (!keyLow.Key)
+    {
+        unpackedKey.reset(
+            m_keyFactory->GetPrototype()->New());
+        keyLow.Key = unpackedKey.get();
+    }
+
+    auto enumeration = m_currentMemoryTable->Enumerate(
+        readRequest.SequenceNumber,
+        keyLow,
+        keyLow
+    );
+
+    for co_await(auto memoryTableRow : enumeration)
+    {
+        if (!memoryTableRow->Value)
+        {
+            break;
+        }
+
+        co_return ReadResult
+        {
+            .WriteSequenceNumber = memoryTableRow->WriteSequenceNumber,
+            .Value = memoryTableRow->Value.get(),
+            .ReadStatus = ReadStatus::HasValue,
+        };
+    }
+
+    co_return ReadResult
+    {
+        .ReadStatus = ReadStatus::NoValue,
+    };
 }
 
 task<> Index::Join()

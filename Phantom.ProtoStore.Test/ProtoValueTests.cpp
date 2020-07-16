@@ -9,7 +9,7 @@ TEST(ProtoValueTests, Construct_from_Message_pointer)
     google::protobuf::Empty e;
     ProtoValue v = &e;
 
-    ASSERT_EQ(get<Message*>(v.message), &e);
+    ASSERT_EQ(get<const Message*>(v.message), &e);
     ASSERT_EQ(true, holds_alternative<std::monostate>(v.message_data));
 }
 

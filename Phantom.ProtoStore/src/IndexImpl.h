@@ -2,6 +2,7 @@
 
 #include "Index.h"
 #include "Schema.h"
+#include "MemoryTable.h"
 
 namespace Phantom::ProtoStore
 {
@@ -11,6 +12,12 @@ class Index
 {
     IndexName m_indexName;
     IndexNumber m_indexNumber;
+    SequenceNumber m_createSequenceNumber;
+    shared_ptr<KeyComparer> m_keyComparer;
+    shared_ptr<IMessageFactory> m_keyFactory;
+    shared_ptr<IMessageFactory> m_valueFactory;
+    
+    shared_ptr<IMemoryTable> m_currentMemoryTable;
 
 public:
     Index(

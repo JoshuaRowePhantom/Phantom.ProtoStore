@@ -75,6 +75,7 @@ class IRandomMessageAccessor;
 class IHeaderAccessor;
 class IChecksumAlgorithm;
 class IChecksumAlgorithmFactory;
+class KeyComparer;
 
 enum class FlushBehavior
 {

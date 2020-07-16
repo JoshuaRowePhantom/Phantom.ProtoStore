@@ -118,8 +118,8 @@ class ProtoValue
 
     typedef std::variant<
         std::monostate,
-        Message*,
-        unique_ptr<Message>
+        const Message*,
+        unique_ptr<const Message>
     > message_type;
 
 public:
@@ -151,46 +151,43 @@ public:
     }
 
     ProtoValue(
-        Message* message)
+        const Message* message)
         :
         message(message)
     {
     }
 
-    template<
-        typename TMessage
-    > TMessage* cast_if()
+    const Message* as_message_if() const
     {
         {
-            Message** source;
-            if (source = std::get_if<Message*>(&message))
+            auto source = std::get_if<const Message*>(&message);
+            if (source)
             {
-                if (!*source)
-                {
-                    return nullptr;
-                }
-
-                if ((*source)->GetDescriptor() == TMessage::descriptor())
-                {
-                    return static_cast<TMessage*>(*source);
-                }
+                return *source;
             }
         }
 
         {
-            unique_ptr<Message>* source;
-            if (source = std::get_if<unique_ptr<Message>>(&message))
+            auto source = std::get_if<unique_ptr<const Message>>(&message);
+            if (source)
             {
-                if (!*source)
-                {
-                    return nullptr;
-                }
-
-                if ((*source)->GetDescriptor() == TMessage::descriptor())
-                {
-                    return static_cast<TMessage*>(source->get());
-                }
+                return source->get();
             }
+        }
+
+        return nullptr;
+    }
+
+    template<
+        typename TMessage
+    > const TMessage* cast_if() const
+    {
+        auto message = as_message_if();
+        if (message
+            &&
+            message->GetDescriptor() == TMessage::descriptor())
+        {
+            return static_cast<const TMessage*>(message);
         }
 
         return nullptr;
@@ -202,8 +199,8 @@ public:
         TMessage* destination)
     {
         {
-            Message** source;
-            if (source = std::get_if<Message*>(&message))
+            const Message** source;
+            if (source = std::get_if<const Message*>(&message))
             {
                 destination->CopyFrom(**source);
             }
@@ -211,8 +208,8 @@ public:
         }
 
         {
-            unique_ptr<Message>* source;
-            if (source = std::get_if<unique_ptr<Message>>(&message))
+            unique_ptr<const Message>* source;
+            if (source = std::get_if<unique_ptr<const Message>>(&message))
             {
                 destination->CopyFrom(**source);
             }

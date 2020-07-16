@@ -50,12 +50,17 @@ class ProtoStoreMessageFactory
 {
     std::any m_extraData;
     const Message* m_prototype;
+    const Descriptor* m_descriptor;
 
 public:
     ProtoStoreMessageFactory(
         const Message* protoType,
+        const Descriptor* descriptor,
         std::any extraData
         );
+    
+    virtual const Descriptor* GetDescriptor(
+    ) const override;
 
     virtual const Message* GetPrototype(
     ) const override;
@@ -63,12 +68,21 @@ public:
 
 ProtoStoreMessageFactory::ProtoStoreMessageFactory(
     const Message* protoType,
+    const Descriptor* descriptor,
     std::any extraData
 )
 :
     m_extraData(extraData),
-    m_prototype(protoType)
+    m_prototype(protoType),
+    m_descriptor(descriptor)
 {}
+
+const Descriptor* ProtoStoreMessageFactory::GetDescriptor(
+) const
+{
+    return m_descriptor;
+}
+
 
 const Message* ProtoStoreMessageFactory::GetPrototype(
 ) const
@@ -81,6 +95,7 @@ shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
 {
     return make_shared<ProtoStoreMessageFactory>(
         prototype,
+        prototype->GetDescriptor(),
         std::any());
 }
 
@@ -132,6 +147,7 @@ shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
 
     return make_shared<ProtoStoreMessageFactory>(
         protoType,
+        messageDescriptor,
         holders);
 }
 
