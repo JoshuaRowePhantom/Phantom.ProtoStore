@@ -24,6 +24,7 @@ add_executable(
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"
 	"ProtoValueTests.cpp"
+	"SchemaTests.cpp"
 	"SkipListTest.cpp"
 	"StandardIncludes.cpp"
 	"StandardIncludes.h"

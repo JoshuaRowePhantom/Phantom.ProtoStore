@@ -8,6 +8,7 @@
 #include <span>
 #include <stdint.h>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include <cppcoro/task.hpp>
@@ -16,6 +17,9 @@
 
 namespace google::protobuf
 {
+class FileDescriptor;
+class FileDescriptorSet;
+class FileDescriptorProto;
 class Message;
 class Descriptor;
 typedef uint8_t uint8;
@@ -41,17 +45,23 @@ using std::optional;
 using std::range_error;
 using std::shared_ptr;
 using std::span;
+using std::string;
 using std::unique_ptr;
+using std::unordered_map;
 using std::vector;
 using std::weak_ptr;
 using cppcoro::task;
 using Phantom::pooled_ptr;
 using google::protobuf::Message;
+using google::protobuf::Descriptor;
 using google::protobuf::io::ZeroCopyInputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
 
 typedef std::uint64_t ExtentNumber;
 typedef std::uint64_t ExtentOffset;
+
+typedef string IndexName;
+typedef google::protobuf::uint64 IndexNumber;
 
 struct ExtentLocation
 {
@@ -73,5 +83,10 @@ enum class FlushBehavior
 };
 
 class LogRecord;
+class IndexesByNameKey;
+class IndexesByNameValue;
+class IndexesByNumberKey;
+class IndexesByNumberValue;
+class MessageDescription;
 
 }
