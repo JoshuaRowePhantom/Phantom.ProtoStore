@@ -316,6 +316,79 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
     });
 }
 
+TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_earlier_sequence_number_if_operation_aborted)
+{
+    run_async([&]()->task<>
+    {
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0,
+            OperationOutcome::Aborted
+        );
+
+        co_await AddRow(
+            "key-1",
+            "value-1-2",
+            4,
+            0
+        );
+
+        co_await EnumerateExpectedRows(
+            4,
+            {
+                {"key-1", "value-1-2", 4},
+            }
+        );
+
+        co_await EnumerateExpectedRows(
+            5,
+            {
+                {"key-1", "value-1-2", 4},
+            }
+        );
+
+        co_await memoryTable.Join();
+    });
+}
+
+TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_later_sequence_number_if_operation_aborted)
+{
+    run_async([&]()->task<>
+    {
+        co_await AddRow(
+            "key-1",
+            "value-1",
+            5,
+            0,
+            OperationOutcome::Aborted
+        );
+
+        co_await AddRow(
+            "key-1",
+            "value-1-2",
+            6,
+            0
+        );
+
+        co_await EnumerateExpectedRows(
+            5,
+            {
+            }
+        );
+
+        co_await EnumerateExpectedRows(
+            6,
+            {
+                {"key-1", "value-1-2", 6},
+            }
+        );
+
+        co_await memoryTable.Join();
+    });
+}
+
 TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_number_if_operation_aborted)
 {
     run_async([&]()->task<>
