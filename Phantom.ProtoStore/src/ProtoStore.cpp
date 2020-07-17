@@ -681,7 +681,7 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
 
 task<> ProtoStore::Checkpoint()
 {
-    auto lock = m_indexesByNumberLock.scoped_nonrecursive_lock_read_async();
+    auto lock = co_await m_indexesByNumberLock.scoped_nonrecursive_lock_read_async();
 
     vector<task<>> checkpointTasks;
 
@@ -740,20 +740,22 @@ task<> ProtoStore::Checkpoint(
     partitionsKey.SerializeToString(partitionsRow->mutable_key());
     partitionsValue.SerializeToString(partitionsRow->mutable_value());
 
-    auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
+    {
+        auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
 
-    co_await m_partitionsIndex->Replay(
-        *partitionsRow);
+        co_await m_partitionsIndex->Replay(
+            *partitionsRow);
 
-    co_await WriteLogRecord(
-        logRecord);
+        co_await WriteLogRecord(
+            logRecord);
 
-    auto partitions = co_await OpenPartitionsForIndex(
-        index);
-    
-    co_await index->UpdatePartitions(
-        loggedCheckpoint,
-        partitions);
+        auto partitions = co_await OpenPartitionsForIndex(
+            index);
+
+        co_await index->UpdatePartitions(
+            loggedCheckpoint,
+            partitions);
+    }
 }
 
 task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(

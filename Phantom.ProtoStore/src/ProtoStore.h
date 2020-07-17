@@ -106,8 +106,6 @@ class ProtoStore
         shared_ptr<IIndex> index
     );
 
-    task<> Checkpoint();
-    
     task<shared_ptr<IPartition>> OpenPartitionForIndex(
         const shared_ptr<IIndex>& indexNumber,
         ExtentNumber dataExtentNumber,
@@ -149,6 +147,9 @@ public:
     task<> Create(
         const CreateProtoStoreRequest& openRequest
     );
+
+    virtual task<> Checkpoint(
+    ) override;
 
     virtual task<OperationResult> ExecuteOperation(
         const BeginTransactionRequest beginRequest,

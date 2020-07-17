@@ -520,6 +520,10 @@ public:
     virtual task<ProtoIndex> CreateIndex(
         const CreateIndexRequest& createIndexRequest
     ) = 0;
+
+    virtual task<> Checkpoint(
+    ) = 0;
+
 };
 
 class IExtentStore;

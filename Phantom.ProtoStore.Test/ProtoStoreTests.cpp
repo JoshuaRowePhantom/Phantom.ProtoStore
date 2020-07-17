@@ -199,6 +199,60 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
     });
 }
 
+TEST(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
+{
+    run_async([]() -> task<>
+    {
+        auto createRequest = GetCreateMemoryStoreRequest();
+
+        auto store = co_await CreateStore(createRequest);
+
+        ProtoIndex index;
+        StringKey key;
+        key.set_value("testKey1");
+        StringValue expectedValue;
+        expectedValue.set_value("testValue1");
+
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await operation->AddRow(
+                WriteOperationMetadata(),
+                SequenceNumber::Latest,
+                index,
+                &key,
+                &expectedValue);
+        });
+
+        co_await store->Checkpoint();
+
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
+        );
+
+        StringValue actualValue;
+        readResult.Value.unpack(&actualValue);
+
+        ASSERT_TRUE(MessageDifferencer::Equals(
+            expectedValue,
+            actualValue));
+    });
+}
+
 TEST(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
 {
     run_async([]() -> task<>

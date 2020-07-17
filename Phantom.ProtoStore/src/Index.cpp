@@ -335,7 +335,7 @@ task<> Index::StartCheckpoint(
     const LoggedCheckpoint& loggedCheckpoint,
     vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint)
 {
-    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_write_async();
+    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
 
     for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
     {
