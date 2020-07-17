@@ -86,6 +86,7 @@ class IChecksumAlgorithmFactory;
 class ISequentialMessageWriter;
 class IPartition;
 class IPartitionWriter;
+class IMessageFactory;
 class KeyComparer;
 class RowMerger;
 struct MemoryTableOperationOutcome;
@@ -108,5 +109,6 @@ class LoggedRowWrite;
 class LoggedCheckpoint;
 class LoggedAction;
 class LoggedCreateIndex;
+class LoggedCreateDataExtent;
 
 }

@@ -10,6 +10,7 @@ class IPartitionWriter
 {
 public:
     virtual task<> WriteRows(
-        cppcoro::async_generator<const MemoryTableRow*> rows);
+        cppcoro::async_generator<const MemoryTableRow*> rows
+    ) = 0;
 };
 }

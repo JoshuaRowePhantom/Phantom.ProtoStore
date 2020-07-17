@@ -31,6 +31,21 @@ Index::Index(
     UpdateMemoryTablesToEnumerate();
 }
 
+shared_ptr<KeyComparer> Index::GetKeyComparer()
+{
+    return m_keyComparer;
+}
+
+shared_ptr<IMessageFactory> Index::GetKeyFactory()
+{
+    return m_keyFactory;
+}
+
+shared_ptr<IMessageFactory> Index::GetValueFactory()
+{
+    return m_valueFactory;
+}
+
 IndexNumber Index::GetIndexNumber() const
 {
     return m_indexNumber;
@@ -158,6 +173,8 @@ task<ReadResult> Index::Read(
     {
         unpackedKey.reset(
             m_keyFactory->GetPrototype()->New());
+        readRequest.Key.unpack(
+            unpackedKey.get());
         keyLow.Key = unpackedKey.get();
     }
 
@@ -202,6 +219,77 @@ task<ReadResult> Index::Read(
     {
         .ReadStatus = ReadStatus::NoValue,
     };
+}
+
+cppcoro::async_generator<EnumerateResult> Index::Enumerate(
+    const EnumerateRequest& enumerateRequest
+)
+{
+    unique_ptr<Message> unpackedKeyLow;
+    unique_ptr<Message> unpackedKeyHigh;
+
+    KeyRangeEnd keyLow
+    {
+        .Key = enumerateRequest.KeyLow.as_message_if(),
+        .Inclusivity = enumerateRequest.KeyLowInclusivity,
+    };
+
+    if (!keyLow.Key)
+    {
+        unpackedKeyLow.reset(
+            m_keyFactory->GetPrototype()->New());
+        enumerateRequest.KeyLow.unpack(
+            unpackedKeyLow.get());
+        keyLow.Key = unpackedKeyLow.get();
+    }
+
+    KeyRangeEnd keyHigh
+    {
+        .Key = enumerateRequest.KeyHigh.as_message_if(),
+        .Inclusivity = enumerateRequest.KeyHighInclusivity,
+    };
+
+    if (!keyHigh.Key)
+    {
+        unpackedKeyHigh.reset(
+            m_keyFactory->GetPrototype()->New());
+        enumerateRequest.KeyHigh.unpack(
+            unpackedKeyHigh.get());
+        keyHigh.Key = unpackedKeyHigh.get();
+    }
+
+    MemoryTablesEnumeration memoryTablesEnumeration;
+    PartitionsEnumeration partitionsEnumeration;
+
+    co_await GetItemsToEnumerate(
+        memoryTablesEnumeration,
+        partitionsEnumeration);
+
+    auto enumerateAllItemsLambda = [&]() -> cppcoro::generator<cppcoro::async_generator<const MemoryTableRow*>>
+    {
+        for (auto& memoryTable : *memoryTablesEnumeration)
+        {
+            co_yield memoryTable->Enumerate(
+                enumerateRequest.SequenceNumber,
+                keyLow,
+                keyHigh
+            );
+        }
+    };
+
+    auto enumeration = m_rowMerger->Merge(
+        enumerateAllItemsLambda());
+
+    for co_await(auto memoryTableRow : enumeration)
+    {
+        co_yield EnumerateResult
+        {
+            .Key = memoryTableRow->Key.get(),
+            .WriteSequenceNumber = memoryTableRow->WriteSequenceNumber,
+            .Value = memoryTableRow->Value.get(),
+        };
+    }
+
 }
 
 task<> Index::StartCheckpoint(

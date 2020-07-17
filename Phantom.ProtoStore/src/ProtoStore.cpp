@@ -7,6 +7,7 @@
 #include "src/ProtoStoreInternal.pb.h"
 #include "IndexImpl.h"
 #include "Phantom.System/async_value_source.h"
+#include "PartitionImpl.h"
 #include <cppcoro/sync_wait.hpp>
 #include <cppcoro/when_all.hpp>
 #include <cppcoro/on_scope_exit.hpp>
@@ -96,8 +97,28 @@ task<> ProtoStore::Open(
         );
     }
 
+    {
+        IndexesByNumberKey indexesByNumberKey;
+        IndexesByNumberValue indexesByNumberValue;
+
+        MakeIndexesByNumberRow(
+            indexesByNumberKey,
+            indexesByNumberValue,
+            "__System.Partitions",
+            2,
+            SequenceNumber::Earliest,
+            PartitionsKey::descriptor(),
+            PartitionsValue::descriptor());
+
+        m_partitionsIndex = MakeIndex(
+            indexesByNumberKey,
+            indexesByNumberValue
+        );
+    }
+
     m_indexesByNumber[m_indexesByNumberIndex->GetIndexNumber()] = m_indexesByNumberIndex;
     m_indexesByNumber[m_indexesByNameIndex->GetIndexNumber()] = m_indexesByNameIndex;
+    m_indexesByNumber[m_partitionsIndex->GetIndexNumber()] = m_partitionsIndex;
 
     for (auto logReplayExtentNumber : header.logreplayextentnumbers())
     {
@@ -232,6 +253,16 @@ task<> ProtoStore::Replay(
     if (m_nextIndexNumber.load() <= logRecord.indexnumber())
     {
         m_nextIndexNumber.store(logRecord.indexnumber() + 1);
+    }
+    co_return;
+}
+
+task<> ProtoStore::Replay(
+    const LoggedCreateDataExtent& logRecord)
+{
+    if (m_nextDataExtentNumber.load() <= logRecord.extentnumber())
+    {
+        m_nextDataExtentNumber.store(logRecord.extentnumber() + 1);
     }
     co_return;
 }
@@ -616,6 +647,32 @@ shared_ptr<IIndex> ProtoStore::MakeIndex(
     return index;
 }
 
+task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
+    const shared_ptr<IIndex>& index,
+    ExtentNumber dataExtentNumber,
+    ExtentNumber headerExtentNumber)
+{
+    if (m_activePartitions.contains(dataExtentNumber))
+    {
+        co_return m_activePartitions[dataExtentNumber];
+    }
+
+    auto partition = make_shared<Partition>(
+        index->GetKeyComparer(),
+        index->GetKeyFactory(),
+        index->GetValueFactory(),
+        m_dataMessageAccessor,
+        ExtentLocation
+        {
+            .extentNumber = headerExtentNumber,
+            .extentOffset = 0,
+        });
+
+    m_activePartitions[dataExtentNumber] = partition;
+
+    co_return partition;
+}
+
 task<> ProtoStore::Checkpoint()
 {
     auto lock = m_indexesByNumberLock.scoped_nonrecursive_lock_read_async();
@@ -628,13 +685,98 @@ task<> ProtoStore::Checkpoint()
             Checkpoint(
                 index.second));
     }
+
+    co_await cppcoro::when_all(
+        move(checkpointTasks));
 }
 
 task<> ProtoStore::Checkpoint(
     shared_ptr<IIndex> index
 )
 {
-    co_return;
+    auto dataExtentNumber = co_await AllocateDataExtent();
+    auto headerExtentNumber = co_await AllocateDataExtent();
+
+    auto loggedCheckpoint = co_await index->Checkpoint(
+        nullptr);
+
+    LogRecord logRecord;
+    logRecord.mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints()->CopyFrom(
+        loggedCheckpoint);
+    logRecord.mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
+        dataExtentNumber);
+    logRecord.mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
+        headerExtentNumber);
+
+    PartitionsKey partitionsKey;
+    partitionsKey.set_indexnumber(index->GetIndexNumber());
+    partitionsKey.set_dataextentnumber(dataExtentNumber);
+    PartitionsValue partitionsValue;
+    partitionsValue.set_headerextentnumber(headerExtentNumber);
+    auto partitionsRow = logRecord.add_rows();
+    partitionsKey.SerializeToString(partitionsRow->mutable_key());
+    partitionsValue.SerializeToString(partitionsRow->mutable_value());
+
+    auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
+
+    co_await m_partitionsIndex->Replay(
+        *partitionsRow);
+
+    co_await WriteLogRecord(
+        logRecord);
+
+    auto partitions = co_await OpenPartitionsForIndex(
+        index);
+    
+    co_await index->UpdatePartitions(
+        loggedCheckpoint,
+        partitions);
+}
+
+task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
+    const shared_ptr<IIndex>& index)
+{
+    PartitionsKey partitionsKeyLow;
+    partitionsKeyLow.set_indexnumber(index->GetIndexNumber());
+    partitionsKeyLow.set_dataextentnumber(0);
+
+    PartitionsKey partitionsKeyHigh;
+    partitionsKeyLow.set_indexnumber(index->GetIndexNumber() + 1);
+    partitionsKeyLow.set_dataextentnumber(0);
+
+    EnumerateRequest enumerateRequest;
+    enumerateRequest.KeyLow = &partitionsKeyLow;
+    enumerateRequest.KeyLowInclusivity = Inclusivity::Inclusive;
+    enumerateRequest.KeyHigh = &partitionsKeyHigh;
+    enumerateRequest.KeyHighInclusivity = Inclusivity::Exclusive;
+    enumerateRequest.SequenceNumber = SequenceNumber::LatestCommitted;
+    enumerateRequest.Index = ProtoIndex{ this, &*m_partitionsIndex, };
+
+    auto enumeration = m_partitionsIndex->Enumerate(
+        enumerateRequest);
+
+    vector<shared_ptr<IPartition>> partitions;
+
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
+    {
+        auto partitionsKey = (*iterator).Key.cast_if<PartitionsKey>();
+        auto partitionsValue = (*iterator).Value.cast_if<PartitionsValue>();
+
+        assert(partitionsKey);
+        assert(partitionsValue);
+
+        auto partition = co_await OpenPartitionForIndex(
+            index,
+            partitionsKey->dataextentnumber(),
+            partitionsValue->headerextentnumber());
+
+        partitions.push_back(
+            partition);
+    }
+
+    co_return partitions;
 }
 
 task<> ProtoStore::Join()
@@ -653,4 +795,18 @@ task<> ProtoStore::Join()
     co_await AsyncScopeMixin::Join();
 }
 
+task<ExtentNumber> ProtoStore::AllocateDataExtent()
+{
+    auto extentNumber = m_nextDataExtentNumber.fetch_add(1);
+    LogRecord logRecord;
+    logRecord.mutable_extras()
+        ->add_loggedactions()
+        ->mutable_loggedcreatedataextents()
+        ->set_extentnumber(extentNumber);
+
+    co_await WriteLogRecord(
+        logRecord);
+
+    co_return extentNumber;
+}
 }

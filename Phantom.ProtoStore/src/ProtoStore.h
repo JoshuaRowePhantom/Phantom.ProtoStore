@@ -39,8 +39,12 @@ class ProtoStore
     cppcoro::async_mutex m_headerMutex;
     async_reader_writer_lock m_indexesByNumberLock;
 
+    cppcoro::async_mutex m_updatePartitionsMutex;
+    std::map<ExtentNumber, shared_ptr<IPartition>> m_activePartitions;
+
     shared_ptr<IIndex> m_indexesByNumberIndex;
     shared_ptr<IIndex> m_indexesByNameIndex;
+    shared_ptr<IIndex> m_partitionsIndex;
 
     shared_ptr<ISequentialMessageWriter> m_logWriter;
 
@@ -72,7 +76,8 @@ class ProtoStore
     );
 
     task<IndexNumber> AllocateIndexNumber();
-    
+    task<ExtentNumber> AllocateDataExtent();
+
     task<> Replay(
         ExtentNumber logExtent);
 
@@ -84,6 +89,9 @@ class ProtoStore
 
     task<> Replay(
         const LoggedCreateIndex& logRecord);
+
+    task<> Replay(
+        const LoggedCreateDataExtent& logRecord);
 
     task<> WriteLogRecord(
         const LogRecord& logRecord);
@@ -99,6 +107,14 @@ class ProtoStore
     );
 
     task<> Checkpoint();
+    
+    task<shared_ptr<IPartition>> OpenPartitionForIndex(
+        const shared_ptr<IIndex>& indexNumber,
+        ExtentNumber dataExtentNumber,
+        ExtentNumber headerExtentNumber);
+
+    task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
+        const shared_ptr<IIndex>& indexNumber);
 
     friend class Operation;
 

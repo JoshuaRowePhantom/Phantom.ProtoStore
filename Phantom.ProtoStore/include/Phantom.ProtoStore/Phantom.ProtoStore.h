@@ -333,6 +333,28 @@ struct ReadResult
     ReadStatus ReadStatus;
 };
 
+enum class Inclusivity {
+    Inclusive = 0,
+    Exclusive = 1,
+};
+
+struct EnumerateRequest
+{
+    ProtoIndex Index;
+    SequenceNumber SequenceNumber = SequenceNumber::LatestCommitted;
+    ProtoValue KeyLow;
+    Inclusivity KeyLowInclusivity;
+    ProtoValue KeyHigh;
+    Inclusivity KeyHighInclusivity;
+};
+
+struct EnumerateResult
+{
+    ProtoValue Key;
+    SequenceNumber WriteSequenceNumber;
+    ProtoValue Value;
+};
+
 struct CommitTransactionRequest
 {
     SequenceNumber SequenceNumber;
@@ -386,11 +408,6 @@ enum class TransactionOutcome {
 enum class LoggedOperationDisposition {
     Processed = 0,
     Unprocessed = 1,
-};
-
-enum class Inclusivity {
-    Inclusive = 0,
-    Exclusive = 1,
 };
 
 struct WriteOperationMetadata

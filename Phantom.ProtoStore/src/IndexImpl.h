@@ -58,6 +58,15 @@ public:
         shared_ptr<IMessageFactory> valueFactory
     );
 
+    virtual shared_ptr<KeyComparer> GetKeyComparer(
+    ) override;
+
+    virtual shared_ptr<IMessageFactory> GetKeyFactory(
+    ) override;
+
+    virtual shared_ptr<IMessageFactory> GetValueFactory(
+    ) override;
+
     virtual task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
         const ProtoValue& key,
@@ -72,6 +81,10 @@ public:
 
     virtual task<ReadResult> Read(
         const ReadRequest& readRequest
+    ) override;
+
+    virtual cppcoro::async_generator<EnumerateResult> Enumerate(
+        const EnumerateRequest& readRequest
     ) override;
 
     virtual IndexNumber GetIndexNumber(

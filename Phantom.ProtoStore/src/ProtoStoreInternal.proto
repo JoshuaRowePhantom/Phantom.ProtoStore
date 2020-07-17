@@ -25,9 +25,9 @@ message LoggedAction {
 	oneof LoggedActionType {
 		google.protobuf.Any ArbitraryAction = 1;
 		LoggedCheckpoint LoggedCheckpoints = 2;
-		LoggedCreateExtent LoggedCreateDataExtents = 3;
-		LoggedDeleteExtent LoggedDeleteDataExtents = 4;
-		LoggedCommitExtent LoggedCommitDataExtents = 5;
+		LoggedCreateDataExtent LoggedCreateDataExtents = 3;
+		LoggedDeleteDataExtent LoggedDeleteDataExtents = 4;
+		LoggedCommitDataExtent LoggedCommitDataExtents = 5;
 		LoggedCreateIndex LoggedCreateIndex = 6;
     }
 }
@@ -36,15 +36,15 @@ message LoggedCreateIndex {
 	uint64 IndexNumber = 1;
 }
 
-message LoggedCreateExtent {
+message LoggedCreateDataExtent {
 	uint64 ExtentNumber = 1;
 }
 
-message LoggedDeleteExtent {
+message LoggedDeleteDataExtent {
 	uint64 ExtentNumber = 1;
 }
 
-message LoggedCommitExtent {
+message LoggedCommitDataExtent {
 	uint64 ExtentNumber = 1;
 }
 
@@ -106,3 +106,35 @@ message IndexesByNumberValue {
 	uint64 CreateSequenceNumber = 3;
 }
 
+message PartitionsKey {
+	uint64 IndexNumber = 1;
+	uint64 DataExtentNumber = 2;
+}
+
+message PartitionsValue {
+	uint64 HeaderExtentNumber = 1;
+}
+
+message PartitionTreeEntry {
+	bytes Key = 1;
+	oneof PartitionTreeEntryType {
+		// Set if the tree points to a subtree.
+		uint64 TreeEntryOffset = 2;
+		// Set if this entry is an inline small value.
+		bytes Value = 3;
+		// Set if this entry is an offset into the file.
+		uint64 ValueOffset = 4;
+    }
+}
+
+message PartitionTreeNode {
+	repeated PartitionTreeEntry TreeEntries = 1;
+}
+
+message PartitionRoot {
+	uint64 RootTreeEntryOffset = 1;
+}
+
+message PartitionHeader {
+	fixed64 PartitionRootOffset = 1;
+}

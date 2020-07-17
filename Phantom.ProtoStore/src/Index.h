@@ -18,12 +18,25 @@ public:
         MemoryTableOperationOutcomeTask operationOutcomeTask
     ) = 0;
 
+    virtual shared_ptr<KeyComparer> GetKeyComparer(
+    ) = 0;
+
+    virtual shared_ptr<IMessageFactory> GetKeyFactory(
+    ) = 0;
+
+    virtual shared_ptr<IMessageFactory> GetValueFactory(
+    ) = 0;
+
     virtual task<CheckpointNumber> Replay(
         const LoggedRowWrite& rowWrite
     ) = 0;
 
     virtual task<ReadResult> Read(
         const ReadRequest& readRequest
+    ) = 0;
+
+    virtual cppcoro::async_generator<EnumerateResult> Enumerate(
+        const EnumerateRequest& readRequest
     ) = 0;
 
     virtual IndexNumber GetIndexNumber(
