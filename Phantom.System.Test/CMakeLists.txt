@@ -3,6 +3,7 @@ add_executable(
 	Phantom.System.Test
 	"async_reader_writer_lock_tests.cpp"
 	"async_value_source_tests.cpp"
+	"merge_tests.cpp"
 	"pooled_ptr_tests.cpp" 
 	"StandardIncludes.h"
 	"ThreadingTests.cpp"

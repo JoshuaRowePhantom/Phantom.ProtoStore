@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 #include "Phantom.System/utility.h"
 
-
 #ifdef NDEBUG
 #define PerformanceTest(name) name
 #else

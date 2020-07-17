@@ -6,6 +6,7 @@ add_library (
 	"async_reader_writer_lock.h"
 	"async_value_source.h"
 	"empty.cpp"
+	"merge.h"
 	"pooled_ptr.h" 
 	"put_back.h"
 	"ThreadingProvider.cpp"
