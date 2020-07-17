@@ -106,5 +106,7 @@ class IndexesByNumberValue;
 class MessageDescription;
 class LoggedRowWrite;
 class LoggedCheckpoint;
+class LoggedAction;
+class LoggedCreateIndex;
 
 }

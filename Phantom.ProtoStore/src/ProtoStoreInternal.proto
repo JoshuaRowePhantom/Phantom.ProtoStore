@@ -24,7 +24,28 @@ message LoggedRowWrite {
 message LoggedAction {
 	oneof LoggedActionType {
 		google.protobuf.Any ArbitraryAction = 1;
+		LoggedCheckpoint LoggedCheckpoints = 2;
+		LoggedCreateExtent LoggedCreateDataExtents = 3;
+		LoggedDeleteExtent LoggedDeleteDataExtents = 4;
+		LoggedCommitExtent LoggedCommitDataExtents = 5;
+		LoggedCreateIndex LoggedCreateIndex = 6;
     }
+}
+
+message LoggedCreateIndex {
+	uint64 IndexNumber = 1;
+}
+
+message LoggedCreateExtent {
+	uint64 ExtentNumber = 1;
+}
+
+message LoggedDeleteExtent {
+	uint64 ExtentNumber = 1;
+}
+
+message LoggedCommitExtent {
+	uint64 ExtentNumber = 1;
 }
 
 message LoggedCheckpoint {
@@ -34,7 +55,6 @@ message LoggedCheckpoint {
 
 message LogRecordExtras {
 	repeated LoggedAction LoggedActions = 1;
-	repeated LoggedCheckpoint LoggedCheckpoints = 2;
 }
 
 message LogRecord {
@@ -86,7 +106,3 @@ message IndexesByNumberValue {
 	uint64 CreateSequenceNumber = 3;
 }
 
-message NextIndexNumberKey {}
-message NextIndexNumberValue {
-	uint64 NextIndexNumber = 1;
-}

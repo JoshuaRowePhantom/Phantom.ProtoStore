@@ -33,13 +33,14 @@ class ProtoStore
     cppcoro::inline_scheduler m_inlineScheduler;
     cppcoro::sequence_barrier<uint64_t> m_writeSequenceNumberBarrier;
     std::atomic<uint64_t> m_nextWriteSequenceNumber;
+    std::atomic<IndexNumber> m_nextIndexNumber;
+    std::atomic<ExtentNumber> m_nextDataExtentNumber;
 
     cppcoro::async_mutex m_headerMutex;
     async_reader_writer_lock m_indexesByNumberLock;
 
     shared_ptr<IIndex> m_indexesByNumberIndex;
     shared_ptr<IIndex> m_indexesByNameIndex;
-    shared_ptr<IIndex> m_nextIndexNumberIndex;
 
     shared_ptr<ISequentialMessageWriter> m_logWriter;
 
@@ -78,6 +79,12 @@ class ProtoStore
     task<> Replay(
         const LogRecord& logRecord);
 
+    task<> Replay(
+        const LoggedAction& logRecord);
+
+    task<> Replay(
+        const LoggedCreateIndex& logRecord);
+
     task<> WriteLogRecord(
         const LogRecord& logRecord);
 
@@ -86,6 +93,12 @@ class ProtoStore
     task<> UpdateHeader(
         std::function<task<>(Header&)> modifier
     );
+
+    task<> Checkpoint(
+        shared_ptr<IIndex> index
+    );
+
+    task<> Checkpoint();
 
     friend class Operation;
 

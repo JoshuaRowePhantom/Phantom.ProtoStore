@@ -27,7 +27,9 @@ ProtoStore::ProtoStore(
     m_dataMessageStore(MakeMessageStore(m_dataExtentStore)),
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
-    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor))
+    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
+    m_nextIndexNumber(1000),
+    m_nextDataExtentNumber(0)
 {
     m_writeSequenceNumberBarrier.publish(0);
 }
@@ -35,29 +37,6 @@ ProtoStore::ProtoStore(
 task<> ProtoStore::Create(
     const CreateProtoStoreRequest& createRequest)
 {
-    // Write out the log record that initializes a database.
-    {
-        auto logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
-            0);
-
-        LogRecord logRecord;
-
-        NextIndexNumberKey nextIndexNumberKey;
-        NextIndexNumberValue nextIndexNumberValue;
-        nextIndexNumberValue.set_nextindexnumber(1000);
-        auto nextIndexNumberRow = logRecord.add_rows();
-        nextIndexNumberRow->set_indexnumber(2);
-        nextIndexNumberRow->set_sequencenumber(0);
-        nextIndexNumberKey.AppendToString(
-            nextIndexNumberRow->mutable_key());
-        nextIndexNumberValue.AppendToString(
-            nextIndexNumberRow->mutable_value());
-
-        co_await logMessageWriter->Write(
-            logRecord,
-            FlushBehavior::Flush);
-    }
-
     Header header;
     header.set_version(1);
     header.set_epoch(1);
@@ -117,28 +96,8 @@ task<> ProtoStore::Open(
         );
     }
 
-    {
-        IndexesByNumberKey indexesByNumberKey;
-        IndexesByNumberValue indexesByNumberValue;
-
-        MakeIndexesByNumberRow(
-            indexesByNumberKey,
-            indexesByNumberValue,
-            "__System.NextIndexNumber",
-            2,
-            SequenceNumber::Earliest,
-            NextIndexNumberKey::descriptor(),
-            NextIndexNumberValue::descriptor());
-
-        m_nextIndexNumberIndex = MakeIndex(
-            indexesByNumberKey,
-            indexesByNumberValue
-        );
-    }
-
     m_indexesByNumber[m_indexesByNumberIndex->GetIndexNumber()] = m_indexesByNumberIndex;
     m_indexesByNumber[m_indexesByNameIndex->GetIndexNumber()] = m_indexesByNameIndex;
-    m_indexesByNumber[m_nextIndexNumberIndex->GetIndexNumber()] = m_nextIndexNumberIndex;
 
     for (auto logReplayExtentNumber : header.logreplayextentnumbers())
     {
@@ -239,7 +198,7 @@ task<> ProtoStore::Replay(
 task<> ProtoStore::Replay(
     const LogRecord& logRecord)
 {
-    for (auto loggedRowWrite : logRecord.rows())
+    for (auto& loggedRowWrite : logRecord.rows())
     {
         auto index = co_await GetIndexInternal(
             loggedRowWrite.indexnumber());
@@ -247,6 +206,34 @@ task<> ProtoStore::Replay(
         co_await index->Replay(
             loggedRowWrite);
     }
+
+    for (auto& loggedAction : logRecord.extras().loggedactions())
+    {
+        co_await Replay(
+            loggedAction);
+    }
+}
+
+task<> ProtoStore::Replay(
+    const LoggedAction& loggedAction
+)
+{
+    if (loggedAction.has_loggedcreateindex())
+    {
+        co_await Replay(
+            loggedAction.loggedcreateindex()
+        );
+    }
+}
+
+task<> ProtoStore::Replay(
+    const LoggedCreateIndex& logRecord)
+{
+    if (m_nextIndexNumber.load() <= logRecord.indexnumber())
+    {
+        m_nextIndexNumber.store(logRecord.indexnumber() + 1);
+    }
+    co_return;
 }
 
 task<ProtoIndex> ProtoStore::GetIndex(
@@ -469,50 +456,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
 
 task<IndexNumber> ProtoStore::AllocateIndexNumber()
 {
-    IndexNumber allocatedIndexNumber;
-
-    while(true)
-    {
-        try
-        {
-            co_await ExecuteOperation(
-                BeginTransactionRequest(),
-                [&](IOperation* operation)->task<>
-            {
-                NextIndexNumberKey nextIndexNumberKey;
-
-                ReadRequest readRequest;
-                readRequest.SequenceNumber = SequenceNumber::Latest;
-                readRequest.Index = ProtoIndex(this, &*m_nextIndexNumberIndex);
-                readRequest.Key = &nextIndexNumberKey;
-                readRequest.ReadValueDisposition = ReadValueDisposition::ReadValue;
-
-                auto readResult = co_await operation->Read(
-                    readRequest);
-
-                auto nextIndexNumberValue = readResult.Value.cast_if<NextIndexNumberValue>();
-
-                allocatedIndexNumber = nextIndexNumberValue->nextindexnumber();
-
-                NextIndexNumberValue newNextIndexNumberValue;
-                newNextIndexNumberValue.set_nextindexnumber(allocatedIndexNumber + 1);
-
-                WriteOperationMetadata writeOperationMetadata;
-                co_await operation->AddRow(
-                    writeOperationMetadata,
-                    readResult.WriteSequenceNumber,
-                    ProtoIndex(this, &*m_nextIndexNumberIndex),
-                    &nextIndexNumberKey,
-                    &newNextIndexNumberValue);
-            });
-
-            co_return allocatedIndexNumber;
-        }
-        catch (WriteConflict)
-        {
-            continue;
-        }
-    }
+    co_return m_nextIndexNumber.fetch_add(1);
 }
 
 task<ProtoIndex> ProtoStore::CreateIndex(
@@ -670,6 +614,27 @@ shared_ptr<IIndex> ProtoStore::MakeIndex(
         valueMessageFactory);
 
     return index;
+}
+
+task<> ProtoStore::Checkpoint()
+{
+    auto lock = m_indexesByNumberLock.scoped_nonrecursive_lock_read_async();
+
+    vector<task<>> checkpointTasks;
+
+    for (auto index : m_indexesByNumber)
+    {
+        checkpointTasks.push_back(
+            Checkpoint(
+                index.second));
+    }
+}
+
+task<> ProtoStore::Checkpoint(
+    shared_ptr<IIndex> index
+)
+{
+    co_return;
 }
 
 task<> ProtoStore::Join()
