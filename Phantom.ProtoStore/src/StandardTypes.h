@@ -84,6 +84,8 @@ class IHeaderAccessor;
 class IChecksumAlgorithm;
 class IChecksumAlgorithmFactory;
 class ISequentialMessageWriter;
+class IPartition;
+class IPartitionWriter;
 class KeyComparer;
 class RowMerger;
 struct MemoryTableOperationOutcome;
@@ -103,5 +105,6 @@ class IndexesByNumberKey;
 class IndexesByNumberValue;
 class MessageDescription;
 class LoggedRowWrite;
+class LoggedCheckpoint;
 
 }

@@ -34,9 +34,20 @@ class Index
     async_reader_writer_lock m_partitionsLock;
 
     void UpdateMemoryTablesToEnumerate();
+
     task<> GetItemsToEnumerate(
         MemoryTablesEnumeration& memoryTables,
         PartitionsEnumeration& partitions);
+
+    task<> StartCheckpoint(
+        LoggedCheckpoint& loggedCheckpoint,
+        vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint
+    );
+
+    task<> WriteMemoryTables(
+        const shared_ptr<IPartitionWriter>& partitionWriter,
+        const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
+    );
 
 public:
     Index(
@@ -69,8 +80,22 @@ public:
     virtual const IndexName& GetIndexName(
     ) const override;
 
+    virtual task<LoggedCheckpoint> Checkpoint(
+        shared_ptr<IPartitionWriter> partitionWriter
+    ) override;
+
+    virtual task<> Replay(
+        const LoggedCheckpoint& loggedCheckpoint
+    ) override;
+
+    virtual task<> UpdatePartitions(
+        const LoggedCheckpoint& loggedCheckpoint,
+        vector<shared_ptr<IPartition>> partitions
+    ) override;
+
     virtual task<> Join(
     ) override;
+
 };
 
 }

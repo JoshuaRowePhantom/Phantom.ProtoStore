@@ -34,6 +34,20 @@ public:
 
     virtual task<> Join(
     ) = 0;
+
+    virtual task<LoggedCheckpoint> Checkpoint(
+        shared_ptr<IPartitionWriter> partitionWriter
+    ) = 0;
+
+    virtual task<> Replay(
+        const LoggedCheckpoint& loggedCheckpoint
+    ) = 0;
+
+    virtual task<> UpdatePartitions(
+        const LoggedCheckpoint& loggedCheckpoint,
+        vector<shared_ptr<IPartition>> partitions
+    ) = 0;
+
 };
 
 }

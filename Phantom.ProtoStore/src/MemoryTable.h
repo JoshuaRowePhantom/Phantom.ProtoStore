@@ -53,5 +53,8 @@ public:
         KeyRangeEnd high
     ) = 0;
 
+    virtual cppcoro::async_generator<const MemoryTableRow*> Checkpoint(
+    ) = 0;
+
 };
 }

@@ -17,8 +17,8 @@ RowMerger::RowMerger(
 {
 }
 
-cppcoro::async_generator<const MemoryTableRow*> RowMerger::Merge(
-    cppcoro::generator<cppcoro::async_generator<const MemoryTableRow*>> rowSources
+RowMerger::row_generator RowMerger::Merge(
+    row_generators rowSources
 )
 {
     std::vector<cppcoro::async_generator<const MemoryTableRow*>> capturedRowSources;

@@ -196,6 +196,9 @@ public:
         KeyRangeEnd low, 
         KeyRangeEnd high
     ) override;
+
+    virtual cppcoro::async_generator<const MemoryTableRow*> Checkpoint(
+    ) override;
 };
 
 }

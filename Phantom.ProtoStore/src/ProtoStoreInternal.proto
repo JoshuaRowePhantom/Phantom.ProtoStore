@@ -21,26 +21,20 @@ message LoggedRowWrite {
 	uint64 CheckpointNumber = 5;
 }
 
-message LoggedNewWriteLog {
-	uint64 ExtentNumber = 1;
-}
-
-message LoggedCreateIndex {
-	IndexesByNumberKey IndexesByNumberKey = 1;
-	IndexesByNumberValue IndexesByNumberValue = 2;
-	uint64 CreateSequenceNumber = 3;
-}
-
 message LoggedAction {
 	oneof LoggedActionType {
 		google.protobuf.Any ArbitraryAction = 1;
-		LoggedNewWriteLog NewWriteLog = 2;
-		LoggedCreateIndex CreateIndex = 3;
     }
+}
+
+message LoggedCheckpoint {
+	uint64 IndexNumber = 1;
+	repeated uint64 CheckpointNumber = 2;
 }
 
 message LogRecordExtras {
 	repeated LoggedAction LoggedActions = 1;
+	repeated LoggedCheckpoint LoggedCheckpoints = 2;
 }
 
 message LogRecord {

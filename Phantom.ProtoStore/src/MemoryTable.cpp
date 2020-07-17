@@ -340,6 +340,23 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
         MemoryTableOperationOutcomeTask(memoryTableValue.AsyncOperationOutcome));
 }
 
+cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Checkpoint()
+{
+    auto end = m_skipList.end();
+    for (auto iterator = m_skipList.begin();
+        iterator != end;
+        ++iterator)
+    {
+        auto outcome = co_await ResolveMemoryTableRowOutcome(
+            *iterator);
+
+        if (outcome == OperationOutcome::Committed)
+        {
+            co_yield &iterator->Row;
+        }
+    }
+}
+
 MemoryTable::MemoryTableValue::MemoryTableValue(
     ReplayInsertionKey&& other
 )

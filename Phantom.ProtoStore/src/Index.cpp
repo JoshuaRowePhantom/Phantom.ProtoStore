@@ -3,6 +3,7 @@
 #include "KeyComparer.h"
 #include "MemoryTableImpl.h"
 #include "RowMerger.h"
+#include "PartitionWriter.h"
 
 namespace Phantom::ProtoStore
 {
@@ -201,6 +202,113 @@ task<ReadResult> Index::Read(
     {
         .ReadStatus = ReadStatus::NoValue,
     };
+}
+
+task<> Index::StartCheckpoint(
+    LoggedCheckpoint& loggedCheckpoint,
+    vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint)
+{
+    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_write_async();
+
+    loggedCheckpoint.add_checkpointnumber(
+        m_currentCheckpointNumber);
+    m_checkpointingMemoryTables[m_currentCheckpointNumber] = m_currentMemoryTable;
+
+    m_currentCheckpointNumber++;
+    m_currentMemoryTable = make_shared<MemoryTable>(
+        &*m_keyComparer);
+    memoryTablesToCheckpoint.push_back(
+        m_currentMemoryTable);
+
+    for (auto activeMemoryTable : m_activeMemoryTables)
+    {
+        m_checkpointingMemoryTables[activeMemoryTable.first] = activeMemoryTable.second;
+
+        loggedCheckpoint.add_checkpointnumber(
+            activeMemoryTable.first);
+
+        memoryTablesToCheckpoint.push_back(
+            activeMemoryTable.second);
+    }
+
+    UpdateMemoryTablesToEnumerate();
+}
+
+task<> Index::WriteMemoryTables(
+    const shared_ptr<IPartitionWriter>& partitionWriter,
+    const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
+)
+{
+    auto rows = m_rowMerger->Merge([&]() -> RowMerger::row_generators
+    {
+        for (auto& memoryTable : memoryTablesToCheckpoint)
+        {
+            co_yield memoryTable->Checkpoint();
+        }
+    }());
+
+    co_await partitionWriter->WriteRows(
+        move(rows));
+}
+
+task<LoggedCheckpoint> Index::Checkpoint(
+    shared_ptr<IPartitionWriter> partitionWriter
+)
+{
+    LoggedCheckpoint loggedCheckpoint;
+    std::vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
+
+    co_await StartCheckpoint(
+        loggedCheckpoint,
+        memoryTablesToCheckpoint);
+
+    co_await WriteMemoryTables(
+        partitionWriter,
+        memoryTablesToCheckpoint);
+
+    co_return loggedCheckpoint;
+}
+
+task<> Index::Replay(
+    const LoggedCheckpoint& loggedCheckpoint
+)
+{
+    for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
+    {
+        m_activeMemoryTables.erase(
+            checkpointNumber);
+    }
+
+    co_return;
+}
+
+task<> Index::UpdatePartitions(
+    const LoggedCheckpoint& loggedCheckpoint,
+    vector<shared_ptr<IPartition>> partitions
+)
+{
+    vector<shared_ptr<IMemoryTable>> memoryTablesToRemove;
+
+    {
+        auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_write_async();
+
+        for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
+        {
+            if (m_checkpointingMemoryTables.contains(checkpointNumber))
+            {
+                // Copy the memory table out of the checkpointing memory tables list
+                // so that the eventual delete operation happens outside of the lock,
+                // and hence out of the request processing path.
+                memoryTablesToRemove.push_back(m_checkpointingMemoryTables[checkpointNumber]);
+                m_checkpointingMemoryTables.erase(checkpointNumber);
+            }
+        }
+
+        UpdateMemoryTablesToEnumerate();
+    }
+
+    // Now the memory tables will be deleted, maybe;
+    // some enumerations might still be caught up in the delete.
 }
 
 task<> Index::Join()
