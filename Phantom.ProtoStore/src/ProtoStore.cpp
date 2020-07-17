@@ -205,11 +205,20 @@ task<> ProtoStore::UpdateHeader(
 )
 {
     auto lock = co_await m_headerMutex.scoped_lock_async();
+    
     Header header;
+    
     co_await m_headerAccessor->ReadHeader(
         header);
+    
+    auto nextEpoch = header.epoch() + 1;
+    
     co_await modifier(
         header);
+
+    header.set_epoch(
+        nextEpoch);
+
     co_await m_headerAccessor->WriteHeader(
         header);
 }
@@ -359,6 +368,14 @@ public:
     ) override
     {
         auto index = protoIndex.m_index;
+
+        auto loggedRowWrite = m_logRecord->add_rows();
+        loggedRowWrite->set_sequencenumber(ToUint64(m_initialWriteSequenceNumber));
+        loggedRowWrite->set_indexnumber(protoIndex.m_index->GetIndexNumber());
+        key.pack(
+            loggedRowWrite->mutable_key());
+        value.pack(
+            loggedRowWrite->mutable_value());
 
         co_await index->AddRow(
             readSequenceNumber,

@@ -8,17 +8,40 @@
 namespace Phantom::ProtoStore
 {
 
-task<shared_ptr<IProtoStore>> CreateMemoryStore()
+CreateProtoStoreRequest GetCreateMemoryStoreRequest()
 {
-    auto storeFactory = MakeProtoStoreFactory();
     CreateProtoStoreRequest createRequest;
 
     createRequest.HeaderExtentStore = UseMemoryExtentStore();
     createRequest.LogExtentStore = UseMemoryExtentStore();
     createRequest.DataExtentStore = UseMemoryExtentStore();
 
+    return createRequest;
+}
+
+task<shared_ptr<IProtoStore>> CreateStore(
+    const CreateProtoStoreRequest& createRequest)
+{
+    auto storeFactory = MakeProtoStoreFactory();
+
     co_return co_await storeFactory->Create(
         createRequest);
+}
+
+task<shared_ptr<IProtoStore>> CreateMemoryStore()
+{
+    co_return co_await CreateStore(
+        GetCreateMemoryStoreRequest());
+}
+
+task<shared_ptr<IProtoStore>> OpenStore(
+    const OpenProtoStoreRequest& request
+)
+{
+    auto storeFactory = MakeProtoStoreFactory();
+
+    co_return co_await storeFactory->Open(
+        request);
 }
 
 TEST(ProtoStoreTests, CanCreate_memory_backed_store)
@@ -100,6 +123,64 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row)
                 &key,
                 &expectedValue);
         });
+
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
+        );
+
+        StringValue actualValue;
+        readResult.Value.unpack(&actualValue);
+
+        ASSERT_TRUE(MessageDifferencer::Equals(
+            expectedValue,
+            actualValue));
+    });
+}
+
+TEST(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
+{
+    run_async([]() -> task<>
+    {
+        auto createRequest = GetCreateMemoryStoreRequest();
+
+        auto store = co_await CreateStore(createRequest);
+
+        ProtoIndex index;
+        StringKey key;
+        key.set_value("testKey1");
+        StringValue expectedValue;
+        expectedValue.set_value("testValue1");
+
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await operation->AddRow(
+                WriteOperationMetadata(),
+                SequenceNumber::Latest,
+                index,
+                &key,
+                &expectedValue);
+        });
+
+        store.reset();
+        store = co_await OpenStore(createRequest);
+
+        index = co_await store->GetIndex(
+            createIndexRequest);
 
         ReadRequest readRequest;
         readRequest.Key = &key;

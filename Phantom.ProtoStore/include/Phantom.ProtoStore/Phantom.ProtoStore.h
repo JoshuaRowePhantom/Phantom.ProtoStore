@@ -114,7 +114,6 @@ class ProtoValue
     typedef std::variant<
         std::monostate,
         std::span<const std::byte>,
-        std::vector<std::byte>,
         std::string
     > message_data_type;
 
@@ -125,6 +124,7 @@ class ProtoValue
     > message_type;
 
 public:
+
     message_data_type message_data;
     message_type message;
 
@@ -133,20 +133,6 @@ public:
 
     ProtoValue(
         std::string bytes)
-        :
-        message_data(move(bytes))
-    {
-    }
-
-    ProtoValue(
-        std::vector<std::byte> bytes)
-        :
-        message_data(move(bytes))
-    {
-    }
-
-    ProtoValue(
-        std::vector<std::byte>&& bytes)
         :
         message_data(move(bytes))
     {
@@ -249,19 +235,57 @@ public:
             }
         }
 
+        destination->Clear();
+    }
+
+    bool pack(
+        std::string* destination
+    ) const
+    {
         {
-            auto source = std::get_if<std::vector<byte>>(&message_data);
+            auto source = std::get_if<std::string>(&message_data);
             if (source)
             {
-                destination->ParseFromArray(
-                    source->data(),
-                    source->size()
-                );
-                return;
+                *destination = *source;
+                return true;
             }
         }
 
-        destination->Clear();
+        {
+            auto source = std::get_if<std::span<const std::byte>>(&message_data);
+            if (source)
+            {
+                destination->resize(source->size());
+                std::copy(
+                    source->begin(),
+                    source->end(),
+                    reinterpret_cast<std::byte*>(destination->data())
+                );
+                return true;
+            }
+        }
+
+        {
+            auto source = std::get_if<const Message*>(&message);
+            if (source)
+            {
+                (*source)->SerializeToString(
+                    destination);
+                return true;
+            }
+        }
+
+        {
+            auto source = std::get_if<unique_ptr<const Message>>(&message);
+            if (source)
+            {
+                (*source)->SerializeToString(
+                    destination);
+                return true;
+            }
+        }
+
+        return false;
     }
 };
 
