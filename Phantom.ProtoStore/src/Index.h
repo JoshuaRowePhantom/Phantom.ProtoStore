@@ -48,7 +48,11 @@ public:
     virtual task<> Join(
     ) = 0;
 
-    virtual task<LoggedCheckpoint> Checkpoint(
+    virtual task<LoggedCheckpoint> StartCheckpoint(
+    ) = 0;
+
+    virtual task<> Checkpoint(
+        const LoggedCheckpoint& loggedCheckpoint,
         shared_ptr<IPartitionWriter> partitionWriter
     ) = 0;
 

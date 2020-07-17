@@ -5,6 +5,7 @@
 #include "MemoryTable.h"
 #include "Partition.h"
 #include "Phantom.System/async_reader_writer_lock.h"
+#include <atomic>
 
 namespace Phantom::ProtoStore
 {
@@ -22,6 +23,7 @@ class Index
     
     shared_ptr<IMemoryTable> m_currentMemoryTable;
     CheckpointNumber m_currentCheckpointNumber;
+    std::atomic_flag m_dontNeedCheckpoint;
 
     map<CheckpointNumber, shared_ptr<IMemoryTable>> m_activeMemoryTables;
     map<CheckpointNumber, shared_ptr<IMemoryTable>> m_checkpointingMemoryTables;
@@ -40,7 +42,7 @@ class Index
         PartitionsEnumeration& partitions);
 
     task<> StartCheckpoint(
-        LoggedCheckpoint& loggedCheckpoint,
+        const LoggedCheckpoint& loggedCheckpoint,
         vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint
     );
 
@@ -93,7 +95,11 @@ public:
     virtual const IndexName& GetIndexName(
     ) const override;
 
-    virtual task<LoggedCheckpoint> Checkpoint(
+    virtual task<LoggedCheckpoint> StartCheckpoint(
+    ) override;
+
+    virtual task<> Checkpoint(
+        const LoggedCheckpoint& loggedCheckpoint,
         shared_ptr<IPartitionWriter> partitionWriter
     ) override;
 

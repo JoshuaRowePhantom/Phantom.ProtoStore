@@ -8,6 +8,7 @@
 #include "IndexImpl.h"
 #include "Phantom.System/async_value_source.h"
 #include "PartitionImpl.h"
+#include "PartitionWriterImpl.h"
 #include <cppcoro/sync_wait.hpp>
 #include <cppcoro/when_all.hpp>
 #include <cppcoro/on_scope_exit.hpp>
@@ -699,11 +700,28 @@ task<> ProtoStore::Checkpoint(
     shared_ptr<IIndex> index
 )
 {
+    auto loggedCheckpoint = co_await index->StartCheckpoint();
+
+    if (!loggedCheckpoint.checkpointnumber_size())
+    {
+        co_return;
+    }
+
     auto dataExtentNumber = co_await AllocateDataExtent();
     auto headerExtentNumber = co_await AllocateDataExtent();
 
-    auto loggedCheckpoint = co_await index->Checkpoint(
-        nullptr);
+    auto dataWriter = co_await m_dataMessageStore->OpenExtentForSequentialWriteAccess(
+        dataExtentNumber);
+    auto headerWriter = co_await m_dataMessageStore->OpenExtentForSequentialWriteAccess(
+        headerExtentNumber);
+
+    auto partitionWriter = make_shared<PartitionWriter>(
+        dataWriter,
+        headerWriter);
+
+    co_await index->Checkpoint(
+        loggedCheckpoint,
+        partitionWriter);
 
     LogRecord logRecord;
     logRecord.mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints()->CopyFrom(

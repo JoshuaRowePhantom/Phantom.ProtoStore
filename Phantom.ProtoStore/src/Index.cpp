@@ -25,6 +25,8 @@ Index::Index(
     m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
     m_currentCheckpointNumber(1)
 {
+    m_dontNeedCheckpoint.test_and_set();
+
     m_currentMemoryTable = make_shared<MemoryTable>(
         &*m_keyComparer);
 
@@ -78,6 +80,9 @@ task<CheckpointNumber> Index::AddRow(
     row.WriteSequenceNumber = writeSequenceNumber;
 
     auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
+
+    m_dontNeedCheckpoint.clear();
+
     co_await m_currentMemoryTable->AddRow(
         readSequenceNumber,
         row, 
@@ -121,6 +126,8 @@ task<CheckpointNumber> Index::Replay(
 
     co_await m_activeMemoryTables[loggedRowWrite.checkpointnumber()]->ReplayRow(
         row);
+
+    m_dontNeedCheckpoint.clear();
 
     co_return loggedRowWrite.checkpointnumber();
 }
@@ -292,11 +299,16 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
 
 }
 
-task<> Index::StartCheckpoint(
-    LoggedCheckpoint& loggedCheckpoint,
-    vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint)
+task<LoggedCheckpoint> Index::StartCheckpoint()
 {
     auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_write_async();
+
+    LoggedCheckpoint loggedCheckpoint;
+
+    if (m_dontNeedCheckpoint.test_and_set())
+    {
+        co_return loggedCheckpoint;
+    }
 
     loggedCheckpoint.add_checkpointnumber(
         m_currentCheckpointNumber);
@@ -305,8 +317,6 @@ task<> Index::StartCheckpoint(
     m_currentCheckpointNumber++;
     m_currentMemoryTable = make_shared<MemoryTable>(
         &*m_keyComparer);
-    memoryTablesToCheckpoint.push_back(
-        m_currentMemoryTable);
 
     for (auto activeMemoryTable : m_activeMemoryTables)
     {
@@ -314,12 +324,27 @@ task<> Index::StartCheckpoint(
 
         loggedCheckpoint.add_checkpointnumber(
             activeMemoryTable.first);
-
-        memoryTablesToCheckpoint.push_back(
-            activeMemoryTable.second);
     }
 
+    m_activeMemoryTables.clear();
+
     UpdateMemoryTablesToEnumerate();
+}
+
+task<> Index::StartCheckpoint(
+    const LoggedCheckpoint& loggedCheckpoint,
+    vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint)
+{
+    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_write_async();
+
+    for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
+    {
+        auto memoryTable = m_checkpointingMemoryTables[checkpointNumber];
+        assert(memoryTable);
+
+        memoryTablesToCheckpoint.push_back(
+            memoryTable);
+    }
 }
 
 task<> Index::WriteMemoryTables(
@@ -339,11 +364,11 @@ task<> Index::WriteMemoryTables(
         move(rows));
 }
 
-task<LoggedCheckpoint> Index::Checkpoint(
+task<> Index::Checkpoint(
+    const LoggedCheckpoint& loggedCheckpoint,
     shared_ptr<IPartitionWriter> partitionWriter
 )
 {
-    LoggedCheckpoint loggedCheckpoint;
     std::vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
 
     co_await StartCheckpoint(
@@ -353,8 +378,6 @@ task<LoggedCheckpoint> Index::Checkpoint(
     co_await WriteMemoryTables(
         partitionWriter,
         memoryTablesToCheckpoint);
-
-    co_return loggedCheckpoint;
 }
 
 task<> Index::Replay(

@@ -52,7 +52,6 @@ task<> PartitionWriter::WriteRows(
                 treeEntry->mutable_value());
         }
 
-
         for (int index = 0; index < treeNodeStack.size(); index++)
         {
             auto treeNode = treeNodeStack[index];
