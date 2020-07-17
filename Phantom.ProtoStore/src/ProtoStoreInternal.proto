@@ -119,11 +119,13 @@ message PartitionTreeEntry {
 	bytes Key = 1;
 	oneof PartitionTreeEntryType {
 		// Set if the tree points to a subtree.
-		uint64 TreeEntryOffset = 2;
+		uint64 TreeNodeOffset = 2;
 		// Set if this entry is an inline small value.
 		bytes Value = 3;
 		// Set if this entry is an offset into the file.
 		uint64 ValueOffset = 4;
+		// Set if the row is deleted.
+		bool Deleted = 5;
     }
 }
 

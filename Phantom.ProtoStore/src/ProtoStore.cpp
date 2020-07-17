@@ -666,6 +666,11 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
         {
             .extentNumber = headerExtentNumber,
             .extentOffset = 0,
+        },
+        ExtentLocation
+        {
+            .extentNumber = dataExtentNumber,
+            .extentOffset = 0,
         });
 
     m_activePartitions[dataExtentNumber] = partition;
