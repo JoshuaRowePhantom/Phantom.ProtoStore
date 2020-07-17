@@ -29,6 +29,19 @@ struct WeakComparer
     }
 };
 
+TEST(SkipListTests, starts_empty)
+{
+    SkipList<std::string, std::string, 4, WeakComparer<std::string>> skipList;
+
+    vector<pair<const string, string>> expectedValues;
+    vector<pair<const string, string>> actualValues(
+        skipList.begin(),
+        skipList.end());
+
+    ASSERT_EQ(expectedValues, actualValues);
+    ASSERT_EQ(skipList.end(), skipList.find("foo").first);
+}
+
 TEST(SkipListTests, insert_convertible_values_via_converting_constructor)
 {
     SkipList<std::string, std::string, 4, WeakComparer<std::string>> skipList;
