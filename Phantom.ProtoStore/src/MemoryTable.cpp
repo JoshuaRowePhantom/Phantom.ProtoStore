@@ -60,10 +60,8 @@ MemoryTable::MemoryTable(
     ),
     m_skipList(
         m_comparer)
-{}
-
-MemoryTable::~MemoryTable()
-{}
+{
+}
 
 task<> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
@@ -147,6 +145,21 @@ task<> MemoryTable::AddRow(
             ResolveMemoryTableRowOutcome(
                 *iterator));
     }
+
+    co_return;
+}
+
+task<> MemoryTable::ReplayRow(
+    MemoryTableRow& row
+)
+{
+    ReplayInsertionKey replayKey(
+        row);
+
+    auto [iterator, succeeded] = m_skipList.insert(
+        move(replayKey));
+
+    assert(succeeded);
 
     co_return;
 }
@@ -304,6 +317,7 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     co_return memoryTableOperationOutcome.Outcome;
 }
 
+
 task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     MemoryTableValue& memoryTableValue
 )
@@ -326,9 +340,29 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
         MemoryTableOperationOutcomeTask(memoryTableValue.AsyncOperationOutcome));
 }
 
-task<> MemoryTable::Join()
+MemoryTable::MemoryTableValue::MemoryTableValue(
+    ReplayInsertionKey&& other
+)
+    :
+    Row{ move(other.Row) },
+    WriteSequenceNumber
 {
-    co_await m_asyncScope.join();
+    ToMemoryTableOutcomeAndSequenceNumber(
+        other.Row.WriteSequenceNumber,
+        OperationOutcome::Committed)
+}
+{
+    assert(Row.Key.get());
+    auto writeSequenceNumber = Row.WriteSequenceNumber;
+
+    AsyncOperationOutcome = [writeSequenceNumber]() -> MemoryTableOperationOutcomeTask
+    {
+        co_return MemoryTableOperationOutcome
+        {
+            .Outcome = OperationOutcome::Committed,
+            .WriteSequenceNumber = writeSequenceNumber,
+        };
+    }();
 }
 
 MemoryTable::MemoryTableValue::MemoryTableValue(
@@ -337,14 +371,21 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     :
     Row { move(other.Row) },
     WriteSequenceNumber 
-{
+    {
         ToMemoryTableOutcomeAndSequenceNumber(
             other.Row.WriteSequenceNumber,
             OperationOutcome::Unknown)
     },
     AsyncOperationOutcome { other.AsyncOperationOutcome }
 {
+    assert(Row.Key.get());
 }
+
+MemoryTable::ReplayInsertionKey::ReplayInsertionKey(
+    MemoryTableRow& row
+) :
+    Row(row)
+{}
 
 MemoryTable::InsertionKey::InsertionKey(
     MemoryTableRow& row,
@@ -461,6 +502,25 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         key2.Inclusivity == Inclusivity::Exclusive)
     {
         return std::weak_ordering::greater;
+    }
+
+    return comparisonResult;
+}
+
+std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
+    const MemoryTableValue& key1,
+    const ReplayInsertionKey& key2
+    ) const
+{
+    auto comparisonResult =
+        (*m_keyComparer)(
+            key1.Row.Key.get(),
+            key2.Row.Key.get()
+            );
+
+    if (comparisonResult == std::weak_ordering::equivalent)
+    {
+        comparisonResult = key1.Row.WriteSequenceNumber <=> key2.Row.WriteSequenceNumber;
     }
 
     return comparisonResult;

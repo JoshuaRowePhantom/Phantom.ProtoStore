@@ -27,6 +27,8 @@ struct MemoryTableOperationOutcome
 };
 
 class IMemoryTable
+    :
+    public virtual IJoinable
 {
 public:
 
@@ -40,17 +42,16 @@ public:
         MemoryTableOperationOutcomeTask outcomeTask
     ) = 0;
 
+    // Add the specified row, unconditionally.
+    virtual task<> ReplayRow(
+        MemoryTableRow& row
+    ) = 0;
+
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high
     ) = 0;
 
-    // Indicate that no more operations are incoming,
-    // and the memory table should complete all
-    // async operations.  The task will return when
-    // it is safe to destroy the MemoryTable.
-    virtual task<> Join(
-    ) = 0;
 };
 }

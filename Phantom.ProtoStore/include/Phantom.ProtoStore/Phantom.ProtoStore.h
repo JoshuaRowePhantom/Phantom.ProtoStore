@@ -54,6 +54,14 @@ inline std::uint64_t ToUint64(
     return static_cast<std::uint64_t>(sequenceNumber) >> 2;
 }
 
+inline std::weak_ordering operator <=>(
+    SequenceNumber s1,
+    SequenceNumber s2
+    )
+{
+    return ToUint64(s1) <=> ToUint64(s2);
+}
+
 typedef std::string TransactionId;
 
 class IMessageStore;
@@ -474,8 +482,17 @@ struct OperationResult
 {
 };
 
+class IJoinable
+{
+public:
+    virtual task<> Join(
+    ) = 0;
+};
+
 class IProtoStore
-    : public IReadableProtoStore
+    : 
+    public IReadableProtoStore,
+    public virtual IJoinable
 {
 public:
     virtual task<OperationResult> ExecuteOperation(
@@ -485,9 +502,6 @@ public:
 
     virtual task<ProtoIndex> CreateIndex(
         const CreateIndexRequest& createIndexRequest
-    ) = 0;
-
-    virtual task<> Join(
     ) = 0;
 };
 

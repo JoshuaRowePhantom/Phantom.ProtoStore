@@ -85,6 +85,7 @@ class IChecksumAlgorithm;
 class IChecksumAlgorithmFactory;
 class ISequentialMessageWriter;
 class KeyComparer;
+class RowMerger;
 struct MemoryTableOperationOutcome;
 typedef cppcoro::shared_task<MemoryTableOperationOutcome> MemoryTableOperationOutcomeTask;
 
@@ -101,5 +102,6 @@ class IndexesByNameValue;
 class IndexesByNumberKey;
 class IndexesByNumberValue;
 class MessageDescription;
+class LoggedRowWrite;
 
 }

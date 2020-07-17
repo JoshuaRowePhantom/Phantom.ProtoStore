@@ -8,6 +8,7 @@
 #include <cppcoro/inline_scheduler.hpp>
 #include <cppcoro/sequence_barrier.hpp>
 #include <cppcoro/shared_task.hpp>
+#include "AsyncScopeMixin.h"
 
 namespace Phantom::ProtoStore
 {
@@ -16,7 +17,8 @@ class IIndex;
 
 class ProtoStore
     :
-    public IProtoStore
+    public IProtoStore,
+    public AsyncScopeMixin
 {
     const shared_ptr<IExtentStore> m_headerExtentStore;
     const shared_ptr<IExtentStore> m_logExtentStore;
@@ -28,7 +30,6 @@ class ProtoStore
     const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
 
-    cppcoro::async_scope m_asyncScope;
     cppcoro::inline_scheduler m_inlineScheduler;
     cppcoro::sequence_barrier<uint64_t> m_writeSequenceNumberBarrier;
     std::atomic<uint64_t> m_nextWriteSequenceNumber;
@@ -41,8 +42,6 @@ class ProtoStore
     shared_ptr<IIndex> m_nextIndexNumberIndex;
 
     shared_ptr<ISequentialMessageWriter> m_logWriter;
-
-    cppcoro::shared_task<> m_joinTask;
 
     typedef unordered_map<google::protobuf::uint64, shared_ptr<IIndex>> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;
@@ -72,7 +71,6 @@ class ProtoStore
     );
 
     task<IndexNumber> AllocateIndexNumber();
-    cppcoro::shared_task<> InternalJoinTask();
     
     task<> Replay(
         ExtentNumber logExtent);
@@ -114,8 +112,6 @@ public:
         shared_ptr<IExtentStore> headerStore,
         shared_ptr<IExtentStore> logStore,
         shared_ptr<IExtentStore> dataStore);
-
-    ~ProtoStore();
 
     task<> Open(
         const OpenProtoStoreRequest& openRequest

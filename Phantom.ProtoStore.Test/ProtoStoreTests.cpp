@@ -199,7 +199,7 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
     });
 }
 
-TEST(ProtoStoreTests, Can_read_written_row_during_operation)
+TEST(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
 {
     run_async([]() -> task<>
     {
@@ -320,7 +320,7 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
     });
 }
 
-TEST(ProtoStoreTests, Can_commit_transaction)
+TEST(ProtoStoreTests, DISABLED_Can_commit_transaction)
 {
     run_async([]() -> task<>
     {

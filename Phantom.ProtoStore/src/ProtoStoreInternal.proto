@@ -18,6 +18,7 @@ message LoggedRowWrite {
 	bytes Key = 2;
 	bytes Value = 3;
 	uint64 SequenceNumber = 4;
+	uint64 CheckpointNumber = 5;
 }
 
 message LoggedNewWriteLog {

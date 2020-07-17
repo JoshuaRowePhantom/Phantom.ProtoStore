@@ -27,32 +27,9 @@ ProtoStore::ProtoStore(
     m_dataMessageStore(MakeMessageStore(m_dataExtentStore)),
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
-    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
-    m_joinTask(InternalJoinTask())
+    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor))
 {
     m_writeSequenceNumberBarrier.publish(0);
-}
-
-ProtoStore::~ProtoStore()
-{
-    cppcoro::sync_wait(
-        m_joinTask);
-}
-
-cppcoro::shared_task<> ProtoStore::InternalJoinTask()
-{
-    vector<task<>> joinTasks;
-
-    for (auto index : m_indexesByNumber)
-    {
-        joinTasks.push_back(
-            index.second->Join());
-    }
-
-    co_await cppcoro::when_all(
-        move(joinTasks));
-
-    co_await m_asyncScope.join();
 }
 
 task<> ProtoStore::Create(
@@ -267,19 +244,8 @@ task<> ProtoStore::Replay(
         auto index = co_await GetIndexInternal(
             loggedRowWrite.indexnumber());
 
-        co_await index->AddRow(
-            SequenceNumber::Latest,
-            loggedRowWrite.key(),
-            loggedRowWrite.value(),
-            ToSequenceNumber(loggedRowWrite.sequencenumber()),
-            [&]()->MemoryTableOperationOutcomeTask
-        {
-            co_return MemoryTableOperationOutcome
-            {
-                .Outcome = OperationOutcome::Committed,
-                .WriteSequenceNumber = ToSequenceNumber(loggedRowWrite.sequencenumber()),
-            };
-        }());
+        co_await index->Replay(
+            loggedRowWrite);
     }
 }
 
@@ -708,7 +674,18 @@ shared_ptr<IIndex> ProtoStore::MakeIndex(
 
 task<> ProtoStore::Join()
 {
-    co_await m_joinTask;
+    vector<task<>> joinTasks;
+
+    for (auto index : m_indexesByNumber)
+    {
+        joinTasks.push_back(
+            index.second->Join());
+    }
+
+    co_await cppcoro::when_all(
+        move(joinTasks));
+
+    co_await AsyncScopeMixin::Join();
 }
 
 }

@@ -2,6 +2,7 @@
 #include "src/ProtoStoreInternal.pb.h"
 #include "KeyComparer.h"
 #include "MemoryTableImpl.h"
+#include "RowMerger.h"
 
 namespace Phantom::ProtoStore
 {
@@ -19,10 +20,14 @@ Index::Index(
     m_createSequenceNumber(createSequenceNumber),
     m_keyFactory(keyFactory),
     m_valueFactory(valueFactory),
-    m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor()))
+    m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor())),
+    m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
+    m_currentCheckpointNumber(1)
 {
     m_currentMemoryTable = make_shared<MemoryTable>(
         &*m_keyComparer);
+
+    UpdateMemoryTablesToEnumerate();
 }
 
 IndexNumber Index::GetIndexNumber() const
@@ -35,7 +40,7 @@ const IndexName& Index::GetIndexName() const
     return m_indexName;
 }
 
-task<> Index::AddRow(
+task<CheckpointNumber> Index::AddRow(
     SequenceNumber readSequenceNumber,
     const ProtoValue& key,
     const ProtoValue& value,
@@ -56,10 +61,84 @@ task<> Index::AddRow(
     row.Value = move(valueMessage);
     row.WriteSequenceNumber = writeSequenceNumber;
 
+    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
     co_await m_currentMemoryTable->AddRow(
         readSequenceNumber,
         row, 
         operationOutcomeTask);
+
+    co_return m_currentCheckpointNumber;
+}
+
+task<CheckpointNumber> Index::Replay(
+    const LoggedRowWrite& loggedRowWrite
+)
+{
+    if (!m_activeMemoryTables.contains(loggedRowWrite.checkpointnumber()))
+    {
+        m_activeMemoryTables[loggedRowWrite.checkpointnumber()] = make_shared<MemoryTable>(
+            &*m_keyComparer);
+
+        UpdateMemoryTablesToEnumerate();
+
+        m_currentCheckpointNumber = std::max(
+            loggedRowWrite.checkpointnumber() + 1,
+            m_currentCheckpointNumber
+        );
+    }
+
+    unique_ptr<Message> keyMessage(
+        m_keyFactory->GetPrototype()->New());
+    keyMessage->ParseFromString(
+        loggedRowWrite.key());
+
+    unique_ptr<Message> valueMessage(
+        m_valueFactory->GetPrototype()->New());
+    valueMessage->ParseFromString(
+        loggedRowWrite.value());
+
+    MemoryTableRow row;
+    row.Key = move(keyMessage);
+    row.Value = move(valueMessage);
+    row.WriteSequenceNumber = ToSequenceNumber(
+        loggedRowWrite.sequencenumber());
+
+    co_await m_activeMemoryTables[loggedRowWrite.checkpointnumber()]->ReplayRow(
+        row);
+
+    co_return loggedRowWrite.checkpointnumber();
+}
+
+void Index::UpdateMemoryTablesToEnumerate()
+{
+    auto newVector = std::make_shared<vector<shared_ptr<IMemoryTable>>>();
+
+    newVector->push_back(
+        m_currentMemoryTable
+    );
+
+    for (auto& activeMemoryTable : m_activeMemoryTables)
+    {
+        newVector->push_back(
+            activeMemoryTable.second);
+    }
+
+    for (auto& checkpointingMemoryTable : m_checkpointingMemoryTables)
+    {
+        newVector->push_back(
+            checkpointingMemoryTable.second);
+    }
+
+    m_memoryTablesToEnumerate = newVector;
+}
+
+task<> Index::GetItemsToEnumerate(
+    MemoryTablesEnumeration& memoryTables,
+    PartitionsEnumeration& partitions)
+{
+    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
+    memoryTables = m_memoryTablesToEnumerate;
+    partitions = m_partitions;
 }
 
 task<ReadResult> Index::Read(
@@ -81,11 +160,27 @@ task<ReadResult> Index::Read(
         keyLow.Key = unpackedKey.get();
     }
 
-    auto enumeration = m_currentMemoryTable->Enumerate(
-        readRequest.SequenceNumber,
-        keyLow,
-        keyLow
-    );
+    MemoryTablesEnumeration memoryTablesEnumeration;
+    PartitionsEnumeration partitionsEnumeration;
+
+    co_await GetItemsToEnumerate(
+        memoryTablesEnumeration,
+        partitionsEnumeration);
+
+    auto enumerateAllItemsLambda = [&]() -> cppcoro::generator<cppcoro::async_generator<const MemoryTableRow*>>
+    {
+        for (auto& memoryTable : *memoryTablesEnumeration)
+        {
+            co_yield memoryTable->Enumerate(
+                readRequest.SequenceNumber,
+                keyLow,
+                keyLow
+            );
+        }
+    };
+
+    auto enumeration = m_rowMerger->Merge(
+        enumerateAllItemsLambda());
 
     for co_await(auto memoryTableRow : enumeration)
     {
@@ -111,6 +206,14 @@ task<ReadResult> Index::Read(
 task<> Index::Join()
 {
     co_await m_currentMemoryTable->Join();
+    for (auto activeMemoryTable : m_activeMemoryTables)
+    {
+        co_await activeMemoryTable.second->Join();
+    }
+    for (auto checkpointingMemoryTable : m_checkpointingMemoryTables)
+    {
+        co_await checkpointingMemoryTable.second->Join();
+    }
 }
 
 }

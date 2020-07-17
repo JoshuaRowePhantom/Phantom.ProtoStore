@@ -4,13 +4,15 @@
 #include <atomic>
 #include <cppcoro/async_mutex.hpp>
 #include <cppcoro/async_scope.hpp>
+#include "AsyncScopeMixin.h"
 
 namespace Phantom::ProtoStore
 {
 
 class MemoryTable
     :
-    public IMemoryTable
+    public IMemoryTable,
+    public virtual AsyncScopeMixin
 {
     enum class MemoryTableOutcomeAndSequenceNumber;
 
@@ -28,6 +30,14 @@ class MemoryTable
         MemoryTableOutcomeAndSequenceNumber value);
 
     struct MemoryTableValue;
+
+    struct ReplayInsertionKey
+    {
+        ReplayInsertionKey(
+            MemoryTableRow& row);
+
+        MemoryTableRow& Row;
+    };
 
     struct InsertionKey
     {
@@ -56,9 +66,13 @@ class MemoryTable
 
     struct MemoryTableValue
     {
-        // We can only be constructed by a movable InsertionKey.
+        // We can be constructed by a movable InsertionKey.
         MemoryTableValue(
             InsertionKey&& other);
+
+        // We can also be constructed by a movable ReplayInsertionKey
+        MemoryTableValue(
+            ReplayInsertionKey&& other);
 
         // Memory table is not copyable nor movable.
         MemoryTableValue(
@@ -136,13 +150,17 @@ class MemoryTable
             const MemoryTableValue& key1,
             const KeyRangeEnd& high
             ) const;
+
+        std::weak_ordering operator()(
+            const MemoryTableValue& key1,
+            const ReplayInsertionKey& key2
+            ) const;
     };
 
     // m_comparer must be declared before m_skipList,
     // so that m_skipList can point to it.
     const MemoryTableRowComparer m_comparer;
     SkipList<MemoryTableValue, void, 32, MemoryTableRowComparer> m_skipList;
-    cppcoro::async_scope m_asyncScope;
 
     // Resolve a memory table row's outcome using the passed-in
     // task and original sequence number.  Does not acquire the row's mutex.
@@ -162,21 +180,21 @@ public:
         const KeyComparer* keyComparer
     );
 
-    ~MemoryTable();
-
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber, 
         MemoryTableRow& row,
         MemoryTableOperationOutcomeTask asyncOperationOutcome
     ) override;
 
+
+    virtual task<> ReplayRow(
+        MemoryTableRow& row
+    ) override;
+
     virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
         SequenceNumber readSequenceNumber, 
         KeyRangeEnd low, 
         KeyRangeEnd high
-    ) override;
-
-    virtual task<> Join(
     ) override;
 };
 
