@@ -2,7 +2,7 @@
 
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "ProtoStoreTest.pb.h"
-#include <cppcoro/async_latch.hpp>
+#include <cppcoro/single_consumer_event.hpp>
 #include <cppcoro/when_all_ready.hpp>
 
 namespace Phantom::ProtoStore
@@ -190,8 +190,7 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
             createIndexRequest
         );
 
-        cppcoro::async_latch addRowLatch(1);
-        cppcoro::async_latch continueLatch(1);
+        cppcoro::single_consumer_event addRowEvent;
 
         auto operation1 = store->ExecuteOperation(
             BeginTransactionRequest(),
@@ -204,22 +203,20 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
                 &key,
                 &expectedValue);
 
-            addRowLatch.count_down();
-            co_await continueLatch;
+            addRowEvent.set();
         });
 
         auto operation2 = store->ExecuteOperation(
             BeginTransactionRequest(),
             [&](IOperation* operation)->task<>
         {
-            co_await addRowLatch;
+            co_await addRowEvent;
             co_await operation->AddRow(
                 WriteOperationMetadata(),
-                SequenceNumber::Latest,
+                SequenceNumber::Earliest,
                 index,
                 &key,
                 &unexpectedValue);
-            continueLatch.count_down();
         });
 
         auto result = co_await cppcoro::when_all_ready(
@@ -317,4 +314,6 @@ TEST(ProtoStoreTests, Can_commit_transaction)
             readResult.Value.unpack(&actualValue);
         }
     });
-}}
+}
+
+}
