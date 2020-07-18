@@ -11,6 +11,8 @@ message Header {
 	uint32 LogAlignment = 2;
 	repeated uint64 LogReplayExtentNumbers = 3;
 	uint64 Epoch = 5;
+	uint64 NextIndexNumber = 6;
+	uint64 NextDataExtentNumber = 7;
 }
 
 message LoggedRowWrite {

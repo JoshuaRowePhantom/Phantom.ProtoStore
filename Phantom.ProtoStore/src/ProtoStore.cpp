@@ -29,9 +29,7 @@ ProtoStore::ProtoStore(
     m_dataMessageStore(MakeMessageStore(m_dataExtentStore)),
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
-    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
-    m_nextIndexNumber(1000),
-    m_nextDataExtentNumber(0)
+    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor))
 {
     m_writeSequenceNumberBarrier.publish(0);
 }
@@ -45,6 +43,8 @@ task<> ProtoStore::Create(
     header.set_logalignment(static_cast<google::protobuf::uint32>(
         createRequest.LogAlignment));
     header.add_logreplayextentnumbers(0);
+    header.set_nextdataextentnumber(1);
+    header.set_nextindexnumber(1000);
 
     co_await m_headerAccessor->WriteHeader(
         header);
@@ -59,6 +59,11 @@ task<> ProtoStore::Open(
     Header header;
     co_await m_headerAccessor->ReadHeader(
         header);
+
+    m_nextDataExtentNumber.store(
+        header.nextdataextentnumber());
+    m_nextIndexNumber.store(
+        header.nextindexnumber());
 
     {
         IndexesByNumberKey indexesByNumberKey;
@@ -176,6 +181,12 @@ task<> ProtoStore::UpdateHeader(
 
     header.set_epoch(
         nextEpoch);
+
+    header.set_nextindexnumber(
+        m_nextIndexNumber.load());
+
+    header.set_nextdataextentnumber(
+        m_nextDataExtentNumber.load());
 
     co_await m_headerAccessor->WriteHeader(
         header);
