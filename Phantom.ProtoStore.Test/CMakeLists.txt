@@ -16,6 +16,7 @@ phantom_protobuf_generate_cpp(
 
 add_executable(
 	Phantom.ProtoStore.Test
+	"BloomFilterTests.cpp" 
 	"ChecksumTests.cpp" 
 	"HeaderAccessorTests.cpp"
 	"MemoryExtentStoreTests.cpp"

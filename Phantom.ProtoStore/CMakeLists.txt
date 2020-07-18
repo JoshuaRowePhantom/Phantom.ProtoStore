@@ -15,9 +15,9 @@ phantom_protobuf_generate_cpp(
 add_library (
     Phantom.ProtoStore 
     STATIC
+    "src/BloomFilter.h"
     "src/Checksum.cpp"
     "src/Checksum.h"
-    
     "src/ExtentManager.h"
     "src/ExtentStore.h"
     "src/HeaderAccessor.cpp"
