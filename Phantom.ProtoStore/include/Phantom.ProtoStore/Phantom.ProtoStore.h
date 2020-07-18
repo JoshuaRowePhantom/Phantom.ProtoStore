@@ -140,6 +140,13 @@ public:
     {}
 
     ProtoValue(
+        std::unique_ptr<Message>&& other)
+        :
+        message(move(other))
+    {
+    }
+
+    ProtoValue(
         std::string bytes)
         :
         message_data(move(bytes))
@@ -154,9 +161,9 @@ public:
     }
 
     ProtoValue(
-        const Message* message)
+        const Message* other)
         :
-        message(message)
+        message(other)
     {
     }
 

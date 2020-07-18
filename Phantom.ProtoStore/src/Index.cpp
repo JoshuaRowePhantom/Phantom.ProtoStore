@@ -186,7 +186,6 @@ task<ReadResult> Index::Read(
         keyLow.Key = unpackedKey.get();
     }
 
-
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
 
@@ -224,12 +223,17 @@ task<ReadResult> Index::Read(
             break;
         }
 
-        co_return ReadResult
+        unique_ptr<Message> value(resultRow.Value->New());
+        value->CopyFrom(*resultRow.Value);
+
+        ReadResult readResult
         {
             .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-            .Value = resultRow.Value,
+            .Value = move(value),
             .ReadStatus = ReadStatus::HasValue,
         };
+        
+        co_return readResult;
     }
 
     co_return ReadResult

@@ -2,6 +2,7 @@
 #include "RandomMessageAccessor.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "Schema.h"
+#include "KeyComparer.h"
 
 namespace Phantom::ProtoStore
 {
@@ -68,6 +69,91 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     }
 }
 
+cppcoro::task<size_t> Partition::FindTreeEntry(
+    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+    SequenceNumber readSequenceNumber,
+    KeyRangeEnd keyRangeEnd,
+    std::weak_ordering equivalenceToUseForEquivalent
+)
+{
+    auto treeNode = co_await partitionTreeNodeCacheEntry->ReadTreeNode();
+    auto left = 0;
+    auto right = treeNode->treeentries_size();
+
+    while (left < right)
+    {
+        auto middle = left + (right - left) / 2;
+
+        auto middleKey = co_await partitionTreeNodeCacheEntry->GetKey(
+            middle);
+        auto& middleTreeNodeEntry = treeNode->treeentries(middle);
+
+        auto keyComparison = m_keyComparer->Compare(
+            keyRangeEnd.Key,
+            middleKey);
+
+        if (keyComparison == std::weak_ordering::equivalent
+            &&
+            keyRangeEnd.Inclusivity == Inclusivity::Exclusive)
+        {
+            keyComparison = std::weak_ordering::less;
+        }
+
+        if (keyComparison == std::weak_ordering::equivalent)
+        {
+            keyComparison = equivalenceToUseForEquivalent;
+        }
+
+        if (keyComparison == std::weak_ordering::equivalent)
+        {
+            keyComparison = ToUint64(readSequenceNumber) <=> middleTreeNodeEntry.writesequencenumber();
+        }
+
+        if (keyComparison == std::weak_ordering::equivalent)
+        {
+            co_return middle;
+        }
+        else if (keyComparison == std::weak_ordering::less)
+        {
+            left = middle + 1;
+        }
+        else
+        {
+            right = middle - 1;
+        }
+    }
+
+    co_return left;
+}
+
+cppcoro::task<size_t> Partition::FindLowTreeEntry(
+    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+    SequenceNumber readSequenceNumber,
+    KeyRangeEnd low
+)
+{
+    return FindTreeEntry(
+        partitionTreeNodeCacheEntry,
+        readSequenceNumber,
+        low,
+        std::weak_ordering::equivalent
+    );
+}
+
+cppcoro::task<size_t> Partition::FindHighTreeEntry(
+    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+    SequenceNumber readSequenceNumber,
+    KeyRangeEnd high
+)
+{
+    return FindTreeEntry(
+        partitionTreeNodeCacheEntry,
+        readSequenceNumber,
+        high,
+        std::weak_ordering::less
+    );
+}
+
 cppcoro::async_generator<ResultRow> Partition::Enumerate(
     ExtentLocation treeNodeLocation,
     SequenceNumber readSequenceNumber,
@@ -84,16 +170,18 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
     auto highTreeEntryIndex = co_await FindHighTreeEntry(
         cacheEntry,
+        readSequenceNumber,
         high);
 
     while (
-        highTreeEntryIndex > 0
-        &&
         (highTreeEntryIndex >= (lowTreeEntryIndex = co_await FindLowTreeEntry(
             cacheEntry,
-            low))))
+            readSequenceNumber,
+            low)))
+        && lowTreeEntryIndex < treeNode->treeentries_size())
     {
         auto& treeNodeEntry = treeNode->treeentries(lowTreeEntryIndex);
+        auto key = co_await cacheEntry->GetKey(lowTreeEntryIndex);
 
         if (PartitionTreeEntry::kTreeNodeOffset == treeNodeEntry.PartitionTreeEntryType_case())
         {
@@ -137,12 +225,15 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
             co_yield ResultRow
             {
-                .Key = co_await cacheEntry->GetKey(lowTreeEntryIndex),
+                .Key = key,
                 .WriteSequenceNumber = ToSequenceNumber(treeNodeEntry.writesequencenumber()),
                 .Value = value.get(),
             };
         }
-    } while (true);
+
+        low.Inclusivity = Inclusivity::Exclusive;
+        low.Key = key;
+    }
 
 }
 

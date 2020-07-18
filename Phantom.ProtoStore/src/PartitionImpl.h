@@ -30,13 +30,22 @@ class Partition
 
     PartitionTreeNodeCache m_partitionTreeNodeCache;
 
+    task<size_t> FindTreeEntry(
+        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        SequenceNumber readSequenceNumber,
+        KeyRangeEnd low,
+        std::weak_ordering equivalenceToUseForEquivalent
+    );
+
     task<size_t> FindLowTreeEntry(
         const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        SequenceNumber readSequenceNumber,
         KeyRangeEnd low
     );
 
     task<size_t> FindHighTreeEntry(
         const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        SequenceNumber readSequenceNumber,
         KeyRangeEnd high
     );
 
