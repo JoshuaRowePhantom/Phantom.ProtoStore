@@ -139,6 +139,7 @@ message PartitionTreeNode {
 
 message PartitionRoot {
 	uint64 RootTreeNodeOffset = 1;
+	uint64 RowCount = 2;
 }
 
 message PartitionHeader {

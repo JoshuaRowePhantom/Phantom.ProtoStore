@@ -38,6 +38,8 @@ class IMemoryTable
     public virtual IJoinable
 {
 public:
+    virtual task<size_t> GetRowCount(
+    ) = 0;
 
     // Add the specified row.
     // If there is a conflict, an exception of the proper type with be thrown,

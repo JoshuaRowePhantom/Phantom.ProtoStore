@@ -2,6 +2,7 @@
 #include "KeyComparer.h"
 #include "SkipList.h"
 #include <atomic>
+#include <cppcoro/async_auto_reset_event.hpp>
 #include <cppcoro/async_mutex.hpp>
 #include <cppcoro/async_scope.hpp>
 #include "AsyncScopeMixin.h"
@@ -167,18 +168,27 @@ class MemoryTable
     task<OperationOutcome> ResolveMemoryTableRowOutcome(
         MemoryTableOutcomeAndSequenceNumber writeSequenceNumber,
         MemoryTableValue& memoryTableValue,
-        MemoryTableOperationOutcomeTask task
+        MemoryTableOperationOutcomeTask task,
+        bool updateRowCounters
     );
 
     // Resolve a memory table row with acquiring the mutex.
     task<OperationOutcome> ResolveMemoryTableRowOutcome(
-        MemoryTableValue& memoryTableValue
+        MemoryTableValue& memoryTableValue,
+        bool updateRowCounters
     );
+
+    std::atomic<size_t> m_unresolvedRowCount;
+    std::atomic<size_t> m_committedRowCount;
+    cppcoro::async_auto_reset_event m_rowResolved;
 
 public:
     MemoryTable(
         const KeyComparer* keyComparer
     );
+
+    virtual task<size_t> GetRowCount(
+    ) override;
 
     virtual task<> AddRow(
         SequenceNumber readSequenceNumber, 

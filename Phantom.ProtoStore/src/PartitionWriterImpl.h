@@ -18,6 +18,7 @@ public:
     );
 
     virtual task<> WriteRows(
+        size_t rowCount,
         row_generator rows
     ) override;
 };

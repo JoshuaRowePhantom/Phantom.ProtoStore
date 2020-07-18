@@ -63,6 +63,16 @@ MemoryTable::MemoryTable(
 {
 }
 
+task<size_t> MemoryTable::GetRowCount()
+{
+    while (m_unresolvedRowCount.load())
+    {
+        co_await m_rowResolved;
+    }
+
+    co_return m_committedRowCount.load();
+}
+
 task<> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
     MemoryTableRow& row,
@@ -83,12 +93,17 @@ task<> MemoryTable::AddRow(
 
     if (succeeded)
     {
+        m_unresolvedRowCount.fetch_add(1);
+
+        bool updateRowCounts = true;
+
         // Use the transaction resolver without acquiring a mutex.
         m_asyncScope.spawn(
             ResolveMemoryTableRowOutcome(
                 memoryTableWriteSequenceNumber,
                 *iterator,
-                asyncOperationOutcome));
+                asyncOperationOutcome,
+                updateRowCounts));
     }
     else
     {
@@ -114,10 +129,12 @@ task<> MemoryTable::AddRow(
         // This should be fast if the transaction outcome is known,
         // so there's no point in re-checking the fast outcome variable.
         // If the outcome wasn't known, we'll have to wait anyway.
+        bool updateRowCounts = false;
         previousOperationOutcome = co_await ResolveMemoryTableRowOutcome(
             previousMemoryTableWriteSequenceNumber,
             *iterator,
-            iterator->AsyncOperationOutcome);
+            iterator->AsyncOperationOutcome,
+            updateRowCounts);
 
         // Now we might discover there's a committed transaction.
         if (previousOperationOutcome == OperationOutcome::Committed)
@@ -129,6 +146,8 @@ task<> MemoryTable::AddRow(
 
         // Oh jolly joy!  The previous write aborted, so this one
         // can proceed.
+        m_unresolvedRowCount.fetch_add(1);
+
         iterator->Row.WriteSequenceNumber = row.WriteSequenceNumber;
         iterator->Row.Value = std::move(row.Value);
         iterator->AsyncOperationOutcome = asyncOperationOutcome;
@@ -140,10 +159,13 @@ task<> MemoryTable::AddRow(
             memoryTableWriteSequenceNumber,
             std::memory_order_release);
 
+
         // Use the transaction resolve that acquires the mutex.
+        updateRowCounts = true;
         m_asyncScope.spawn(
             ResolveMemoryTableRowOutcome(
-                *iterator));
+                *iterator,
+                updateRowCounts));
     }
 
     co_return;
@@ -158,6 +180,8 @@ task<> MemoryTable::ReplayRow(
 
     auto [iterator, succeeded] = m_skipList.insert(
         move(replayKey));
+
+    m_committedRowCount.fetch_add(1);
 
     assert(succeeded);
 
@@ -232,8 +256,10 @@ cppcoro::async_generator<ResultRow> MemoryTable::Enumerate(
             if (operationOutcome == OperationOutcome::Unknown)
             {
                 // We need to wait for resolution of this row.
+                bool updateRowCounts = false;
                 operationOutcome = co_await ResolveMemoryTableRowOutcome(
-                    memoryTableValue);
+                    memoryTableValue,
+                    updateRowCounts);
                 
                 assert(operationOutcome == OperationOutcome::Aborted
                     || operationOutcome == OperationOutcome::Committed);
@@ -280,7 +306,8 @@ cppcoro::async_generator<ResultRow> MemoryTable::Enumerate(
 task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     MemoryTableOutcomeAndSequenceNumber writeSequenceNumber,
     MemoryTableValue& memoryTableValue,
-    MemoryTableOperationOutcomeTask task
+    MemoryTableOperationOutcomeTask task,
+    bool updateRowCounters
 )
 {
     auto memoryTableOperationOutcome = co_await task;
@@ -305,9 +332,22 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
         memoryTableValue.WriteSequenceNumber.store(
             newWriteSequenceNumber,
             std::memory_order_release);
+
+        if (updateRowCounters)
+        {
+            m_unresolvedRowCount.fetch_sub(1);
+            m_committedRowCount.fetch_add(1);
+            m_rowResolved.set();
+        }
     }
     else
     {
+        if (updateRowCounters)
+        {
+            m_unresolvedRowCount.fetch_sub(1);
+            m_rowResolved.set();
+        }
+
         // The transaction aborted.  Some other resolver may
         // have noticed and may have already written the outcome,
         // and yet another AddRow might have replaced the outcome,
@@ -324,7 +364,8 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
 
 
 task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
-    MemoryTableValue& memoryTableValue
+    MemoryTableValue& memoryTableValue,
+    bool updateRowCounters
 )
 {
     auto lock = co_await memoryTableValue.Mutex.scoped_lock_async();
@@ -342,7 +383,8 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     co_return co_await ResolveMemoryTableRowOutcome(
         writeSequenceNumber,
         memoryTableValue,
-        MemoryTableOperationOutcomeTask(memoryTableValue.AsyncOperationOutcome));
+        MemoryTableOperationOutcomeTask(memoryTableValue.AsyncOperationOutcome),
+        updateRowCounters);
 }
 
 cppcoro::async_generator<ResultRow> MemoryTable::Checkpoint()
@@ -352,8 +394,10 @@ cppcoro::async_generator<ResultRow> MemoryTable::Checkpoint()
         iterator != end;
         ++iterator)
     {
+        bool updateRowCounts = false;
         auto outcome = co_await ResolveMemoryTableRowOutcome(
-            *iterator);
+            *iterator,
+            updateRowCounts);
 
         if (outcome == OperationOutcome::Committed)
         {

@@ -10,6 +10,7 @@ class IPartitionWriter
 {
 public:
     virtual task<> WriteRows(
+        size_t rowCount,
         row_generator rows
     ) = 0;
 };

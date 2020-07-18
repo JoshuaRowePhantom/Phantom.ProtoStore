@@ -45,6 +45,11 @@ task<> Partition::Open()
 
 }
 
+task<size_t> Partition::GetRowCount()
+{
+    co_return m_partitionRoot.rowcount();
+}
+
 cppcoro::async_generator<ResultRow> Partition::Enumerate(
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,

@@ -68,6 +68,9 @@ public:
 
     task<> Open();
 
+    virtual task<size_t> GetRowCount(
+    ) override;
+
     virtual cppcoro::async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,

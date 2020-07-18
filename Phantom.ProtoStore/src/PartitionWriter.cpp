@@ -18,15 +18,18 @@ PartitionWriter::PartitionWriter(
 {}
 
 task<> PartitionWriter::WriteRows(
+    size_t rowCount,
     row_generator rows
 )
 {
+    size_t discoveredRowCount = 0;
     std::vector<shared_ptr<PartitionTreeNode>> treeNodeStack;
 
     for (auto iterator = co_await rows.begin();
         iterator != rows.end();
         co_await ++iterator)
     {
+        ++discoveredRowCount;
         auto& row = *iterator;
         
         auto treeEntry = make_shared<PartitionTreeEntry>();
@@ -91,6 +94,8 @@ task<> PartitionWriter::WriteRows(
         }
     }
 
+    assert(rowCount == discoveredRowCount);
+
     for (size_t index = 0; index < treeNodeStack.size() - 1; index++)
     {
         auto treeNode = treeNodeStack[index];
@@ -113,6 +118,8 @@ task<> PartitionWriter::WriteRows(
     PartitionRoot partitionRoot;
     partitionRoot.set_roottreenodeoffset(
         rootTreeNodeWriteResult.DataRange.Beginning);
+    partitionRoot.set_rowcount(
+        rowCount);
 
     auto partitionRootWriteResult = co_await m_dataWriter->Write(
         partitionRoot,

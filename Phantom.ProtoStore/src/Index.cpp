@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "IndexImpl.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "KeyComparer.h"
@@ -379,6 +380,12 @@ task<> Index::WriteMemoryTables(
     const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
 )
 {
+    size_t rowCount = 0;
+    for (auto& memoryTable : memoryTablesToCheckpoint)
+    {
+        rowCount += co_await memoryTable->GetRowCount();
+    }
+
     auto rows = m_rowMerger->Merge([&]() -> row_generators
     {
         for (auto& memoryTable : memoryTablesToCheckpoint)
@@ -388,6 +395,7 @@ task<> Index::WriteMemoryTables(
     }());
 
     co_await partitionWriter->WriteRows(
+        rowCount,
         move(rows));
 }
 

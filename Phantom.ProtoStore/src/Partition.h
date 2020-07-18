@@ -9,6 +9,9 @@ namespace Phantom::ProtoStore
 class IPartition
 {
 public:
+    virtual task<size_t> GetRowCount(
+    ) = 0;
+
     virtual cppcoro::async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
