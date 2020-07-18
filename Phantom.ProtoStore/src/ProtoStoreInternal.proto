@@ -113,6 +113,8 @@ message PartitionsKey {
 
 message PartitionsValue {
 	uint64 HeaderExtentNumber = 1;
+	uint64 Level = 2;
+	uint64 Size = 3;
 }
 
 message PartitionTreeEntry {

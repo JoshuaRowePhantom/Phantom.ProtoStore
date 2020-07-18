@@ -84,6 +84,9 @@ namespace Phantom::ProtoStore
             const Message& message, 
             FlushBehavior flushBehavior
         ) override;
+
+        virtual task<ExtentOffset> CurrentOffset(
+        ) override;
     };
 
     class MessageStore

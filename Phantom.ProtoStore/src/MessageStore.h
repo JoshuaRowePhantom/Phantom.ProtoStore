@@ -53,6 +53,9 @@ namespace Phantom::ProtoStore
             const Message& message,
             FlushBehavior flushBehavior
         ) = 0;
+
+        virtual task<ExtentOffset> CurrentOffset(
+        ) = 0;
     };
 
     class IMessageStore

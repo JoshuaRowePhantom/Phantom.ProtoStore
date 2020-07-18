@@ -293,6 +293,13 @@ namespace Phantom::ProtoStore
         co_return writeMessageResult;
     }
 
+    task<ExtentOffset> SequentialMessageWriter::CurrentOffset(
+    )
+    {
+        co_return m_currentOffset.load(
+            std::memory_order_acquire);
+    }
+
     task<shared_ptr<IReadableExtent>> MessageStore::OpenExtentForRead(
         ExtentNumber extentNumber)
     {

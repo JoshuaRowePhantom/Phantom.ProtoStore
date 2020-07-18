@@ -744,6 +744,8 @@ task<> ProtoStore::Checkpoint(
     partitionsKey.set_dataextentnumber(dataExtentNumber);
     PartitionsValue partitionsValue;
     partitionsValue.set_headerextentnumber(headerExtentNumber);
+    partitionsValue.set_size(co_await dataWriter->CurrentOffset());
+    partitionsValue.set_level(0);
 
     {
         auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
