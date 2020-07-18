@@ -65,12 +65,14 @@ MemoryTable::MemoryTable(
 
 task<size_t> MemoryTable::GetRowCount()
 {
-    while (m_unresolvedRowCount.load())
+    while (m_unresolvedRowCount.load(
+        std::memory_order_acquire))
     {
         co_await m_rowResolved;
     }
 
-    co_return m_committedRowCount.load();
+    co_return m_committedRowCount.load(
+        std::memory_order_relaxed);
 }
 
 task<> MemoryTable::AddRow(
@@ -93,7 +95,9 @@ task<> MemoryTable::AddRow(
 
     if (succeeded)
     {
-        m_unresolvedRowCount.fetch_add(1);
+        m_unresolvedRowCount.fetch_add(
+            1,
+            std::memory_order_acq_rel);
 
         bool updateRowCounts = true;
 
@@ -146,7 +150,9 @@ task<> MemoryTable::AddRow(
 
         // Oh jolly joy!  The previous write aborted, so this one
         // can proceed.
-        m_unresolvedRowCount.fetch_add(1);
+        m_unresolvedRowCount.fetch_add(
+            1,
+            std::memory_order_acq_rel);
 
         iterator->Row.WriteSequenceNumber = row.WriteSequenceNumber;
         iterator->Row.Value = std::move(row.Value);
@@ -181,7 +187,9 @@ task<> MemoryTable::ReplayRow(
     auto [iterator, succeeded] = m_skipList.insert(
         move(replayKey));
 
-    m_committedRowCount.fetch_add(1);
+    m_committedRowCount.fetch_add(
+        1,
+        std::memory_order_relaxed);
 
     assert(succeeded);
 
@@ -335,8 +343,12 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
 
         if (updateRowCounters)
         {
-            m_unresolvedRowCount.fetch_sub(1);
-            m_committedRowCount.fetch_add(1);
+            m_unresolvedRowCount.fetch_sub(
+                1,
+                std::memory_order_relaxed);
+            m_committedRowCount.fetch_add(
+                1,
+                std::memory_order_relaxed);
             m_rowResolved.set();
         }
     }
@@ -344,7 +356,9 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     {
         if (updateRowCounters)
         {
-            m_unresolvedRowCount.fetch_sub(1);
+            m_unresolvedRowCount.fetch_sub(
+                1,
+                std::memory_order_relaxed);
             m_rowResolved.set();
         }
 
