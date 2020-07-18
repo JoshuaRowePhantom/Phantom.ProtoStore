@@ -12,11 +12,11 @@ RowMerger::RowMerger(
 {
 }
 
-RowMerger::row_generator RowMerger::Merge(
+row_generator RowMerger::Merge(
     row_generators rowSources
 )
 {
-    std::vector<cppcoro::async_generator<const MemoryTableRow*>> capturedRowSources;
+    std::vector<cppcoro::async_generator<ResultRow>> capturedRowSources;
     for (auto& rowSource : rowSources)
     {
         capturedRowSources.emplace_back(
@@ -24,17 +24,17 @@ RowMerger::row_generator RowMerger::Merge(
     }
 
     auto comparator = [this](
-        const MemoryTableRow* row1,
-        const MemoryTableRow* row2
+        const ResultRow& row1,
+        const ResultRow& row2
         )
     {
         return m_keyComparer->Compare(
-            row1->Key.get(),
-            row2->Key.get()
+            row1.Key,
+            row2.Key
         ) == std::weak_ordering::less;
     };
 
-    auto result = merge_sorted_generators<const MemoryTableRow*>(
+    auto result = merge_sorted_generators<ResultRow>(
         capturedRowSources.begin(),
         capturedRowSources.end(),
         comparator);

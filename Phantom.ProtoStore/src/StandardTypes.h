@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <cppcoro/async_generator.hpp>
+#include <cppcoro/generator.hpp>
 #include <cppcoro/task.hpp>
 #include <cppcoro/shared_task.hpp>
 #include "Phantom.System/pooled_ptr.h"
@@ -111,4 +113,9 @@ class LoggedAction;
 class LoggedCreateIndex;
 class LoggedCreateDataExtent;
 class PartitionTreeNode;
+
+class ResultRow;
+typedef cppcoro::async_generator<ResultRow> row_generator;
+typedef cppcoro::generator<row_generator> row_generators;
+
 }

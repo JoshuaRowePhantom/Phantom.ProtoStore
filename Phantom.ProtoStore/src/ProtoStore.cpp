@@ -295,6 +295,8 @@ class Operation
     :
     public IOperationTransaction
 {
+    friend class ProtoStore;
+
     ProtoStore& m_protoStore;
     unique_ptr<LogRecord> m_logRecord;
     async_value_source<MemoryTableOperationOutcome> m_outcomeValueSource;
@@ -723,12 +725,18 @@ task<> ProtoStore::Checkpoint(
         loggedCheckpoint,
         partitionWriter);
 
-    LogRecord logRecord;
-    logRecord.mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints()->CopyFrom(
+    auto writeSequenceNumber = ToSequenceNumber(
+        m_nextWriteSequenceNumber.fetch_add(1));
+
+    Operation operation(
+        *this,
+        writeSequenceNumber);
+
+    operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints()->CopyFrom(
         loggedCheckpoint);
-    logRecord.mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
+    operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
         dataExtentNumber);
-    logRecord.mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
+    operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
         headerExtentNumber);
 
     PartitionsKey partitionsKey;
@@ -736,18 +744,18 @@ task<> ProtoStore::Checkpoint(
     partitionsKey.set_dataextentnumber(dataExtentNumber);
     PartitionsValue partitionsValue;
     partitionsValue.set_headerextentnumber(headerExtentNumber);
-    auto partitionsRow = logRecord.add_rows();
-    partitionsKey.SerializeToString(partitionsRow->mutable_key());
-    partitionsValue.SerializeToString(partitionsRow->mutable_value());
 
     {
         auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
 
-        co_await m_partitionsIndex->Replay(
-            *partitionsRow);
+        co_await operation.AddRow(
+            WriteOperationMetadata(),
+            writeSequenceNumber,
+            ProtoIndex{ &*this, &*m_partitionsIndex },
+            &partitionsKey,
+            &partitionsValue);
 
-        co_await WriteLogRecord(
-            logRecord);
+        co_await operation.Commit();
 
         auto partitions = co_await OpenPartitionsForIndex(
             index);
@@ -766,8 +774,8 @@ task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
     partitionsKeyLow.set_dataextentnumber(0);
 
     PartitionsKey partitionsKeyHigh;
-    partitionsKeyLow.set_indexnumber(index->GetIndexNumber() + 1);
-    partitionsKeyLow.set_dataextentnumber(0);
+    partitionsKeyHigh.set_indexnumber(index->GetIndexNumber() + 1);
+    partitionsKeyHigh.set_dataextentnumber(0);
 
     EnumerateRequest enumerateRequest;
     enumerateRequest.KeyLow = &partitionsKeyLow;

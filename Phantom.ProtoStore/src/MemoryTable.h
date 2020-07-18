@@ -14,6 +14,13 @@ struct MemoryTableRow
     unique_ptr<const Message> Value;
 };
 
+struct ResultRow
+{
+    const Message* Key;
+    SequenceNumber WriteSequenceNumber;
+    const Message* Value;
+};
+
 struct KeyRangeEnd
 {
     const Message* Key;
@@ -47,13 +54,13 @@ public:
         MemoryTableRow& row
     ) = 0;
 
-    virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
+    virtual cppcoro::async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high
     ) = 0;
 
-    virtual cppcoro::async_generator<const MemoryTableRow*> Checkpoint(
+    virtual cppcoro::async_generator<ResultRow> Checkpoint(
     ) = 0;
 
 };

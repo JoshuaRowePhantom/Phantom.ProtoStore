@@ -1,7 +1,12 @@
 #pragma once
 
+#include <stdint.h>
 #include "Partition.h"
 #include "AsyncScopeMixin.h"
+#include "src/ProtoStoreInternal.pb.h"
+#include "SkipList.h"
+#include "Phantom.System/async_reader_writer_lock.h"
+#include "PartitionTreeNodeCache.h"
 
 namespace Phantom::ProtoStore
 {
@@ -18,9 +23,29 @@ class Partition
     ExtentLocation m_headerLocation;
     ExtentLocation m_dataLocation;
 
-    shared_ptr<const PartitionTreeNode> m_root;
-    shared_task<const PartitionTreeNode*> m_rootTask;
-    shared_task<const PartitionTreeNode*> ReadRoot();
+    PartitionHeader m_partitionHeader;
+    PartitionRoot m_partitionRoot;
+
+    shared_task<> m_openTask;
+
+    PartitionTreeNodeCache m_partitionTreeNodeCache;
+
+    task<size_t> FindLowTreeEntry(
+        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        KeyRangeEnd low
+    );
+
+    task<size_t> FindHighTreeEntry(
+        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        KeyRangeEnd high
+    );
+
+    cppcoro::async_generator<ResultRow> Enumerate(
+        ExtentLocation treeNodeLocation,
+        SequenceNumber readSequenceNumber,
+        KeyRangeEnd low,
+        KeyRangeEnd high
+    );
 
 public:
     Partition(
@@ -32,7 +57,9 @@ public:
         ExtentLocation dataLocation
     );
 
-    virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
+    task<> Open();
+
+    virtual cppcoro::async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high

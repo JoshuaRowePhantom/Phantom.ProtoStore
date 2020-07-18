@@ -191,13 +191,13 @@ public:
         MemoryTableRow& row
     ) override;
 
-    virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
+    virtual cppcoro::async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber, 
         KeyRangeEnd low, 
         KeyRangeEnd high
     ) override;
 
-    virtual cppcoro::async_generator<const MemoryTableRow*> Checkpoint(
+    virtual cppcoro::async_generator<ResultRow> Checkpoint(
     ) override;
 };
 

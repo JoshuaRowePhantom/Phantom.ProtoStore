@@ -16,9 +16,6 @@ public:
         KeyComparer* keyComparer
     );
 
-    typedef cppcoro::async_generator<const MemoryTableRow*> row_generator;
-    typedef cppcoro::generator<row_generator> row_generators;
-
     row_generator Merge(
         row_generators rowSources
     );

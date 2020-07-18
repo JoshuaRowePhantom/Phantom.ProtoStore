@@ -23,7 +23,8 @@ Index::Index(
     m_valueFactory(valueFactory),
     m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor())),
     m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
-    m_currentCheckpointNumber(1)
+    m_currentCheckpointNumber(1),
+    m_partitions(make_shared<vector<shared_ptr<IPartition>>>())
 {
     m_dontNeedCheckpoint.test_and_set();
 
@@ -185,6 +186,7 @@ task<ReadResult> Index::Read(
         keyLow.Key = unpackedKey.get();
     }
 
+
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
 
@@ -192,7 +194,7 @@ task<ReadResult> Index::Read(
         memoryTablesEnumeration,
         partitionsEnumeration);
 
-    auto enumerateAllItemsLambda = [&]() -> cppcoro::generator<cppcoro::async_generator<const MemoryTableRow*>>
+    auto enumerateAllItemsLambda = [&]() -> cppcoro::generator<cppcoro::async_generator<ResultRow>>
     {
         for (auto& memoryTable : *memoryTablesEnumeration)
         {
@@ -202,22 +204,30 @@ task<ReadResult> Index::Read(
                 keyLow
             );
         }
+
+        for (auto& partition : *partitionsEnumeration)
+        {
+            co_yield partition->Enumerate(
+                readRequest.SequenceNumber,
+                keyLow,
+                keyLow);
+        }
     };
 
     auto enumeration = m_rowMerger->Merge(
         enumerateAllItemsLambda());
 
-    for co_await(auto memoryTableRow : enumeration)
+    for co_await(auto resultRow : enumeration)
     {
-        if (!memoryTableRow->Value)
+        if (!resultRow.Value)
         {
             break;
         }
 
         co_return ReadResult
         {
-            .WriteSequenceNumber = memoryTableRow->WriteSequenceNumber,
-            .Value = memoryTableRow->Value.get(),
+            .WriteSequenceNumber = resultRow.WriteSequenceNumber,
+            .Value = resultRow.Value,
             .ReadStatus = ReadStatus::HasValue,
         };
     }
@@ -272,7 +282,7 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
         memoryTablesEnumeration,
         partitionsEnumeration);
 
-    auto enumerateAllItemsLambda = [&]() -> cppcoro::generator<cppcoro::async_generator<const MemoryTableRow*>>
+    auto enumerateAllItemsLambda = [&]() -> row_generators
     {
         for (auto& memoryTable : *memoryTablesEnumeration)
         {
@@ -282,18 +292,26 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
                 keyHigh
             );
         }
+
+        for (auto& partition : *partitionsEnumeration)
+        {
+            co_yield partition->Enumerate(
+                enumerateRequest.SequenceNumber,
+                keyLow,
+                keyHigh);
+        }
     };
 
     auto enumeration = m_rowMerger->Merge(
         enumerateAllItemsLambda());
 
-    for co_await(auto memoryTableRow : enumeration)
+    for co_await(auto resultRow : enumeration)
     {
         co_yield EnumerateResult
         {
-            .Key = memoryTableRow->Key.get(),
-            .WriteSequenceNumber = memoryTableRow->WriteSequenceNumber,
-            .Value = memoryTableRow->Value.get(),
+            .Key = resultRow.Key,
+            .WriteSequenceNumber = resultRow.WriteSequenceNumber,
+            .Value = resultRow.Value,
         };
     }
 
@@ -329,12 +347,15 @@ task<LoggedCheckpoint> Index::StartCheckpoint()
     m_activeMemoryTables.clear();
 
     UpdateMemoryTablesToEnumerate();
+
+    co_return loggedCheckpoint;
 }
 
-task<> Index::StartCheckpoint(
-    const LoggedCheckpoint& loggedCheckpoint,
-    vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint)
+task<vector<shared_ptr<IMemoryTable>>> Index::StartCheckpoint(
+    const LoggedCheckpoint& loggedCheckpoint)
 {
+    vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
+
     auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
 
     for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
@@ -345,6 +366,8 @@ task<> Index::StartCheckpoint(
         memoryTablesToCheckpoint.push_back(
             memoryTable);
     }
+
+    co_return memoryTablesToCheckpoint;
 }
 
 task<> Index::WriteMemoryTables(
@@ -352,7 +375,7 @@ task<> Index::WriteMemoryTables(
     const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
 )
 {
-    auto rows = m_rowMerger->Merge([&]() -> RowMerger::row_generators
+    auto rows = m_rowMerger->Merge([&]() -> row_generators
     {
         for (auto& memoryTable : memoryTablesToCheckpoint)
         {
@@ -369,11 +392,8 @@ task<> Index::Checkpoint(
     shared_ptr<IPartitionWriter> partitionWriter
 )
 {
-    std::vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
-
-    co_await StartCheckpoint(
-        loggedCheckpoint,
-        memoryTablesToCheckpoint);
+    auto memoryTablesToCheckpoint = co_await StartCheckpoint(
+        loggedCheckpoint);
 
     co_await WriteMemoryTables(
         partitionWriter,
@@ -414,6 +434,9 @@ task<> Index::UpdatePartitions(
                 m_checkpointingMemoryTables.erase(checkpointNumber);
             }
         }
+
+        m_partitions = make_shared<vector<shared_ptr<IPartition>>>(
+            partitions);
 
         UpdateMemoryTablesToEnumerate();
     }

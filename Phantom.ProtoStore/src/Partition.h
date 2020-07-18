@@ -9,7 +9,7 @@ namespace Phantom::ProtoStore
 class IPartition
 {
 public:
-    virtual cppcoro::async_generator<const MemoryTableRow*> Enumerate(
+    virtual cppcoro::async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high

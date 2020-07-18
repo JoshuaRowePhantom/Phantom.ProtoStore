@@ -115,9 +115,9 @@ protected:
         {
             storedRows.push_back(
                 {
-                    .Key = static_cast<const StringKey*>(row->Key.get())->value(),
-                    .Value = static_cast<const StringKey*>(row->Value.get())->value(),
-                    .SequenceNumber = ToUint64(row->WriteSequenceNumber),
+                    .Key = static_cast<const StringKey*>(row.Key)->value(),
+                    .Value = static_cast<const StringKey*>(row.Value)->value(),
+                    .SequenceNumber = ToUint64(row.WriteSequenceNumber),
                 }
             );
         }

@@ -11,6 +11,7 @@
 #include <tuple>
 #include <vector>
 #include "Phantom.System/put_back.h"
+#include <functional>
 
 namespace Phantom::ProtoStore
 {
@@ -75,12 +76,25 @@ struct SkipListTraits<
     }
 };
 
+struct SkipListComparer
+{
+    template<
+        typename TKey1,
+        typename TKey2
+    > std::weak_ordering operator()(
+        const TKey1& key1,
+        const TKey2& key2
+        ) const
+    {
+        return key1 <=> key2;
+    }
+};
 }
 template<
     typename TKey,
     typename TValue,
     size_t MaxLevels,
-    typename TComparer
+    typename TComparer = detail::SkipListComparer
 >
 class SkipList
 {

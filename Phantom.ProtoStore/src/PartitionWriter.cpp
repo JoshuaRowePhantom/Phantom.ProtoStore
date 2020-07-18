@@ -18,7 +18,7 @@ PartitionWriter::PartitionWriter(
 {}
 
 task<> PartitionWriter::WriteRows(
-    cppcoro::async_generator<const MemoryTableRow*> rows
+    row_generator rows
 )
 {
     std::vector<shared_ptr<PartitionTreeNode>> treeNodeStack;
@@ -31,24 +31,27 @@ task<> PartitionWriter::WriteRows(
         
         auto treeEntry = make_shared<PartitionTreeEntry>();
 
-        row->Key->SerializeToString(
+        row.Key->SerializeToString(
             treeEntry->mutable_key());
 
-        if (!row->Value)
+        treeEntry->set_writesequencenumber(
+            ToUint64(row.WriteSequenceNumber));
+
+        if (!row.Value)
         {
             treeEntry->set_deleted(true);
         }
-        else if (row->Value->ByteSizeLong() > 20)
+        else if (row.Value->ByteSizeLong() > 20)
         {
             auto largeValueWrite = co_await m_dataWriter->Write(
-                *row->Value.get(),
+                *row.Value,
                 FlushBehavior::DontFlush);
             treeEntry->set_valueoffset(
                 largeValueWrite.DataRange.Beginning);
         }
         else
         {
-            row->Value->SerializeToString(
+            row.Value->SerializeToString(
                 treeEntry->mutable_value());
         }
 
@@ -73,7 +76,7 @@ task<> PartitionWriter::WriteRows(
                 *(treeNode->add_treeentries()) = move(*treeEntry);
 
                 treeEntry->Clear();
-                row->Key->SerializeToString(
+                row.Key->SerializeToString(
                     treeEntry->mutable_key());
                 treeEntry->set_treenodeoffset(
                     treeNodeWriteResult.DataRange.Beginning);
@@ -86,46 +89,46 @@ task<> PartitionWriter::WriteRows(
             *(treeNode->add_treeentries()) = move(*treeEntry);
             treeNodeStack.push_back(treeNode);
         }
-
-        for (size_t index = 0; index < treeNodeStack.size() - 1; index++)
-        {
-            auto treeNode = treeNodeStack[index];
-
-            auto treeNodeWriteResult = co_await m_dataWriter->Write(
-                *treeNode,
-                FlushBehavior::DontFlush);
-
-            auto treeNodeEntry = treeNodeStack[index + 1]->add_treeentries();
-            treeNodeEntry->set_key(
-                treeNode->treeentries(treeNode->treeentries_size() - 1).key());
-            treeNodeEntry->set_treenodeoffset(
-                treeNodeWriteResult.DataRange.Beginning);
-        }
-
-        auto rootTreeNodeWriteResult = co_await m_dataWriter->Write(
-            *treeNodeStack[treeNodeStack.size() - 1],
-            FlushBehavior::DontFlush);
-
-        PartitionRoot partitionRoot;
-        partitionRoot.set_roottreeentryoffset(
-            rootTreeNodeWriteResult.DataRange.Beginning);
-
-        auto partitionRootWriteResult = co_await m_dataWriter->Write(
-            partitionRoot,
-            FlushBehavior::DontFlush);
-
-        PartitionHeader partitionHeader;
-        partitionHeader.set_partitionrootoffset(
-            partitionRootWriteResult.DataRange.Beginning);
-
-        co_await m_dataWriter->Write(
-            partitionHeader,
-            FlushBehavior::Flush);
-
-        co_await m_headerWriter->Write(
-            partitionHeader,
-            FlushBehavior::Flush);
     }
+
+    for (size_t index = 0; index < treeNodeStack.size() - 1; index++)
+    {
+        auto treeNode = treeNodeStack[index];
+
+        auto treeNodeWriteResult = co_await m_dataWriter->Write(
+            *treeNode,
+            FlushBehavior::DontFlush);
+
+        auto treeNodeEntry = treeNodeStack[index + 1]->add_treeentries();
+        treeNodeEntry->set_key(
+            treeNode->treeentries(treeNode->treeentries_size() - 1).key());
+        treeNodeEntry->set_treenodeoffset(
+            treeNodeWriteResult.DataRange.Beginning);
+    }
+
+    auto rootTreeNodeWriteResult = co_await m_dataWriter->Write(
+        *treeNodeStack[treeNodeStack.size() - 1],
+        FlushBehavior::DontFlush);
+
+    PartitionRoot partitionRoot;
+    partitionRoot.set_roottreenodeoffset(
+        rootTreeNodeWriteResult.DataRange.Beginning);
+
+    auto partitionRootWriteResult = co_await m_dataWriter->Write(
+        partitionRoot,
+        FlushBehavior::DontFlush);
+
+    PartitionHeader partitionHeader;
+    partitionHeader.set_partitionrootoffset(
+        partitionRootWriteResult.DataRange.Beginning);
+
+    co_await m_dataWriter->Write(
+        partitionHeader,
+        FlushBehavior::Flush);
+
+    co_await m_headerWriter->Write(
+        partitionHeader,
+        FlushBehavior::Flush);
 }
 
 }

@@ -41,9 +41,8 @@ class Index
         MemoryTablesEnumeration& memoryTables,
         PartitionsEnumeration& partitions);
 
-    task<> StartCheckpoint(
-        const LoggedCheckpoint& loggedCheckpoint,
-        vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint
+    task<vector<shared_ptr<IMemoryTable>>> StartCheckpoint(
+        const LoggedCheckpoint& loggedCheckpoint
     );
 
     task<> WriteMemoryTables(

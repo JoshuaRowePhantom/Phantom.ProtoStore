@@ -39,6 +39,8 @@ add_library (
     "src/Partition.cpp"
     "src/Partition.h"
     "src/PartitionImpl.h"
+    "src/PartitionTreeNodeCache.cpp"
+    "src/PartitionTreeNodeCache.h"
     "src/PartitionWriter.cpp"
     "src/PartitionWriter.h"
     "src/PartitionWriterImpl.h"

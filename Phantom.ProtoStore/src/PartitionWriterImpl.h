@@ -18,7 +18,7 @@ public:
     );
 
     virtual task<> WriteRows(
-        cppcoro::async_generator<const MemoryTableRow*> rows
+        row_generator rows
     ) override;
 };
 

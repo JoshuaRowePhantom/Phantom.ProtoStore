@@ -164,7 +164,7 @@ task<> MemoryTable::ReplayRow(
     co_return;
 }
 
-cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
+cppcoro::async_generator<ResultRow> MemoryTable::Enumerate(
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high
@@ -254,7 +254,12 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Enumerate(
             {
                 // The row resolved as Committed and the write sequence number is good.
                 // Yield it to the caller.
-                co_yield &memoryTableValue.Row;
+                co_yield ResultRow
+                {
+                    .Key = memoryTableValue.Row.Key.get(),
+                    .WriteSequenceNumber = memoryTableValue.Row.WriteSequenceNumber,
+                    .Value = memoryTableValue.Row.Value.get(),
+                };
 
                 // Change the enumeration key to be exclusive so that we'll
                 // skip all lower sequence numbers for the same row.
@@ -340,7 +345,7 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
         MemoryTableOperationOutcomeTask(memoryTableValue.AsyncOperationOutcome));
 }
 
-cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Checkpoint()
+cppcoro::async_generator<ResultRow> MemoryTable::Checkpoint()
 {
     auto end = m_skipList.end();
     for (auto iterator = m_skipList.begin();
@@ -352,7 +357,12 @@ cppcoro::async_generator<const MemoryTableRow*> MemoryTable::Checkpoint()
 
         if (outcome == OperationOutcome::Committed)
         {
-            co_yield &iterator->Row;
+            co_yield ResultRow
+            {
+                .Key = iterator->Row.Key.get(),
+                .WriteSequenceNumber = iterator->Row.WriteSequenceNumber,
+                .Value = iterator->Row.Value.get(),
+            };
         }
     }
 }

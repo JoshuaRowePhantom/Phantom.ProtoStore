@@ -124,9 +124,9 @@ message PartitionTreeEntry {
 		bytes Value = 3;
 		// Set if this entry is an offset into the file.
 		uint64 ValueOffset = 4;
-		// Set if the row is deleted.
 		bool Deleted = 5;
     }
+	uint64 WriteSequenceNumber = 6;
 }
 
 message PartitionTreeNode {
@@ -134,7 +134,7 @@ message PartitionTreeNode {
 }
 
 message PartitionRoot {
-	uint64 RootTreeEntryOffset = 1;
+	uint64 RootTreeNodeOffset = 1;
 }
 
 message PartitionHeader {
