@@ -165,4 +165,65 @@ TEST(BloomFilterTests, can_add_many_strings_with_desired_probability)
     ASSERT_GE(errorCount, minimumTolerableErrors);
     ASSERT_LE(errorCount, maximumTolerableErrors);
 }
+
+
+TEST(BloomFilterTests, can_save_and_restore_from_span)
+{
+    auto desiredFalsePositiveErrorRate = .01;
+    auto elementCount = 100;
+    auto maximumTolerableErrors = elementCount * desiredFalsePositiveErrorRate * 2;
+    auto minimumTolerableErrors = elementCount * desiredFalsePositiveErrorRate / 3;
+
+    BloomFilter<std::hash<std::string>> bloomFilter(
+        get_BloomFilter_optimal_bit_count(
+            desiredFalsePositiveErrorRate,
+            elementCount),
+        get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
+            desiredFalsePositiveErrorRate));
+
+    std::mt19937 rng;
+
+    auto elementStrings = MakeRandomStrings(
+        rng,
+        20,
+        elementCount
+    );
+
+    auto nonElementStrings = MakeRandomStrings(
+        rng,
+        20,
+        elementCount);
+
+    for (auto elementString : elementStrings)
+    {
+        bloomFilter.add(
+            elementString);
+    }
+
+    auto span = bloomFilter.to_span();
+
+    auto constBloomFilter = BloomFilter<std::hash<std::string>, uintmax_t, std::span<const uintmax_t>>(
+        span,
+        get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
+            desiredFalsePositiveErrorRate));
+
+    for (auto elementString : elementStrings)
+    {
+        ASSERT_EQ(true, constBloomFilter.test(
+            elementString));
+    }
+
+    size_t errorCount = 0;
+    for (auto nonElementString : nonElementStrings)
+    {
+        if (constBloomFilter.test(
+            nonElementString))
+        {
+            ++errorCount;
+        }
+    }
+
+    ASSERT_GE(errorCount, minimumTolerableErrors);
+    ASSERT_LE(errorCount, maximumTolerableErrors);
+}
 }

@@ -224,6 +224,59 @@ template<
 > class BloomFilterContainerBase <
     THashFunction,
     TElementType,
+    std::span<const TElementType, SpanExtent>,
+    TBase
+>
+    :
+    public TBase
+{
+    std::span<const TElementType, SpanExtent> m_elements;
+
+protected:
+    const TElementType& element_at(
+        size_t index
+    ) const
+    {
+        return m_elements[index];
+    }
+
+public:
+    BloomFilterContainerBase(
+        std::span<const TElementType, SpanExtent> elements,
+        typename TBase::hash_function_type hashFunction = hash_function_type()
+    )
+        :
+        TBase(hashFunction),
+        m_elements(elements)
+    {}
+
+    std::span<const TElementType, SpanExtent> to_span() const
+    {
+        return m_elements;
+    }
+
+    size_t size_bits() const
+    {
+        return m_elements.size() * bits_per_element;
+    }
+};
+
+template<
+    typename THashFunction,
+    typename TElementType,
+    typename TContainer,
+    typename TBase
+> class BloomFilterContainerBase;
+
+// Container base for a span
+template<
+    typename THashFunction,
+    typename TElementType,
+    size_t SpanExtent,
+    typename TBase
+> class BloomFilterContainerBase <
+    THashFunction,
+    TElementType,
     std::span<TElementType, SpanExtent>,
     TBase
 >
