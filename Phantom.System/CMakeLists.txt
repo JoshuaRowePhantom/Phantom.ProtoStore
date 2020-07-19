@@ -9,6 +9,7 @@ add_library (
 	"merge.h"
 	"pooled_ptr.h" 
 	"put_back.h"
+	"stable_random.h"
 	"ThreadingProvider.cpp"
 	"ThreadingProvider.h" 
 	"utility.h")
