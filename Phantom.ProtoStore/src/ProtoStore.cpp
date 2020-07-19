@@ -687,6 +687,8 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
             .extentOffset = 0,
         });
 
+    co_await partition->Open();
+
     m_activePartitions[dataExtentNumber] = partition;
 
     co_return partition;

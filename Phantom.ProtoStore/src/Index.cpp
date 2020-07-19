@@ -207,10 +207,9 @@ task<ReadResult> Index::Read(
 
         for (auto& partition : *partitionsEnumeration)
         {
-            co_yield partition->Enumerate(
+            co_yield partition->Read(
                 readRequest.SequenceNumber,
-                keyLow,
-                keyLow);
+                keyLow.Key);
         }
     };
 

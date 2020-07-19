@@ -137,9 +137,20 @@ message PartitionTreeNode {
 	repeated PartitionTreeEntry TreeEntries = 1;
 }
 
+enum PartitionBloomFilterHashAlgorithm {
+	Version1 = 0;
+}
+
+message PartitionBloomFilter {
+	PartitionBloomFilterHashAlgorithm Algorithm = 1;
+	uint32 HashFunctionCount = 2;
+	bytes Filter = 3;
+}
+
 message PartitionRoot {
 	uint64 RootTreeNodeOffset = 1;
 	uint64 RowCount = 2;
+	uint64 BloomFilterOffset = 3;
 }
 
 message PartitionHeader {

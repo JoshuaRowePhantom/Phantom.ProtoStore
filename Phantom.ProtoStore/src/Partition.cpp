@@ -41,13 +41,65 @@ task<> Partition::Open()
             m_dataLocation.extentNumber,
             m_partitionHeader.partitionrootoffset(),
         },
-        m_partitionHeader);
+        m_partitionRoot);
 
+    co_await m_messageAccessor->ReadMessage(
+        ExtentLocation
+        {
+            m_dataLocation.extentNumber,
+            m_partitionRoot.bloomfilteroffset(),
+        },
+        m_partitionBloomFilter);
+
+    auto span = std::span(
+        m_partitionBloomFilter.filter().cbegin(),
+        m_partitionBloomFilter.filter().cend()
+    );
+
+    m_bloomFilter = make_unique<BloomFilterVersion1>(
+        span,
+        m_partitionBloomFilter.hashfunctioncount()
+        );
 }
 
 task<size_t> Partition::GetRowCount()
 {
     co_return m_partitionRoot.rowcount();
+}
+
+cppcoro::async_generator<ResultRow> Partition::Read(
+    SequenceNumber readSequenceNumber,
+    const Message* key
+)
+{
+    std::string serializedKey;
+    key->SerializeToString(
+        &serializedKey
+    );
+
+    if (!m_bloomFilter->test(
+        serializedKey))
+    {
+        co_return;
+    }
+
+    KeyRangeEnd keyRangeEnd =
+    {
+        .Key = key,
+        .Inclusivity = Inclusivity::Inclusive,
+    };
+
+    auto enumeration = Enumerate(
+        readSequenceNumber,
+        keyRangeEnd,
+        keyRangeEnd);
+
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
+    {
+        co_yield *iterator;
+    }
 }
 
 cppcoro::async_generator<ResultRow> Partition::Enumerate(

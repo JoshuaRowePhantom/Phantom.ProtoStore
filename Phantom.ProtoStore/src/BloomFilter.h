@@ -198,11 +198,14 @@ template<
 protected:
     static_assert(std::numeric_limits<TValueType>::radix == 2, "Radix must be 2!");
     static_assert(std::numeric_limits<TValueType>::is_integer, "Must be integral!");
-    static_assert(!std::numeric_limits<TValueType>::is_signed, "Must be unsigned!");
 
 public:
     const int bits_per_element =
-        std::numeric_limits<TValueType>::digits;
+        std::numeric_limits<TValueType>::digits
+        +
+        (std::numeric_limits<TValueType>::is_signed
+            ? 1
+            : 0);
 
     typedef TValueType value_type;
     const value_type one = 1;

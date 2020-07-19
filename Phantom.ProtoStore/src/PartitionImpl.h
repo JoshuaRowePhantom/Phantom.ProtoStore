@@ -7,6 +7,7 @@
 #include "SkipList.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "PartitionTreeNodeCache.h"
+#include "BloomFilter.h"
 
 namespace Phantom::ProtoStore
 {
@@ -24,7 +25,11 @@ class Partition
     ExtentLocation m_dataLocation;
 
     PartitionHeader m_partitionHeader;
+    PartitionBloomFilter m_partitionBloomFilter;
     PartitionRoot m_partitionRoot;
+
+    typedef BloomFilter<std::hash<string>, char, span<const char>> BloomFilterVersion1;
+    unique_ptr<BloomFilterVersion1> m_bloomFilter;
 
     shared_task<> m_openTask;
 
@@ -69,6 +74,11 @@ public:
     task<> Open();
 
     virtual task<size_t> GetRowCount(
+    ) override;
+
+    virtual cppcoro::async_generator<ResultRow> Read(
+        SequenceNumber readSequenceNumber,
+        const Message* key
     ) override;
 
     virtual cppcoro::async_generator<ResultRow> Enumerate(
