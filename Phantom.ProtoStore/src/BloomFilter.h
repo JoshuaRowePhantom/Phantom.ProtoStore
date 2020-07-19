@@ -1,5 +1,7 @@
 #include <atomic>
+#include <cmath>
 #include <limits>
+#include <random>
 #include <vector>
 #include <stdint.h>
 
@@ -11,7 +13,124 @@ template <
     typename TValueType
 > struct BloomFilterHashFunctionTraits
 {
+    typedef THashFunction hash_function_type;
 
+    template<
+        typename TKey
+    > static auto initial_hash(
+        THashFunction hashFunction,
+        const TKey& key,
+        size_t sizeInBits
+    ) 
+    {
+        return hashFunction.initial_hash(
+            key,
+            sizeInBits);
+    }
+
+    template<
+        typename THash
+    > static auto extract_bit_index(
+        THashFunction hashFunction,
+        THash& previousHash
+    ) 
+    {
+        return hashFunction.extract_bit_index(
+            previousHash);
+    }
+
+    template<
+        typename THash
+    > static auto next_hash(
+        THashFunction hashFunction,
+        THash& previousHash
+    ) 
+    {
+        return hashFunction.next_hash(
+            previousHash);
+    }
+};
+
+template<
+    typename THashFunction,
+    typename TDistribution = std::uniform_int_distribution<size_t>,
+    typename TRandomNumberGenerator = std::ranlux48_base,
+    typename TSeedSeq = std::seed_seq
+>
+struct SeedingPrngBloomFilterHashFunction
+{
+    struct hash_value
+    {
+        TRandomNumberGenerator randomNumberGenerator;
+        TDistribution distribution;
+        size_t bitsToExtract;
+    };
+
+    THashFunction m_hashFunction;
+    size_t m_bits_to_extract;
+
+    SeedingPrngBloomFilterHashFunction(
+        size_t bits_to_extract,
+        THashFunction hashFunction = THashFunction()
+    )
+        :
+        m_hashFunction(hashFunction),
+        m_bits_to_extract(bits_to_extract)
+    {}
+
+    template<
+        typename TKey
+    > hash_value initial_hash(
+        const TKey& key,
+        size_t size_bits
+    ) const
+    {
+        auto seed = m_hashFunction(key);
+        
+        auto seedSequence = std::seed_seq
+        {
+            seed,
+        };
+
+        return
+        {
+            .randomNumberGenerator { seedSequence },
+            .distribution { 0, size_bits - 1 },
+            .bitsToExtract { m_bits_to_extract },
+        };
+    }
+
+    size_t extract_bit_index(
+        hash_value & hash
+    ) const
+    {
+        hash.bitsToExtract--;
+        return hash.distribution(
+            hash.randomNumberGenerator);
+    }
+
+    bool next_hash(
+        hash_value& hash
+    ) const
+    {
+        return hash.bitsToExtract > 0;
+    }
+};
+
+template <
+    typename TKey,
+    typename TValueType
+>
+struct BloomFilterHashFunctionTraits<
+    std::hash<TKey>,
+    TValueType
+>
+    :
+    public BloomFilterHashFunctionTraits<
+        SeedingPrngBloomFilterHashFunction<std::hash<TKey>>,
+        TValueType
+    >
+{
 };
 
 namespace detail
@@ -24,12 +143,14 @@ template<
     :
     public TBase
 {
-    typedef BloomFilterHashFunctionTraits<THashFunction, typename TBase::value_type> hash_traits;
-    THashFunction m_hashFunction;
 
 protected:
+    typedef BloomFilterHashFunctionTraits<THashFunction, typename TBase::value_type> hash_traits;
+    typedef typename hash_traits::hash_function_type hash_function_type;
+    hash_function_type m_hashFunction;
+
     BloomFilterHashFunctionBase(
-        THashFunction hashFunction = THashFunction())
+        hash_function_type hashFunction = hash_function_type())
         :
         m_hashFunction(hashFunction)
     {}
@@ -48,19 +169,25 @@ protected:
     }
 
     template<
-        typename TKey,
+        typename THash
+    > auto extract_bit_index(
+        THash& previousHash
+    ) const
+    {
+        return hash_traits::extract_bit_index(
+            m_hashFunction,
+            previousHash);
+    }
+
+    template<
         typename THash
     > auto next_hash(
-        THash& previousHash,
-        const TKey& key,
-        size_t sizeInBits
+        THash& previousHash
     ) const
     {
         return hash_traits::next_hash(
             m_hashFunction,
-            previousHash,
-            key,
-            sizeInBits);
+            previousHash);
     }
 };
 
@@ -78,6 +205,7 @@ public:
         std::numeric_limits<TValueType>::digits;
 
     typedef TValueType value_type;
+    const value_type one = 1;
 };
 
 template<
@@ -99,6 +227,8 @@ template<
     std::span<TElementType, SpanExtent>,
     TBase
 >
+    :
+    public TBase
 {
     std::span<TElementType, SpanExtent> m_elements;
 
@@ -119,10 +249,10 @@ protected:
 public:
     BloomFilterContainerBase(
         std::span<TElementType, SpanExtent> elements,
-        THashFunction&& hashFunction = THashFunction()
+        typename TBase::hash_function_type hashFunction = hash_function_type()
     )
         :
-        TBase(std::forward<THashFunction>(hashFunction)),
+        TBase(hashFunction),
         m_elements(elements)
     {}
 
@@ -152,7 +282,8 @@ template<
     :
     public TBase
 {
-    std::vector<TElementType, TAllocator> m_elements;
+    typedef std::vector<TElementType, TAllocator> container_type;
+    container_type m_elements;
 
 protected:
     TElementType& element_at(
@@ -171,37 +302,34 @@ protected:
 public:
     BloomFilterContainerBase(
         size_t bitCount,
-        THashFunction&& hashFunction = THashFunction(),
+        typename TBase::hash_function_type hashFunction = hash_function_type(),
         TAllocator allocator = TAllocator()
     )
         :
-        TBase(std::forward<THashFunction>(hashFunction)),
+        TBase(hashFunction),
         m_elements(
             (bitCount + bits_per_element - 1) / bits_per_element, 
             allocator
         )
     {}
 
-    template<
-        typename TContainer
-    >
     BloomFilterContainerBase(
-        TContainer&& container,
-        THashFunction&& hashFunction = THashFunction()
+        container_type&& container,
+        typename TBase::hash_function_type hashFunction = hash_function_type()
     )
         :
-        TBase(std::forward<THashFunction>(hashFunction)),
+        TBase(hashFunction),
         m_elements(std::forward<TContainer>(container))
     {}
 
     template<
         typename THashFunction
     > BloomFilterContainerBase(
-        std::vector<TElementType, TAllocator>&& container,
-        THashFunction&& hashFunction = THashFunction()
+        container_type container,
+        typename TBase::hash_function_type hashFunction = hash_function_type()
         )
         :
-        TBase(std::forward<THashFunction>(hashFunction)),
+        TBase(hashFunction),
         m_elements(move(container))
     {}
 
@@ -229,18 +357,21 @@ protected:
     typedef TElementType value_type;
 
     void fetch_or(
-        TElementType& element,
+        element_type& element,
+        value_type value,
         std::memory_order memoryOrder
     )
     {
-        element_at(index) = element_at(index) | value;
+        element |= value;
     }
 
-    bool test(
-        const TElementType& value
+    bool test_bit(
+        const element_type& element,
+        value_type value,
+        std::memory_order memoryOrder
     ) const
     {
-        return element_at(index) & value;
+        return element & value;
     }
 };
 
@@ -258,15 +389,16 @@ protected:
 
     void fetch_or(
         element_type& element,
+        value_type value,
         std::memory_order memoryOrder
     )
     {
-        element_at(index).fetch_or(
+        element.fetch_or(
             value,
             memoryOrder);
     }
 
-    bool test(
+    bool test_bit(
         const element_type& element,
         value_type value,
         std::memory_order memoryOrder
@@ -316,20 +448,26 @@ public:
         const TKey& key
     )
     {
-        auto initialHash = initial_hash(
+        auto hash = initial_hash(
             key,
             size_bits());
 
+        bool nextHash;
+
         do
         {
+            auto bit_index = extract_bit_index(
+                hash);
+
+            nextHash = next_hash(
+                hash);
+
             fetch_or(
-                element_at(initial_hash / bits_per_element),
-                1 << (initial_hash % bits_per_element)
+                element_at(bit_index / bits_per_element),
+                one << (bit_index % bits_per_element),
+                nextHash ? std::memory_order_relaxed : std::memory_order_release
             );
-        } while (next_hash(
-            initial_hash,
-            key,
-            size_bits()));
+        } while (nextHash);
     }
 
     template<
@@ -338,27 +476,65 @@ public:
         const TKey& key
     ) const
     {
-        auto initialHash = initial_hash(
+        auto hash = initial_hash(
             key,
             size_bits());
 
+        bool isFirst = true;
+
         do
         {
-            if (!test(
-                element_at(initial_hash / bits_per_element),
-                1 << (initial_hash % bits_per_element)
+            auto bit_index = extract_bit_index(
+                hash);
+
+            if (!test_bit(
+                element_at(bit_index / bits_per_element),
+                one << (bit_index % bits_per_element),
+                isFirst ? std::memory_order_acquire : std::memory_order_relaxed
             ))
             {
                 return false;
             }
 
+            isFirst = false;
+
         } while (next_hash(
-            initial_hash,
-            key,
-            size_bits()));
+            hash));
 
         return true;
     }
 };
+
+inline double get_BloomFilter_optimal_bit_count_per_element(
+    double desiredFalsePositiveErrorRate)
+{
+    return -(std::log2(desiredFalsePositiveErrorRate) / std::log(2));
+}
+
+inline size_t get_BloomFilter_optimal_bit_count(
+    double desiredFalsePositiveErrorRate,
+    size_t numberOfElements)
+{
+    return std::ceil(
+        get_BloomFilter_optimal_bit_count_per_element(desiredFalsePositiveErrorRate)
+        * numberOfElements);
+}
+
+inline size_t get_BloomFilter_optimal_hash_function_count(
+    double bloomFilterSize,
+    size_t numberOfElements)
+{
+    return std::ceil(
+        bloomFilterSize / numberOfElements * std::log(2)
+    );
+}
+
+inline size_t get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
+    double desiredFalsePositiveErrorRate)
+{
+    return std::ceil(
+        -std::log2(desiredFalsePositiveErrorRate)
+    );
+}
 
 }
