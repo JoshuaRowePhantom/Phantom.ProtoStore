@@ -5,6 +5,7 @@
 #include <cppcoro/single_consumer_event.hpp>
 #include <cppcoro/async_scope.hpp>
 #include <cppcoro/static_thread_pool.hpp>
+#include <cppcoro/when_all.hpp>
 #include <cppcoro/when_all_ready.hpp>
 
 #include <vector>
@@ -514,6 +515,39 @@ TEST(ProtoStoreTests, Perf1)
         }
 
         co_await asyncScope.join();
+
+        std::vector<task<>> tasks;
+
+        for (auto value : keys)
+        {
+            tasks.push_back([&](string myKey) -> task<>
+            {
+                co_await threadPool.schedule();
+
+                StringKey key;
+                key.set_value(myKey);
+                StringValue expectedValue;
+                expectedValue.set_value(myKey);
+
+                ReadRequest readRequest;
+                readRequest.Key = &key;
+                readRequest.Index = index;
+
+                auto readResult = co_await store->Read(
+                    readRequest
+                );
+
+                StringValue actualValue;
+                readResult.Value.unpack(&actualValue);
+
+                ASSERT_TRUE(MessageDifferencer::Equals(
+                    expectedValue,
+                    actualValue));
+            }(value));
+        }
+
+        co_await cppcoro::when_all(
+            move(tasks));
 
         auto endTime = chrono::high_resolution_clock::now();
 
