@@ -36,6 +36,8 @@ add_library (
     "src/KeyComparer.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
+    "src/MemoryMappedFileExtentStore.cpp"
+    "src/MemoryMappedFileExtentStore.h"
     "src/MemoryTable.cpp" 
     "src/MemoryTable.h"
     "src/MemoryTableImpl.h"
@@ -79,6 +81,12 @@ target_include_directories(
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+target_compile_definitions(
+	Phantom.ProtoStore
+    PUBLIC
+	"BOOST_ALL_NO_LIB=1"
+)
+
 target_link_libraries(
     Phantom.ProtoStore
     PUBLIC
@@ -87,4 +95,6 @@ target_link_libraries(
     PRIVATE
     Phantom.System
     boost_crc
+    boost_filesystem
+    boost_interprocess
 )

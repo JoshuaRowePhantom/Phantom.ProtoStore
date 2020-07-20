@@ -25,8 +25,9 @@ add_executable(
 	"BloomFilterTests.cpp" 
 	"ChecksumTests.cpp" 
 	"HeaderAccessorTests.cpp"
-	"MemoryExtentStoreTests.cpp"
 	"KeyComparerTests.cpp"
+	"MemoryExtentStoreTests.cpp"
+	"MemoryMappedExtentStoreTests.cpp"
 	"MemoryTableTests.cpp"
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"
@@ -37,6 +38,12 @@ add_executable(
 	"StandardIncludes.h"
 	${PROTOC_CPP}
     ${PROTOC_H})
+
+target_compile_definitions(
+	Phantom.ProtoStore.Test
+	PUBLIC
+	"BOOST_ALL_NO_LIB=1"
+)
 
 target_link_libraries(
 	Phantom.ProtoStore.Test
