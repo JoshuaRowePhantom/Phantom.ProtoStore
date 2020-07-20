@@ -132,10 +132,7 @@ class MemoryTable
         std::weak_ordering operator()(
             const MemoryTableValue& key1,
             const MemoryTableValue& key2
-            ) const
-        {
-            throw 0;
-        }
+            ) const;
 
         std::weak_ordering operator()(
             const MemoryTableValue& key1,

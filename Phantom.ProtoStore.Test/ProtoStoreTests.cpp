@@ -3,7 +3,12 @@
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "ProtoStoreTest.pb.h"
 #include <cppcoro/single_consumer_event.hpp>
+#include <cppcoro/async_scope.hpp>
+#include <cppcoro/static_thread_pool.hpp>
 #include <cppcoro/when_all_ready.hpp>
+
+#include <vector>
+using namespace std;
 
 namespace Phantom::ProtoStore
 {
@@ -448,6 +453,72 @@ TEST(ProtoStoreTests, DISABLED_Can_commit_transaction)
             StringValue actualValue;
             readResult.Value.unpack(&actualValue);
         }
+    });
+}
+
+TEST(ProtoStoreTests, Perf1)
+{
+    run_async([=]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+        cppcoro::static_thread_pool threadPool(4);
+
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        auto index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+
+        int valueCount = 100;
+
+        mt19937 rng;
+        uniform_int_distribution<int> distribution('a', 'z');
+
+        auto keys = MakeRandomStrings(
+            rng,
+            20,
+            valueCount
+        );
+
+        auto startTime = chrono::high_resolution_clock::now();
+
+        cppcoro::async_scope asyncScope;
+
+        for (auto value : keys)
+        {
+            asyncScope.spawn([&](string myKey) -> task<>
+            {
+                co_await threadPool.schedule();
+
+                StringKey key;
+                key.set_value(myKey);
+                StringValue expectedValue;
+                expectedValue.set_value(myKey);
+
+                co_await store->ExecuteOperation(
+                    BeginTransactionRequest(),
+                    [&](IOperation* operation)->task<>
+                {
+                    co_await operation->AddRow(
+                        WriteOperationMetadata{},
+                        SequenceNumber::Latest,
+                        index,
+                        &key,
+                        &expectedValue);
+                });
+            }(value));
+        }
+
+        co_await asyncScope.join();
+
+        auto endTime = chrono::high_resolution_clock::now();
+
+        auto runtimeMs = chrono::duration_cast<chrono::milliseconds>(endTime - startTime);
+
+        std::cout << "ProtoStoreTests runtime: " << runtimeMs.count() << "\r\n";
     });
 }
 

@@ -490,6 +490,19 @@ MemoryTable::InsertionKey& MemoryTable::InsertionKey::InsertionKey::operator=(
     return *this;
 }
 
+
+std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
+    const MemoryTableValue& key1,
+    const MemoryTableValue& key2
+    ) const
+{
+    auto comparisonResult = (*m_keyComparer)(
+        key1.Row.Key.get(),
+        key2.Row.Key.get());
+
+    return comparisonResult;
+}
+
 std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const MemoryTableValue& key1,
     const InsertionKey& key2
