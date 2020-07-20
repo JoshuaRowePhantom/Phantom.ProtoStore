@@ -69,22 +69,13 @@ TEST_F(value_publisher_tests, destroys_constructed_value)
     ASSERT_EQ(1, sm_nDestructorCalledCount);
 }
 
-TEST_F(value_publisher_tests, await_ready_true_after_emplace)
-{
-    async_value_source<std::string> publisher;
-    auto awaiter = publisher.operator co_await();
-    ASSERT_EQ(false, awaiter.await_ready());
-    publisher.emplace("foo");
-    ASSERT_EQ(true, awaiter.await_ready());
-}
-
 TEST_F(value_publisher_tests, can_get_value_after_set_initially)
 {
     run_async([]()->task<>
     {
         async_value_source<std::string> publisher;
         publisher.emplace("foo");
-        ASSERT_EQ(co_await publisher, "foo");
+        ASSERT_EQ(co_await publisher.wait(), "foo");
     });
 }
 
@@ -102,7 +93,7 @@ TEST_F(value_publisher_tests, can_get_exception_after_exception_initially)
             publisher.unhandled_exception();
         }
         ASSERT_THROW(
-            co_await publisher, 
+            co_await publisher.wait(), 
             std::range_error);
     });
 }
@@ -115,7 +106,7 @@ TEST_F(value_publisher_tests, can_get_value_before_set_initially)
         auto task1 = [&]()->task<>
         {
             ASSERT_EQ(false, publisher.is_set());
-            ASSERT_EQ(co_await publisher, "foo");
+            ASSERT_EQ(co_await publisher.wait(), "foo");
         } ();
         auto task2 = [&]()->task<>
         {
@@ -137,7 +128,7 @@ TEST_F(value_publisher_tests, can_get_exception_before_set_initially)
         {
             ASSERT_EQ(false, publisher.is_set());
             ASSERT_THROW(
-                co_await publisher,
+                co_await publisher.wait(),
                 std::range_error);
         } ();
         auto task2 = [&]()->task<>

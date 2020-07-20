@@ -316,7 +316,7 @@ class Operation
 
     MemoryTableOperationOutcomeTask GetOperationOutcome()
     {
-        co_return co_await m_outcomeValueSource;
+        co_return co_await m_outcomeValueSource.wait();
     }
 
 public:
