@@ -626,7 +626,9 @@ task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrit
 task<> MemoryMappedFileExtentStore::DeleteExtent(
     ExtentNumber extentNumber)
 {
-    throw 0;
+    std::filesystem::remove(
+        GetFilename(extentNumber));
+    co_return;
 }
 
 }
