@@ -37,6 +37,8 @@ ProtoStore::ProtoStore(
 task<> ProtoStore::Create(
     const CreateProtoStoreRequest& createRequest)
 {
+    m_schedulers = createRequest.Schedulers;
+
     Header header;
     header.set_version(1);
     header.set_epoch(1);
@@ -56,6 +58,8 @@ task<> ProtoStore::Create(
 task<> ProtoStore::Open(
     const OpenProtoStoreRequest& openRequest)
 {
+    m_schedulers = openRequest.Schedulers;
+
     Header header;
     co_await m_headerAccessor->ReadHeader(
         header);
@@ -441,34 +445,51 @@ task<OperationResult> ProtoStore::ExecuteOperation(
         std::memory_order_acq_rel);
     auto thisWriteSequenceNumber = previousWriteSequenceNumber + 1;
 
-    auto executionOperationTask = [&]() -> shared_task<OperationResult>
-    {
-        Operation operation(
-            *this,
-            ToSequenceNumber(thisWriteSequenceNumber));
+    auto executionOperationTask = ExecuteOperation(
+        visitor,
+        thisWriteSequenceNumber);
 
-        co_await visitor(&operation);
-        co_await operation.Commit();
+    //auto publishTask = Publish(
+    //    executionOperationTask,
+    //    previousWriteSequenceNumber,
+    //    thisWriteSequenceNumber);
 
-        co_return OperationResult{};
-    }();
-
-    auto publishTask = [=]() -> task<>
-    {
-        co_await executionOperationTask.when_ready();
-
-        co_await m_writeSequenceNumberBarrier.wait_until_published(
-            previousWriteSequenceNumber,
-            m_inlineScheduler);
-
-        m_writeSequenceNumberBarrier.publish(
-            thisWriteSequenceNumber);
-    }();
-
-    m_asyncScope.spawn(move(
-        publishTask));
+    //m_asyncScope.spawn(move(
+    //    publishTask));
 
     co_return co_await executionOperationTask;
+}
+
+shared_task<OperationResult> ProtoStore::ExecuteOperation(
+    OperationVisitor visitor,
+    uint64_t thisWriteSequenceNumber
+)
+{
+    Operation operation(
+        *this,
+        ToSequenceNumber(thisWriteSequenceNumber));
+
+    co_await visitor(&operation);
+    co_await operation.Commit();
+
+    co_return OperationResult{};
+}
+
+task<> ProtoStore::Publish(
+    shared_task<OperationResult> operationResult,
+    uint64_t previousWriteSequenceNumber,
+    uint64_t thisWriteSequenceNumber)
+{
+    co_await operationResult.when_ready();
+
+    co_await m_writeSequenceNumberBarrier.wait_until_published(
+        previousWriteSequenceNumber,
+        m_inlineScheduler);
+
+    co_await m_schedulers.LockScheduler->schedule();
+
+    m_writeSequenceNumberBarrier.publish(
+        thisWriteSequenceNumber);
 }
 
 task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
@@ -857,4 +878,19 @@ task<ExtentNumber> ProtoStore::AllocateDataExtent()
 
     co_return extentNumber;
 }
+
+Schedulers Schedulers::Default()
+{
+    static shared_ptr<IScheduler> scheduler = std::make_shared<DefaultScheduler<cppcoro::static_thread_pool>>();
+
+    static Schedulers schedulers =
+    {
+        .LockScheduler = scheduler,
+        .IoScheduler = scheduler,
+        .ComputeScheduler = scheduler,
+    };
+
+    return schedulers;
+}
+
 }

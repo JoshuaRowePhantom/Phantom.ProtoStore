@@ -13,7 +13,8 @@ namespace Phantom::ProtoStore
             MessageStoreTestMessage expectedMessage;
             expectedMessage.set_string_value("hello world!");
 
-            auto extentStore = make_shared<MemoryExtentStore>();
+            auto extentStore = make_shared<MemoryExtentStore>(
+                Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
@@ -46,7 +47,8 @@ namespace Phantom::ProtoStore
             MessageStoreTestMessage expectedMessage2;
             expectedMessage2.set_string_value("hello world 2!");
 
-            auto extentStore = make_shared<MemoryExtentStore>();
+            auto extentStore = make_shared<MemoryExtentStore>(
+                Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
@@ -102,7 +104,8 @@ namespace Phantom::ProtoStore
                 + sizeof(uint8_t)
                 + checksumAlgorithm->SizeInBytes();
 
-            auto extentStore = make_shared<MemoryExtentStore>();
+            auto extentStore = make_shared<MemoryExtentStore>(
+                Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
@@ -148,7 +151,8 @@ namespace Phantom::ProtoStore
                 + sizeof(uint8_t)
                 + checksumAlgorithm->SizeInBytes();
 
-            auto extentStore = make_shared<MemoryExtentStore>();
+            auto extentStore = make_shared<MemoryExtentStore>(
+                Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);

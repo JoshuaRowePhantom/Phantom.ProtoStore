@@ -24,6 +24,7 @@ namespace Phantom::ProtoStore
             cppcoro::async_mutex m_mutex;
             shared_ptr<vector<uint8_t>> m_bytes;
             std::list<WriteOperation> m_pendingWriteOperations;
+            Schedulers m_schedulers;
 
             class ReadBuffer
                 :
@@ -164,6 +165,9 @@ namespace Phantom::ProtoStore
             )
             {
                 auto lock = co_await m_mutex.scoped_lock_async();
+
+                co_await m_schedulers.LockScheduler->schedule();
+
                 co_return m_bytes;
             }
 
@@ -182,6 +186,8 @@ namespace Phantom::ProtoStore
             {
                 auto lock = co_await m_mutex.scoped_lock_async();
 
+                co_await m_schedulers.LockScheduler->schedule();
+
                 m_pendingWriteOperations.push_back(
                     move(
                         writeOperation));
@@ -190,6 +196,8 @@ namespace Phantom::ProtoStore
             task<> Flush()
             {
                 auto lock = co_await m_mutex.scoped_lock_async();
+
+                co_await m_schedulers.LockScheduler->schedule();
 
                 while (!m_pendingWriteOperations.empty())
                 {
@@ -202,8 +210,12 @@ namespace Phantom::ProtoStore
                         auto newBytes = make_shared<vector<uint8_t>>(
                             *m_bytes);
 
-                        newBytes->resize(
+                        auto newSize = std::max(
+                            newBytes->size() * 2,
                             neededSize);
+
+                        newBytes->resize(
+                            newSize);
 
                         m_bytes = newBytes;
                     }
@@ -217,9 +229,12 @@ namespace Phantom::ProtoStore
                 }
 
             }
+
         public:
-            Extent()
+            Extent(
+                Schedulers schedulers)
                 :
+                m_schedulers(schedulers),
                 m_bytes(make_shared<vector<uint8_t>>())
             {}
         };
@@ -240,13 +255,19 @@ namespace Phantom::ProtoStore
                 co_return existingExtent->second;
             }
 
-            auto newExtent = make_shared<Extent>();
+            auto newExtent = make_shared<Extent>(
+                m_schedulers);
             m_extents[extentNumber] = newExtent;
             co_return newExtent;
         }
         
+        Schedulers m_schedulers;
+
     public:
-        Impl()
+        Impl(
+            Schedulers schedulers
+        )
+            : m_schedulers(schedulers)
         {}
 
         Impl(const Impl& other)
@@ -278,8 +299,10 @@ namespace Phantom::ProtoStore
         }
     };
 
-    MemoryExtentStore::MemoryExtentStore()
-        : m_impl(new Impl())
+    MemoryExtentStore::MemoryExtentStore(
+        Schedulers schedulers)
+        : m_impl(new Impl(
+            schedulers))
     {}
 
     MemoryExtentStore::MemoryExtentStore(

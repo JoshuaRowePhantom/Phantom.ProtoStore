@@ -9,7 +9,9 @@ namespace Phantom::ProtoStore
         unique_ptr<Impl> m_impl;
 
     public:
-        MemoryExtentStore();
+        MemoryExtentStore(
+            Schedulers schedulers);
+
         MemoryExtentStore(
             const MemoryExtentStore& other);
         ~MemoryExtentStore();

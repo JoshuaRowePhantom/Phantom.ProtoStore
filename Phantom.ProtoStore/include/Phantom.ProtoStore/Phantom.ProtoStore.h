@@ -11,8 +11,9 @@
 #include <string>
 #include <type_traits>
 #include <variant>
-#include <cppcoro/task.hpp>
 #include <cppcoro/async_generator.hpp>
+#include <cppcoro/task.hpp>
+#include <cppcoro/static_thread_pool.hpp>
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
 #include <Phantom.System/pooled_ptr.h>
@@ -513,6 +514,36 @@ public:
     ) = 0;
 };
 
+class IScheduler
+{
+public:
+    virtual task<> schedule(
+    ) = 0;
+};
+
+template<
+    typename TScheduler
+> class DefaultScheduler
+    :
+    public IScheduler
+{
+    TScheduler m_scheduler;
+
+public:
+    template<
+        typename ... TArgs
+    >
+    DefaultScheduler(
+        TArgs&& ... args
+    ) : m_scheduler(std::forward<TArgs>(args)...)
+    {}
+
+    virtual task<> schedule()
+    {
+        co_await m_scheduler.schedule();
+    }
+};
+
 class IProtoStore
     : 
     public IReadableProtoStore,
@@ -535,12 +566,22 @@ public:
 
 class IExtentStore;
 
+struct Schedulers
+{
+    std::shared_ptr<IScheduler> LockScheduler;
+    std::shared_ptr<IScheduler> IoScheduler;
+    std::shared_ptr<IScheduler> ComputeScheduler;
+
+    static Schedulers Default();
+};
+
 struct OpenProtoStoreRequest
 {
     std::function<task<shared_ptr<IExtentStore>>()> HeaderExtentStore;
     std::function<task<shared_ptr<IExtentStore>>()> LogExtentStore;
     std::function<task<shared_ptr<IExtentStore>>()> DataExtentStore;
     std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
+    Schedulers Schedulers;
 };
 
 struct CreateProtoStoreRequest

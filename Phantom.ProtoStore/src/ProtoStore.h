@@ -30,6 +30,9 @@ class ProtoStore
     const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
 
+
+    Schedulers m_schedulers;
+
     cppcoro::inline_scheduler m_inlineScheduler;
     cppcoro::sequence_barrier<uint64_t> m_writeSequenceNumberBarrier;
     std::atomic<uint64_t> m_nextWriteSequenceNumber;
@@ -113,6 +116,15 @@ class ProtoStore
 
     task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& indexNumber);
+    
+    shared_task<OperationResult> ExecuteOperation(
+        OperationVisitor visitor,
+        uint64_t thisWriteSequenceNumber);
+
+    task<> Publish(
+        shared_task<OperationResult> operationResult,
+        uint64_t previousWriteSequenceNumber,
+        uint64_t thisWriteSequenceNumber);
 
     friend class Operation;
 

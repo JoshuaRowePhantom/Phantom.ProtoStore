@@ -15,7 +15,8 @@ TEST(HeaderAccessorTests, Throws_exception_when_no_valid_header)
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -36,7 +37,8 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_no_valid_location2
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -66,7 +68,8 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location1)
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -109,7 +112,8 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_no_valid_location1
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -139,7 +143,8 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location2)
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -182,7 +187,8 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_location1_is_older
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -219,7 +225,8 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location1_is_older)
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -269,7 +276,8 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_location2_is_older
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -306,7 +314,8 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location2_is_older)
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
@@ -356,7 +365,8 @@ TEST(HeaderAccessorTests, Can_alternate_write_request_locations)
 {
     run_async([]() -> task<>
     {
-        auto store = make_shared<MemoryExtentStore>();
+        auto store = make_shared<MemoryExtentStore>(
+            Schedulers::Default());
         auto messageStore = MakeMessageStore(
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(

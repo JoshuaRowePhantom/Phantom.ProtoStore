@@ -6,7 +6,8 @@ namespace Phantom::ProtoStore
 
 std::function<task<shared_ptr<IExtentStore>>()> UseMemoryExtentStore()
 {
-    auto extentStore = make_shared<MemoryExtentStore>();
+    auto extentStore = make_shared<MemoryExtentStore>(
+        Schedulers::Default());
     auto lambda = [=]() -> task<shared_ptr<IExtentStore>>
     {
         co_return extentStore;

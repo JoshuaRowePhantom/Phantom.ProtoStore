@@ -458,10 +458,11 @@ TEST(ProtoStoreTests, DISABLED_Can_commit_transaction)
 
 TEST(ProtoStoreTests, Perf1)
 {
-    run_async([=]() -> task<>
+    cppcoro::static_thread_pool threadPool(4);
+
+    run_async([&]() -> task<>
     {
         auto store = co_await CreateMemoryStore();
-        cppcoro::static_thread_pool threadPool(4);
 
         CreateIndexRequest createIndexRequest;
         createIndexRequest.IndexName = "test_Index";
@@ -472,7 +473,7 @@ TEST(ProtoStoreTests, Perf1)
             createIndexRequest
         );
 
-        int valueCount = 100;
+        int valueCount = 1000000;
 
         mt19937 rng;
         uniform_int_distribution<int> distribution('a', 'z');
