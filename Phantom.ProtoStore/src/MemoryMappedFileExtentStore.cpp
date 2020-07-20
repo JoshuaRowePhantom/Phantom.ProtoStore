@@ -382,7 +382,7 @@ task<> MemoryMappedWritableExtent::Commit(
 )
 {
     {
-        co_await m_flushMapLock.scoped_nonrecursive_lock_read_async();
+        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_read_async();
         if (UnsafeUpdateFlushMap(
             mappedRegion,
             flushRegion
@@ -393,7 +393,7 @@ task<> MemoryMappedWritableExtent::Commit(
     }
 
     {
-        co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
         UnsafeAddToFlushMap(
             mappedRegion,
             flushRegion);
@@ -512,7 +512,7 @@ task<> MemoryMappedWritableExtent::Flush()
     flush_map_type flushMap;
 
     {
-        co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
 
         std::swap(
             flushMap,
@@ -547,7 +547,7 @@ task<> MemoryMappedWritableExtent::Flush(
     flush_map_type flushMap;
 
     {
-        co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
 
         UnsafeAddToFlushMap(
             mappedRegion,

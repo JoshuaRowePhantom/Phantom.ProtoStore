@@ -27,7 +27,7 @@ add_executable(
 	"HeaderAccessorTests.cpp"
 	"KeyComparerTests.cpp"
 	"MemoryExtentStoreTests.cpp"
-	"MemoryMappedExtentStoreTests.cpp"
+	"MemoryMappedFileExtentStoreTests.cpp"
 	"MemoryTableTests.cpp"
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"

@@ -14,6 +14,7 @@ class async_reader_writer_lock;
 namespace detail
 {
 template<void (async_reader_writer_lock::* UnlockFunction)()>
+[[nodiscard]]
 class async_reader_writer_base_lock
 {
     async_reader_writer_lock* m_object;

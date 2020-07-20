@@ -1,5 +1,6 @@
 #include "StandardIncludes.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
+#include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
 
 namespace Phantom::ProtoStore
 {
@@ -48,4 +49,51 @@ std::vector<std::string> MakeRandomStrings(
     return strings;
 }
 
+std::filesystem::path MakeCleanTestDirectory(
+    string testName)
+{
+    auto path = std::filesystem::temp_directory_path() / "Phantom.ProtoStore.Tests" / testName;
+    std::filesystem::remove_all(
+        path);
+    std::filesystem::create_directories(
+        path);
+
+    return path;
+}
+
+shared_ptr<IExtentStore> MakeFilesystemStore(
+    string testName,
+    string storeName,
+    size_t blockSize)
+{
+    auto path = MakeCleanTestDirectory(
+        testName
+    );
+
+    path /= storeName;
+
+    auto store = make_shared<MemoryMappedFileExtentStore>(
+        path.string(),
+        ".dat",
+        4096
+        );
+
+    return store;
+}
+
+std::function<task<shared_ptr<IExtentStore>>()> UseFilesystemStore(
+    string testName,
+    string storeName,
+    size_t blockSize)
+{
+    auto store = MakeFilesystemStore(
+        testName,
+        storeName,
+        blockSize);
+
+    return [store]() -> task<shared_ptr<IExtentStore>>
+    {
+        co_return store;
+    };
+}
 }

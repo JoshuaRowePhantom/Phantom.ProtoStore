@@ -474,7 +474,115 @@ TEST(ProtoStoreTests, Perf1)
             createIndexRequest
         );
 
-        int valueCount = 1000000;
+        int valueCount = 100000;
+
+        mt19937 rng;
+        uniform_int_distribution<int> distribution('a', 'z');
+
+        auto keys = MakeRandomStrings(
+            rng,
+            20,
+            valueCount
+        );
+
+        auto startTime = chrono::high_resolution_clock::now();
+
+        cppcoro::async_scope asyncScope;
+
+        for (auto value : keys)
+        {
+            asyncScope.spawn([&](string myKey) -> task<>
+            {
+                co_await threadPool.schedule();
+
+                StringKey key;
+                key.set_value(myKey);
+                StringValue expectedValue;
+                expectedValue.set_value(myKey);
+
+                co_await store->ExecuteOperation(
+                    BeginTransactionRequest(),
+                    [&](IOperation* operation)->task<>
+                {
+                    co_await operation->AddRow(
+                        WriteOperationMetadata{},
+                        SequenceNumber::Latest,
+                        index,
+                        &key,
+                        &expectedValue);
+                });
+            }(value));
+        }
+
+        co_await asyncScope.join();
+
+        std::vector<task<>> tasks;
+
+        for (auto value : keys)
+        {
+            tasks.push_back([&](string myKey) -> task<>
+            {
+                co_await threadPool.schedule();
+
+                StringKey key;
+                key.set_value(myKey);
+                StringValue expectedValue;
+                expectedValue.set_value(myKey);
+
+                ReadRequest readRequest;
+                readRequest.Key = &key;
+                readRequest.Index = index;
+
+                auto readResult = co_await store->Read(
+                    readRequest
+                );
+
+                StringValue actualValue;
+                readResult.Value.unpack(&actualValue);
+
+                ASSERT_TRUE(MessageDifferencer::Equals(
+                    expectedValue,
+                    actualValue));
+            }(value));
+        }
+
+        co_await cppcoro::when_all(
+            move(tasks));
+
+        auto endTime = chrono::high_resolution_clock::now();
+
+        auto runtimeMs = chrono::duration_cast<chrono::milliseconds>(endTime - startTime);
+
+        std::cout << "ProtoStoreTests runtime: " << runtimeMs.count() << "\r\n";
+    });
+}
+
+
+TEST(ProtoStoreTests, Perf2)
+{
+    cppcoro::static_thread_pool threadPool(4);
+
+    run_async([&]() -> task<>
+    {
+        CreateProtoStoreRequest createRequest;
+        createRequest.HeaderExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "header", 4096);
+        createRequest.LogExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "log", 4096);
+        createRequest.DataExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "data", 4096);
+        createRequest.Schedulers = Schedulers::Default();
+
+        auto store = co_await CreateStore(
+            createRequest);
+
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        auto index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+
+        int valueCount = 100000;
 
         mt19937 rng;
         uniform_int_distribution<int> distribution('a', 'z');
