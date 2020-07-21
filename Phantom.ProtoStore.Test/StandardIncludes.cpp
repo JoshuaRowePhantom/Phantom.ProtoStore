@@ -73,6 +73,7 @@ shared_ptr<IExtentStore> MakeFilesystemStore(
     path /= storeName;
 
     auto store = make_shared<MemoryMappedFileExtentStore>(
+        Schedulers::Default(),
         path.string(),
         ".dat",
         4096

@@ -90,14 +90,19 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_gro
             "OpenExtentForWrite_can_do_Flush_after_grow",
             4096);
         std::basic_string<uint8_t> writeData1(50, '1');
-        std::basic_string<uint8_t> writeData2(500, '2');
+        std::basic_string<uint8_t> writeData2(50, '2');
+        std::basic_string<uint8_t> writeData3(5000, '3');
 
         auto writeExtent = co_await store->OpenExtentForWrite(0);
+        
         auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
         co_await writeBuffer1->Write(0, writeData1.size());
 
         auto writeBuffer2 = co_await writeExtent->CreateWriteBuffer();
         co_await writeBuffer2->Write(writeData1.size(), writeData2.size());
+
+        auto writeBuffer3 = co_await writeExtent->CreateWriteBuffer();
+        co_await writeBuffer3->Write(writeData1.size() + writeData2.size(), writeData3.size());
 
         {
             CodedOutputStream writeStream(writeBuffer1->Stream());
@@ -113,16 +118,24 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_gro
                 writeData2.size());
         }
 
+        {
+            CodedOutputStream writeStream(writeBuffer3->Stream());
+            writeStream.WriteRaw(
+                writeData3.data(),
+                writeData3.size());
+        }
+
         co_await writeBuffer2->Flush();
         co_await writeBuffer1->Flush();
+        co_await writeBuffer3->Flush();
 
-        auto expectedData = writeData1 + writeData2;
+        auto expectedData = writeData1 + writeData2 + writeData3;
 
         auto readExtent = co_await store->OpenExtentForRead(0);
         auto readBuffer = co_await readExtent->CreateReadBuffer();
         co_await readBuffer->Read(0, expectedData.size());
         CodedInputStream readStream(readBuffer->Stream());
-        std::basic_string<uint8_t> actualData(expectedData.size(), '3');
+        std::basic_string<uint8_t> actualData(expectedData.size(), '0');
         readStream.ReadRaw(
             actualData.data(),
             actualData.size());
