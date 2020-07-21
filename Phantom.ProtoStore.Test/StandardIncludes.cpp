@@ -1,6 +1,7 @@
 #include "StandardIncludes.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
+#include "mimalloc-new-delete.h"
 
 namespace Phantom::ProtoStore
 {
