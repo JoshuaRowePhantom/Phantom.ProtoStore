@@ -144,6 +144,7 @@ class MemoryMappedWritableExtent
     async_reader_writer_lock m_flushMapLock;
     typedef std::map<mapped_region*, atomic_flush_region> flush_map_type;
     flush_map_type m_flushMap;
+    Schedulers m_schedulers;
 
     task<> GetWriteRegion(
         ExtentOffset offset,
@@ -181,6 +182,7 @@ class MemoryMappedWritableExtent
 
 public:
     MemoryMappedWritableExtent(
+        Schedulers schedulers,
         string filename,
         size_t m_blockSize
     );
@@ -300,9 +302,11 @@ void MemoryMappedWriteBuffer::ReturnToPool()
 }
 
 MemoryMappedWritableExtent::MemoryMappedWritableExtent(
+    Schedulers schedulers,
     string filename,
     size_t blockSize
 ) : 
+    m_schedulers(schedulers),
     m_filename(filename),
     m_blockSize(blockSize),
     m_lastMappedFullRegionSize(0)
@@ -312,6 +316,97 @@ task<pooled_ptr<IWriteBuffer>> MemoryMappedWritableExtent::CreateWriteBuffer()
 {
     co_return pooled_ptr<IWriteBuffer>(
         new MemoryMappedWriteBuffer(this));
+}
+
+task<> MemoryMappedWritableExtent::GetWriteRegion(
+    ExtentOffset offset,
+    size_t count,
+    shared_ptr<mapped_region>& region,
+    void*& data,
+    flush_region& flushRegion)
+{
+    {
+        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.scoped_nonrecursive_lock_read_async();
+
+        if (offset + count < m_lastMappedFullRegionSize)
+        {
+            region = m_lastFullRegion;
+            data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
+            flushRegion =
+            {
+                .beginning = offset,
+                .end = offset + count,
+            };
+
+            co_return;
+        }
+    }
+
+    {
+        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.scoped_nonrecursive_lock_write_async();
+
+        if (offset + count < m_lastMappedFullRegionSize)
+        {
+            region = m_lastFullRegion;
+            data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
+            flushRegion =
+            {
+                .beginning = offset,
+                .end = offset + count,
+            };
+
+            co_return;
+        }
+
+        auto newSize = m_lastMappedFullRegionSize;
+
+        while (newSize < (offset + count))
+        {
+            newSize = std::max(
+                newSize + newSize / 4,
+                newSize + m_blockSize);
+
+            newSize = (newSize + m_blockSize - 1) / m_blockSize * m_blockSize;
+        }
+
+        {
+            std::filebuf filebuf;
+            if (!filebuf.open(
+                m_filename,
+                std::ios::binary | std::ios::app
+            ))
+            {
+                throw std::exception("io error");
+            }
+        }
+
+        std::filesystem::resize_file(
+            m_filename,
+            newSize
+        );
+
+        file_mapping fileMapping(
+            m_filename.c_str(),
+            boost::interprocess::read_write
+        );
+
+        auto newMappedRegion = make_shared<mapped_region>(
+            fileMapping,
+            boost::interprocess::read_write);
+
+        m_lastFullRegion = newMappedRegion;
+        m_lastMappedFullRegionSize = newSize;
+
+        region = m_lastFullRegion;
+        data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
+        flushRegion =
+        {
+            .beginning = offset,
+            .end = offset + count,
+        };
+
+        co_return;
+    }
 }
 
 void MemoryMappedWritableExtent::UnsafeAddToFlushMap(
@@ -414,100 +509,11 @@ task<> MemoryMappedWritableExtent::Flush(
     co_return;
 }
 
-task<> MemoryMappedWritableExtent::GetWriteRegion(
-    ExtentOffset offset,
-    size_t count,
-    shared_ptr<mapped_region>& region,
-    void*& data,
-    flush_region& flushRegion)
-{
-    {
-        auto mappedRegionLock = m_lastMappedFullRegionLock.scoped_nonrecursive_lock_read_async();
-
-        if (offset + count < m_lastMappedFullRegionSize)
-        {
-            region = m_lastFullRegion;
-            data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
-            flushRegion =
-            {
-                .beginning = offset,
-                .end = offset + count,
-            };
-
-            co_return;
-        }
-    }
-
-    {
-        auto mappedRegionLock = m_lastMappedFullRegionLock.scoped_nonrecursive_lock_write_async();
-
-        if (offset + count < m_lastMappedFullRegionSize)
-        {
-            region = m_lastFullRegion;
-            data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
-            flushRegion =
-            {
-                .beginning = offset,
-                .end = offset + count,
-            };
-
-            co_return;
-        }
-
-        auto newSize = m_lastMappedFullRegionSize;
-
-        while (newSize < (offset + count))
-        {
-            newSize = std::max(
-                newSize + newSize / 4,
-                newSize + m_blockSize);
-
-            newSize = (newSize + m_blockSize - 1) / m_blockSize * m_blockSize;
-        }
-
-        {
-            std::filebuf filebuf;
-            if (!filebuf.open(
-                m_filename,
-                std::ios::binary | std::ios::app
-            ))
-            {
-                throw std::exception("io error");
-            }
-        }
-
-        std::filesystem::resize_file(
-            m_filename,
-            newSize
-        );
-
-        file_mapping fileMapping(
-            m_filename.c_str(),
-            boost::interprocess::read_write
-        );
-
-        auto newMappedRegion = make_shared<mapped_region>(
-            fileMapping,
-            boost::interprocess::read_write);
-
-        m_lastFullRegion = newMappedRegion;
-        m_lastMappedFullRegionSize = newSize;
-
-        region = m_lastFullRegion;
-        data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
-        flushRegion =
-        {
-            .beginning = offset,
-            .end = offset + count,
-        };
-
-        co_return;
-    }
-}
-
 task<> MemoryMappedWritableExtent::Flush()
 {
     auto flushLock = co_await m_flushLock.scoped_lock_async();
+
+    co_await m_schedulers.IoScheduler->schedule();
 
     flush_map_type flushMap;
 
@@ -564,10 +570,12 @@ task<> MemoryMappedWritableExtent::Flush(
 }
 
 MemoryMappedFileExtentStore::MemoryMappedFileExtentStore(
+    Schedulers schedulers,
     std::string extentFilenamePrefix,
     std::string extentFilenameSuffix,
     uint64_t writeBlockSize
 ) :
+    m_schedulers(schedulers),
     m_extentFilenamePrefix(extentFilenamePrefix),
     m_extentFilenameSuffix(extentFilenameSuffix),
     m_writeBlockSize(writeBlockSize)
@@ -619,6 +627,7 @@ task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrit
     ExtentNumber extentNumber)
 {
     co_return make_shared<MemoryMappedWritableExtent>(
+        m_schedulers,
         GetFilename(extentNumber),
         m_writeBlockSize);
 }

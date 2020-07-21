@@ -7,6 +7,7 @@ class MemoryMappedFileExtentStore
     :
     public IExtentStore
 {
+    Schedulers m_schedulers;
     std::string m_extentFilenamePrefix;
     std::string m_extentFilenameSuffix;
     uint64_t m_writeBlockSize;
@@ -16,6 +17,7 @@ class MemoryMappedFileExtentStore
 
 public:
     MemoryMappedFileExtentStore(
+        Schedulers schedulers,
         std::string extentFilenamePrefix,
         std::string extentFilenameSuffix,
         uint64_t writeBlockSize
