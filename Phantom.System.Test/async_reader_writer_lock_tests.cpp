@@ -34,9 +34,10 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_reads_after_write_lock_
 
         auto writeLockLambda = [&]() -> task<>
         {
-            auto writeLock = co_await lock.writer().scoped_lock_async();
+            co_await lock.writer().lock_async();
             writeLockAcquired.set();
             co_await releaseWriteLock;
+            lock.writer().unlock();
         };
 
         async_manual_reset_event readLockAcquired;
