@@ -268,33 +268,39 @@ void async_reader_writer_lock::try_signal_waiters()
     auto waitingReader = m_waitingReaders.load(
         std::memory_order_acquire);
 
-    while (
-        readerCount >= 0
-        &&
-        waitingReader)
-    {
-        if (!m_readerCount.compare_exchange_strong(
+    // See if we can release the readers by artifically increasing
+    // the read count to at least 1.
+    if (!waitingReader
+        ||
+        !m_readerCount.compare_exchange_strong(
             readerCount,
             readerCount + 1))
-        {
-            continue;
-        }
+    {
+        return;
+    }
+
+    // Pull all the readers out all at once.
+    while (!m_waitingReaders.compare_exchange_strong(
+        waitingReader,
+        nullptr,
+        std::memory_order_acq_rel))
+    { }
+
+    // Now signal all the readers
+    while (waitingReader)
+    {
+        // We can use fetch_add to increase the reader count
+        // because we artifically inflated the reader count by 1 earlier.
+        m_readerCount.fetch_add(1);
 
         auto nextReader = waitingReader->m_next;
-
-        if (m_waitingReaders.compare_exchange_strong(
-            waitingReader,
-            nextReader,
-            std::memory_order_acq_rel))
-        {
-            waitingReader->m_awaiter.resume();
-        }
-        else
-        {
-            // We failed to dequeue a reader, so decrease the reader count.
-            readerCount = m_readerCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
-        }
+        waitingReader->m_awaiter.resume();
+        waitingReader = nextReader;
     }
+
+    // We artifically increased the reader count,
+    // so now we have to decrement it.
+    m_readerCount.fetch_sub(1);
 }
 
 }
