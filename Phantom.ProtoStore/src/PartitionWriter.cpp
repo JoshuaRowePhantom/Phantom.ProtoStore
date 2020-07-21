@@ -57,7 +57,8 @@ task<> PartitionWriter::WriteRows(
         ++discoveredRowCount;
         auto& row = *iterator;
         
-        auto treeEntry = make_shared<PartitionTreeEntry>();
+        auto treeEntry = std::optional(
+            PartitionTreeEntry());
 
         row.Key->SerializeToString(
             treeEntry->mutable_key());
@@ -96,7 +97,8 @@ task<> PartitionWriter::WriteRows(
                 treeNode->treeentries_size() < 2)
             {
                 *(treeNode->add_treeentries()) = move(*treeEntry);
-                treeEntry = nullptr;
+                treeEntry.reset();
+                break;
             }
             else
             {
@@ -115,7 +117,7 @@ task<> PartitionWriter::WriteRows(
             }
         }
 
-        if (treeEntry)
+        if (treeEntry.has_value())
         {
             auto treeNode = make_shared<PartitionTreeNode>();
             *(treeNode->add_treeentries()) = move(*treeEntry);
