@@ -141,7 +141,14 @@ class MemoryMappedWritableExtent
     };
 
     cppcoro::async_mutex m_flushLock;
+    cppcoro::shared_task<> m_flushTask;
+
+    // This reader/writer lock should be acquired for read
+    // to find and update existing entries in m_flushMap and to read the current m_flushTask.
+    // It should be acquired for write
+    // to add new entries to the flush map or to replace it or to change m_flushTask.
     async_reader_writer_lock m_flushMapLock;
+
     typedef std::map<mapped_region*, atomic_flush_region> flush_map_type;
     flush_map_type m_flushMap;
     Schedulers m_schedulers;
@@ -172,7 +179,7 @@ class MemoryMappedWritableExtent
     task<> Flush(
         const flush_map_type& flushMap);
 
-    task<> Flush();
+    shared_task<> Flush();
 
     task<> Flush(
         shared_ptr<mapped_region>& mappedRegion,
@@ -283,14 +290,14 @@ ZeroCopyOutputStream* MemoryMappedWriteBuffer::Stream()
 
 task<> MemoryMappedWriteBuffer::Commit()
 {
-    co_await m_extent->Commit(
+    return m_extent->Commit(
         m_mappedRegion,
         m_flushRegion);
 }
 
 task<> MemoryMappedWriteBuffer::Flush()
 {
-    co_await m_extent->Flush(
+    return m_extent->Flush(
         m_mappedRegion,
         m_flushRegion
     );
@@ -310,7 +317,10 @@ MemoryMappedWritableExtent::MemoryMappedWritableExtent(
     m_filename(filename),
     m_blockSize(blockSize),
     m_lastMappedFullRegionSize(0)
-{}
+{
+    // Start the lazy flush task.
+    m_flushTask = Flush();
+}
 
 task<pooled_ptr<IWriteBuffer>> MemoryMappedWritableExtent::CreateWriteBuffer()
 {
@@ -326,9 +336,15 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
     flush_region& flushRegion)
 {
     {
-        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.reader().scoped_lock_async();
+        auto mappedRegionLock = m_lastMappedFullRegionLock.reader().scoped_try_lock();
 
-        if (offset + count < m_lastMappedFullRegionSize)
+        if (!mappedRegionLock)
+        {
+            mappedRegionLock = co_await m_lastMappedFullRegionLock.reader().scoped_lock_async();
+            co_await m_schedulers.LockScheduler->schedule();
+        }
+
+        if ((offset + count < m_lastMappedFullRegionSize))
         {
             region = m_lastFullRegion;
             data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
@@ -343,7 +359,13 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
     }
 
     {
-        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.writer().scoped_lock_async();
+        auto mappedRegionLock = m_lastMappedFullRegionLock.writer().scoped_try_lock();
+
+        if (!mappedRegionLock)
+        {
+            mappedRegionLock = co_await m_lastMappedFullRegionLock.writer().scoped_lock_async();
+            co_await m_schedulers.LockScheduler->schedule();
+        }
 
         if (offset + count < m_lastMappedFullRegionSize)
         {
@@ -499,6 +521,8 @@ task<> MemoryMappedWritableExtent::Commit(
 task<> MemoryMappedWritableExtent::Flush(
     const flush_map_type& flushMap)
 {
+    co_await m_schedulers.IoScheduler->schedule();
+
     for (auto& flushMapEntry : flushMap)
     {
         flushMapEntry.first->flush(
@@ -510,11 +534,9 @@ task<> MemoryMappedWritableExtent::Flush(
     co_return;
 }
 
-task<> MemoryMappedWritableExtent::Flush()
+shared_task<> MemoryMappedWritableExtent::Flush()
 {
     auto flushLock = co_await m_flushLock.scoped_lock_async();
-
-    co_await m_schedulers.IoScheduler->schedule();
 
     flush_map_type flushMap;
 
@@ -525,6 +547,9 @@ task<> MemoryMappedWritableExtent::Flush()
             flushMap,
             m_flushMap
         );
+
+        // Create a new flush task for waiters to await on.
+        m_flushTask = Flush();
     }
 
     co_await Flush(
@@ -536,38 +561,32 @@ task<> MemoryMappedWritableExtent::Flush(
     flush_region flushRegion
 )
 {
-    if (!m_flushLock.try_lock())
-    {
-        co_await Commit(
-            mappedRegion,
-            flushRegion);
-
-        co_await Flush();
-
-        co_return;
-    }
-
-    auto flushLock = cppcoro::async_mutex_lock(
-        m_flushLock,
-        std::adopt_lock);
-
-    flush_map_type flushMap;
+    shared_task<> flushTask;
+    bool didUpdateFlushMap = false;
 
     {
         auto lock = co_await m_flushMapLock.reader().scoped_lock_async();
+        if (didUpdateFlushMap = UnsafeUpdateFlushMap(
+            mappedRegion,
+            flushRegion
+        ))
+        {
+            flushTask = m_flushTask;
+        }
+    }
 
+    if (!didUpdateFlushMap)
+    {
+        auto lock = co_await m_flushMapLock.writer().scoped_lock_async();
         UnsafeAddToFlushMap(
             mappedRegion,
             flushRegion);
-
-        std::swap(
-            flushMap,
-            m_flushMap
-        );
+        flushTask = m_flushTask;
     }
 
-    co_await Flush(
-        flushMap);
+    // This lazily starts the flush task.
+    co_await flushTask;
+    co_await m_schedulers.ComputeScheduler->schedule();
 }
 
 MemoryMappedFileExtentStore::MemoryMappedFileExtentStore(
