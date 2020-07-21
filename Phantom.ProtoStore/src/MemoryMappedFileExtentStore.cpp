@@ -549,6 +549,8 @@ shared_task<> MemoryMappedWritableExtent::Flush()
         );
 
         // Create a new flush task for waiters to await on.
+        // We'll flush everything that was queued until now,
+        // so new items queued will need to wait on the new flush task.
         m_flushTask = Flush();
     }
 
