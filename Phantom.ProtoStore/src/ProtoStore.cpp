@@ -590,7 +590,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
 {
     // Look for the index using a read lock
     {
-        auto lock = co_await m_indexesByNumberLock.scoped_nonrecursive_lock_read_async();
+        auto lock = co_await m_indexesByNumberLock.reader().scoped_lock_async();
         auto indexIterator = m_indexesByNumber.find(
             indexNumber);
         if (indexIterator != m_indexesByNumber.end())
@@ -616,7 +616,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
 
     // Look for the index using a write lock, and create the index if it doesn't exist.
     {
-        auto lock = co_await m_indexesByNumberLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_indexesByNumberLock.writer().scoped_lock_async();
         auto indexIterator = m_indexesByNumber.find(
             indexNumber);
         if (indexIterator != m_indexesByNumber.end())
@@ -717,7 +717,7 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
 
 task<> ProtoStore::Checkpoint()
 {
-    auto lock = co_await m_indexesByNumberLock.scoped_nonrecursive_lock_read_async();
+    auto lock = co_await m_indexesByNumberLock.reader().scoped_lock_async();
 
     vector<task<>> checkpointTasks;
 

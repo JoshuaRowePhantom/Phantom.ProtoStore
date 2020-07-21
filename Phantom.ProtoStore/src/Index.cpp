@@ -81,7 +81,7 @@ task<CheckpointNumber> Index::AddRow(
     row.Value = move(valueMessage);
     row.WriteSequenceNumber = writeSequenceNumber;
 
-    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
+    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
 
     m_dontNeedCheckpoint.clear();
 
@@ -161,7 +161,7 @@ task<> Index::GetItemsToEnumerate(
     MemoryTablesEnumeration& memoryTables,
     PartitionsEnumeration& partitions)
 {
-    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
+    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
     memoryTables = m_memoryTablesToEnumerate;
     partitions = m_partitions;
 }
@@ -323,7 +323,7 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
 
 task<LoggedCheckpoint> Index::StartCheckpoint()
 {
-    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_write_async();
+    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
 
     LoggedCheckpoint loggedCheckpoint;
 
@@ -360,7 +360,7 @@ task<vector<shared_ptr<IMemoryTable>>> Index::StartCheckpoint(
 {
     vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
 
-    auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_read_async();
+    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
 
     for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
     {
@@ -432,7 +432,7 @@ task<> Index::UpdatePartitions(
     vector<shared_ptr<IMemoryTable>> memoryTablesToRemove;
 
     {
-        auto lock = co_await m_partitionsLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
 
         for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
         {

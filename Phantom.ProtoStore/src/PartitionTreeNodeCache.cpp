@@ -80,7 +80,7 @@ task<shared_ptr<PartitionTreeNodeCacheEntry>> PartitionTreeNodeCache::GetPartiti
     {
         shared_ptr<SkipListType> skipListToDestroy;
 
-        auto writeLock = co_await m_cacheLock.scoped_nonrecursive_lock_write_async();
+        auto writeLock = co_await m_cacheLock.writer().scoped_lock_async();
         m_approximateCache1Size.store(0);
         skipListToDestroy = m_cache2;
         m_cache2 = m_cache1;
@@ -90,7 +90,7 @@ task<shared_ptr<PartitionTreeNodeCacheEntry>> PartitionTreeNodeCache::GetPartiti
     shared_ptr<SkipListType> skipList2;
     
     {
-        auto lock = co_await m_cacheLock.scoped_nonrecursive_lock_read_async();
+        auto lock = co_await m_cacheLock.reader().scoped_lock_async();
         skipList1 = m_cache1;
         skipList2 = m_cache2;
     }

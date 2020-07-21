@@ -326,7 +326,7 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
     flush_region& flushRegion)
 {
     {
-        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.scoped_nonrecursive_lock_read_async();
+        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.reader().scoped_lock_async();
 
         if (offset + count < m_lastMappedFullRegionSize)
         {
@@ -343,7 +343,7 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
     }
 
     {
-        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.scoped_nonrecursive_lock_write_async();
+        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.writer().scoped_lock_async();
 
         if (offset + count < m_lastMappedFullRegionSize)
         {
@@ -478,7 +478,7 @@ task<> MemoryMappedWritableExtent::Commit(
 )
 {
     {
-        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_read_async();
+        auto lock = co_await m_flushMapLock.reader().scoped_lock_async();
         if (UnsafeUpdateFlushMap(
             mappedRegion,
             flushRegion
@@ -489,7 +489,7 @@ task<> MemoryMappedWritableExtent::Commit(
     }
 
     {
-        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_flushMapLock.writer().scoped_lock_async();
         UnsafeAddToFlushMap(
             mappedRegion,
             flushRegion);
@@ -519,7 +519,7 @@ task<> MemoryMappedWritableExtent::Flush()
     flush_map_type flushMap;
 
     {
-        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_flushMapLock.writer().scoped_lock_async();
 
         std::swap(
             flushMap,
@@ -554,7 +554,7 @@ task<> MemoryMappedWritableExtent::Flush(
     flush_map_type flushMap;
 
     {
-        auto lock = co_await m_flushMapLock.scoped_nonrecursive_lock_write_async();
+        auto lock = co_await m_flushMapLock.reader().scoped_lock_async();
 
         UnsafeAddToFlushMap(
             mappedRegion,
