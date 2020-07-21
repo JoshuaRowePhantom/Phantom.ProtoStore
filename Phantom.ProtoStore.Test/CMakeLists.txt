@@ -51,6 +51,7 @@ target_link_libraries(
 	Phantom.ProtoStore
 	gtest
 	gtest_main
+	mimalloc-static
 )
 
 target_include_directories(
