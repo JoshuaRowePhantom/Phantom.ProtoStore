@@ -53,6 +53,9 @@ public:
     typedef async_scoped_lock<async_linked_writer_lock> scoped_lock;
     typedef async_scoped_lock_operation<async_linked_writer_lock, lock_async_operation> scoped_lock_operation;
 
+    bool has_owner() const noexcept;
+    bool has_waiter() const noexcept;
+
     [[nodiscard]]
     bool try_lock() noexcept;
 

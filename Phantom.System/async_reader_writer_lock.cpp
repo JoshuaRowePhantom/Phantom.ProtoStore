@@ -169,6 +169,19 @@ bool async_linked_writer_lock::lock_async_operation::await_suspend(
     return true;
 }
 
+bool async_linked_writer_lock::has_owner() const noexcept
+{
+    return m_asyncReaderWriterLock.m_readerCount.load(
+        std::memory_order_acquire
+    ) == -1;
+}
+
+bool async_linked_writer_lock::has_waiter() const noexcept
+{
+    return m_asyncReaderWriterLock.m_waitingWriters.load(
+        std::memory_order_acquire);
+}
+
 void async_linked_writer_lock::lock_async_operation::await_resume(
 ) const noexcept {}
 
