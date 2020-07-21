@@ -582,7 +582,11 @@ TEST(ProtoStoreTests, Perf2)
             createIndexRequest
         );
 
+#ifdef NDEBUG
+        int valueCount = 1000000;
+#else
         int valueCount = 100000;
+#endif
 
         mt19937 rng;
         uniform_int_distribution<int> distribution('a', 'z');
@@ -624,38 +628,38 @@ TEST(ProtoStoreTests, Perf2)
 
         co_await asyncScope.join();
 
-        std::vector<task<>> tasks;
+        //std::vector<task<>> tasks;
 
-        for (auto value : keys)
-        {
-            tasks.push_back([&](string myKey) -> task<>
-            {
-                co_await threadPool.schedule();
+        //for (auto value : keys)
+        //{
+        //    tasks.push_back([&](string myKey) -> task<>
+        //    {
+        //        co_await threadPool.schedule();
 
-                StringKey key;
-                key.set_value(myKey);
-                StringValue expectedValue;
-                expectedValue.set_value(myKey);
+        //        StringKey key;
+        //        key.set_value(myKey);
+        //        StringValue expectedValue;
+        //        expectedValue.set_value(myKey);
 
-                ReadRequest readRequest;
-                readRequest.Key = &key;
-                readRequest.Index = index;
+        //        ReadRequest readRequest;
+        //        readRequest.Key = &key;
+        //        readRequest.Index = index;
 
-                auto readResult = co_await store->Read(
-                    readRequest
-                );
+        //        auto readResult = co_await store->Read(
+        //            readRequest
+        //        );
 
-                StringValue actualValue;
-                readResult.Value.unpack(&actualValue);
+        //        StringValue actualValue;
+        //        readResult.Value.unpack(&actualValue);
 
-                ASSERT_TRUE(MessageDifferencer::Equals(
-                    expectedValue,
-                    actualValue));
-            }(value));
-        }
+        //        ASSERT_TRUE(MessageDifferencer::Equals(
+        //            expectedValue,
+        //            actualValue));
+        //    }(value));
+        //}
 
-        co_await cppcoro::when_all(
-            move(tasks));
+        //co_await cppcoro::when_all(
+        //    move(tasks));
 
         auto endTime = chrono::high_resolution_clock::now();
 
