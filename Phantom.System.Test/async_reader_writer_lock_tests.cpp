@@ -14,27 +14,27 @@ TEST(async_reader_writer_lock_tests, can_acquire_multiple_reads)
     {
         async_reader_writer_lock lock;
 
-        auto lock1 = co_await lock.scoped_nonrecursive_lock_read_async();
-        auto lock2 = co_await lock.scoped_nonrecursive_lock_read_async();
+        auto lock1 = co_await lock.reader().scoped_lock_async();
+        auto lock2 = co_await lock.reader().scoped_lock_async();
     });
 }
 
-TEST(async_reader_writer_lock_tests, cannot_acquire_more_reads_after_lock_requested)
+TEST(async_reader_writer_lock_tests, cannot_acquire_more_reads_after_write_lock_requested)
 {
     run_async([]() -> task<>
     {
         async_reader_writer_lock lock;
         async_scope runner;
 
-        co_await lock.nonrecursive_lock_read_async();
-        co_await lock.nonrecursive_lock_read_async();
+        co_await lock.reader().lock_async();
+        co_await lock.reader().lock_async();
 
         async_manual_reset_event writeLockAcquired;
         async_manual_reset_event releaseWriteLock;
 
         auto writeLockLambda = [&]() -> task<>
         {
-            auto writeLock = co_await lock.scoped_nonrecursive_lock_write_async();
+            auto writeLock = co_await lock.writer().scoped_lock_async();
             writeLockAcquired.set();
             co_await releaseWriteLock;
         };
@@ -43,7 +43,7 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_reads_after_lock_reques
 
         auto readLockLambda = [&]() -> task<>
         {
-            co_await lock.nonrecursive_lock_read_async();
+            co_await lock.reader().lock_async();
             readLockAcquired.set();
         };
 
@@ -53,12 +53,12 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_reads_after_lock_reques
         ASSERT_EQ(false, writeLockAcquired.is_set());
         ASSERT_EQ(false, readLockAcquired.is_set());
 
-        lock.unlock_read();
+        lock.reader().unlock();
 
         ASSERT_EQ(false, writeLockAcquired.is_set());
         ASSERT_EQ(false, readLockAcquired.is_set());
 
-        lock.unlock_read();
+        lock.reader().unlock();
 
         co_await writeLockAcquired;
         ASSERT_EQ(false, readLockAcquired.is_set());
@@ -82,7 +82,7 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_writes_after_write_lock
 
         auto writeLockLambda1 = [&]() -> task<>
         {
-            auto writeLock = co_await lock.scoped_nonrecursive_lock_write_async();
+            auto writeLock = co_await lock.writer().scoped_lock_async();
             writeLockAcquired1.set();
             co_await releaseWriteLock1;
         };
@@ -92,7 +92,7 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_writes_after_write_lock
 
         auto writeLockLambda2 = [&]() -> task<>
         {
-            auto writeLock = co_await lock.scoped_nonrecursive_lock_write_async();
+            auto writeLock = co_await lock.writer().scoped_lock_async();
             writeLockAcquired2.set();
             co_await releaseWriteLock2;
         };
@@ -108,6 +108,54 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_writes_after_write_lock
         co_await writeLockAcquired2;
 
         releaseWriteLock2.set();
+
+        co_await runner.join();
+    });
+}
+
+TEST(async_reader_writer_lock_tests, can_try_lock)
+{
+    run_async([]() -> task<>
+    {
+        async_reader_writer_lock lock;
+        ASSERT_EQ(true, lock.reader().try_lock());
+        ASSERT_EQ(true, lock.reader().try_lock());
+        ASSERT_EQ(false, lock.writer().try_lock());
+        lock.reader().unlock();
+        ASSERT_EQ(false, lock.writer().try_lock());
+        lock.reader().unlock();
+        ASSERT_EQ(true, lock.writer().try_lock());
+        ASSERT_EQ(false, lock.writer().try_lock());
+        ASSERT_EQ(false, lock.reader().try_lock());
+        lock.writer().unlock();
+        ASSERT_EQ(true, lock.writer().try_lock());
+        ASSERT_EQ(false, lock.writer().try_lock());
+        lock.writer().unlock();
+        ASSERT_EQ(true, lock.reader().try_lock());
+        lock.reader().unlock();
+
+        co_return;
+    });
+}
+
+TEST(async_reader_writer_lock_tests, waiting_writer_lock_prevents_try_read_lock)
+{
+    run_async([]() -> task<>
+    {
+        async_reader_writer_lock lock;
+        
+        ASSERT_EQ(true, lock.reader().try_lock());
+        async_scope runner;
+
+        auto writeLockLambda1 = [&]() -> task<>
+        {
+            auto writeLock = co_await lock.writer().scoped_lock_async();
+        };
+
+        runner.spawn(writeLockLambda1());
+
+        ASSERT_EQ(false, lock.reader().try_lock());
+        lock.reader().unlock();
 
         co_await runner.join();
     });
