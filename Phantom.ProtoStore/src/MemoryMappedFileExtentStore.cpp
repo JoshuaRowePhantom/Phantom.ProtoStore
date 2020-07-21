@@ -360,14 +360,15 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
 
         auto newSize = m_lastMappedFullRegionSize;
 
-        while (newSize < (offset + count))
-        {
-            newSize = std::max(
-                newSize + newSize / 4,
-                newSize + m_blockSize);
+        newSize = std::max(
+            newSize + newSize / 4,
+            newSize + m_blockSize);
 
-            newSize = (newSize + m_blockSize - 1) / m_blockSize * m_blockSize;
-        }
+        newSize = std::max(
+            (offset + count),
+            newSize);
+
+        newSize = (newSize + m_blockSize - 1) / m_blockSize * m_blockSize;
 
         {
             std::filebuf filebuf;
