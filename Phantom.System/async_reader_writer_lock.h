@@ -98,10 +98,12 @@ public:
             auto readerCount = m_readerCount.load(
                 std::memory_order_acquire);
 
-            if (m_readerCount.compare_exchange_strong(
-                readerCount,
-                readerCount + 1,
-                std::memory_order_acq_rel))
+            if (readerCount >= 0
+                &&
+                m_readerCount.compare_exchange_strong(
+                    readerCount,
+                    readerCount + 1,
+                    std::memory_order_acq_rel))
             {
                 m_writerSignal.reset();
                 co_return;
@@ -139,8 +141,8 @@ public:
             std::memory_order_release
         );
 
-        m_readerSignal.set();
         m_writerSignal.set();
+        m_readerSignal.set();
     }
 
     typedef detail::async_reader_writer_base_lock<&async_reader_writer_lock::unlock_read> async_reader_writer_read_lock;
