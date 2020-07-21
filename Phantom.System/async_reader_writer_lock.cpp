@@ -92,12 +92,11 @@ void async_linked_reader_lock::unlock() noexcept
     }
 }
 
-cppcoro::task<async_linked_reader_lock::scoped_lock> async_linked_reader_lock::scoped_lock_async() noexcept
+async_linked_reader_lock::scoped_lock_operation async_linked_reader_lock::scoped_lock_async() noexcept
 {
-    co_await lock_async();
-    co_return async_scoped_lock<async_linked_reader_lock>(
+    return scoped_lock_operation(
         *this,
-        std::adopt_lock);
+        lock_async());
 }
 
 bool async_linked_reader_lock::try_lock() noexcept
@@ -208,12 +207,11 @@ void async_linked_writer_lock::unlock() noexcept
     m_asyncReaderWriterLock.try_signal_waiters();
 }
 
-cppcoro::task<async_linked_writer_lock::scoped_lock> async_linked_writer_lock::scoped_lock_async() noexcept
+async_linked_writer_lock::scoped_lock_operation async_linked_writer_lock::scoped_lock_async() noexcept
 {
-    co_await lock_async();
-    co_return async_scoped_lock<async_linked_writer_lock>(
+    return scoped_lock_operation(
         *this,
-        std::adopt_lock);
+        lock_async());
 }
 
 void async_reader_writer_lock::try_signal_waiters()

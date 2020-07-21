@@ -74,4 +74,43 @@ public:
     }
 };
 
+template<
+    typename TLock,
+    typename TAwaitable
+> 
+class async_scoped_lock_operation
+{
+    TLock& m_lock;
+    TAwaitable m_awaitable;
+
+public:
+    async_scoped_lock_operation(
+        TLock& lock,
+        TAwaitable awaitable
+    ) :
+        m_lock(lock),
+        m_awaitable(awaitable)
+    {}
+
+    bool await_ready() noexcept
+    {
+        return m_awaitable.await_ready();
+    }
+
+    bool await_suspend(
+        std::experimental::coroutine_handle<> awaiter
+    ) noexcept
+    {
+        return m_awaitable.await_suspend(
+            awaiter);
+    }
+
+    [[nodiscard]]
+    async_scoped_lock<TLock> await_resume() const noexcept
+    {
+        return async_scoped_lock<TLock>(
+            m_lock,
+            std::adopt_lock);
+    }
+};
 }

@@ -23,7 +23,8 @@ public:
     );
 
     typedef async_scoped_lock<async_linked_reader_lock> scoped_lock;
-    
+    typedef async_scoped_lock_operation<async_linked_reader_lock, lock_async_operation> scoped_lock_operation;
+
     [[nodiscard]]
     bool try_lock() noexcept;
 
@@ -34,7 +35,7 @@ public:
     lock_async_operation lock_async() noexcept;
     
     [[nodiscard]]
-    cppcoro::task<scoped_lock> scoped_lock_async() noexcept;
+    scoped_lock_operation scoped_lock_async() noexcept;
     
     void unlock() noexcept;
 };
@@ -50,6 +51,7 @@ public:
     );
 
     typedef async_scoped_lock<async_linked_writer_lock> scoped_lock;
+    typedef async_scoped_lock_operation<async_linked_writer_lock, lock_async_operation> scoped_lock_operation;
 
     [[nodiscard]]
     bool try_lock() noexcept;
@@ -61,7 +63,7 @@ public:
     lock_async_operation lock_async() noexcept;
 
     [[nodiscard]]
-    cppcoro::task<scoped_lock> scoped_lock_async() noexcept;
+    scoped_lock_operation scoped_lock_async() noexcept;
     void unlock() noexcept;
 
 };
