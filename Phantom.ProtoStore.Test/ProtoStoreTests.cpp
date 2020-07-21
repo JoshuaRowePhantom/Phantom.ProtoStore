@@ -557,11 +557,10 @@ TEST(ProtoStoreTests, Perf1)
     });
 }
 
+std::atomic<long> Perf2_running_items(0);
 
 TEST(ProtoStoreTests, Perf2)
 {
-    cppcoro::static_thread_pool threadPool(4);
-
     run_async([&]() -> task<>
     {
         CreateProtoStoreRequest createRequest;
@@ -597,75 +596,125 @@ TEST(ProtoStoreTests, Perf2)
             valueCount
         );
 
-        auto startTime = chrono::high_resolution_clock::now();
+        auto startWriteTime = chrono::high_resolution_clock::now();
 
-        cppcoro::async_scope asyncScope;
+        cppcoro::async_scope asyncScopeWrite;
+        auto schedulers = Schedulers::Default();
 
-        for (auto value : keys)
+        auto keysPerInsert = 20;
+        for (size_t startKeyIndex = 0; startKeyIndex < keys.size(); startKeyIndex += keysPerInsert)
         {
-            asyncScope.spawn([&](string myKey) -> task<>
-            {
-                co_await threadPool.schedule();
+            auto endKeyIndex = std::min(
+                startKeyIndex + keysPerInsert,
+                keys.size());
 
-                StringKey key;
-                key.set_value(myKey);
-                StringValue expectedValue;
-                expectedValue.set_value(myKey);
+            asyncScopeWrite.spawn([&](size_t startKeyIndex, size_t endKeyIndex) -> task<>
+            {
+                co_await schedulers.ComputeScheduler->schedule();
+                Perf2_running_items.fetch_add(1);
 
                 co_await store->ExecuteOperation(
                     BeginTransactionRequest(),
                     [&](IOperation* operation)->task<>
                 {
-                    co_await operation->AddRow(
-                        WriteOperationMetadata{},
-                        SequenceNumber::Latest,
-                        index,
-                        &key,
-                        &expectedValue);
+                    for (auto myKeyIndex = startKeyIndex;
+                        myKeyIndex < endKeyIndex;
+                        myKeyIndex++)
+                    {
+                        auto& myKey = keys[myKeyIndex];
+                        StringKey key;
+                        key.set_value(myKey);
+                        StringValue expectedValue;
+                        expectedValue.set_value(myKey);
+
+                        co_await operation->AddRow(
+                            WriteOperationMetadata{},
+                            SequenceNumber::Latest,
+                            index,
+                            &key,
+                            &expectedValue);
+                    }
                 });
-            }(value));
+
+                Perf2_running_items.fetch_sub(1);
+            }(startKeyIndex, endKeyIndex));
         }
 
-        co_await asyncScope.join();
+        co_await asyncScopeWrite.join();
 
-        //std::vector<task<>> tasks;
 
-        //for (auto value : keys)
-        //{
-        //    tasks.push_back([&](string myKey) -> task<>
-        //    {
-        //        co_await threadPool.schedule();
+        auto endWriteTime = chrono::high_resolution_clock::now();
+        auto readWriteRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endWriteTime - startWriteTime);
 
-        //        StringKey key;
-        //        key.set_value(myKey);
-        //        StringValue expectedValue;
-        //        expectedValue.set_value(myKey);
+        std::cout << "ProtoStoreTests write runtime: " << readWriteRuntimeMs.count() << "\r\n" << std::flush;
+        {
+            auto startReadTime = chrono::high_resolution_clock::now();
 
-        //        ReadRequest readRequest;
-        //        readRequest.Key = &key;
-        //        readRequest.Index = index;
+            Perf2_running_items.store(0);
 
-        //        auto readResult = co_await store->Read(
-        //            readRequest
-        //        );
+            std::vector<task<>> tasks;
 
-        //        StringValue actualValue;
-        //        readResult.Value.unpack(&actualValue);
+            int threadCount = 50;
+            for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
+            {
+                tasks.push_back([&, threadNumber]() -> task<>
+                {
+                    co_await schedulers.ComputeScheduler->schedule();
 
-        //        ASSERT_TRUE(MessageDifferencer::Equals(
-        //            expectedValue,
-        //            actualValue));
-        //    }(value));
-        //}
+                    auto endKeyIndex = std::min(
+                        keys.size() / threadCount * (threadNumber + 1) - 1,
+                        keys.size());
 
-        //co_await cppcoro::when_all(
-        //    move(tasks));
+                    for (auto keyIndex = keys.size() / threadCount * threadNumber;
+                        keyIndex < endKeyIndex;
+                        keyIndex++)
+                    {
+                        auto myKey = keys[keyIndex];
 
-        auto endTime = chrono::high_resolution_clock::now();
+                        Perf2_running_items.fetch_add(1);
 
-        auto runtimeMs = chrono::duration_cast<chrono::milliseconds>(endTime - startTime);
+                        StringKey key;
+                        key.set_value(myKey);
+                        StringValue expectedValue;
+                        expectedValue.set_value(myKey);
 
-        std::cout << "ProtoStoreTests runtime: " << runtimeMs.count() << "\r\n";
+                        ReadRequest readRequest;
+                        readRequest.Key = &key;
+                        readRequest.Index = index;
+
+                        auto readResult = co_await store->Read(
+                            readRequest
+                        );
+
+                        StringValue actualValue;
+                        readResult.Value.unpack(&actualValue);
+
+                        ASSERT_TRUE(MessageDifferencer::Equals(
+                            expectedValue,
+                            actualValue));
+
+                        Perf2_running_items.fetch_sub(1);
+                    }
+
+                }());
+            }
+
+            co_await cppcoro::when_all(
+                move(tasks));
+
+            auto endReadTime = chrono::high_resolution_clock::now();
+            auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
+
+            std::cout << "ProtoStoreTests read runtime: " << readRuntimeMs.count() << "\r\n";
+        }
+
+        auto checkpointStartTime = chrono::high_resolution_clock::now();
+        co_await store->Checkpoint();
+        auto checkpointEndTime = chrono::high_resolution_clock::now();
+        auto checkpointRuntimeMs = chrono::duration_cast<chrono::milliseconds>(checkpointEndTime - checkpointStartTime);
+
+        std::cout << "ProtoStoreTests checkpoint runtime: " << checkpointRuntimeMs.count() << "\r\n";
+
     });
 }
 
