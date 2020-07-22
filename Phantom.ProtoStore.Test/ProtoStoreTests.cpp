@@ -602,6 +602,12 @@ TEST(ProtoStoreTests, Perf2)
             valueCount
         );
 
+        auto nonExistentKeys = MakeRandomStrings(
+            rng,
+            20,
+            valueCount
+        );
+
         auto startWriteTime = chrono::high_resolution_clock::now();
 
         cppcoro::async_scope asyncScopeWrite;
@@ -720,6 +726,66 @@ TEST(ProtoStoreTests, Perf2)
 
         co_await readLambda();
 
+
+        auto readNonExistentLambda = [&]() -> task<>
+        {
+            auto startReadTime = chrono::high_resolution_clock::now();
+
+            Perf2_running_items.store(0);
+
+            std::vector<task<>> tasks;
+
+            int threadCount = 1;
+            for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
+            {
+                tasks.push_back([&](int threadNumber) -> task<>
+                {
+                    co_await schedulers.ComputeScheduler->schedule();
+
+                    auto endKeyIndex = std::min(
+                        keys.size() / threadCount * (threadNumber + 1) - 1,
+                        keys.size());
+
+                    for (auto keyIndex = nonExistentKeys.size() / threadCount * threadNumber;
+                        keyIndex < endKeyIndex;
+                        keyIndex++)
+                    {
+                        auto myKey = nonExistentKeys[keyIndex];
+
+                        Perf2_running_items.fetch_add(1);
+
+                        StringKey key;
+                        key.set_value(myKey);
+                        StringValue expectedValue;
+                        expectedValue.set_value(myKey);
+
+                        ReadRequest readRequest;
+                        readRequest.Key = &key;
+                        readRequest.Index = index;
+
+                        auto readResult = co_await store->Read(
+                            readRequest
+                        );
+
+                        EXPECT_EQ(true, !readResult.Value);
+
+                        Perf2_running_items.fetch_sub(1);
+                    }
+
+                }(threadNumber));
+            }
+
+            co_await cppcoro::when_all(
+                move(tasks));
+
+            auto endReadTime = chrono::high_resolution_clock::now();
+            auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
+
+            std::cout << "ProtoStoreTests read nonexistent runtime: " << readRuntimeMs.count() << "\r\n";
+        };
+
+        co_await readNonExistentLambda();
+
         auto checkpointStartTime = chrono::high_resolution_clock::now();
         co_await store->Checkpoint();
         auto checkpointEndTime = chrono::high_resolution_clock::now();
@@ -728,6 +794,8 @@ TEST(ProtoStoreTests, Perf2)
         std::cout << "ProtoStoreTests checkpoint runtime: " << checkpointRuntimeMs.count() << "\r\n";
 
         co_await readLambda();
+        co_await readNonExistentLambda();
+
 
     });
 }

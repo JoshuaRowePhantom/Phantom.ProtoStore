@@ -154,6 +154,7 @@ message PartitionTreeEntry {
 
 message PartitionTreeNode {
 	repeated PartitionTreeEntry TreeEntries = 1;
+	uint64 Level = 2;
 }
 
 enum PartitionBloomFilterHashAlgorithm {

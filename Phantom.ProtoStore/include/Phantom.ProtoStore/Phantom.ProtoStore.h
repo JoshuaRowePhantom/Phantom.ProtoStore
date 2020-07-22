@@ -142,9 +142,11 @@ public:
 
     ProtoValue(
         std::unique_ptr<Message>&& other)
-        :
-        message(move(other))
     {
+        if (other)
+        {
+            message = move(other);
+        }
     }
 
     ProtoValue(
@@ -163,9 +165,23 @@ public:
 
     ProtoValue(
         const Message* other)
-        :
-        message(other)
     {
+        if (other)
+        {
+            message = other;
+        }
+    }
+
+    explicit operator bool() const
+    {
+        return message.index() != 0
+            || message_data.index() != 0;
+    }
+
+    bool operator !() const
+    {
+        return message.index() == 0
+            && message_data.index() == 0;
     }
 
     const Message* as_message_if() const

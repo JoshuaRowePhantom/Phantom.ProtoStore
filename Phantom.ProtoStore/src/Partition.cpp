@@ -139,17 +139,17 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     }
 }
 
-task<std::tuple<int, std::weak_ordering>> Partition::FindTreeEntry(
+task<int> Partition::FindTreeEntry(
     const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+    const PartitionTreeNode* treeNode,
     const FindTreeEntryKey& findEntryKey
 )
 {
-    auto treeNode = co_await partitionTreeNodeCacheEntry->ReadTreeNode();
-    auto left = findEntryKey.lastFindResult.value_or(0);
+    auto left = findEntryKey.lastFindResult.value_or(-1) + 1;
     auto right = treeNode->treeentries_size();
     auto readSequenceNumberUint64 = ToUint64(findEntryKey.readSequenceNumber);
-
-    while (left < right)
+    
+    while (right > left)
     {
         auto middle = left + (right - left) / 2;
 
@@ -161,10 +161,9 @@ task<std::tuple<int, std::weak_ordering>> Partition::FindTreeEntry(
             findEntryKey.key,
             middleKey);
 
-        if (keyComparison == std::weak_ordering::equivalent
-            && findEntryKey.inclusivity == Inclusivity::Exclusive)
+        if (keyComparison == std::weak_ordering::equivalent)
         {
-            keyComparison = std::weak_ordering::greater;
+            keyComparison = findEntryKey.matchingKeyComparisonResult;
         }
 
         if (keyComparison == std::weak_ordering::equivalent)
@@ -181,7 +180,7 @@ task<std::tuple<int, std::weak_ordering>> Partition::FindTreeEntry(
 
         if (keyComparison == std::weak_ordering::equivalent)
         {
-            co_return make_tuple(middle, keyComparison);
+            co_return middle;
         }
         else if (keyComparison == std::weak_ordering::less)
         {
@@ -193,7 +192,79 @@ task<std::tuple<int, std::weak_ordering>> Partition::FindTreeEntry(
         }
     }
 
-    co_return make_tuple(left, std::weak_ordering::greater);
+    co_return left;
+}
+
+task<int> Partition::FindLowTreeEntryIndex(
+    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+    const PartitionTreeNode* treeNode,
+    SequenceNumber readSequenceNumber,
+    KeyRangeEnd low
+)
+{
+    int lowTreeEntryIndex = 0;
+    std::weak_ordering lowTreeEntryComparison = std::weak_ordering::less;
+
+    if (low.Key)
+    {
+        FindTreeEntryKey key;
+        key.key = low.Key;
+        key.readSequenceNumber = readSequenceNumber;
+        
+        // We always ignore even non-leaf tree entries whose
+        // key matches our low if we're low-exclusive.
+        if (low.Inclusivity == Inclusivity::Exclusive)
+        {
+            key.matchingKeyComparisonResult = std::weak_ordering::greater;
+        }
+
+        lowTreeEntryIndex = co_await FindTreeEntry(
+            partitionTreeNodeCacheEntry,
+            treeNode,
+            key);
+    }
+
+    co_return lowTreeEntryIndex;
+}
+
+task<int> Partition::FindHighTreeEntryIndex(
+    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+    const PartitionTreeNode* treeNode,
+    SequenceNumber readSequenceNumber,
+    KeyRangeEnd high
+)
+{
+    int highTreeEntryIndex = treeNode->treeentries_size();
+    std::weak_ordering highTreeEntryComparison = std::weak_ordering::less;
+
+    if (high.Key)
+    {
+        FindTreeEntryKey key;
+        key.key = high.Key;
+        key.readSequenceNumber = readSequenceNumber;
+
+        if (high.Inclusivity == Inclusivity::Exclusive
+            && treeNode->level() == 0)
+        {
+            key.matchingKeyComparisonResult = std::weak_ordering::equivalent;
+        }
+        else
+        {
+            key.matchingKeyComparisonResult = std::weak_ordering::greater;
+        }
+
+        highTreeEntryIndex = co_await FindTreeEntry(
+            partitionTreeNodeCacheEntry,
+            treeNode,
+            key);
+
+        if (treeNode->level() != 0)
+        {
+            highTreeEntryIndex++;
+        }
+    }
+
+    co_return highTreeEntryIndex;
 }
 
 int Partition::FindMatchingValueIndexByWriteSequenceNumber(
@@ -246,55 +317,26 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
     auto treeNode = co_await cacheEntry->ReadTreeNode();
 
-    int lowTreeEntryIndex = 0;
-    std::weak_ordering lowTreeEntryComparison = std::weak_ordering::less;
+    int lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
+        cacheEntry,
+        treeNode,
+        readSequenceNumber,
+        low);
 
-    if (low.Key)
-    {
-        FindTreeEntryKey key;
-        key.key = low.Key;
-        key.inclusivity = low.Inclusivity;
-        key.readSequenceNumber = readSequenceNumber;
-
-        tie(lowTreeEntryIndex, lowTreeEntryComparison) = co_await FindTreeEntry(
-            cacheEntry,
-            key);
-    }
-
-    int highTreeEntryIndex = treeNode->treeentries_size();
-    std::weak_ordering highTreeEntryComparison = std::weak_ordering::less;
-
-    if (high.Key)
-    {
-        FindTreeEntryKey key;
-        key.key = low.Key;
-        key.inclusivity = Inclusivity::Inclusive,
-        key.readSequenceNumber = readSequenceNumber;
-
-        tie(highTreeEntryIndex, highTreeEntryComparison) = co_await FindTreeEntry(
-            cacheEntry,
-            key);
-
-        // If the user asked for an exclusive high end,
-        // and the resulting search returned an exact match,
-        // move one node earlier.
-        if (high.Inclusivity == Inclusivity::Exclusive
-            &&
-            highTreeEntryComparison == std::weak_ordering::equivalent
-            &&
-            treeNode->treeentries(highTreeEntryIndex).PartitionTreeEntryType_case() != PartitionTreeEntry::kTreeNodeOffset)
-        {
-            highTreeEntryIndex--;
-            highTreeEntryComparison = std::weak_ordering::greater;
-        }
-    }
+    int highTreeEntryIndex = co_await FindHighTreeEntryIndex(
+        cacheEntry,
+        treeNode,
+        readSequenceNumber,
+        high);
 
     while (
-        lowTreeEntryIndex <= highTreeEntryIndex
+        lowTreeEntryIndex < highTreeEntryIndex
         &&
         lowTreeEntryIndex < treeNode->treeentries_size())
     {
         auto& treeNodeEntry = treeNode->treeentries(lowTreeEntryIndex);
+        auto key = co_await cacheEntry->GetKey(lowTreeEntryIndex);
+        const Message* nextKey;
 
         if (PartitionTreeEntry::kTreeNodeOffset == treeNodeEntry.PartitionTreeEntryType_case())
         {
@@ -315,11 +357,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 co_await ++iterator)
             {
                 co_yield *iterator;
+                nextKey = (*iterator).Key;
             }
-
-            // Once we've enumerated a non-leaf node, we should just move
-            // to the next non-leaf node.
-            ++lowTreeEntryIndex;
         }
         else
         {
@@ -369,7 +408,6 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 value.reset();
             }
 
-            auto key = co_await cacheEntry->GetKey(lowTreeEntryIndex);
             co_yield ResultRow
             {
                 .Key = key,
@@ -377,17 +415,19 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 .Value = value.get(),
             };
 
-            // This is a leaf node, so we should find the next key.
-            FindTreeEntryKey findEntryKey;
-            findEntryKey.key = key;
-            findEntryKey.inclusivity = Inclusivity::Exclusive;
-            findEntryKey.lastFindResult = lowTreeEntryIndex;
-            findEntryKey.readSequenceNumber = readSequenceNumber;
-
-            tie(lowTreeEntryIndex, lowTreeEntryComparison) = co_await FindTreeEntry(
-                cacheEntry,
-                findEntryKey);
+            nextKey = key;
         }
+
+        FindTreeEntryKey findEntryKey;
+        findEntryKey.key = key;
+        findEntryKey.matchingKeyComparisonResult = std::weak_ordering::greater;
+        findEntryKey.lastFindResult = lowTreeEntryIndex;
+        findEntryKey.readSequenceNumber = readSequenceNumber;
+        
+        lowTreeEntryIndex = co_await FindTreeEntry(
+            cacheEntry,
+            treeNode,
+            findEntryKey);
     }
 
 }

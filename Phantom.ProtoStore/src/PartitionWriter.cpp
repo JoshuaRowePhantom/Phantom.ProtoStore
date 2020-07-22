@@ -185,6 +185,7 @@ task<> PartitionWriter::AddValueToTreeEntry(
 
         treeNode->Clear();
         *treeNode->add_treeentries() = move(*partitionTreeEntryToAdd);
+        treeNode->set_level(index);
 
         partitionTreeEntryToAddHolder = move(newPartitionTreeEntry);
         partitionTreeEntryToAdd = &*partitionTreeEntryToAddHolder;
@@ -197,6 +198,7 @@ task<> PartitionWriter::AddValueToTreeEntry(
     if (partitionTreeEntryToAdd)
     {
         auto treeNode = &m_treeNodeStack.emplace_back();
+        treeNode->set_level(m_treeNodeStack.size() - 1);
         *treeNode->add_treeentries() = *move(partitionTreeEntryToAdd);
     }
 
@@ -216,6 +218,7 @@ task<WriteMessageResult> PartitionWriter::WriteLeftoverTreeEntries()
     if (m_treeNodeStack.empty())
     {
         auto treeNode = &m_treeNodeStack.emplace_back();
+        treeNode->set_level(0);
     }
     *m_treeNodeStack[0].add_treeentries() = move(*m_currentLeafTreeEntry);
 

@@ -41,14 +41,9 @@ class Partition
     {
         SequenceNumber readSequenceNumber;
         const Message* key;
-        Inclusivity inclusivity;
+        std::weak_ordering matchingKeyComparisonResult = std::weak_ordering::equivalent;
         std::optional<int> lastFindResult;
     };
-
-    task<std::tuple<int, std::weak_ordering>> FindTreeEntry(
-        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-        const FindTreeEntryKey& key
-    );
 
     cppcoro::async_generator<ResultRow> Enumerate(
         ExtentLocation treeNodeLocation,
@@ -60,6 +55,26 @@ class Partition
     int FindMatchingValueIndexByWriteSequenceNumber(
         const PartitionTreeEntryValueSet& valueSet,
         SequenceNumber readSequenceNumber);
+
+    task<int> FindTreeEntry(
+        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        const PartitionTreeNode* treeNode,
+        const FindTreeEntryKey& key
+    );
+
+    task<int> FindLowTreeEntryIndex(
+        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        const PartitionTreeNode* treeNode,
+        SequenceNumber readSequenceNumber,
+        KeyRangeEnd low
+    );
+
+    task<int> FindHighTreeEntryIndex(
+        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
+        const PartitionTreeNode* treeNode,
+        SequenceNumber readSequenceNumber,
+        KeyRangeEnd high
+    );
 
 public:
     Partition(
