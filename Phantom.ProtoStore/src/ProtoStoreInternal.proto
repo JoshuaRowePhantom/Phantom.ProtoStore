@@ -119,6 +119,33 @@ message PartitionsValue {
 	uint64 Size = 3;
 }
 
+message MergesKey {
+	uint64 IndexNumber = 1;
+	string MergesUniqueId = 2;
+}
+
+message MergesValue {
+	repeated uint64 SourceDataExtentNumbers = 1;
+}
+
+message MergeChunksKey {
+	string MergesUniqueId = 1;
+	uint64 MergeChunkNumber = 2;
+}
+
+enum MergeChunkStatus {
+	NotStarted = 0;
+	Incomplete = 1;
+	Complete = 2;
+}
+
+message MergeChunksValue {
+	MergeChunkStatus MergeChunkStatus = 1;
+	uint64 DestinationDataExtentNumber = 2;
+	uint64 StartRowIndex = 3;
+	uint64 EndRowIndex = 4;
+}
+
 message PartitionTreeEntryValue {
 	oneof PartitionTreeEntryValue {
 		// Set if this entry is an inline small value.
@@ -139,22 +166,26 @@ message PartitionTreeEntry {
 	// The key for this tree entry,
 	// or the highest key in the subtree owned by this tree entry.
 	bytes Key = 1;
+	uint64 LowestWriteSequenceNumber = 2;
+	uint64 HighestWriteSequenceNumber = 3;
 	oneof PartitionTreeEntryType {
 		// Set if the tree points to a subtree.
-		uint64 TreeNodeOffset = 2;
+		uint64 TreeNodeOffset = 4;
 		// Set if the tree points to a single value
-		PartitionTreeEntryValue Value = 3;
+		PartitionTreeEntryValue Value = 5;
 		// Set if the tree points to multiple values for the
 		// same key but different sequence numbers.
-		PartitionTreeEntryValueSet ValueSet = 4;
+		PartitionTreeEntryValueSet ValueSet = 6;
     }
-	uint64 LowestWriteSequenceNumber = 5;
-	uint64 HighestWriteSequenceNumber = 6;
 }
 
 message PartitionTreeNode {
 	repeated PartitionTreeEntry TreeEntries = 1;
 	uint64 Level = 2;
+	uint64 Size = 3;
+	uint64 SizeRunningTotal = 4;
+	uint64 ApproximateKeyCount = 5;
+	uint64 ApproximateKeyCountRunningTotal = 6;
 }
 
 enum PartitionBloomFilterHashAlgorithm {
