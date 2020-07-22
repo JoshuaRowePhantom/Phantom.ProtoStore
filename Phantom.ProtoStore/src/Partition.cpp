@@ -174,11 +174,11 @@ cppcoro::task<size_t> Partition::FindTreeEntry(
         }
         else if (keyComparison == std::weak_ordering::less)
         {
-            left = middle + 1;
+            right = middle - 1;
         }
         else
         {
-            right = middle - 1;
+            left = middle + 1;
         }
     }
 
