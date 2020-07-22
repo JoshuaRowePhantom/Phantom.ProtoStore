@@ -543,9 +543,11 @@ TEST(ProtoStoreTests, Perf1)
                 StringValue actualValue;
                 readResult.Value.unpack(&actualValue);
 
-                ASSERT_TRUE(MessageDifferencer::Equals(
+                auto messageDifferencerResult = MessageDifferencer::Equals(
                     expectedValue,
-                    actualValue));
+                    actualValue);
+
+                ASSERT_TRUE(messageDifferencerResult);
             }(value));
         }
 
@@ -695,9 +697,11 @@ TEST(ProtoStoreTests, Perf2)
                         StringValue actualValue;
                         readResult.Value.unpack(&actualValue);
 
-                        ASSERT_TRUE(MessageDifferencer::Equals(
+                        auto messageDifferencerResult = MessageDifferencer::Equals(
                             expectedValue,
-                            actualValue));
+                            actualValue);
+
+                        EXPECT_TRUE(messageDifferencerResult);
 
                         Perf2_running_items.fetch_sub(1);
                     }

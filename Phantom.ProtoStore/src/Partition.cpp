@@ -185,7 +185,7 @@ task<std::tuple<int, std::weak_ordering>> Partition::FindTreeEntry(
         }
         else if (keyComparison == std::weak_ordering::less)
         {
-            right = middle - 1;
+            right = middle;
         }
         else
         {
@@ -298,11 +298,14 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
         if (PartitionTreeEntry::kTreeNodeOffset == treeNodeEntry.PartitionTreeEntryType_case())
         {
+            ExtentLocation enumerationLocation =
+            {
+                m_dataLocation.extentNumber,
+                treeNodeEntry.treenodeoffset(),
+            };
+
             auto subTreeEnumerator = Enumerate(
-                {
-                    m_dataLocation.extentNumber,
-                    treeNodeEntry.treenodeoffset(),
-                },
+                enumerationLocation,
                 readSequenceNumber,
                 low,
                 high);
@@ -340,13 +343,19 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
             if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
             {
-                value.reset(m_valueFactory->GetPrototype()->New());
+                PartitionMessage message;
                 co_await m_dataMessageAccessor->ReadMessage(
                     {
                         .extentNumber = m_dataLocation.extentNumber,
                         .extentOffset = treeEntryValue->valueoffset(),
                     },
-                    *value);
+                    message);
+                
+                assert(message.PartitionMessageType_case() == PartitionMessage::kValue);
+
+                value.reset(m_valueFactory->GetPrototype()->New());
+                value->ParseFromString(
+                    message.value());
             }
             else if (PartitionTreeEntryValue::kValue == treeEntryValue->PartitionTreeEntryValue_case())
             {
