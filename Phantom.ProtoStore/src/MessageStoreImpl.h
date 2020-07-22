@@ -123,6 +123,10 @@ namespace Phantom::ProtoStore
         ) override;
 
         virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
+            const shared_ptr<IReadableExtent>& readableExtent
+        ) override;
+
+        virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
             ExtentNumber extentNumber
         ) override;
 

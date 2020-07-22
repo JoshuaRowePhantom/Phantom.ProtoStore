@@ -119,18 +119,37 @@ message PartitionsValue {
 	uint64 Size = 3;
 }
 
+message PartitionTreeEntryValue {
+	oneof PartitionTreeEntryValue {
+		// Set if this entry is an inline small value.
+		bytes Value = 1;
+		// Set if this entry is an offset into the file.
+		uint64 ValueOffset = 2;
+		bool Deleted = 3;
+    }
+	uint64 WriteSequenceNumber = 4;
+}
+
+message PartitionTreeEntryValueSet {
+	// A set of values sorted by decreasing sequence number.
+	repeated PartitionTreeEntryValue Values = 1;
+}
+
 message PartitionTreeEntry {
+	// The key for this tree entry,
+	// or the highest key in the subtree owned by this tree entry.
 	bytes Key = 1;
 	oneof PartitionTreeEntryType {
 		// Set if the tree points to a subtree.
 		uint64 TreeNodeOffset = 2;
-		// Set if this entry is an inline small value.
-		bytes Value = 3;
-		// Set if this entry is an offset into the file.
-		uint64 ValueOffset = 4;
-		bool Deleted = 5;
+		// Set if the tree points to a single value
+		PartitionTreeEntryValue Value = 3;
+		// Set if the tree points to multiple values for the
+		// same key but different sequence numbers.
+		PartitionTreeEntryValueSet ValueSet = 4;
     }
-	uint64 WriteSequenceNumber = 6;
+	uint64 LowestWriteSequenceNumber = 5;
+	uint64 HighestWriteSequenceNumber = 6;
 }
 
 message PartitionTreeNode {
@@ -155,4 +174,14 @@ message PartitionRoot {
 
 message PartitionHeader {
 	fixed64 PartitionRootOffset = 1;
+}
+
+message PartitionMessage {
+	oneof PartitionMessageType {
+		PartitionHeader PartitionHeader = 1;
+		PartitionRoot PartitionRoot = 2;
+		PartitionTreeNode PartitionTreeNode = 3;
+		PartitionBloomFilter PartitionBloomFilter = 4;
+		string Value = 5;
+	}
 }

@@ -71,33 +71,20 @@ task<> DumpPartition(
     auto dataExtent = co_await extentStore->OpenExtentForRead(
         dataPath);
 
-    auto dataMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(
+    auto dataMessageReader = co_await messageStore->OpenExtentForSequentialReadAccess(
         dataExtent);
 
-    PartitionHeader header;
-    co_await headerMessageReader->Read(
-        0,
-        header);
+    PartitionMessage message;
+    do
+    {
+        auto readMessageResult = co_await dataMessageReader->Read(
+            message);
 
-    DumpMessage(
-        "Header",
-        header,
-        0);
-
-    PartitionRoot root;
-    co_await dataMessageReader->Read(
-        header.partitionrootoffset(),
-        root);
-
-    DumpMessage(
-        "Root",
-        root,
-        header.partitionrootoffset());
-
-    co_await DumpTreeNode(
-        dataMessageReader,
-        root.roottreenodeoffset(),
-        0
-    );
+        DumpMessage(
+            "PartitionMessage",
+            message,
+            readMessageResult.DataRange.Beginning
+        );
+    } while (!message.has_partitionheader());
 
 }

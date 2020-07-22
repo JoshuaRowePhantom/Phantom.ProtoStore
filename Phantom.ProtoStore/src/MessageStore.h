@@ -9,7 +9,7 @@ namespace Phantom::ProtoStore
 {
     struct ReadMessageResult
     {
-        ExtentOffset EndOfMessage;
+        ExtentOffsetRange DataRange;
     };
 
     struct WriteMessageResult
@@ -71,6 +71,10 @@ namespace Phantom::ProtoStore
 
         virtual task<shared_ptr<IRandomMessageWriter>> OpenExtentForRandomWriteAccess(
             ExtentNumber extentNumber
+        ) = 0;
+
+        virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
+            const shared_ptr<IReadableExtent>& readableExtent
         ) = 0;
 
         virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(

@@ -73,7 +73,7 @@ namespace Phantom::ProtoStore
                 actualMessage1);
 
             auto readResult2 = co_await randomMessageReader->Read(
-                readResult1.EndOfMessage,
+                readResult1.DataRange.End,
                 actualMessage2);
 
             ASSERT_TRUE(MessageDifferencer::Equals(
@@ -129,7 +129,7 @@ namespace Phantom::ProtoStore
                 expectedMessage,
                 actualMessage));
 
-            ASSERT_EQ(expectedEndOfMessage, readResult.EndOfMessage);
+            ASSERT_EQ(expectedEndOfMessage, readResult.DataRange.End);
         });
     }
 

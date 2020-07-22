@@ -22,13 +22,16 @@ shared_task<const PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNodeI
     shared_ptr<IRandomMessageAccessor> messageAccessor,
     ExtentLocation messageLocation)
 {
-    auto treeNode = google::protobuf::Arena::CreateMessage<PartitionTreeNode>(
+    auto treeNodeMessage = google::protobuf::Arena::CreateMessage<PartitionMessage>(
         &m_arena);
 
     co_await messageAccessor->ReadMessage(
         messageLocation,
-        *treeNode
+        *treeNodeMessage
     );
+
+    assert(treeNodeMessage->has_partitiontreenode());
+    auto treeNode = treeNodeMessage->mutable_partitiontreenode();
 
     m_keys.resize(treeNode->treeentries_size());
     for (size_t index = 0; index < treeNode->treeentries_size(); index++)

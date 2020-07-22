@@ -8,6 +8,7 @@
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "PartitionTreeNodeCache.h"
 #include "BloomFilter.h"
+#include <compare>
 
 namespace Phantom::ProtoStore
 {
@@ -30,29 +31,23 @@ class Partition
     PartitionRoot m_partitionRoot;
 
     typedef BloomFilter<std::hash<string>, char, span<const char>> BloomFilterVersion1;
-    unique_ptr<BloomFilterVersion1> m_bloomFilter;
+    optional<BloomFilterVersion1> m_bloomFilter;
 
     shared_task<> m_openTask;
 
     PartitionTreeNodeCache m_partitionTreeNodeCache;
 
-    task<size_t> FindTreeEntry(
-        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-        SequenceNumber readSequenceNumber,
-        KeyRangeEnd low,
-        std::weak_ordering equivalenceToUseForEquivalent
-    );
+    struct FindTreeEntryKey
+    {
+        SequenceNumber readSequenceNumber;
+        const Message* key;
+        Inclusivity inclusivity;
+        std::optional<int> lastFindResult;
+    };
 
-    task<size_t> FindLowTreeEntry(
+    task<std::tuple<int, std::weak_ordering>> FindTreeEntry(
         const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-        SequenceNumber readSequenceNumber,
-        KeyRangeEnd low
-    );
-
-    task<size_t> FindHighTreeEntry(
-        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-        SequenceNumber readSequenceNumber,
-        KeyRangeEnd high
+        const FindTreeEntryKey& key
     );
 
     cppcoro::async_generator<ResultRow> Enumerate(
@@ -61,6 +56,10 @@ class Partition
         KeyRangeEnd low,
         KeyRangeEnd high
     );
+
+    int FindMatchingValueIndexByWriteSequenceNumber(
+        const PartitionTreeEntryValueSet& valueSet,
+        SequenceNumber readSequenceNumber);
 
 public:
     Partition(

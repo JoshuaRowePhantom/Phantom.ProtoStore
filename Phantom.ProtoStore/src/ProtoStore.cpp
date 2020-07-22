@@ -756,7 +756,10 @@ task<> ProtoStore::Checkpoint(
     auto headerWriter = co_await m_dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(
         dataExtentNumber);
 
+    PartitionWriterParameters partitionWriterParameters{};
+
     auto partitionWriter = make_shared<PartitionWriter>(
+        partitionWriterParameters,
         dataWriter,
         headerWriter);
 

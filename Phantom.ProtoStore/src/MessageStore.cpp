@@ -94,10 +94,15 @@ namespace Phantom::ProtoStore
 
         co_return ReadMessageResult
         {
-            extentOffset 
-            + messageHeaderReadBufferSize 
-            + messageSize 
-            + checksum->SizeInBytes(),
+            .DataRange =
+            {
+                .Beginning = extentOffset,
+                .End =
+                    extentOffset
+                    + messageHeaderReadBufferSize
+                    + messageSize
+                    + checksum->SizeInBytes(),
+            },
         };
     }
 
@@ -246,7 +251,7 @@ namespace Phantom::ProtoStore
             m_currentOffset,
             message);
 
-        m_currentOffset = readResult.EndOfMessage;
+        m_currentOffset = readResult.DataRange.End;
 
         co_return readResult;
     }
@@ -375,18 +380,27 @@ namespace Phantom::ProtoStore
     }
 
     task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequentialReadAccess(
-        ExtentNumber extentNumber
+        const shared_ptr<IReadableExtent>& readableExtent
     )
     {
-        auto readableExtent = co_await OpenExtentForRead(
-            extentNumber);
-        
         auto randomMessageReader = make_shared<RandomMessageReader>(
             readableExtent,
             m_checksumAlgorithmFactory);
 
         co_return make_shared<SequentialMessageReader>(
             randomMessageReader);
+    }
+
+    task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequentialReadAccess(
+        ExtentNumber extentNumber
+    )
+    {
+        auto readableExtent = co_await OpenExtentForRead(
+            extentNumber);
+
+        return co_await OpenExtentForSequentialReadAccess(
+            readableExtent);
+        
     }
 
     task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialWriteAccess(
