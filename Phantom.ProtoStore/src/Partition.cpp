@@ -235,7 +235,10 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
     auto treeNode = co_await cacheEntry->ReadTreeNode();
 
-    size_t lowTreeEntryIndex = 0;
+    size_t lowTreeEntryIndex = co_await FindLowTreeEntry(
+        cacheEntry,
+        readSequenceNumber,
+        low);
 
     auto highTreeEntryIndex = co_await FindHighTreeEntry(
         cacheEntry,
@@ -243,10 +246,7 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         high);
 
     while (
-        (highTreeEntryIndex >= (lowTreeEntryIndex = co_await FindLowTreeEntry(
-            cacheEntry,
-            readSequenceNumber,
-            low)))
+        highTreeEntryIndex >= lowTreeEntryIndex
         && lowTreeEntryIndex < treeNode->treeentries_size())
     {
         auto& treeNodeEntry = treeNode->treeentries(lowTreeEntryIndex);
@@ -269,6 +269,10 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             {
                 co_yield *iterator;
             }
+
+            // Once we've enumerated a non-leaf node, we should just move
+            // to the next non-leaf node.
+            ++lowTreeEntryIndex;
         }
         else
         {
@@ -298,10 +302,16 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 .WriteSequenceNumber = ToSequenceNumber(treeNodeEntry.writesequencenumber()),
                 .Value = value.get(),
             };
-        }
 
-        low.Inclusivity = Inclusivity::Exclusive;
-        low.Key = key;
+            // This is a leaf node, so we should find the next key.
+            low.Inclusivity = Inclusivity::Exclusive;
+            low.Key = key;
+
+            lowTreeEntryIndex = co_await FindLowTreeEntry(
+                cacheEntry,
+                readSequenceNumber,
+                low);
+        }
     }
 
 }
