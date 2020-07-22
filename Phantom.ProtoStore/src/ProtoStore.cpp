@@ -33,6 +33,7 @@ ProtoStore::ProtoStore(
     m_dataHeaderMessageStore(MakeMessageStore(m_dataHeaderExtentStore)),
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
+    m_dataHeaderMessageAccessor(MakeRandomMessageAccessor(m_dataHeaderMessageStore)),
     m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor))
 {
     m_writeSequenceNumberBarrier.publish(0);
@@ -700,6 +701,7 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
         index->GetKeyComparer(),
         index->GetKeyFactory(),
         index->GetValueFactory(),
+        m_dataHeaderMessageAccessor,
         m_dataMessageAccessor,
         ExtentLocation
         {

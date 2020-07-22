@@ -30,6 +30,7 @@ class ProtoStore
     const shared_ptr<IMessageStore> m_dataHeaderMessageStore;
     const shared_ptr<IRandomMessageAccessor> m_headerMessageAccessor;
     const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
+    const shared_ptr<IRandomMessageAccessor> m_dataHeaderMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
 
 

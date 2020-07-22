@@ -11,31 +11,33 @@ Partition::Partition(
     shared_ptr<KeyComparer> keyComparer,
     shared_ptr<IMessageFactory> keyFactory,
     shared_ptr<IMessageFactory> valueFactory,
-    shared_ptr<IRandomMessageAccessor> messageAccessor,
+    shared_ptr<IRandomMessageAccessor> dataHeaderMessageAccessor,
+    shared_ptr<IRandomMessageAccessor> dataMessageAccessor,
     ExtentLocation headerLocation,
     ExtentLocation dataLocation
 ) :
     m_keyComparer(keyComparer),
     m_keyFactory(keyFactory),
     m_valueFactory(valueFactory),
-    m_messageAccessor(messageAccessor),
+    m_dataHeaderMessageAccessor(dataHeaderMessageAccessor),
+    m_dataMessageAccessor(dataMessageAccessor),
     m_headerLocation(headerLocation),
     m_dataLocation(dataLocation),
     m_partitionTreeNodeCache(
         keyFactory,
-        messageAccessor
+        m_dataMessageAccessor
     )
 {
 }
 
 task<> Partition::Open()
 {
-    co_await m_messageAccessor->ReadMessage(
+    co_await m_dataHeaderMessageAccessor->ReadMessage(
         m_headerLocation,
         m_partitionHeader
     );
 
-    co_await m_messageAccessor->ReadMessage(
+    co_await m_dataMessageAccessor->ReadMessage(
         ExtentLocation
         {
             m_dataLocation.extentNumber,
@@ -43,7 +45,7 @@ task<> Partition::Open()
         },
         m_partitionRoot);
 
-    co_await m_messageAccessor->ReadMessage(
+    co_await m_dataMessageAccessor->ReadMessage(
         ExtentLocation
         {
             m_dataLocation.extentNumber,
@@ -275,7 +277,7 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             if (PartitionTreeEntry::kValueOffset == treeNodeEntry.PartitionTreeEntryType_case())
             {
                 value.reset(m_valueFactory->GetPrototype()->New());
-                co_await m_messageAccessor->ReadMessage(
+                co_await m_dataMessageAccessor->ReadMessage(
                     {
                         .extentNumber = m_dataLocation.extentNumber,
                         .extentOffset = treeNodeEntry.valueoffset(),

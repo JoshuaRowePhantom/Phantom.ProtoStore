@@ -20,7 +20,8 @@ class Partition
     shared_ptr<KeyComparer> m_keyComparer;
     shared_ptr<IMessageFactory> m_keyFactory;
     shared_ptr<IMessageFactory> m_valueFactory;
-    shared_ptr<IRandomMessageAccessor> m_messageAccessor;
+    shared_ptr<IRandomMessageAccessor> m_dataHeaderMessageAccessor;
+    shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     ExtentLocation m_headerLocation;
     ExtentLocation m_dataLocation;
 
@@ -66,7 +67,8 @@ public:
         shared_ptr<KeyComparer> keyComparer,
         shared_ptr<IMessageFactory> keyFactory,
         shared_ptr<IMessageFactory> valueFactory,
-        shared_ptr<IRandomMessageAccessor> messageAccessor,
+        shared_ptr<IRandomMessageAccessor> dataHeaderMessageAccessor,
+        shared_ptr<IRandomMessageAccessor> dataMessage,
         ExtentLocation headerLocation,
         ExtentLocation dataLocation
     );
