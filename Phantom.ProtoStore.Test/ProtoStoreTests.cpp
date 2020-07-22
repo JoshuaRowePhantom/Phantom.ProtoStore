@@ -668,7 +668,11 @@ TEST(ProtoStoreTests, Perf2)
 
             std::vector<task<>> tasks;
 
+#ifdef NDEBUG
+            int threadCount = 50;
+#else
             int threadCount = 1;
+#endif
             for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
             {
                 tasks.push_back([&](int threadNumber) -> task<>
@@ -683,6 +687,11 @@ TEST(ProtoStoreTests, Perf2)
                         keyIndex < endKeyIndex;
                         keyIndex++)
                     {
+                        if (keyIndex % 100 == 0)
+                        {
+                            co_await *schedulers.ComputeScheduler;
+                        }
+
                         auto myKey = keys[keyIndex];
 
                         Perf2_running_items.fetch_add(1);
@@ -735,7 +744,11 @@ TEST(ProtoStoreTests, Perf2)
 
             std::vector<task<>> tasks;
 
+#ifdef NDEBUG
+            int threadCount = 50;
+#else
             int threadCount = 1;
+#endif
             for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
             {
                 tasks.push_back([&](int threadNumber) -> task<>

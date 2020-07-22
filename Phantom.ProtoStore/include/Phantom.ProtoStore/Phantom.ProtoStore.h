@@ -533,8 +533,68 @@ public:
 class IScheduler
 {
 public:
-    virtual task<> schedule(
+    class schedule_operation
+    {
+        friend class IScheduler;
+        IScheduler* m_scheduler;
+        std::any m_value;
+
+        schedule_operation(
+            IScheduler* scheduler,
+            std::any&& value)
+            : m_scheduler(scheduler),
+            m_value(move(value))
+        {}
+
+    public:
+        bool await_ready() noexcept
+        {
+            return m_scheduler->await_ready(
+                &m_value);
+        }
+
+        void await_suspend(std::experimental::coroutine_handle<> awaitingCoroutine) noexcept
+        {
+            m_scheduler->await_suspend(
+                &m_value,
+                awaitingCoroutine);
+        }
+
+        void await_resume()
+        {
+            return m_scheduler->await_resume(
+                &m_value);
+        }
+
+    };
+    
+    virtual std::any create_schedule_operation_value(
     ) = 0;
+
+    virtual bool await_ready(
+        std::any* scheduleOperationValue
+    ) noexcept = 0;
+
+    virtual void await_suspend(
+        std::any* scheduleOperationValue,
+        std::experimental::coroutine_handle<> awaitingCoroutine
+    ) noexcept = 0;
+
+    virtual void await_resume(
+        std::any* scheduleOperationValue
+    ) noexcept = 0;
+
+    schedule_operation schedule()
+    {
+        return schedule_operation(
+            this,
+            create_schedule_operation_value());
+    }
+
+    schedule_operation operator co_await()
+    {
+        return schedule();
+    }
 };
 
 template<
@@ -544,6 +604,7 @@ template<
     public IScheduler
 {
     TScheduler m_scheduler;
+    typedef decltype(m_scheduler.schedule()) underlying_schedule_operation;
 
 public:
     template<
@@ -554,9 +615,33 @@ public:
     ) : m_scheduler(std::forward<TArgs>(args)...)
     {}
 
-    virtual task<> schedule()
+    virtual std::any create_schedule_operation_value(
+    ) override
     {
-        co_await m_scheduler.schedule();
+        return m_scheduler.schedule();
+    }
+
+    virtual bool await_ready(
+        std::any* value
+    ) noexcept override
+    {
+        return std::any_cast<underlying_schedule_operation>(value)->await_ready();
+    }
+
+    virtual void await_suspend(
+        std::any* value,
+        std::experimental::coroutine_handle<> awaitingCoroutine
+    ) noexcept override
+    {
+        return std::any_cast<underlying_schedule_operation>(value)->await_suspend(
+            awaitingCoroutine);
+    }
+
+    virtual void await_resume(
+        std::any* value
+    ) noexcept override
+    {
+        return std::any_cast<underlying_schedule_operation>(value)->await_resume();
     }
 };
 

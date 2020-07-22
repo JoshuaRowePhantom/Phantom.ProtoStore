@@ -183,6 +183,6 @@ message PartitionMessage {
 		PartitionRoot PartitionRoot = 2;
 		PartitionTreeNode PartitionTreeNode = 3;
 		PartitionBloomFilter PartitionBloomFilter = 4;
-		string Value = 5;
+		bytes Value = 5;
 	}
 }
