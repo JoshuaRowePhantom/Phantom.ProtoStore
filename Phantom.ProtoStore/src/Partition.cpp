@@ -189,7 +189,12 @@ cppcoro::task<size_t> Partition::FindLowTreeEntry(
     KeyRangeEnd low
 )
 {
-    return FindTreeEntry(
+    if (low.Key == nullptr)
+    {
+        co_return 0;
+    }
+
+    co_return co_await FindTreeEntry(
         partitionTreeNodeCacheEntry,
         readSequenceNumber,
         low,
@@ -203,7 +208,12 @@ cppcoro::task<size_t> Partition::FindHighTreeEntry(
     KeyRangeEnd high
 )
 {
-    return FindTreeEntry(
+    if (high.Key == nullptr)
+    {
+        co_return (co_await partitionTreeNodeCacheEntry->ReadTreeNode())->treeentries_size();
+    }
+
+    co_return co_await FindTreeEntry(
         partitionTreeNodeCacheEntry,
         readSequenceNumber,
         high,

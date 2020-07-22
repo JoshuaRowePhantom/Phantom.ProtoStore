@@ -111,6 +111,10 @@ namespace Phantom::ProtoStore
 
         // Inherited via IMessageStore
         virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
+            const shared_ptr<IReadableExtent>& readableExtent
+        ) override;
+
+        virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
             ExtentNumber extentNumber
         ) override;
 

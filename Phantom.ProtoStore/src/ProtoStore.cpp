@@ -19,14 +19,18 @@ namespace Phantom::ProtoStore
 ProtoStore::ProtoStore(
     shared_ptr<IExtentStore> headerExtentStore,
     shared_ptr<IExtentStore> logExtentStore,
-    shared_ptr<IExtentStore> dataExtentStore)
+    shared_ptr<IExtentStore> dataExtentStore,
+    shared_ptr<IExtentStore> dataHeaderExtentStore
+)
     :
     m_headerExtentStore(move(headerExtentStore)),
     m_logExtentStore(move(logExtentStore)),
     m_dataExtentStore(move(dataExtentStore)),
+    m_dataHeaderExtentStore(move(dataHeaderExtentStore)),
     m_headerMessageStore(MakeMessageStore(m_headerExtentStore)),
     m_logMessageStore(MakeMessageStore(m_logExtentStore)),
     m_dataMessageStore(MakeMessageStore(m_dataExtentStore)),
+    m_dataHeaderMessageStore(MakeMessageStore(m_dataHeaderExtentStore)),
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
     m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor))
@@ -744,12 +748,11 @@ task<> ProtoStore::Checkpoint(
     }
 
     auto dataExtentNumber = co_await AllocateDataExtent();
-    auto headerExtentNumber = co_await AllocateDataExtent();
 
     auto dataWriter = co_await m_dataMessageStore->OpenExtentForSequentialWriteAccess(
         dataExtentNumber);
-    auto headerWriter = co_await m_dataMessageStore->OpenExtentForSequentialWriteAccess(
-        headerExtentNumber);
+    auto headerWriter = co_await m_dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(
+        dataExtentNumber);
 
     auto partitionWriter = make_shared<PartitionWriter>(
         dataWriter,
@@ -770,14 +773,12 @@ task<> ProtoStore::Checkpoint(
         loggedCheckpoint);
     operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
         dataExtentNumber);
-    operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
-        headerExtentNumber);
 
     PartitionsKey partitionsKey;
     partitionsKey.set_indexnumber(index->GetIndexNumber());
     partitionsKey.set_dataextentnumber(dataExtentNumber);
     PartitionsValue partitionsValue;
-    partitionsValue.set_headerextentnumber(headerExtentNumber);
+    partitionsValue.set_headerextentnumber(dataExtentNumber);
     partitionsValue.set_size(co_await dataWriter->CurrentOffset());
     partitionsValue.set_level(0);
 

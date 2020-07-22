@@ -9,11 +9,13 @@ task<shared_ptr<IProtoStore>> ProtoStoreFactory::Open(
     auto headerExtentStore = co_await openRequest.HeaderExtentStore();
     auto logExtentStore = co_await openRequest.LogExtentStore();
     auto dataExtentStore = co_await openRequest.DataExtentStore();
+    auto dataHeaderExtentStore = co_await openRequest.DataHeaderExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
         headerExtentStore,
         logExtentStore,
-        dataExtentStore);
+        dataExtentStore,
+        dataHeaderExtentStore);
 
     co_await protoStore->Open(
         openRequest);
@@ -27,11 +29,13 @@ task<shared_ptr<IProtoStore>> ProtoStoreFactory::Create(
     auto headerExtentStore = co_await createRequest.HeaderExtentStore();
     auto logExtentStore = co_await createRequest.LogExtentStore();
     auto dataExtentStore = co_await createRequest.DataExtentStore();
+    auto dataHeaderExtentStore = co_await createRequest.DataHeaderExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
         headerExtentStore,
         logExtentStore,
-        dataExtentStore);
+        dataExtentStore,
+        dataHeaderExtentStore);
 
     co_await protoStore->Create(
         createRequest);

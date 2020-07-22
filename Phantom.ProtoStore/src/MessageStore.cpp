@@ -342,6 +342,15 @@ namespace Phantom::ProtoStore
 
     // Inherited via IMessageStore
     task<shared_ptr<IRandomMessageReader>> MessageStore::OpenExtentForRandomReadAccess(
+        const shared_ptr<IReadableExtent>& readableExtent
+    )
+    {
+        co_return make_shared<RandomMessageReader>(
+            readableExtent,
+            m_checksumAlgorithmFactory);
+    }
+
+    task<shared_ptr<IRandomMessageReader>> MessageStore::OpenExtentForRandomReadAccess(
         ExtentNumber extentNumber
     )
     {

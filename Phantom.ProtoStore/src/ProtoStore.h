@@ -23,9 +23,11 @@ class ProtoStore
     const shared_ptr<IExtentStore> m_headerExtentStore;
     const shared_ptr<IExtentStore> m_logExtentStore;
     const shared_ptr<IExtentStore> m_dataExtentStore;
+    const shared_ptr<IExtentStore> m_dataHeaderExtentStore;
     const shared_ptr<IMessageStore> m_headerMessageStore;
     const shared_ptr<IMessageStore> m_logMessageStore;
     const shared_ptr<IMessageStore> m_dataMessageStore;
+    const shared_ptr<IMessageStore> m_dataHeaderMessageStore;
     const shared_ptr<IRandomMessageAccessor> m_headerMessageAccessor;
     const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
@@ -150,7 +152,8 @@ public:
     ProtoStore(
         shared_ptr<IExtentStore> headerStore,
         shared_ptr<IExtentStore> logStore,
-        shared_ptr<IExtentStore> dataStore);
+        shared_ptr<IExtentStore> dataStore,
+        shared_ptr<IExtentStore> dataHeaderStore);
 
     task<> Open(
         const OpenProtoStoreRequest& openRequest

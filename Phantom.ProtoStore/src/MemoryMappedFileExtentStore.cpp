@@ -634,15 +634,14 @@ std::string MemoryMappedFileExtentStore::GetFilename(
     return result.str();
 }
 
-task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
-    ExtentNumber extentNumber)
-{
-    auto filename = GetFilename(extentNumber);
 
-    if (std::filesystem::exists(filename))
+task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
+    std::filesystem::path path)
+{
+    if (std::filesystem::exists(path))
     {
         file_mapping fileMapping(
-            GetFilename(extentNumber).c_str(),
+            path.string().c_str(),
             boost::interprocess::read_only
         );
 
@@ -658,6 +657,14 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
 
     co_return make_shared<MemoryMappedReadableExtent>(
         mapped_region());
+}
+
+task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
+    ExtentNumber extentNumber)
+{
+    auto filename = GetFilename(extentNumber);
+    return OpenExtentForRead(
+        filename);
 }
 
 task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrite(

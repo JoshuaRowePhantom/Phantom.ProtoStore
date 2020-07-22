@@ -76,15 +76,17 @@ PartitionTreeNodeCache::PartitionTreeNodeCache(
 task<shared_ptr<PartitionTreeNodeCacheEntry>> PartitionTreeNodeCache::GetPartitionTreeNodeCacheEntry(
     ExtentLocation location)
 {
+    shared_ptr<SkipListType> skipListToDestroy;
+
     if (m_approximateCache1Size.load() > 1000)
     {
-        shared_ptr<SkipListType> skipListToDestroy;
-
         auto writeLock = co_await m_cacheLock.writer().scoped_lock_async();
         m_approximateCache1Size.store(0);
         skipListToDestroy = m_cache2;
         m_cache2 = m_cache1;
     }
+
+    skipListToDestroy.reset();
 
     shared_ptr<SkipListType> skipList1;
     shared_ptr<SkipListType> skipList2;

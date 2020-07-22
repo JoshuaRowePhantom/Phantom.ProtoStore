@@ -1,4 +1,5 @@
 #include "ExtentStore.h"
+#include <filesystem>
 
 namespace Phantom::ProtoStore
 {
@@ -21,6 +22,10 @@ public:
         std::string extentFilenamePrefix,
         std::string extentFilenameSuffix,
         uint64_t writeBlockSize
+    );
+    
+    task<shared_ptr<IReadableExtent>> OpenExtentForRead(
+        std::filesystem::path path
     );
 
     virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(

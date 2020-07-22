@@ -21,6 +21,7 @@ CreateProtoStoreRequest GetCreateMemoryStoreRequest()
     createRequest.HeaderExtentStore = UseMemoryExtentStore();
     createRequest.LogExtentStore = UseMemoryExtentStore();
     createRequest.DataExtentStore = UseMemoryExtentStore();
+    createRequest.DataHeaderExtentStore = UseMemoryExtentStore();
 
     return createRequest;
 }
@@ -69,6 +70,7 @@ TEST(ProtoStoreTests, CanOpen_memory_backed_store)
         createRequest.HeaderExtentStore = UseMemoryExtentStore();
         createRequest.LogExtentStore = UseMemoryExtentStore();
         createRequest.DataExtentStore = UseMemoryExtentStore();
+        createRequest.DataHeaderExtentStore = UseMemoryExtentStore();
 
         auto store = co_await storeFactory->Create(
             createRequest);
@@ -89,6 +91,7 @@ TEST(ProtoStoreTests, Open_fails_on_uncreated_store)
         openRequest.HeaderExtentStore = UseMemoryExtentStore();
         openRequest.LogExtentStore = UseMemoryExtentStore();
         openRequest.DataExtentStore = UseMemoryExtentStore();
+        openRequest.DataHeaderExtentStore = UseMemoryExtentStore();
 
         ASSERT_THROW(
             co_await storeFactory->Open(
@@ -567,6 +570,7 @@ TEST(ProtoStoreTests, Perf2)
         createRequest.HeaderExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "header", 4096);
         createRequest.LogExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "log", 4096);
         createRequest.DataExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "data", 4096);
+        createRequest.DataHeaderExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "dataheader", 4096);
         createRequest.Schedulers = Schedulers::Default();
 
         auto store = co_await CreateStore(
@@ -584,7 +588,7 @@ TEST(ProtoStoreTests, Perf2)
 #ifdef NDEBUG
         int valueCount = 1000000;
 #else
-        int valueCount = 100000;
+        int valueCount = 10000;
 #endif
 
         mt19937 rng;
@@ -647,6 +651,8 @@ TEST(ProtoStoreTests, Perf2)
         auto readWriteRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endWriteTime - startWriteTime);
 
         std::cout << "ProtoStoreTests write runtime: " << readWriteRuntimeMs.count() << "\r\n" << std::flush;
+
+        auto readLambda = [&]() -> task<>
         {
             auto startReadTime = chrono::high_resolution_clock::now();
 
@@ -654,10 +660,10 @@ TEST(ProtoStoreTests, Perf2)
 
             std::vector<task<>> tasks;
 
-            int threadCount = 50;
+            int threadCount = 1;
             for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
             {
-                tasks.push_back([&, threadNumber]() -> task<>
+                tasks.push_back([&](int threadNumber) -> task<>
                 {
                     co_await schedulers.ComputeScheduler->schedule();
 
@@ -696,7 +702,7 @@ TEST(ProtoStoreTests, Perf2)
                         Perf2_running_items.fetch_sub(1);
                     }
 
-                }());
+                }(threadNumber));
             }
 
             co_await cppcoro::when_all(
@@ -706,7 +712,9 @@ TEST(ProtoStoreTests, Perf2)
             auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
 
             std::cout << "ProtoStoreTests read runtime: " << readRuntimeMs.count() << "\r\n";
-        }
+        };
+
+        co_await readLambda();
 
         auto checkpointStartTime = chrono::high_resolution_clock::now();
         co_await store->Checkpoint();
@@ -714,6 +722,8 @@ TEST(ProtoStoreTests, Perf2)
         auto checkpointRuntimeMs = chrono::duration_cast<chrono::milliseconds>(checkpointEndTime - checkpointStartTime);
 
         std::cout << "ProtoStoreTests checkpoint runtime: " << checkpointRuntimeMs.count() << "\r\n";
+
+        co_await readLambda();
 
     });
 }

@@ -62,6 +62,10 @@ namespace Phantom::ProtoStore
     {
     public:
         virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
+            const shared_ptr<IReadableExtent>& extent
+        ) = 0;
+
+        virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
             ExtentNumber extentNumber
         ) = 0;
 
