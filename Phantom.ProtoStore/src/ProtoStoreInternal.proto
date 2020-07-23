@@ -53,6 +53,7 @@ message LoggedCommitDataExtent {
 message LoggedCheckpoint {
 	uint64 IndexNumber = 1;
 	repeated uint64 CheckpointNumber = 2;
+	repeated uint64 PartitionsDataExtentNumbers = 3;
 }
 
 message LogRecordExtras {

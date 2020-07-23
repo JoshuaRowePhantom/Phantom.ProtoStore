@@ -26,6 +26,19 @@ CreateProtoStoreRequest GetCreateMemoryStoreRequest()
     return createRequest;
 }
 
+CreateProtoStoreRequest GetCreateFileStoreRequest(
+    string testName)
+{
+    CreateProtoStoreRequest createRequest;
+    createRequest.HeaderExtentStore = UseFilesystemStore(testName, "header", 4096);
+    createRequest.LogExtentStore = UseFilesystemStore(testName, "log", 4096);
+    createRequest.DataExtentStore = UseFilesystemStore(testName, "data", 4096);
+    createRequest.DataHeaderExtentStore = UseFilesystemStore(testName, "dataheader", 4096);
+    createRequest.Schedulers = Schedulers::Default();
+
+    return createRequest;
+}
+
 task<shared_ptr<IProtoStore>> CreateStore(
     const CreateProtoStoreRequest& createRequest)
 {
@@ -262,6 +275,69 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
     });
 }
 
+TEST(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
+{
+    run_async([]() -> task<>
+    {
+        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen");
+
+        auto store = co_await CreateStore(createRequest);
+
+        ProtoIndex index;
+        StringKey key;
+        key.set_value("testKey1");
+        StringValue expectedValue;
+        expectedValue.set_value("testValue1");
+
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await operation->AddRow(
+                WriteOperationMetadata(),
+                SequenceNumber::Latest,
+                index,
+                &key,
+                &expectedValue);
+        });
+
+        // Checkpoint a few times to make sure old log files are deleted.
+        co_await store->Checkpoint();
+        co_await store->Checkpoint();
+        co_await store->Checkpoint();
+        co_await store->Join();
+        store.reset();
+        store = co_await OpenStore(createRequest);
+
+        index = co_await store->GetIndex(
+            createIndexRequest);
+
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
+        );
+
+        StringValue actualValue;
+        readResult.Value.unpack(&actualValue);
+
+        ASSERT_TRUE(MessageDifferencer::Equals(
+            expectedValue,
+            actualValue));
+    });
+}
+
 TEST(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
 {
     run_async([]() -> task<>
@@ -460,7 +536,7 @@ TEST(ProtoStoreTests, DISABLED_Can_commit_transaction)
     });
 }
 
-TEST(ProtoStoreTests, Perf1)
+TEST(ProtoStoreTests, PerformanceTest(Perf1))
 {
     cppcoro::static_thread_pool threadPool(4);
 
@@ -564,7 +640,7 @@ TEST(ProtoStoreTests, Perf1)
 
 std::atomic<long> Perf2_running_items(0);
 
-TEST(ProtoStoreTests, Perf2)
+TEST(ProtoStoreTests, PerformanceTest(Perf2))
 {
     run_async([&]() -> task<>
     {

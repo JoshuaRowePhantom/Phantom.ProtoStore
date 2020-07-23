@@ -33,7 +33,8 @@ class LogManager
     std::set<ExtentNumber> m_extentsToRemove;
     std::unordered_set<LogExtentUsage, LogExtentUsageHasher> m_logExtentUsage;
     std::unordered_map<ExtentNumber, ExtentNumber> m_uncommitedDataExtentNumberToLogExtentNumber;
-    
+    optional<ExtentNumber> m_partitionsDataExtentNumber;
+
     shared_ptr<ISequentialMessageWriter> m_logMessageWriter;
     ExtentNumber m_currentLogExtentNumber;
 

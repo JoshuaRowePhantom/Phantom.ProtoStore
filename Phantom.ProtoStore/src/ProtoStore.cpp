@@ -149,12 +149,59 @@ task<> ProtoStore::Open(
             logReplayExtentNumber);
     }
 
+    {
+        auto partitionsForPartitionsIndex = co_await OpenPartitionsForIndex(
+            m_partitionsIndex,
+            m_replayPartitionsActivePartitions);
+
+        co_await m_partitionsIndex->UpdatePartitions(
+            LoggedCheckpoint(),
+            partitionsForPartitionsIndex);
+
+        m_replayPartitionsActivePartitions.clear();
+    }
+
+    // The partitions index needs an early replay,
+    // because it may have more partitions that are
+    // only in the log.
+    co_await ReplayPartitionsForIndex(
+        m_partitionsIndex);
+
+    for (auto index : m_indexesByNumber)
+    {
+        co_await ReplayPartitionsForIndex(
+            index.second);
+    }
+
     auto postUpdateHeaderTask = co_await m_logManager->FinishReplay(
         m_header);
 
     co_await UpdateHeader([](auto) -> task<> { co_return; });
 
     co_await postUpdateHeaderTask;
+}
+
+task<> ProtoStore::ReplayPartitionsForIndex(
+    const shared_ptr<IIndex>& index)
+{
+    auto partitionKeyValues = co_await GetPartitionsForIndex(
+        index->GetIndexNumber());
+
+    vector<ExtentNumber> dataExtentNumbers;
+
+    for (auto& partitionKeyValue : partitionKeyValues)
+    {
+        dataExtentNumbers.push_back(
+            get<PartitionsKey>(partitionKeyValue).dataextentnumber());
+    }
+
+    auto partitions = co_await OpenPartitionsForIndex(
+        index,
+        dataExtentNumbers);
+
+    co_await index->UpdatePartitions(
+        LoggedCheckpoint(),
+        partitions);
 }
 
 task<> ProtoStore::UpdateHeader(
@@ -244,7 +291,8 @@ task<> ProtoStore::Replay(
     for (auto& loggedRowWrite : logRecord.rows())
     {
         auto index = co_await GetIndexInternal(
-            loggedRowWrite.indexnumber());
+            loggedRowWrite.indexnumber(),
+            DontReplayPartitions);
 
         co_await index->Replay(
             loggedRowWrite);
@@ -267,6 +315,12 @@ task<> ProtoStore::Replay(
             loggedAction.loggedcreateindex()
         );
     }
+
+    if (loggedAction.has_loggedcheckpoints())
+    {
+        co_await Replay(
+            loggedAction.loggedcheckpoints());
+    }
 }
 
 task<> ProtoStore::Replay(
@@ -275,6 +329,18 @@ task<> ProtoStore::Replay(
     if (m_nextIndexNumber.load() <= logRecord.indexnumber())
     {
         m_nextIndexNumber.store(logRecord.indexnumber() + 1);
+    }
+    co_return;
+}
+
+task<> ProtoStore::Replay(
+    const LoggedCheckpoint& logRecord)
+{
+    if (logRecord.partitionsdataextentnumbers_size())
+    {
+        m_replayPartitionsActivePartitions = vector(
+            logRecord.partitionsdataextentnumbers().begin(),
+            logRecord.partitionsdataextentnumbers().end());
     }
     co_return;
 }
@@ -545,7 +611,8 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
     auto indexesByNameValue = readResult.Value.cast_if<IndexesByNameValue>();
 
     co_return co_await GetIndexInternal(
-        indexesByNameValue->indexnumber());
+        indexesByNameValue->indexnumber(),
+        DoReplayPartitions);
 }
 
 task<IndexNumber> ProtoStore::AllocateIndexNumber()
@@ -590,7 +657,7 @@ task<ProtoIndex> ProtoStore::CreateIndex(
         IndexesByNameValue indexesByNameValue;
 
         indexesByNameKey.set_indexname(
-            indexesByNumberValue.indexname());
+            createIndexRequest.IndexName);
         indexesByNameValue.set_indexnumber(
             indexNumber);
 
@@ -605,7 +672,8 @@ task<ProtoIndex> ProtoStore::CreateIndex(
     });
 
     auto index = co_await GetIndexInternal(
-        indexNumber);
+        indexNumber,
+        DontReplayPartitions);
 
     co_return ProtoIndex(
         this,
@@ -613,7 +681,8 @@ task<ProtoIndex> ProtoStore::CreateIndex(
 }
 
 task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
-    google::protobuf::uint64 indexNumber
+    google::protobuf::uint64 indexNumber,
+    bool doReplayPartitions
 )
 {
     // Look for the index using a read lock
@@ -655,6 +724,12 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
         auto index = MakeIndex(
             indexesByNumberKey,
             *indexesByNumberValue);
+
+        if (doReplayPartitions)
+        {
+            co_await ReplayPartitionsForIndex(
+                index);
+        }
 
         m_indexesByNumber[indexNumber] = index;
 
@@ -846,8 +921,6 @@ task<> ProtoStore::Checkpoint(
         *this,
         writeSequenceNumber);
 
-    operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints()->CopyFrom(
-        loggedCheckpoint);
     operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
         dataExtentNumber);
 
@@ -862,6 +935,36 @@ task<> ProtoStore::Checkpoint(
     {
         auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
 
+        auto partitionKeyValues = co_await GetPartitionsForIndex(
+            index->GetIndexNumber());
+
+        vector<ExtentNumber> dataExtentNumbers;
+
+        for (auto& partitionKeyValue : partitionKeyValues)
+        {
+            auto existingDataExtentNumber = get<PartitionsKey>(partitionKeyValue).dataextentnumber();
+
+            dataExtentNumbers.push_back(
+                existingDataExtentNumber);
+            
+            if (index == m_partitionsIndex)
+            {
+                loggedCheckpoint.add_partitionsdataextentnumbers(
+                    existingDataExtentNumber);
+            }
+        }
+        dataExtentNumbers.push_back(
+            dataExtentNumber);
+
+        if (index == m_partitionsIndex)
+        {
+            loggedCheckpoint.add_partitionsdataextentnumbers(
+                dataExtentNumber);
+        }
+
+        operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints()->CopyFrom(
+            loggedCheckpoint);
+
         co_await operation.AddRow(
             WriteOperationMetadata(),
             writeSequenceNumber,
@@ -872,7 +975,8 @@ task<> ProtoStore::Checkpoint(
         co_await operation.Commit();
 
         auto partitions = co_await OpenPartitionsForIndex(
-            index);
+            index,
+            dataExtentNumbers);
 
         co_await index->UpdatePartitions(
             loggedCheckpoint,
@@ -880,15 +984,15 @@ task<> ProtoStore::Checkpoint(
     }
 }
 
-task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
-    const shared_ptr<IIndex>& index)
+task<vector<std::tuple<PartitionsKey, PartitionsValue>>> ProtoStore::GetPartitionsForIndex(
+    IndexNumber indexNumber)
 {
     PartitionsKey partitionsKeyLow;
-    partitionsKeyLow.set_indexnumber(index->GetIndexNumber());
+    partitionsKeyLow.set_indexnumber(indexNumber);
     partitionsKeyLow.set_dataextentnumber(0);
 
     PartitionsKey partitionsKeyHigh;
-    partitionsKeyHigh.set_indexnumber(index->GetIndexNumber() + 1);
+    partitionsKeyHigh.set_indexnumber(indexNumber + 1);
     partitionsKeyHigh.set_dataextentnumber(0);
 
     EnumerateRequest enumerateRequest;
@@ -902,22 +1006,33 @@ task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
     auto enumeration = m_partitionsIndex->Enumerate(
         enumerateRequest);
 
-    vector<shared_ptr<IPartition>> partitions;
+    vector<std::tuple<PartitionsKey, PartitionsValue>> result;
 
-    for (auto iterator = co_await enumeration.begin();
+    for(auto iterator = co_await enumeration.begin();
         iterator != enumeration.end();
         co_await ++iterator)
     {
-        auto partitionsKey = (*iterator).Key.cast_if<PartitionsKey>();
-        auto partitionsValue = (*iterator).Value.cast_if<PartitionsValue>();
+        result.push_back(
+            std::make_tuple(
+                *((*iterator).Key.cast_if<PartitionsKey>()),
+                *((*iterator).Value.cast_if<PartitionsValue>())));
+    }
 
-        assert(partitionsKey);
-        assert(partitionsValue);
+    co_return result;
+}
 
+task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
+    const shared_ptr<IIndex>& index,
+    const vector<ExtentNumber>& dataExtentNumbers)
+{
+    vector<shared_ptr<IPartition>> partitions;
+
+    for (auto dataExtentNumber : dataExtentNumbers)
+    {
         auto partition = co_await OpenPartitionForIndex(
             index,
-            partitionsKey->dataextentnumber(),
-            partitionsValue->headerextentnumber());
+            dataExtentNumber,
+            dataExtentNumber);
 
         partitions.push_back(
             partition);

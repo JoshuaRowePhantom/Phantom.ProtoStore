@@ -89,6 +89,11 @@ task<> LogManager::Replay(
                     logExtentUsage.IndexNumber == loggedCheckpoint.indexnumber()
                     && loggedCheckpointNumbers.contains(logExtentUsage.CheckpointNumber);
             });
+
+            if (loggedAction.loggedcheckpoints().partitionsdataextentnumbers_size())
+            {
+                m_partitionsDataExtentNumber = logExtentNumber;
+            }
         }
     }
 
@@ -220,6 +225,12 @@ task<task<>> LogManager::Checkpoint(
         {
             extentsToDelete.erase(
                 uncommittedDataExtent.second);
+        }
+
+        if (m_partitionsDataExtentNumber.has_value())
+        {
+            extentsToDelete.erase(
+                *m_partitionsDataExtentNumber);
         }
 
         extentsToDelete.erase(

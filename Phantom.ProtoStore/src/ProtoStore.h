@@ -52,6 +52,7 @@ class ProtoStore
 
     cppcoro::async_mutex m_updatePartitionsMutex;
     std::map<ExtentNumber, shared_ptr<IPartition>> m_activePartitions;
+    vector<ExtentNumber> m_replayPartitionsActivePartitions;
 
     cppcoro::async_mutex m_checkpointTaskLock;
     optional<shared_task<>> m_previousCheckpoints;
@@ -74,8 +75,12 @@ class ProtoStore
         SequenceNumber sequenceNumber
     );
 
+    const bool DoReplayPartitions = true;
+    const bool DontReplayPartitions = false;
+
     task<shared_ptr<IIndex>> GetIndexInternal(
-        google::protobuf::uint64 indexNumber
+        google::protobuf::uint64 indexNumber,
+        bool doReplayPartitions
     );
 
     void MakeIndexesByNumberRow(
@@ -108,6 +113,9 @@ class ProtoStore
     task<> Replay(
         const LoggedCreateIndex& logRecord);
 
+    task<> Replay(
+        const LoggedCheckpoint& logRecord);
+
     task<> ProtoStore::Replay(
         const LoggedCommitDataExtent& logRecord);
 
@@ -116,6 +124,9 @@ class ProtoStore
 
     task<> ProtoStore::Replay(
         const LoggedDeleteDataExtent& logRecord);
+    
+    task<> ReplayPartitionsForIndex(
+        const shared_ptr<IIndex>& index);
 
     task<> WriteLogRecord(
         const LogRecord& logRecord);
@@ -131,13 +142,17 @@ class ProtoStore
     );
 
     task<shared_ptr<IPartition>> OpenPartitionForIndex(
-        const shared_ptr<IIndex>& indexNumber,
+        const shared_ptr<IIndex>& index,
         ExtentNumber dataExtentNumber,
         ExtentNumber headerExtentNumber);
 
+    task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
+        IndexNumber indexNumber);
+
     task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
-        const shared_ptr<IIndex>& indexNumber);
-    
+        const shared_ptr<IIndex>& index,
+        const vector<ExtentNumber>& dataExtentNumbers);
+
     shared_task<OperationResult> ExecuteOperation(
         OperationVisitor visitor,
         uint64_t thisWriteSequenceNumber);
