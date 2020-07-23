@@ -283,6 +283,51 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
     });
 }
 
+TEST_F(ProtoStoreTests, DISABLED_Can_conflict_after_row_checkpointed)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        co_await store->Checkpoint();
+
+        ASSERT_THROW(
+            co_await AddRowToTestIndex(
+                store,
+                index,
+                "testKey1",
+                "testValue2",
+                ToSequenceNumber(4)),
+            WriteConflict);
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            optional<string>(),
+            ToSequenceNumber(4),
+            ToSequenceNumber(5));
+    });
+}
+
 TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
 {
     run_async([&]() -> task<>
