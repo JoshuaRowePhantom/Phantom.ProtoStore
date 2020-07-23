@@ -683,7 +683,7 @@ struct OpenProtoStoreRequest
     std::function<task<shared_ptr<IExtentStore>>()> DataExtentStore;
     std::function<task<shared_ptr<IExtentStore>>()> DataHeaderExtentStore;
     std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
-    Schedulers Schedulers;
+    Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;
 };
 
