@@ -799,17 +799,32 @@ TEST(ProtoStoreTests, Perf2)
 
         co_await readNonExistentLambda();
 
-        auto checkpointStartTime = chrono::high_resolution_clock::now();
-        co_await store->Checkpoint();
-        auto checkpointEndTime = chrono::high_resolution_clock::now();
-        auto checkpointRuntimeMs = chrono::duration_cast<chrono::milliseconds>(checkpointEndTime - checkpointStartTime);
+        auto checkpointLambda = [&]() -> task<>
+        {
+            auto checkpointStartTime = chrono::high_resolution_clock::now();
+            co_await store->Checkpoint();
+            auto checkpointEndTime = chrono::high_resolution_clock::now();
+            auto checkpointRuntimeMs = chrono::duration_cast<chrono::milliseconds>(checkpointEndTime - checkpointStartTime);
 
-        std::cout << "ProtoStoreTests checkpoint runtime: " << checkpointRuntimeMs.count() << "\r\n";
+            std::cout << "ProtoStoreTests checkpoint runtime: " << checkpointRuntimeMs.count() << "\r\n";
+        };
+
+        co_await checkpointLambda();
 
         co_await readLambda();
         co_await readNonExistentLambda();
 
+        co_await checkpointLambda();
+        co_await checkpointLambda();
+        co_await checkpointLambda();
 
+        co_await readLambda();
+        co_await readNonExistentLambda();
+
+        co_await checkpointLambda();
+
+        co_await readLambda();
+        co_await readNonExistentLambda();
     });
 }
 

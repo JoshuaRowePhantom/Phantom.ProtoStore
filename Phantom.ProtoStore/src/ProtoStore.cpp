@@ -375,6 +375,14 @@ public:
     {
         auto index = protoIndex.m_index;
 
+        auto checkpointNumber = co_await index->AddRow(
+            readSequenceNumber,
+            key,
+            value,
+            m_initialWriteSequenceNumber,
+            m_operationOutcomeTask
+        );
+
         auto loggedRowWrite = m_logRecord->add_rows();
         loggedRowWrite->set_sequencenumber(ToUint64(m_initialWriteSequenceNumber));
         loggedRowWrite->set_indexnumber(protoIndex.m_index->GetIndexNumber());
@@ -382,14 +390,8 @@ public:
             loggedRowWrite->mutable_key());
         value.pack(
             loggedRowWrite->mutable_value());
-
-        co_await index->AddRow(
-            readSequenceNumber,
-            key,
-            value,
-            m_initialWriteSequenceNumber,
-            m_operationOutcomeTask
-        );
+        loggedRowWrite->set_checkpointnumber(
+            checkpointNumber);
     }
 
     virtual task<> ResolveTransaction(
@@ -735,8 +737,12 @@ task<> ProtoStore::Checkpoint()
         }
     }
 
-    co_await cppcoro::when_all(
-        move(checkpointTasks));
+    for (auto& task : checkpointTasks)
+    {
+        co_await task;
+    }
+    //co_await cppcoro::when_all(
+    //    move(checkpointTasks));
 
     task<> postUpdateHeaderTask;
 

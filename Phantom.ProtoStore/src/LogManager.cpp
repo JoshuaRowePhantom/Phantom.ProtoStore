@@ -72,16 +72,19 @@ task<> LogManager::Replay(
         }
         if (loggedAction.has_loggedcheckpoints())
         {
+            auto& loggedCheckpoint = loggedAction.loggedcheckpoints();
+            auto& logExtentUsage = m_logExtentUsage;
+
             auto loggedCheckpointNumbers = std::set(
-                loggedAction.loggedcheckpoints().checkpointnumber().cbegin(),
-                loggedAction.loggedcheckpoints().checkpointnumber().cend());
+                loggedCheckpoint.checkpointnumber().cbegin(),
+                loggedCheckpoint.checkpointnumber().cend());
 
             std::erase_if(
                 m_logExtentUsage,
                 [&](const LogExtentUsage& logExtentUsage)
             {
                 return
-                    logExtentUsage.IndexNumber == loggedAction.loggedcheckpoints().indexnumber()
+                    logExtentUsage.IndexNumber == loggedCheckpoint.indexnumber()
                     && loggedCheckpointNumbers.contains(logExtentUsage.CheckpointNumber);
             });
         }
@@ -145,28 +148,43 @@ task<> LogManager::WriteLogRecord(
     const LogRecord& logRecord
 )
 {
+    while (true)
     {
-        auto readLock = co_await m_logExtentUsageLock.reader().scoped_lock_async();
-        if (!NeedToUpdateMaps(
-            m_currentLogExtentNumber,
-            logRecord))
         {
+            auto readLock = co_await m_logExtentUsageLock.reader().scoped_lock_async();
+            if (!NeedToUpdateMaps(
+                m_currentLogExtentNumber,
+                logRecord))
+            {
+                co_await m_logMessageWriter->Write(
+                    logRecord,
+                    FlushBehavior::Flush);
+
+                co_return;
+            }
+        }
+
+        {
+            // Most of the time, the reason the write lock can't be acquired
+            // is because someone else is adding the same entry,
+            // so just go back to the read path if we can't acquire the lock.
+            auto writeLock = m_logExtentUsageLock.writer().scoped_try_lock();
+
+            if (!writeLock)
+            {
+                continue;
+            }
+
+            co_await Replay(
+                m_currentLogExtentNumber,
+                logRecord);
+
             co_await m_logMessageWriter->Write(
                 logRecord,
                 FlushBehavior::Flush);
+
+            co_return;
         }
-    }
-
-    {
-        auto writeLock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
-        
-        co_await Replay(
-            m_currentLogExtentNumber,
-            logRecord);
-
-        co_await m_logMessageWriter->Write(
-            logRecord,
-            FlushBehavior::Flush);
     }
 }
 
@@ -178,6 +196,12 @@ task<task<>> LogManager::Checkpoint(
 
     {
         auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
+
+        for (auto extent : m_existingExtents)
+        {
+            extentsToDelete.insert(
+                extent);
+        }
 
         for (auto& extentUsage : m_logExtentUsage)
         {

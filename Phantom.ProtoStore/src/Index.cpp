@@ -332,6 +332,8 @@ task<LoggedCheckpoint> Index::StartCheckpoint()
         co_return loggedCheckpoint;
     }
 
+    loggedCheckpoint.set_indexnumber(
+        m_indexNumber);
     loggedCheckpoint.add_checkpointnumber(
         m_currentCheckpointNumber);
     m_checkpointingMemoryTables[m_currentCheckpointNumber] = m_currentMemoryTable;
