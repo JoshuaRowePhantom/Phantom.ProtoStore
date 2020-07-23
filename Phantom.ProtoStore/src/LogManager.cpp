@@ -94,7 +94,7 @@ task<task<>> LogManager::FinishReplay(
     Header& header
 )
 {
-    co_return co_await OpenNewLogWriter(
+    co_return co_await DelayedOpenNewLogWriter(
         header);
 }
 
@@ -201,36 +201,45 @@ task<task<>> LogManager::Checkpoint(
             m_extentsToRemove.insert(
                 removedExtent);
         }
-    }
 
-    co_return co_await OpenNewLogWriter(
-        header);
+        co_return co_await DelayedOpenNewLogWriter(
+            header);
+    }
 }
 
-task<task<>> LogManager::OpenNewLogWriter(
+task<task<>> LogManager::DelayedOpenNewLogWriter(
     Header& header
 )
 {
-    auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
-    header.mutable_logreplayextentnumbers()->Add(
+    m_existingExtents.insert(
         m_nextLogExtentNumber);
 
-    co_return [this]() -> task<>
+    header.mutable_logreplayextentnumbers()->Clear();
+
+    for (auto existingExtent : m_existingExtents)
     {
-        auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
+        header.mutable_logreplayextentnumbers()->Add(
+            existingExtent);
+    }
 
-        for (auto removedExtent : m_extentsToRemove)
-        {
-            co_await m_logExtentStore->DeleteExtent(
-                removedExtent);
-        }
-
-        m_extentsToRemove.clear();
-
-        m_currentLogExtentNumber = m_nextLogExtentNumber++;
-        m_logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
-            m_currentLogExtentNumber);
-    }();
-    
+    co_return OpenNewLogWriter();
 }
+
+task<> LogManager::OpenNewLogWriter()
+{
+    auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
+
+    for (auto removedExtent : m_extentsToRemove)
+    {
+        co_await m_logExtentStore->DeleteExtent(
+            removedExtent);
+    }
+
+    m_extentsToRemove.clear();
+
+    m_currentLogExtentNumber = m_nextLogExtentNumber++;
+    m_logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
+        m_currentLogExtentNumber);
+}
+
 }

@@ -42,8 +42,10 @@ class LogManager
         const LogRecord& logRecord
     );
 
-    task<task<>> OpenNewLogWriter(
+    task<task<>> DelayedOpenNewLogWriter(
         Header& header);
+
+    task<> OpenNewLogWriter();
 
 public:
     LogManager(
