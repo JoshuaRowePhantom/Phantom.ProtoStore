@@ -7,7 +7,9 @@ cmake_minimum_required (VERSION 3.17)
 add_executable(
 	Phantom.ProtoStore.Utility
 	"main.cpp" 
+	"DumpLog.cpp"
 	"DumpPartition.cpp"
+	"Utility.h"
 	)
 
 target_compile_definitions(

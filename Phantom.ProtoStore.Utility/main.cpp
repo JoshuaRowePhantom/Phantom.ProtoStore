@@ -1,22 +1,22 @@
 
-#include <queue>
-#include <iostream>
-#include <vector>
-#include "Phantom.System/utility.h"
-#include <cppcoro/task.hpp>
+#include "Utility.h"
 
-using namespace std;
+void DumpMessage(
+    string name,
+    Message& message,
+    ExtentOffset offset
+)
+{
+    cout << name << " @ [" << offset << "]\n" << message.DebugString() << "\n";
+}
 
 void PrintUsage()
 {
     cout <<
         "Phantom.ProtoStore.Utility: \n"
-        "    DumpPartition <header> <data>\n";
+        "    DumpLog <log>\n"
+        "    DumpPartition <data>\n";
 }
-
-cppcoro::task<> DumpPartition(
-    string headerPath,
-    string dataPath);
 
 int main(
     int argn,
@@ -47,23 +47,29 @@ int main(
                 co_return 0;
             }
 
-            auto header = args.front();
+            auto data = args.front();
             args.pop_front();
 
+            co_await DumpPartition(
+                data);
+
+            co_return 0;
+        }
+
+        if (arg == "DumpLog")
+        {
             if (args.empty())
             {
                 PrintUsage();
                 co_return 0;
             }
 
-            auto data = args.front();
+            auto logPath = args.front();
             args.pop_front();
 
-            co_await DumpPartition(
-                header,
-                data);
+            co_await DumpLog(
+                logPath);
 
             co_return 0;
-        }
-    });
+        }    });
 }
