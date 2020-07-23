@@ -759,16 +759,18 @@ shared_task<> ProtoStore::WaitForCheckpoints(
 task<> ProtoStore::Checkpoint()
 {
     shared_task newAllCheckpointsTask;
+    shared_task newCheckpointTask;
 
     {
         auto lock = co_await m_checkpointTaskLock.scoped_lock_async();
-        auto newCheckpointTask = InternalCheckpoint();
+        newCheckpointTask = InternalCheckpoint();
         newAllCheckpointsTask = WaitForCheckpoints(
             m_previousCheckpoints,
             newCheckpointTask);
         m_previousCheckpoints = newAllCheckpointsTask;
     }
 
+    co_await newCheckpointTask;
     co_await newAllCheckpointsTask;
 }
 

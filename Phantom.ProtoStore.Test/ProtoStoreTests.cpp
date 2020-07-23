@@ -594,7 +594,7 @@ TEST(ProtoStoreTests, Perf2)
         );
 
 #ifdef NDEBUG
-        int valueCount = 1000000;
+        int valueCount = 5000000;
 #else
         int valueCount = 1000000;
 #endif
@@ -693,7 +693,7 @@ TEST(ProtoStoreTests, Perf2)
                         keyIndex < endKeyIndex;
                         keyIndex++)
                     {
-                        if (keyIndex % 100 == 0)
+                        if (keyIndex % 1000 == 0)
                         {
                             co_await *schedulers.ComputeScheduler;
                         }
@@ -759,8 +759,6 @@ TEST(ProtoStoreTests, Perf2)
             {
                 tasks.push_back([&](int threadNumber) -> task<>
                 {
-                    co_await schedulers.ComputeScheduler->schedule();
-
                     auto endKeyIndex = std::min(
                         keys.size() / threadCount * (threadNumber + 1) - 1,
                         keys.size());
@@ -769,6 +767,11 @@ TEST(ProtoStoreTests, Perf2)
                         keyIndex < endKeyIndex;
                         keyIndex++)
                     {
+                        if (keyIndex % 1000 == 0)
+                        {
+                            co_await *schedulers.ComputeScheduler;
+                        }
+
                         auto myKey = nonExistentKeys[keyIndex];
 
                         Perf2_running_items.fetch_add(1);
