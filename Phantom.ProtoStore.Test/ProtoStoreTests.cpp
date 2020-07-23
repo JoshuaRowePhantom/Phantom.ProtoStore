@@ -433,16 +433,13 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
         ASSERT_NO_THROW(get<0>(result).result());
         ASSERT_THROW(get<1>(result).result(), WriteConflict);
 
-        ReadRequest readRequest;
-        readRequest.Key = &key;
-        readRequest.Index = index;
-
-        auto readResult = co_await store->Read(
-            readRequest
-        );
-
-        StringValue actualValue;
-        readResult.Value.unpack(&actualValue);
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            key.value(),
+            expectedValue.value(),
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
     });
 }
 
