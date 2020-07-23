@@ -69,6 +69,36 @@ public:
             request);
     }
 
+    task<ProtoIndex> CreateTestIndex(
+        const shared_ptr<IProtoStore>& store
+    )
+    {
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        auto index = co_await store->CreateIndex(
+            createIndexRequest
+        );
+        co_return index;
+    }
+
+    task<ProtoIndex> GetTestIndex(
+        const shared_ptr<IProtoStore>& store
+    )
+    {
+        CreateIndexRequest createIndexRequest;
+        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
+        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+
+        auto index = co_await store->GetIndex(
+            createIndexRequest
+        );
+        co_return index;
+    }
+
 };
 
 TEST_F(ProtoStoreTests, CanCreate_memory_backed_store)
@@ -126,20 +156,13 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
     {
         auto store = co_await CreateMemoryStore();
 
-        ProtoIndex index;
         StringKey key;
         key.set_value("testKey1");
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
@@ -178,20 +201,14 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
 
         auto store = co_await CreateStore(createRequest);
 
-        ProtoIndex index;
         StringKey key;
         key.set_value("testKey1");
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
 
-        index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
@@ -208,8 +225,8 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
         store.reset();
         store = co_await OpenStore(createRequest);
 
-        index = co_await store->GetIndex(
-            createIndexRequest);
+        index = co_await GetTestIndex(
+            store);
 
         ReadRequest readRequest;
         readRequest.Key = &key;
@@ -236,20 +253,13 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
 
         auto store = co_await CreateStore(createRequest);
 
-        ProtoIndex index;
         StringKey key;
         key.set_value("testKey1");
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
@@ -290,20 +300,13 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
 
         auto store = co_await CreateStore(createRequest);
 
-        ProtoIndex index;
         StringKey key;
         key.set_value("testKey1");
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
@@ -325,8 +328,8 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
         store.reset();
         store = co_await OpenStore(createRequest);
 
-        index = co_await store->GetIndex(
-            createIndexRequest);
+        index = co_await GetTestIndex(
+            store);
 
         ReadRequest readRequest;
         readRequest.Key = &key;
@@ -351,20 +354,13 @@ TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
     {
         auto store = co_await CreateMemoryStore();
 
-        ProtoIndex index;
         StringKey key;
         key.set_value("testKey1");
         StringValue expectedValue;
         expectedValue.set_value("testValue1");
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
@@ -400,7 +396,6 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
     {
         auto store = co_await CreateMemoryStore();
 
-        ProtoIndex index;
         StringKey key;
         key.set_value("testKey1");
         StringValue expectedValue;
@@ -408,14 +403,8 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
         StringValue unexpectedValue;
         unexpectedValue.set_value("testValue2");
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         cppcoro::single_consumer_event addRowEvent;
 
@@ -472,7 +461,6 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
     {
         auto store = co_await CreateMemoryStore();
 
-        ProtoIndex index;
         StringKey key;
         key.set_value("testKey1");
         StringValue expectedValue;
@@ -481,14 +469,8 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
         unexpectedValue.set_value("testValue2");
         TransactionId transactionId("transactionId1");
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         co_await store->ExecuteOperation(
             BeginTransactionRequest(),
@@ -551,14 +533,8 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
     {
         auto store = co_await CreateMemoryStore();
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        auto index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
         int valueCount = 100000;
 
@@ -667,14 +643,8 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
         auto store = co_await CreateStore(
             createRequest);
 
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
-
-        auto index = co_await store->CreateIndex(
-            createIndexRequest
-        );
+        auto index = co_await CreateTestIndex(
+            store);
 
 #ifdef NDEBUG
         int valueCount = 5000000;
