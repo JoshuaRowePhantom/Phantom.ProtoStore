@@ -99,6 +99,66 @@ public:
         co_return index;
     }
 
+    task<> AddRowToTestIndex(
+        const shared_ptr<IProtoStore>& store,
+        ProtoIndex index,
+        string key,
+        optional<string> value,
+        SequenceNumber sequenceNumber
+    )
+    {
+        StringKey stringKey;
+        stringKey.set_value(key);
+        StringValue stringValue;
+        if (value.has_value())
+        {
+            stringValue.set_value(*value);
+        }
+
+        co_await store->ExecuteOperation(
+            BeginTransactionRequest(),
+            [&](IOperation* operation)->task<>
+        {
+            co_await operation->AddRow(
+                WriteOperationMetadata(),
+                sequenceNumber,
+                index,
+                &stringKey,
+                value.has_value() ? & stringValue : nullptr);
+        });
+    }
+
+    task<> ExpectGetTestRow(
+        const shared_ptr<IProtoStore>& store,
+        ProtoIndex index,
+        string key,
+        optional<string> expectedValue,
+        SequenceNumber readSequenceNumber,
+        SequenceNumber expectedSequenceNumber
+    )
+    {
+        StringKey stringKey;
+        stringKey.set_value(key);
+
+        ReadRequest readRequest;
+        readRequest.Key = &stringKey;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
+        );
+
+        if (!expectedValue.has_value())
+        {
+            ASSERT_EQ(false, readResult.Value.has_value());
+        }
+        else
+        {
+            StringValue actualValue;
+            readResult.Value.unpack(&actualValue);
+            ASSERT_EQ(*expectedValue, actualValue.value());
+        }
+    }
 };
 
 TEST_F(ProtoStoreTests, CanCreate_memory_backed_store)
@@ -156,40 +216,23 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
     {
         auto store = co_await CreateMemoryStore();
 
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-
         auto index = co_await CreateTestIndex(
             store);
 
-        co_await store->ExecuteOperation(
-            BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
-        {
-            co_await operation->AddRow(
-                WriteOperationMetadata(),
-                SequenceNumber::Latest,
-                index,
-                &key,
-                &expectedValue);
-        });
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
 
-        ReadRequest readRequest;
-        readRequest.Key = &key;
-        readRequest.Index = index;
-
-        auto readResult = co_await store->Read(
-            readRequest
-        );
-
-        StringValue actualValue;
-        readResult.Value.unpack(&actualValue);
-
-        ASSERT_TRUE(MessageDifferencer::Equals(
-            expectedValue,
-            actualValue));
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
     });
 }
 
@@ -201,26 +244,15 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
 
         auto store = co_await CreateStore(createRequest);
 
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-
-
         auto index = co_await CreateTestIndex(
             store);
 
-        co_await store->ExecuteOperation(
-            BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
-        {
-            co_await operation->AddRow(
-                WriteOperationMetadata(),
-                SequenceNumber::Latest,
-                index,
-                &key,
-                &expectedValue);
-        });
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
 
         store.reset();
         store = co_await OpenStore(createRequest);
@@ -228,20 +260,13 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
         index = co_await GetTestIndex(
             store);
 
-        ReadRequest readRequest;
-        readRequest.Key = &key;
-        readRequest.Index = index;
-
-        auto readResult = co_await store->Read(
-            readRequest
-        );
-
-        StringValue actualValue;
-        readResult.Value.unpack(&actualValue);
-
-        ASSERT_TRUE(MessageDifferencer::Equals(
-            expectedValue,
-            actualValue));
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
     });
 }
 
@@ -253,42 +278,25 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
 
         auto store = co_await CreateStore(createRequest);
 
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-
         auto index = co_await CreateTestIndex(
             store);
 
-        co_await store->ExecuteOperation(
-            BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
-        {
-            co_await operation->AddRow(
-                WriteOperationMetadata(),
-                SequenceNumber::Latest,
-                index,
-                &key,
-                &expectedValue);
-        });
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
 
         co_await store->Checkpoint();
 
-        ReadRequest readRequest;
-        readRequest.Key = &key;
-        readRequest.Index = index;
-
-        auto readResult = co_await store->Read(
-            readRequest
-        );
-
-        StringValue actualValue;
-        readResult.Value.unpack(&actualValue);
-
-        ASSERT_TRUE(MessageDifferencer::Equals(
-            expectedValue,
-            actualValue));
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
     });
 }
 
@@ -300,25 +308,15 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
 
         auto store = co_await CreateStore(createRequest);
 
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-
         auto index = co_await CreateTestIndex(
             store);
 
-        co_await store->ExecuteOperation(
-            BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
-        {
-            co_await operation->AddRow(
-                WriteOperationMetadata(),
-                SequenceNumber::Latest,
-                index,
-                &key,
-                &expectedValue);
-        });
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
 
         // Checkpoint a few times to make sure old log files are deleted.
         co_await store->Checkpoint();
@@ -331,20 +329,13 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
         index = co_await GetTestIndex(
             store);
 
-        ReadRequest readRequest;
-        readRequest.Key = &key;
-        readRequest.Index = index;
-
-        auto readResult = co_await store->Read(
-            readRequest
-        );
-
-        StringValue actualValue;
-        readResult.Value.unpack(&actualValue);
-
-        ASSERT_TRUE(MessageDifferencer::Equals(
-            expectedValue,
-            actualValue));
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
     });
 }
 

@@ -174,14 +174,19 @@ public:
 
     explicit operator bool() const
     {
-        return message.index() != 0
-            || message_data.index() != 0;
+        return has_value();
     }
 
     bool operator !() const
     {
         return message.index() == 0
             && message_data.index() == 0;
+    }
+
+    bool has_value() const
+    {
+        return message.index() != 0
+            || message_data.index() != 0;
     }
 
     const Message* as_message_if() const
