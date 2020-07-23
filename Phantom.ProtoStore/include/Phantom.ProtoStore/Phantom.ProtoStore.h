@@ -33,14 +33,14 @@ typedef std::string IndexName;
 enum class SequenceNumber : std::uint64_t
 {
     Earliest = 0,
-    Latest = std::numeric_limits<std::uint64_t>::max(),
+    Latest = 0x3fffffffffffffffULL,
     LatestCommitted = Latest - 1,
 };
 
 inline SequenceNumber ToSequenceNumber(
     std::uint64_t sequenceNumber)
 {
-    if (sequenceNumber >= 0x4000000000000000ULL)
+    if (sequenceNumber > static_cast<uint64_t>(SequenceNumber::Latest))
     {
         throw std::out_of_range(
             "SequenceNumber was out of range.");
