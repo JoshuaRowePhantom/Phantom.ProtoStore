@@ -155,8 +155,6 @@ task<> ProtoStore::Open(
     co_await UpdateHeader([](auto) -> task<> { co_return; });
 
     co_await postUpdateHeaderTask;
-
-    m_checkpointTask = DelayedCheckpoint();
 }
 
 task<> ProtoStore::UpdateHeader(
@@ -205,7 +203,7 @@ task<> ProtoStore::WriteLogRecord(
             writeMessageResult.DataRange.End + m_checkpointLogSize))
     {
         m_asyncScope.spawn(
-            m_checkpointTask);
+            Checkpoint());
     }
 }
 
@@ -746,31 +744,40 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     co_return partition;
 }
 
-shared_task<> ProtoStore::DelayedCheckpoint()
+shared_task<> ProtoStore::WaitForCheckpoints(
+    optional<shared_task<>> previousCheckpoint,
+    shared_task<> newCheckpoint
+)
 {
+    if (previousCheckpoint.has_value())
     {
-        auto lock = co_await m_checkpointTaskLock.scoped_lock_async();
-        m_checkpointTask = DelayedCheckpoint();
+        co_await *previousCheckpoint;
     }
-
-    co_await *m_schedulers.IoScheduler;
-    co_await InternalCheckpoint();
+    co_await newCheckpoint;
 }
 
 task<> ProtoStore::Checkpoint()
 {
-    shared_task checkpointTask;
+    shared_task newAllCheckpointsTask;
 
     {
         auto lock = co_await m_checkpointTaskLock.scoped_lock_async();
-        checkpointTask = m_checkpointTask;
+        auto newCheckpointTask = InternalCheckpoint();
+        newAllCheckpointsTask = WaitForCheckpoints(
+            m_previousCheckpoints,
+            newCheckpointTask);
+        m_previousCheckpoints = newAllCheckpointsTask;
     }
 
-    co_await checkpointTask;
+    co_await newAllCheckpointsTask;
 }
 
-task<> ProtoStore::InternalCheckpoint()
+shared_task<> ProtoStore::InternalCheckpoint()
 {
+    // Switch to a new log at the start of the checkpoint to make it more likely
+    // to be able to clean up the current log at the next checkpoint.
+    co_await SwitchToNewLog();
+
     vector<task<>> checkpointTasks;
 
     {
@@ -784,13 +791,12 @@ task<> ProtoStore::InternalCheckpoint()
         }
     }
 
-    //for (auto& task : checkpointTasks)
-    //{
-    //    co_await task;
-    //}
     co_await cppcoro::when_all(
         move(checkpointTasks));
+}
 
+task<> ProtoStore::SwitchToNewLog()
+{
     task<> postUpdateHeaderTask;
 
     co_await UpdateHeader([this, &postUpdateHeaderTask](auto& header) -> task<>

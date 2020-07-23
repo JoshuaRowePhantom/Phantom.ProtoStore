@@ -54,7 +54,7 @@ class ProtoStore
     std::map<ExtentNumber, shared_ptr<IPartition>> m_activePartitions;
 
     cppcoro::async_mutex m_checkpointTaskLock;
-    shared_task<> m_checkpointTask;
+    optional<shared_task<>> m_previousCheckpoints;
     std::atomic<ExtentOffset> m_nextCheckpointLogOffset;
 
     shared_ptr<IIndex> m_indexesByNumberIndex;
@@ -63,6 +63,11 @@ class ProtoStore
 
     typedef unordered_map<google::protobuf::uint64, shared_ptr<IIndex>> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;
+
+    shared_task<> WaitForCheckpoints(
+        optional<shared_task<>> previousCheckpoint,
+        shared_task<> newCheckpoint
+    );
 
     task<shared_ptr<IIndex>> GetIndexInternal(
         const string& indexName,
@@ -115,7 +120,7 @@ class ProtoStore
     task<> WriteLogRecord(
         const LogRecord& logRecord);
 
-    task<> OpenLogWriter();
+    task<> SwitchToNewLog();
 
     task<> UpdateHeader(
         std::function<task<>(Header&)> modifier
@@ -142,8 +147,7 @@ class ProtoStore
         uint64_t previousWriteSequenceNumber,
         uint64_t thisWriteSequenceNumber);
 
-    shared_task<> DelayedCheckpoint();
-    task<> InternalCheckpoint();
+    shared_task<> InternalCheckpoint();
 
     friend class Operation;
 

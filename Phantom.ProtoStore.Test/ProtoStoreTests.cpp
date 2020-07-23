@@ -576,7 +576,7 @@ TEST(ProtoStoreTests, Perf2)
         createRequest.Schedulers = Schedulers::Default();
 
 #ifdef NDEBUG
-        createRequest.CheckpointLogSize = 1000000000;
+        createRequest.CheckpointLogSize = 10000000;
 #else
         createRequest.CheckpointLogSize = 1000;
 #endif
