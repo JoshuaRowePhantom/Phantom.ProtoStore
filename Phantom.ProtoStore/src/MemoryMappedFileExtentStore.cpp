@@ -679,8 +679,12 @@ task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrit
 task<> MemoryMappedFileExtentStore::DeleteExtent(
     ExtentNumber extentNumber)
 {
-    std::filesystem::remove(
-        GetFilename(extentNumber));
+    std::filesystem::rename(
+        GetFilename(extentNumber),
+        GetFilename(extentNumber) + ".deleted.dat");
+
+    //std::filesystem::remove(
+    //    GetFilename(extentNumber));
     co_return;
 }
 
