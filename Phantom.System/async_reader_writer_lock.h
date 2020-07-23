@@ -67,6 +67,7 @@ public:
 
     [[nodiscard]]
     scoped_lock_operation scoped_lock_async() noexcept;
+
     void unlock() noexcept;
 
 };
@@ -125,5 +126,52 @@ public:
 
     void await_resume() const noexcept;
 };
+
+template<
+    typename TScheduler,
+    typename TReadLambda,
+    typename TWriteLambda
+>
+cppcoro::task<> execute_conditional_read_unlikely_write_operation(
+    async_reader_writer_lock& reader_writer_lock,
+    TScheduler& scheduler,
+    TReadLambda readLambda,
+    TWriteLambda writeLambda
+)
+{
+    while (true)
+    {
+        {
+            auto lock = reader_writer_lock.reader().scoped_try_lock();
+
+            if (!lock)
+            {
+                lock = co_await reader_writer_lock.reader().scoped_lock_async();
+                co_await scheduler.schedule();
+            }
+
+            if (co_await readLambda(false))
+            {
+                co_return;
+            }
+        }
+
+        {
+            if (!reader_writer_lock.writer().has_owner()
+                &&
+                !reader_writer_lock.writer().has_waiter())
+            {
+                auto lock = co_await reader_writer_lock.writer().scoped_lock_async();
+
+                if (co_await readLambda(true))
+                {
+                    co_return;
+                }
+
+                co_await writeLambda();
+            }
+        }
+    }
+}
 
 }

@@ -308,81 +308,49 @@ namespace Phantom::ProtoStore
     task<shared_ptr<IReadableExtent>> MessageStore::OpenExtentForRead(
         ExtentNumber extentNumber)
     {
-        while (true)
+        shared_ptr<IReadableExtent> readableExtent;
+
+        co_await execute_conditional_read_unlikely_write_operation(
+            m_extentsLock,
+            *m_schedulers.LockScheduler,
+            [&](auto hasWriteLock) -> task<bool>
         {
-            {
-                auto lock = m_extentsLock.reader().scoped_try_lock();
-                if (!lock)
-                {
-                    lock = co_await m_extentsLock.reader().scoped_lock_async();
-                    co_await *m_schedulers.LockScheduler;
-                }
-
-                auto readableExtent = m_readableExtents[extentNumber];
-                if (readableExtent)
-                {
-                    co_return readableExtent;
-                }
-            }
-
-            if (!m_extentsLock.writer().has_owner()
-                && !m_extentsLock.writer().has_waiter())
-            {
-                auto lock = co_await m_extentsLock.writer().scoped_lock_async();
-
-                auto readableExtent = m_readableExtents[extentNumber];
-                if (readableExtent)
-                {
-                    co_return readableExtent;
-                }
-
-                readableExtent = co_await m_extentStore->OpenExtentForRead(
+            readableExtent = m_readableExtents[extentNumber];
+            co_return readableExtent != nullptr;
+        },
+            [&]() -> task<>
+        {
+            m_readableExtents[extentNumber] 
+                = readableExtent 
+                = co_await m_extentStore->OpenExtentForRead(
                     extentNumber);
-                m_readableExtents[extentNumber] = readableExtent;
+        });
 
-                co_return readableExtent;
-            }
-        }
+        co_return readableExtent;
     }
 
     task<shared_ptr<IWritableExtent>> MessageStore::OpenExtentForWrite(
         ExtentNumber extentNumber)
     {
-        while (true)
+        shared_ptr<IWritableExtent> writableExtent;
+
+        co_await execute_conditional_read_unlikely_write_operation(
+            m_extentsLock,
+            *m_schedulers.LockScheduler,
+            [&](auto hasWriteLock) -> task<bool>
         {
-            {
-                auto lock = m_extentsLock.reader().scoped_try_lock();
-                if (!lock)
-                {
-                    lock = co_await m_extentsLock.reader().scoped_lock_async();
-                    co_await *m_schedulers.LockScheduler;
-                }
-
-                auto writableExtent = m_writableExtents[extentNumber];
-                if (writableExtent)
-                {
-                    co_return writableExtent;
-                }
-            }
-
-            if (!m_extentsLock.writer().has_owner()
-                && !m_extentsLock.writer().has_waiter())
-            {
-                auto lock = co_await m_extentsLock.writer().scoped_lock_async();
-
-                auto writableExtent = m_writableExtents[extentNumber];
-                if (writableExtent)
-                {
-                    co_return writableExtent;
-                }
-
-                writableExtent = co_await m_extentStore->OpenExtentForWrite(
+            writableExtent = m_writableExtents[extentNumber];
+            co_return writableExtent != nullptr;
+        },
+            [&]() -> task<>
+        {
+            m_writableExtents[extentNumber] 
+                = writableExtent 
+                = co_await m_extentStore->OpenExtentForWrite(
                     extentNumber);
-                m_writableExtents[extentNumber] = writableExtent;
+        });
 
-                co_return writableExtent;
-            }
-        }
+        co_return writableExtent;
     }
 
     MessageStore::MessageStore(
