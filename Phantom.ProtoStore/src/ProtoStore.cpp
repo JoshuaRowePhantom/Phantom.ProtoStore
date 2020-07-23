@@ -408,6 +408,7 @@ class Operation
     unique_ptr<LogRecord> m_logRecord;
     async_value_source<MemoryTableOperationOutcome> m_outcomeValueSource;
     MemoryTableOperationOutcomeTask m_operationOutcomeTask;
+    SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
 
     MemoryTableOperationOutcomeTask GetOperationOutcome()
@@ -415,14 +416,41 @@ class Operation
         co_return co_await m_outcomeValueSource.wait();
     }
 
+    MemoryTableOperationOutcomeTask GetOperationOutcomeAsync(
+        WriteOperationMetadata writeOperationMetadata
+    )
+    {
+        auto underlyingOutcome = co_await m_operationOutcomeTask;
+        co_return MemoryTableOperationOutcome
+        {
+            .Outcome = underlyingOutcome.Outcome,
+            .WriteSequenceNumber = *writeOperationMetadata.WriteSequenceNumber,
+        };
+    }
+
+    MemoryTableOperationOutcomeTask GetOperationOutcomeTask(
+        WriteOperationMetadata writeOperationMetadata
+    )
+    {
+        if (!writeOperationMetadata.WriteSequenceNumber.has_value())
+        {
+            return m_operationOutcomeTask;
+        }
+
+        return GetOperationOutcomeAsync(
+            writeOperationMetadata);
+    }
+
 public:
     Operation(
         ProtoStore& protoStore,
+        SequenceNumber readSequenceNumber,
         SequenceNumber initialWriteSequenceNumber
     )
     :
         m_protoStore(protoStore),
         m_logRecord(make_unique<LogRecord>()),
+        m_readSequenceNumber(readSequenceNumber),
         m_initialWriteSequenceNumber(initialWriteSequenceNumber)
     {
         m_operationOutcomeTask = GetOperationOutcome();
@@ -455,7 +483,6 @@ public:
 
     virtual task<> AddRow(
         const WriteOperationMetadata& writeOperationMetadata, 
-        SequenceNumber readSequenceNumber, 
         ProtoIndex protoIndex,
         const ProtoValue& key,
         const ProtoValue& value
@@ -463,16 +490,28 @@ public:
     {
         auto index = protoIndex.m_index;
 
+        auto readSequenceNumber = writeOperationMetadata.ReadSequenceNumber.value_or(
+            m_readSequenceNumber);
+        auto writeSequenceNumber = writeOperationMetadata.WriteSequenceNumber.value_or(
+            m_initialWriteSequenceNumber);
+
+        auto operationOutcomeTask = GetOperationOutcomeTask(
+            writeOperationMetadata
+        );
+
         auto checkpointNumber = co_await index->AddRow(
             readSequenceNumber,
             key,
             value,
-            m_initialWriteSequenceNumber,
-            m_operationOutcomeTask
+            writeSequenceNumber,
+            operationOutcomeTask
         );
 
         auto loggedRowWrite = m_logRecord->add_rows();
-        loggedRowWrite->set_sequencenumber(ToUint64(m_initialWriteSequenceNumber));
+        if (writeOperationMetadata.WriteSequenceNumber.has_value())
+        {
+            loggedRowWrite->set_sequencenumber(ToUint64(*writeOperationMetadata.WriteSequenceNumber));
+        }
         loggedRowWrite->set_indexnumber(protoIndex.m_index->GetIndexNumber());
         key.pack(
             loggedRowWrite->mutable_key());
@@ -519,6 +558,15 @@ public:
         m_outcomeValueSource.emplace(
             outcome);
 
+        for (auto& addedRow : *m_logRecord->mutable_rows())
+        {
+            if (!addedRow.sequencenumber())
+            {
+                addedRow.set_sequencenumber(
+                    ToUint64(outcome.WriteSequenceNumber));
+            }
+        }
+
         co_await m_protoStore.WriteLogRecord(
             *m_logRecord
         );
@@ -541,6 +589,7 @@ task<OperationResult> ProtoStore::ExecuteOperation(
 
     auto executionOperationTask = ExecuteOperation(
         visitor,
+        thisWriteSequenceNumber,
         thisWriteSequenceNumber);
 
     //auto publishTask = Publish(
@@ -556,11 +605,13 @@ task<OperationResult> ProtoStore::ExecuteOperation(
 
 shared_task<OperationResult> ProtoStore::ExecuteOperation(
     OperationVisitor visitor,
+    uint64_t readSequenceNumber,
     uint64_t thisWriteSequenceNumber
 )
 {
     Operation operation(
         *this,
+        ToSequenceNumber(readSequenceNumber),
         ToSequenceNumber(thisWriteSequenceNumber));
 
     co_await visitor(&operation);
@@ -647,7 +698,6 @@ task<ProtoIndex> ProtoStore::CreateIndex(
 
         co_await operation->AddRow(
             metadata,
-            SequenceNumber::Earliest,
             ProtoIndex(this, &*m_indexesByNumberIndex),
             &indexesByNumberKey,
             &indexesByNumberValue
@@ -663,7 +713,6 @@ task<ProtoIndex> ProtoStore::CreateIndex(
 
         co_await operation->AddRow(
             metadata,
-            SequenceNumber::Earliest,
             ProtoIndex(this, &*m_indexesByNameIndex),
             &indexesByNameKey,
             &indexesByNameValue
@@ -919,6 +968,7 @@ task<> ProtoStore::Checkpoint(
 
     Operation operation(
         *this,
+        writeSequenceNumber,
         writeSequenceNumber);
 
     operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
@@ -967,7 +1017,6 @@ task<> ProtoStore::Checkpoint(
 
         co_await operation.AddRow(
             WriteOperationMetadata(),
-            writeSequenceNumber,
             ProtoIndex{ &*this, &*m_partitionsIndex },
             &partitionsKey,
             &partitionsValue);

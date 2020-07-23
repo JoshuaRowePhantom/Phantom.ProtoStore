@@ -443,6 +443,8 @@ struct WriteOperationMetadata
 {
     const TransactionId* TransactionId = nullptr;
     LoggedOperationDisposition LoggedOperationDisposition = LoggedOperationDisposition::Unprocessed;
+    std::optional<SequenceNumber> ReadSequenceNumber;
+    std::optional<SequenceNumber> WriteSequenceNumber;
 };
 
 class ProtoStoreException
@@ -484,7 +486,6 @@ public:
 
     virtual task<> AddRow(
         const WriteOperationMetadata& writeOperationMetadata,
-        SequenceNumber readSequenceNumber,
         ProtoIndex protoIndex,
         const ProtoValue& key,
         const ProtoValue& value

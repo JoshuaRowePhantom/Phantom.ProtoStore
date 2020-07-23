@@ -155,6 +155,7 @@ class ProtoStore
 
     shared_task<OperationResult> ExecuteOperation(
         OperationVisitor visitor,
+        uint64_t readSequenceNumber,
         uint64_t thisWriteSequenceNumber);
 
     task<> Publish(

@@ -104,7 +104,7 @@ public:
         ProtoIndex index,
         string key,
         optional<string> value,
-        SequenceNumber sequenceNumber
+        SequenceNumber writeSequenceNumber
     )
     {
         StringKey stringKey;
@@ -120,8 +120,10 @@ public:
             [&](IOperation* operation)->task<>
         {
             co_await operation->AddRow(
-                WriteOperationMetadata(),
-                sequenceNumber,
+                WriteOperationMetadata
+                {
+                    .WriteSequenceNumber = writeSequenceNumber,
+                },
                 index,
                 &stringKey,
                 value.has_value() ? & stringValue : nullptr);
@@ -143,7 +145,8 @@ public:
         ReadRequest readRequest;
         readRequest.Key = &stringKey;
         readRequest.Index = index;
-
+        readRequest.SequenceNumber = readSequenceNumber;
+        
         auto readResult = co_await store->Read(
             readRequest
         );
@@ -157,6 +160,7 @@ public:
             StringValue actualValue;
             readResult.Value.unpack(&actualValue);
             ASSERT_EQ(*expectedValue, actualValue.value());
+            ASSERT_EQ(expectedSequenceNumber, readResult.WriteSequenceNumber);
         }
     }
 };
@@ -233,6 +237,49 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
             "testValue1",
             ToSequenceNumber(5),
             ToSequenceNumber(5));
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        ASSERT_THROW(
+            co_await AddRowToTestIndex(
+                store,
+                index,
+                "testKey1",
+                "testValue2",
+                ToSequenceNumber(4)),
+            WriteConflict);
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            optional<string>(),
+            ToSequenceNumber(4),
+            ToSequenceNumber(5));    
     });
 }
 
@@ -359,7 +406,6 @@ TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
         {
             co_await operation->AddRow(
                 WriteOperationMetadata(),
-                SequenceNumber::Latest,
                 index,
                 &key,
                 &expectedValue);
@@ -404,8 +450,10 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
             [&](IOperation* operation)->task<>
         {
             co_await operation->AddRow(
-                WriteOperationMetadata(),
-                SequenceNumber::Latest,
+                WriteOperationMetadata
+                {
+                    .WriteSequenceNumber = ToSequenceNumber(5),
+                },
                 index,
                 &key,
                 &expectedValue);
@@ -419,8 +467,10 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
         {
             co_await addRowEvent;
             co_await operation->AddRow(
-                WriteOperationMetadata(),
-                SequenceNumber::Earliest,
+                WriteOperationMetadata
+                {
+                    .WriteSequenceNumber = ToSequenceNumber(4),
+                },
                 index,
                 &key,
                 &unexpectedValue);
@@ -466,10 +516,9 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
         {
             co_await operation->AddRow(
                 WriteOperationMetadata
-            {
-                .TransactionId = &transactionId,
-            },
-                SequenceNumber::Latest,
+                {
+                    .TransactionId = &transactionId,
+                },
                 index,
                 &key,
                 &expectedValue);
@@ -556,7 +605,6 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
                 {
                     co_await operation->AddRow(
                         WriteOperationMetadata{},
-                        SequenceNumber::Latest,
                         index,
                         &key,
                         &expectedValue);
@@ -688,7 +736,6 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
 
                         co_await operation->AddRow(
                             WriteOperationMetadata{},
-                            SequenceNumber::Latest,
                             index,
                             &key,
                             &expectedValue);
