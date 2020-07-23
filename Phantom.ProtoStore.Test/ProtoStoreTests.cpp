@@ -14,68 +14,75 @@ using namespace std;
 namespace Phantom::ProtoStore
 {
 
-CreateProtoStoreRequest GetCreateMemoryStoreRequest()
+class ProtoStoreTests
+    :
+    public testing::Test
 {
-    CreateProtoStoreRequest createRequest;
+public:
+    CreateProtoStoreRequest GetCreateMemoryStoreRequest()
+    {
+        CreateProtoStoreRequest createRequest;
 
-    createRequest.HeaderExtentStore = UseMemoryExtentStore();
-    createRequest.LogExtentStore = UseMemoryExtentStore();
-    createRequest.DataExtentStore = UseMemoryExtentStore();
-    createRequest.DataHeaderExtentStore = UseMemoryExtentStore();
+        createRequest.HeaderExtentStore = UseMemoryExtentStore();
+        createRequest.LogExtentStore = UseMemoryExtentStore();
+        createRequest.DataExtentStore = UseMemoryExtentStore();
+        createRequest.DataHeaderExtentStore = UseMemoryExtentStore();
 
-    return createRequest;
-}
+        return createRequest;
+    }
 
-CreateProtoStoreRequest GetCreateFileStoreRequest(
-    string testName)
+    CreateProtoStoreRequest GetCreateFileStoreRequest(
+        string testName)
+    {
+        CreateProtoStoreRequest createRequest;
+        createRequest.HeaderExtentStore = UseFilesystemStore(testName, "header", 4096);
+        createRequest.LogExtentStore = UseFilesystemStore(testName, "log", 4096);
+        createRequest.DataExtentStore = UseFilesystemStore(testName, "data", 4096);
+        createRequest.DataHeaderExtentStore = UseFilesystemStore(testName, "dataheader", 4096);
+        createRequest.Schedulers = Schedulers::Default();
+
+        return createRequest;
+    }
+
+    task<shared_ptr<IProtoStore>> CreateStore(
+        const CreateProtoStoreRequest& createRequest)
+    {
+        auto storeFactory = MakeProtoStoreFactory();
+
+        co_return co_await storeFactory->Create(
+            createRequest);
+    }
+
+    task<shared_ptr<IProtoStore>> CreateMemoryStore()
+    {
+        co_return co_await CreateStore(
+            GetCreateMemoryStoreRequest());
+    }
+
+    task<shared_ptr<IProtoStore>> OpenStore(
+        const OpenProtoStoreRequest& request
+    )
+    {
+        auto storeFactory = MakeProtoStoreFactory();
+
+        co_return co_await storeFactory->Open(
+            request);
+    }
+
+};
+
+TEST_F(ProtoStoreTests, CanCreate_memory_backed_store)
 {
-    CreateProtoStoreRequest createRequest;
-    createRequest.HeaderExtentStore = UseFilesystemStore(testName, "header", 4096);
-    createRequest.LogExtentStore = UseFilesystemStore(testName, "log", 4096);
-    createRequest.DataExtentStore = UseFilesystemStore(testName, "data", 4096);
-    createRequest.DataHeaderExtentStore = UseFilesystemStore(testName, "dataheader", 4096);
-    createRequest.Schedulers = Schedulers::Default();
-
-    return createRequest;
-}
-
-task<shared_ptr<IProtoStore>> CreateStore(
-    const CreateProtoStoreRequest& createRequest)
-{
-    auto storeFactory = MakeProtoStoreFactory();
-
-    co_return co_await storeFactory->Create(
-        createRequest);
-}
-
-task<shared_ptr<IProtoStore>> CreateMemoryStore()
-{
-    co_return co_await CreateStore(
-        GetCreateMemoryStoreRequest());
-}
-
-task<shared_ptr<IProtoStore>> OpenStore(
-    const OpenProtoStoreRequest& request
-)
-{
-    auto storeFactory = MakeProtoStoreFactory();
-
-    co_return co_await storeFactory->Open(
-        request);
-}
-
-TEST(ProtoStoreTests, CanCreate_memory_backed_store)
-{
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto store = CreateMemoryStore();
         co_return;
     });
 }
 
-TEST(ProtoStoreTests, CanOpen_memory_backed_store)
+TEST_F(ProtoStoreTests, CanOpen_memory_backed_store)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto storeFactory = MakeProtoStoreFactory();
         CreateProtoStoreRequest createRequest;
@@ -94,9 +101,9 @@ TEST(ProtoStoreTests, CanOpen_memory_backed_store)
     });
 }
 
-TEST(ProtoStoreTests, Open_fails_on_uncreated_store)
+TEST_F(ProtoStoreTests, Open_fails_on_uncreated_store)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto storeFactory = MakeProtoStoreFactory();
         OpenProtoStoreRequest openRequest;
@@ -113,9 +120,9 @@ TEST(ProtoStoreTests, Open_fails_on_uncreated_store)
     });
 }
 
-TEST(ProtoStoreTests, Can_read_and_write_one_row)
+TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto store = co_await CreateMemoryStore();
 
@@ -163,9 +170,9 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row)
     });
 }
 
-TEST(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
+TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto createRequest = GetCreateMemoryStoreRequest();
 
@@ -221,9 +228,9 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
     });
 }
 
-TEST(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
+TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto createRequest = GetCreateMemoryStoreRequest();
 
@@ -275,9 +282,9 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
     });
 }
 
-TEST(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
+TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen");
 
@@ -338,9 +345,9 @@ TEST(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
     });
 }
 
-TEST(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
+TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto store = co_await CreateMemoryStore();
 
@@ -387,9 +394,9 @@ TEST(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
     });
 }
 
-TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
+TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto store = co_await CreateMemoryStore();
 
@@ -459,9 +466,9 @@ TEST(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
     });
 }
 
-TEST(ProtoStoreTests, DISABLED_Can_commit_transaction)
+TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
 {
-    run_async([]() -> task<>
+    run_async([&]() -> task<>
     {
         auto store = co_await CreateMemoryStore();
 
@@ -536,7 +543,7 @@ TEST(ProtoStoreTests, DISABLED_Can_commit_transaction)
     });
 }
 
-TEST(ProtoStoreTests, PerformanceTest(Perf1))
+TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
 {
     cppcoro::static_thread_pool threadPool(4);
 
@@ -640,7 +647,7 @@ TEST(ProtoStoreTests, PerformanceTest(Perf1))
 
 std::atomic<long> Perf2_running_items(0);
 
-TEST(ProtoStoreTests, PerformanceTest(Perf2))
+TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
 {
     run_async([&]() -> task<>
     {
