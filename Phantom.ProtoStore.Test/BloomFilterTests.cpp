@@ -116,7 +116,7 @@ TEST(BloomFilterTests, can_add_and_test)
 TEST(BloomFilterTests, can_add_many_strings_with_desired_probability)
 {
     auto desiredFalsePositiveErrorRate = .01;
-    auto elementCount = 100000;
+    auto elementCount = 10000;
     auto maximumTolerableErrors = elementCount * desiredFalsePositiveErrorRate * 2;
     auto minimumTolerableErrors = elementCount * desiredFalsePositiveErrorRate / 3;
 
@@ -169,7 +169,7 @@ TEST(BloomFilterTests, can_add_many_strings_with_desired_probability)
 
 TEST(BloomFilterTests, can_save_and_restore_from_span)
 {
-    auto desiredFalsePositiveErrorRate = .01;
+    auto desiredFalsePositiveErrorRate = .1;
     auto elementCount = 100;
     auto maximumTolerableErrors = elementCount * desiredFalsePositiveErrorRate * 2;
     auto minimumTolerableErrors = elementCount * desiredFalsePositiveErrorRate / 3;
