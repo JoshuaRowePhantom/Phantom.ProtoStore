@@ -5,8 +5,6 @@
 namespace Phantom::ProtoStore
 {
 
-typedef google::protobuf::uint64 CheckpointNumber;
-
 class IIndex
 {
 public:

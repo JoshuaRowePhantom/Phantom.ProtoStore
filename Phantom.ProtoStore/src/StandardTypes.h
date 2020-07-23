@@ -63,6 +63,7 @@ using google::protobuf::io::ZeroCopyOutputStream;
 
 typedef std::uint64_t ExtentNumber;
 typedef std::uint64_t ExtentOffset;
+typedef google::protobuf::uint64 CheckpointNumber;
 
 struct ExtentOffsetRange
 {

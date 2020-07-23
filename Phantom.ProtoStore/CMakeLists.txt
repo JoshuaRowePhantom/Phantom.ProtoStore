@@ -34,6 +34,8 @@ add_library (
     "src/IndexImpl.h"
     "src/KeyComparer.cpp"
     "src/KeyComparer.h"
+    "src/LogManager.cpp"
+    "src/LogManager.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
     "src/MemoryMappedFileExtentStore.cpp"

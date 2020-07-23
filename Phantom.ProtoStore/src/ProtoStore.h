@@ -9,6 +9,7 @@
 #include <cppcoro/sequence_barrier.hpp>
 #include <cppcoro/shared_task.hpp>
 #include "AsyncScopeMixin.h"
+#include "LogManager.h"
 
 namespace Phantom::ProtoStore
 {
@@ -32,7 +33,10 @@ class ProtoStore
     const shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     const shared_ptr<IRandomMessageAccessor> m_dataHeaderMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
-
+    
+    std::optional<LogManager> m_logManager;
+    
+    Header m_header;
 
     Schedulers m_schedulers;
 
@@ -51,8 +55,6 @@ class ProtoStore
     shared_ptr<IIndex> m_indexesByNumberIndex;
     shared_ptr<IIndex> m_indexesByNameIndex;
     shared_ptr<IIndex> m_partitionsIndex;
-
-    shared_ptr<ISequentialMessageWriter> m_logWriter;
 
     typedef unordered_map<google::protobuf::uint64, shared_ptr<IIndex>> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;
@@ -96,8 +98,14 @@ class ProtoStore
     task<> Replay(
         const LoggedCreateIndex& logRecord);
 
-    task<> Replay(
+    task<> ProtoStore::Replay(
+        const LoggedCommitDataExtent& logRecord);
+
+    task<> ProtoStore::Replay(
         const LoggedCreateDataExtent& logRecord);
+
+    task<> ProtoStore::Replay(
+        const LoggedDeleteDataExtent& logRecord);
 
     task<> WriteLogRecord(
         const LogRecord& logRecord);

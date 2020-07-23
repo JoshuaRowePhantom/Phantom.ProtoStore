@@ -49,7 +49,6 @@ task<> ProtoStore::Create(
     header.set_epoch(1);
     header.set_logalignment(static_cast<google::protobuf::uint32>(
         createRequest.LogAlignment));
-    header.add_logreplayextentnumbers(0);
     header.set_nextdataextentnumber(1);
     header.set_nextindexnumber(1000);
 
@@ -65,14 +64,13 @@ task<> ProtoStore::Open(
 {
     m_schedulers = openRequest.Schedulers;
 
-    Header header;
     co_await m_headerAccessor->ReadHeader(
-        header);
+        m_header);
 
     m_nextDataExtentNumber.store(
-        header.nextdataextentnumber());
+        m_header.nextdataextentnumber());
     m_nextIndexNumber.store(
-        header.nextindexnumber());
+        m_header.nextindexnumber());
 
     {
         IndexesByNumberKey indexesByNumberKey;
@@ -135,41 +133,23 @@ task<> ProtoStore::Open(
     m_indexesByNumber[m_indexesByNameIndex->GetIndexNumber()] = m_indexesByNameIndex;
     m_indexesByNumber[m_partitionsIndex->GetIndexNumber()] = m_partitionsIndex;
 
-    for (auto logReplayExtentNumber : header.logreplayextentnumbers())
+    m_logManager.emplace(
+        m_logExtentStore,
+        m_logMessageStore,
+        m_header);
+
+    for (auto logReplayExtentNumber : m_header.logreplayextentnumbers())
     {
         co_await Replay(
             logReplayExtentNumber);
     }
 
-    co_await OpenLogWriter();
+    auto postUpdateHeaderTask = co_await m_logManager->FinishReplay(
+        m_header);
 
-    co_return;
-}
+    co_await UpdateHeader([](auto) -> task<> { co_return; });
 
-task<> ProtoStore::OpenLogWriter()
-{
-    auto logExtentNumber = 0;
-
-    co_await UpdateHeader([&](Header& header)->task<>
-    {
-        std::set<ExtentNumber> usedExtents;
-        for (auto usedExtent : header.logreplayextentnumbers())
-        {
-            usedExtents.insert(usedExtent);
-        }
-
-        while (usedExtents.contains(logExtentNumber))
-        {
-            logExtentNumber++;
-        }
-
-        header.add_logreplayextentnumbers(logExtentNumber);
-
-        co_return;
-    });
-
-    m_logWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
-        logExtentNumber);
+    co_await postUpdateHeaderTask;
 }
 
 task<> ProtoStore::UpdateHeader(
@@ -177,37 +157,31 @@ task<> ProtoStore::UpdateHeader(
 )
 {
     auto lock = co_await m_headerMutex.scoped_lock_async();
-    
-    Header header;
-    
-    co_await m_headerAccessor->ReadHeader(
-        header);
-    
-    auto nextEpoch = header.epoch() + 1;
+        
+    auto nextEpoch = m_header.epoch() + 1;
     
     co_await modifier(
-        header);
+        m_header);
 
-    header.set_epoch(
+    m_header.set_epoch(
         nextEpoch);
 
-    header.set_nextindexnumber(
+    m_header.set_nextindexnumber(
         m_nextIndexNumber.load());
 
-    header.set_nextdataextentnumber(
+    m_header.set_nextdataextentnumber(
         m_nextDataExtentNumber.load());
 
     co_await m_headerAccessor->WriteHeader(
-        header);
+        m_header);
 }
 
 task<> ProtoStore::WriteLogRecord(
     const LogRecord& logRecord
 )
 {
-    co_await m_logWriter->Write(
-        logRecord,
-        FlushBehavior::Flush
+    co_await m_logManager->WriteLogRecord(
+        logRecord
     );
 }
 
@@ -226,6 +200,11 @@ task<> ProtoStore::Replay(
             LogRecord logRecord;
             co_await logReader->Read(
                 logRecord);
+
+            co_await m_logManager->Replay(
+                extentNumber,
+                logRecord
+            );
 
             co_await Replay(
                 logRecord);
@@ -280,6 +259,26 @@ task<> ProtoStore::Replay(
 
 task<> ProtoStore::Replay(
     const LoggedCreateDataExtent& logRecord)
+{
+    if (m_nextDataExtentNumber.load() <= logRecord.extentnumber())
+    {
+        m_nextDataExtentNumber.store(logRecord.extentnumber() + 1);
+    }
+    co_return;
+}
+
+task<> ProtoStore::Replay(
+    const LoggedCommitDataExtent& logRecord)
+{
+    if (m_nextDataExtentNumber.load() <= logRecord.extentnumber())
+    {
+        m_nextDataExtentNumber.store(logRecord.extentnumber() + 1);
+    }
+    co_return;
+}
+
+task<> ProtoStore::Replay(
+    const LoggedDeleteDataExtent& logRecord)
 {
     if (m_nextDataExtentNumber.load() <= logRecord.extentnumber())
     {
@@ -723,19 +722,31 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
 
 task<> ProtoStore::Checkpoint()
 {
-    auto lock = co_await m_indexesByNumberLock.reader().scoped_lock_async();
-
     vector<task<>> checkpointTasks;
 
-    for (auto index : m_indexesByNumber)
     {
-        checkpointTasks.push_back(
-            Checkpoint(
-                index.second));
+        auto lock = co_await m_indexesByNumberLock.reader().scoped_lock_async();
+
+        for (auto index : m_indexesByNumber)
+        {
+            checkpointTasks.push_back(
+                Checkpoint(
+                    index.second));
+        }
     }
 
     co_await cppcoro::when_all(
         move(checkpointTasks));
+
+    task<> postUpdateHeaderTask;
+
+    co_await UpdateHeader([this, &postUpdateHeaderTask](auto& header) -> task<>
+    {
+        postUpdateHeaderTask = co_await m_logManager->Checkpoint(
+            header);
+    });
+
+    co_await postUpdateHeaderTask;
 }
 
 task<> ProtoStore::Checkpoint(
