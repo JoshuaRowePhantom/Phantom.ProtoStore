@@ -434,7 +434,7 @@ task<> Index::UpdatePartitions(
     vector<shared_ptr<IMemoryTable>> memoryTablesToRemove;
 
     {
-        auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
+        auto lock = co_await m_partitionsLock.writer().scoped_lock_async();
 
         for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
         {
