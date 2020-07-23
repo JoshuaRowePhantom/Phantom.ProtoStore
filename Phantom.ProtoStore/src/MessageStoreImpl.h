@@ -4,6 +4,7 @@
 #include <cppcoro/async_mutex.hpp>
 #include "MessageStore.h"
 #include "Checksum.h"
+#include "Phantom.System/async_reader_writer_lock.h"
 
 namespace Phantom::ProtoStore
 {
@@ -95,9 +96,9 @@ namespace Phantom::ProtoStore
     {
         Schedulers m_schedulers;
         const shared_ptr<IExtentStore> m_extentStore;
-        cppcoro::async_mutex m_asyncMutex;
-        map<ExtentNumber, weak_ptr<IReadableExtent>> m_readableExtents;
-        map<ExtentNumber, weak_ptr<IWritableExtent>> m_writableExtents;
+        async_reader_writer_lock m_extentsLock;
+        map<ExtentNumber, shared_ptr<IReadableExtent>> m_readableExtents;
+        map<ExtentNumber, shared_ptr<IWritableExtent>> m_writableExtents;
         shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(
