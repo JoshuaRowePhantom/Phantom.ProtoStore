@@ -3,6 +3,6 @@
 namespace Phantom::ProtoStore
 {
 
-thread_local std::mt19937 tls_SkipListRng;
+thread_local std::ranlux48 tls_SkipListRng;
 
 }

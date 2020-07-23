@@ -21,6 +21,7 @@ class ProtoStore
     public IProtoStore,
     public AsyncScopeMixin
 {
+    Schedulers m_schedulers;
     const shared_ptr<IExtentStore> m_headerExtentStore;
     const shared_ptr<IExtentStore> m_logExtentStore;
     const shared_ptr<IExtentStore> m_dataExtentStore;
@@ -38,7 +39,7 @@ class ProtoStore
     
     Header m_header;
 
-    Schedulers m_schedulers;
+    uint64_t m_checkpointLogSize;
 
     cppcoro::inline_scheduler m_inlineScheduler;
     cppcoro::sequence_barrier<uint64_t> m_writeSequenceNumberBarrier;
@@ -51,6 +52,10 @@ class ProtoStore
 
     cppcoro::async_mutex m_updatePartitionsMutex;
     std::map<ExtentNumber, shared_ptr<IPartition>> m_activePartitions;
+
+    cppcoro::async_mutex m_checkpointTaskLock;
+    shared_task<> m_checkpointTask;
+    std::atomic<ExtentOffset> m_nextCheckpointLogOffset;
 
     shared_ptr<IIndex> m_indexesByNumberIndex;
     shared_ptr<IIndex> m_indexesByNameIndex;
@@ -137,6 +142,9 @@ class ProtoStore
         uint64_t previousWriteSequenceNumber,
         uint64_t thisWriteSequenceNumber);
 
+    shared_task<> DelayedCheckpoint();
+    task<> InternalCheckpoint();
+
     friend class Operation;
 
 public:
@@ -159,6 +167,7 @@ public:
         ) = delete;
 
     ProtoStore(
+        Schedulers schedulers,
         shared_ptr<IExtentStore> headerStore,
         shared_ptr<IExtentStore> logStore,
         shared_ptr<IExtentStore> dataStore,

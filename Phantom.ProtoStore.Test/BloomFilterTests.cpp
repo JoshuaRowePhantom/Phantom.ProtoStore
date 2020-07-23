@@ -127,7 +127,7 @@ TEST(BloomFilterTests, can_add_many_strings_with_desired_probability)
         get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
             desiredFalsePositiveErrorRate));
 
-    std::mt19937 rng;
+    std::ranlux48 rng;
 
     auto elementStrings = MakeRandomStrings(
         rng,
@@ -181,7 +181,7 @@ TEST(BloomFilterTests, can_save_and_restore_from_span)
         get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
             desiredFalsePositiveErrorRate));
 
-    std::mt19937 rng;
+    std::ranlux48 rng;
 
     auto elementStrings = MakeRandomStrings(
         rng,

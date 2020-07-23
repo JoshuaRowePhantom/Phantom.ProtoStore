@@ -18,6 +18,7 @@ TEST(HeaderAccessorTests, Throws_exception_when_no_valid_header)
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -40,6 +41,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_no_valid_location2
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -71,6 +73,7 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location1)
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -115,6 +118,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_no_valid_location1
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -146,6 +150,7 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location2)
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -190,6 +195,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_location1_is_older
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -228,6 +234,7 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location1_is_older)
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -279,6 +286,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_location2_is_older
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -317,6 +325,7 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location2_is_older)
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
@@ -368,6 +377,7 @@ TEST(HeaderAccessorTests, Can_alternate_write_request_locations)
         auto store = make_shared<MemoryExtentStore>(
             Schedulers::Default());
         auto messageStore = MakeMessageStore(
+            Schedulers::Default(),
             store);
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);

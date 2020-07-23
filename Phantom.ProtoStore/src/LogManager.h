@@ -3,12 +3,14 @@
 #include "StandardTypes.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "Phantom.System/async_reader_writer_lock.h"
+#include "MessageStore.h"
 
 namespace Phantom::ProtoStore
 {
 
 class LogManager
 {
+    Schedulers m_schedulers;
     shared_ptr<IExtentStore> m_logExtentStore;
     shared_ptr<IMessageStore> m_logMessageStore;
 
@@ -49,6 +51,7 @@ class LogManager
 
 public:
     LogManager(
+        Schedulers schedulers,
         shared_ptr<IExtentStore> logExtentStore,
         shared_ptr<IMessageStore> logMessageStore,
         const Header& header
@@ -62,7 +65,7 @@ public:
     task<task<>> FinishReplay(
         Header& header);
 
-    task<> WriteLogRecord(
+    task<WriteMessageResult> WriteLogRecord(
         const LogRecord& logRecord
     );
 

@@ -309,6 +309,7 @@ namespace Phantom::ProtoStore
         ExtentNumber extentNumber)
     {
         auto lock = co_await m_asyncMutex.scoped_lock_async();
+        co_await *m_schedulers.LockScheduler;
 
         auto readableExtent = m_readableExtents[extentNumber].lock();
         if (!readableExtent)
@@ -325,6 +326,7 @@ namespace Phantom::ProtoStore
         ExtentNumber extentNumber)
     {
         auto lock = co_await m_asyncMutex.scoped_lock_async();
+        co_await *m_schedulers.LockScheduler;
 
         auto& writableExtent = m_writableExtents[extentNumber].lock();
         if (!writableExtent)
@@ -338,8 +340,10 @@ namespace Phantom::ProtoStore
     }
 
     MessageStore::MessageStore(
+        Schedulers schedulers,
         shared_ptr<IExtentStore> extentStore)
         :
+        m_schedulers(schedulers),
         m_extentStore(move(extentStore)),
         m_checksumAlgorithmFactory(MakeChecksumAlgorithmFactory())
     {
@@ -419,9 +423,11 @@ namespace Phantom::ProtoStore
     }
 
     shared_ptr<IMessageStore> MakeMessageStore(
+        Schedulers schedulers,
         shared_ptr<IExtentStore> extentStore)
     {
         return make_shared<MessageStore>(
+            schedulers,
             move(extentStore));
     }
 }

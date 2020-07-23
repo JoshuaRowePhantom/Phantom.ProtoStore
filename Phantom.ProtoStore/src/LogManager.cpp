@@ -19,11 +19,13 @@ size_t LogManager::LogExtentUsageHasher::operator() (
 }
 
 LogManager::LogManager(
+    Schedulers schedulers,
     shared_ptr<IExtentStore> logExtentStore,
     shared_ptr<IMessageStore> logMessageStore,
     const Header& header
 )
     :
+    m_schedulers(schedulers),
     m_logExtentStore(logExtentStore),
     m_logMessageStore(logMessageStore),
     m_existingExtents(
@@ -144,46 +146,51 @@ bool LogManager::NeedToUpdateMaps(
     return false;
 }
 
-task<> LogManager::WriteLogRecord(
+task<WriteMessageResult> LogManager::WriteLogRecord(
     const LogRecord& logRecord
 )
 {
     while (true)
     {
         {
-            auto readLock = co_await m_logExtentUsageLock.reader().scoped_lock_async();
+            auto readLock = m_logExtentUsageLock.reader().scoped_try_lock();
+            if (!readLock)
+            {
+                readLock = co_await m_logExtentUsageLock.reader().scoped_lock_async();
+                co_await *m_schedulers.IoScheduler;
+            }
+
             if (!NeedToUpdateMaps(
                 m_currentLogExtentNumber,
                 logRecord))
             {
-                co_await m_logMessageWriter->Write(
+                auto writeResult = co_await m_logMessageWriter->Write(
                     logRecord,
                     FlushBehavior::Flush);
 
-                co_return;
+                co_return writeResult;
             }
         }
 
+        // Most of the time, the reason the write lock can't be acquired
+        // is because someone else is adding the same entry,
+        // so just go back to the read path if we don't think we'll be able to acquire the lock.
+        if (!m_logExtentUsageLock.writer().has_owner()
+            &&
+            !m_logExtentUsageLock.writer().has_waiter()
+            )
         {
-            // Most of the time, the reason the write lock can't be acquired
-            // is because someone else is adding the same entry,
-            // so just go back to the read path if we can't acquire the lock.
             auto writeLock = m_logExtentUsageLock.writer().scoped_try_lock();
-
-            if (!writeLock)
-            {
-                continue;
-            }
 
             co_await Replay(
                 m_currentLogExtentNumber,
                 logRecord);
 
-            co_await m_logMessageWriter->Write(
+            auto writeResult = co_await m_logMessageWriter->Write(
                 logRecord,
                 FlushBehavior::Flush);
 
-            co_return;
+            co_return writeResult;
         }
     }
 }

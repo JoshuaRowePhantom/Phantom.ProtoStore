@@ -12,6 +12,7 @@ task<shared_ptr<IProtoStore>> ProtoStoreFactory::Open(
     auto dataHeaderExtentStore = co_await openRequest.DataHeaderExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
+        openRequest.Schedulers,
         headerExtentStore,
         logExtentStore,
         dataExtentStore,
@@ -32,6 +33,7 @@ task<shared_ptr<IProtoStore>> ProtoStoreFactory::Create(
     auto dataHeaderExtentStore = co_await createRequest.DataHeaderExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
+        createRequest.Schedulers,
         headerExtentStore,
         logExtentStore,
         dataExtentStore,

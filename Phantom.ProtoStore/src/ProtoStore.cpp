@@ -17,20 +17,22 @@ namespace Phantom::ProtoStore
 {
 
 ProtoStore::ProtoStore(
+    Schedulers schedulers,
     shared_ptr<IExtentStore> headerExtentStore,
     shared_ptr<IExtentStore> logExtentStore,
     shared_ptr<IExtentStore> dataExtentStore,
     shared_ptr<IExtentStore> dataHeaderExtentStore
 )
     :
+    m_schedulers(schedulers),
     m_headerExtentStore(move(headerExtentStore)),
     m_logExtentStore(move(logExtentStore)),
     m_dataExtentStore(move(dataExtentStore)),
     m_dataHeaderExtentStore(move(dataHeaderExtentStore)),
-    m_headerMessageStore(MakeMessageStore(m_headerExtentStore)),
-    m_logMessageStore(MakeMessageStore(m_logExtentStore)),
-    m_dataMessageStore(MakeMessageStore(m_dataExtentStore)),
-    m_dataHeaderMessageStore(MakeMessageStore(m_dataHeaderExtentStore)),
+    m_headerMessageStore(MakeMessageStore(m_schedulers, m_headerExtentStore)),
+    m_logMessageStore(MakeMessageStore(m_schedulers, m_logExtentStore)),
+    m_dataMessageStore(MakeMessageStore(m_schedulers, m_dataExtentStore)),
+    m_dataHeaderMessageStore(MakeMessageStore(m_schedulers, m_dataHeaderExtentStore)),
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
     m_dataHeaderMessageAccessor(MakeRandomMessageAccessor(m_dataHeaderMessageStore)),
@@ -63,6 +65,8 @@ task<> ProtoStore::Open(
     const OpenProtoStoreRequest& openRequest)
 {
     m_schedulers = openRequest.Schedulers;
+    m_checkpointLogSize = openRequest.CheckpointLogSize;
+    m_nextCheckpointLogOffset.store(m_checkpointLogSize);
 
     co_await m_headerAccessor->ReadHeader(
         m_header);
@@ -134,6 +138,7 @@ task<> ProtoStore::Open(
     m_indexesByNumber[m_partitionsIndex->GetIndexNumber()] = m_partitionsIndex;
 
     m_logManager.emplace(
+        m_schedulers,
         m_logExtentStore,
         m_logMessageStore,
         m_header);
@@ -150,6 +155,8 @@ task<> ProtoStore::Open(
     co_await UpdateHeader([](auto) -> task<> { co_return; });
 
     co_await postUpdateHeaderTask;
+
+    m_checkpointTask = DelayedCheckpoint();
 }
 
 task<> ProtoStore::UpdateHeader(
@@ -180,9 +187,26 @@ task<> ProtoStore::WriteLogRecord(
     const LogRecord& logRecord
 )
 {
-    co_await m_logManager->WriteLogRecord(
+    auto writeMessageResult = co_await m_logManager->WriteLogRecord(
         logRecord
     );
+
+    auto nextCheckpointLogOffset = m_nextCheckpointLogOffset.load(
+        std::memory_order_relaxed);
+
+    if (writeMessageResult.DataRange.End == 0)
+    {
+        m_nextCheckpointLogOffset.store(
+            m_checkpointLogSize);
+    }
+    else if (writeMessageResult.DataRange.End > nextCheckpointLogOffset
+        && m_nextCheckpointLogOffset.compare_exchange_weak(
+            nextCheckpointLogOffset,
+            writeMessageResult.DataRange.End + m_checkpointLogSize))
+    {
+        m_asyncScope.spawn(
+            m_checkpointTask);
+    }
 }
 
 task<> ProtoStore::Replay(
@@ -722,7 +746,30 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     co_return partition;
 }
 
+shared_task<> ProtoStore::DelayedCheckpoint()
+{
+    {
+        auto lock = co_await m_checkpointTaskLock.scoped_lock_async();
+        m_checkpointTask = DelayedCheckpoint();
+    }
+
+    co_await *m_schedulers.IoScheduler;
+    co_await InternalCheckpoint();
+}
+
 task<> ProtoStore::Checkpoint()
+{
+    shared_task checkpointTask;
+
+    {
+        auto lock = co_await m_checkpointTaskLock.scoped_lock_async();
+        checkpointTask = m_checkpointTask;
+    }
+
+    co_await checkpointTask;
+}
+
+task<> ProtoStore::InternalCheckpoint()
 {
     vector<task<>> checkpointTasks;
 
@@ -737,12 +784,12 @@ task<> ProtoStore::Checkpoint()
         }
     }
 
-    for (auto& task : checkpointTasks)
-    {
-        co_await task;
-    }
-    //co_await cppcoro::when_all(
-    //    move(checkpointTasks));
+    //for (auto& task : checkpointTasks)
+    //{
+    //    co_await task;
+    //}
+    co_await cppcoro::when_all(
+        move(checkpointTasks));
 
     task<> postUpdateHeaderTask;
 

@@ -19,7 +19,7 @@ std::function<task<shared_ptr<IExtentStore>>()> UseMemoryExtentStore()
 }
 
 std::string MakeRandomString(
-    std::mt19937& rng,
+    std::ranlux48& rng,
     size_t length)
 {
     std::uniform_int_distribution<int> distribution('a', 'z');
@@ -32,7 +32,7 @@ std::string MakeRandomString(
 }
 
 std::vector<std::string> MakeRandomStrings(
-    std::mt19937& rng,
+    std::ranlux48& rng,
     size_t stringLength,
     size_t stringCount)
 {

@@ -16,11 +16,11 @@ using google::protobuf::util::MessageDifferencer;
 std::function<task<shared_ptr<IExtentStore>>()> UseMemoryExtentStore();
 
 std::string MakeRandomString(
-    std::mt19937& rng,
+    std::ranlux48& rng,
     size_t length);
 
 std::vector<std::string> MakeRandomStrings(
-    std::mt19937& rng,
+    std::ranlux48& rng,
     size_t stringLength,
     size_t stringCount);
 

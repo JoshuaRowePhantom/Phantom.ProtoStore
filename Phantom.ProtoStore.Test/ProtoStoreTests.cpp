@@ -479,7 +479,7 @@ TEST(ProtoStoreTests, Perf1)
 
         int valueCount = 100000;
 
-        mt19937 rng;
+        ranlux48 rng;
         uniform_int_distribution<int> distribution('a', 'z');
 
         auto keys = MakeRandomStrings(
@@ -575,6 +575,12 @@ TEST(ProtoStoreTests, Perf2)
         createRequest.DataHeaderExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "dataheader", 4096);
         createRequest.Schedulers = Schedulers::Default();
 
+#ifdef NDEBUG
+        createRequest.CheckpointLogSize = 1000000;
+#else
+        createRequest.CheckpointLogSize = 1000;
+#endif
+
         auto store = co_await CreateStore(
             createRequest);
 
@@ -590,10 +596,10 @@ TEST(ProtoStoreTests, Perf2)
 #ifdef NDEBUG
         int valueCount = 1000000;
 #else
-        int valueCount = 10000;
+        int valueCount = 1000000;
 #endif
 
-        mt19937 rng;
+        std::ranlux48 rng;
         uniform_int_distribution<int> distribution('a', 'z');
 
         auto keys = MakeRandomStrings(

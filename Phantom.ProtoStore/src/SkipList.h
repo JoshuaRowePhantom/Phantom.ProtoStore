@@ -16,7 +16,7 @@
 namespace Phantom::ProtoStore
 {
 
-extern thread_local std::mt19937 tls_SkipListRng;
+extern thread_local std::ranlux48 tls_SkipListRng;
 
 namespace detail
 {

@@ -60,6 +60,7 @@ task<> DumpPartition(
         4096);
 
     auto messageStore = MakeMessageStore(
+        Schedulers::Default(),
         extentStore);
 
     auto headerExtent = co_await extentStore->OpenExtentForRead(

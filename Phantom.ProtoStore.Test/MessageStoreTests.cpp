@@ -16,6 +16,7 @@ namespace Phantom::ProtoStore
             auto extentStore = make_shared<MemoryExtentStore>(
                 Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
+                Schedulers::Default(),
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
 
@@ -50,6 +51,7 @@ namespace Phantom::ProtoStore
             auto extentStore = make_shared<MemoryExtentStore>(
                 Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
+                Schedulers::Default(),
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
 
@@ -107,6 +109,7 @@ namespace Phantom::ProtoStore
             auto extentStore = make_shared<MemoryExtentStore>(
                 Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
+                Schedulers::Default(),
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
 
@@ -154,6 +157,7 @@ namespace Phantom::ProtoStore
             auto extentStore = make_shared<MemoryExtentStore>(
                 Schedulers::Default());
             auto messageStore = make_shared<MessageStore>(
+                Schedulers::Default(),
                 extentStore);
             auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(0);
 

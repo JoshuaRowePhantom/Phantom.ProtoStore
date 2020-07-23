@@ -87,5 +87,6 @@ namespace Phantom::ProtoStore
     };
 
     shared_ptr<IMessageStore> MakeMessageStore(
+        Schedulers schedulers,
         shared_ptr<IExtentStore> extentStore);
 }

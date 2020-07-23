@@ -93,6 +93,7 @@ namespace Phantom::ProtoStore
         :
         public IMessageStore
     {
+        Schedulers m_schedulers;
         const shared_ptr<IExtentStore> m_extentStore;
         cppcoro::async_mutex m_asyncMutex;
         map<ExtentNumber, weak_ptr<IReadableExtent>> m_readableExtents;
@@ -107,6 +108,7 @@ namespace Phantom::ProtoStore
 
     public:
         MessageStore(
+            Schedulers schedulers,
             shared_ptr<IExtentStore> extentStore);
 
         // Inherited via IMessageStore
