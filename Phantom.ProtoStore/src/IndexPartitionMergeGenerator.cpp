@@ -42,11 +42,11 @@ vector<MergeCandidate> IndexPartitionMergeGenerator::GetMergeCandidates(
     {
         // Count the distinct merge operations that generated these partitions.
         size_t mergeCount = 0;
-        std::set<string> mergeIds;
+        std::set<MergeId> mergeIds;
         for (auto& partition : partitionsAtSourceLevel.second)
         {
             auto mergeUniqueId = get<1>(partition).mergeuniqueid();
-            if (mergeUniqueId.empty()
+            if (mergeUniqueId
                 || mergeIds.insert(mergeUniqueId).second)
             {
                 ++mergeCount;

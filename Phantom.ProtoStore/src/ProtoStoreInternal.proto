@@ -128,13 +128,12 @@ message PartitionsValue {
 	uint64 Level = 2;
 	uint64 Size = 3;
 	// The merge that generated the partition.
-	// 
-	string MergeUniqueId = 4;
+	uint64 MergeUniqueId = 4;
 }
 
 message MergesKey {
 	uint64 IndexNumber = 1;
-	string MergesUniqueId = 2;
+	uint64 MergesUniqueId = 2;
 }
 
 message MergesValue {

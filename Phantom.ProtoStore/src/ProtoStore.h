@@ -183,6 +183,10 @@ class ProtoStore
 
     shared_task<> InternalCheckpoint();
 
+    task<> Merge(
+        const IndexEntry& index
+    );
+
     friend class Operation;
 
 public:
