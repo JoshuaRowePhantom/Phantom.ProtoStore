@@ -609,12 +609,25 @@ task<OperationResult> ProtoStore::ExecuteOperation(
     OperationVisitor visitor
 )
 {
+    return InternalExecuteOperation(
+        beginRequest,
+        [=](auto operation)
+    {
+        return visitor(operation);
+    });
+}
+
+task<OperationResult> ProtoStore::InternalExecuteOperation(
+    const BeginTransactionRequest beginRequest,
+    InternalOperationVisitor visitor
+)
+{
     auto previousWriteSequenceNumber = m_nextWriteSequenceNumber.fetch_add(
         1,
         std::memory_order_acq_rel);
     auto thisWriteSequenceNumber = previousWriteSequenceNumber + 1;
 
-    auto executionOperationTask = ExecuteOperation(
+    auto executionOperationTask = InternalExecuteOperation(
         visitor,
         thisWriteSequenceNumber,
         thisWriteSequenceNumber);
@@ -630,8 +643,8 @@ task<OperationResult> ProtoStore::ExecuteOperation(
     co_return co_await executionOperationTask;
 }
 
-shared_task<OperationResult> ProtoStore::ExecuteOperation(
-    OperationVisitor visitor,
+shared_task<OperationResult> ProtoStore::InternalExecuteOperation(
+    InternalOperationVisitor visitor,
     uint64_t readSequenceNumber,
     uint64_t thisWriteSequenceNumber
 )
@@ -1183,6 +1196,13 @@ task<ExtentNumber> ProtoStore::AllocateDataExtent()
         logRecord);
 
     co_return extentNumber;
+}
+
+task<> ProtoStore::Merge(
+    const IndexEntry& index
+)
+{
+    throw 0;
 }
 
 Schedulers Schedulers::Default()

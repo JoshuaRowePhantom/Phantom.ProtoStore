@@ -133,29 +133,31 @@ message PartitionsValue {
 
 message MergesKey {
 	uint64 IndexNumber = 1;
+	// This will be the id of the lowest extent in the merge.
 	uint64 MergesUniqueId = 2;
 }
 
 message MergesValue {
 	repeated uint64 SourceDataExtentNumbers = 1;
+	uint64 SourceLevelNumber = 2;
+	uint64 DestinationLevelNumber = 3;
 }
 
-message MergeChunksKey {
-	string MergesUniqueId = 1;
-	uint64 MergeChunkNumber = 2;
+message MergePartitionsKey {
+	MergesKey MergesKey = 1;
+	uint64 DestinationDataExtentNumber = 2;
 }
 
-enum MergeChunkStatus {
+enum MergePartitionStatus {
 	NotStarted = 0;
 	Incomplete = 1;
 	Complete = 2;
 }
 
-message MergeChunksValue {
-	MergeChunkStatus MergeChunkStatus = 1;
-	uint64 DestinationDataExtentNumber = 2;
-	uint64 StartRowIndex = 3;
-	uint64 EndRowIndex = 4;
+message MergePartitionsValue {
+	MergePartitionStatus MergePartitionStatus = 1;
+	uint64 StartRowIndex = 2;
+	uint64 EndRowIndex = 3;
 }
 
 message MergeParameters {

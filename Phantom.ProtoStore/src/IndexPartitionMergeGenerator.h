@@ -5,18 +5,14 @@
 namespace Phantom::ProtoStore
 {
 
-struct MergeCandidate
-{
-    partition_row_list_type SourcePartitions;
-    LevelNumber DestinationLevel;
-};
-
 class IndexPartitionMergeGenerator
 {
 public:
-    vector<MergeCandidate> GetMergeCandidates(
+    merges_row_list_type GetMergeCandidates(
+        const IndexNumber indexNumber,
         const MergeParameters& mergeParameters,
-        partition_row_list_type partitions,
-        merges_row_list_type ongoingMerges);
+        const partition_row_list_type& partitions,
+        const merges_row_list_type& ongoingMerges);
 };
+
 }

@@ -171,10 +171,17 @@ class ProtoStore
         const shared_ptr<IIndex>& index,
         const vector<ExtentNumber>& dataExtentNumbers);
 
-    shared_task<OperationResult> ExecuteOperation(
-        OperationVisitor visitor,
+    typedef function<task<>(Operation*)> InternalOperationVisitor;
+
+    shared_task<OperationResult> InternalExecuteOperation(
+        InternalOperationVisitor visitor,
         uint64_t readSequenceNumber,
         uint64_t thisWriteSequenceNumber);
+
+    task<OperationResult> InternalExecuteOperation(
+        const BeginTransactionRequest beginRequest,
+        InternalOperationVisitor visitor
+    );
 
     task<> Publish(
         shared_task<OperationResult> operationResult,
@@ -182,6 +189,13 @@ class ProtoStore
         uint64_t thisWriteSequenceNumber);
 
     shared_task<> InternalCheckpoint();
+
+    task<std::tuple<
+        SequenceNumber,
+        partition_row_list_type,
+        merges_row_list_type
+        >> GetIndexMergeInformation(
+            IndexNumber indexNumber);
 
     task<> Merge(
         const IndexEntry& index

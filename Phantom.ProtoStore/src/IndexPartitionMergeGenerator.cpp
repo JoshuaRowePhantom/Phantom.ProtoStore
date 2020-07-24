@@ -5,10 +5,11 @@
 namespace Phantom::ProtoStore
 {
 
-vector<MergeCandidate> IndexPartitionMergeGenerator::GetMergeCandidates(
+merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
+    const IndexNumber indexNumber,
     const MergeParameters& mergeParameters,
-    partition_row_list_type partitions,
-    merges_row_list_type ongoingMerges
+    const partition_row_list_type& partitions,
+    const merges_row_list_type& ongoingMerges
 )
 {
     map<LevelNumber, partition_row_list_type> partitionsBySourceLevel;
@@ -37,12 +38,14 @@ vector<MergeCandidate> IndexPartitionMergeGenerator::GetMergeCandidates(
             partition);
     }
 
-    vector<MergeCandidate> mergeCandidates;
+
+    merges_row_list_type merges;
     for (auto& partitionsAtSourceLevel : partitionsBySourceLevel)
     {
         // Count the distinct merge operations that generated these partitions.
         size_t mergeCount = 0;
         std::set<MergeId> mergeIds;
+
         for (auto& partition : partitionsAtSourceLevel.second)
         {
             auto mergeUniqueId = get<1>(partition).mergeuniqueid();
@@ -56,18 +59,33 @@ vector<MergeCandidate> IndexPartitionMergeGenerator::GetMergeCandidates(
         // If that number exceeds the parameter, then it's a merge candidate for the next level.
         if (mergeCount > mergeParameters.mergesperlevel())
         {
-            MergeCandidate mergeCandidate =
-            {
-                .SourcePartitions = partitionsAtSourceLevel.second,
-                .DestinationLevel = partitionsAtSourceLevel.first + 1,
-            };
+            MergesKey mergesKey;
+            mergesKey.set_indexnumber(indexNumber);
+            mergesKey.set_mergesuniqueid(
+                get<0>(partitionsAtSourceLevel.second[0]).dataextentnumber());
 
-            mergeCandidates.push_back(
-                mergeCandidate);
+            MergesValue mergesValue;
+            mergesValue.set_sourcelevelnumber(
+                partitionsAtSourceLevel.first);
+            mergesValue.set_destinationlevelnumber(
+                partitionsAtSourceLevel.first + 1);
+
+            for (auto& partition : partitionsAtSourceLevel.second)
+            {
+                mergesValue.add_sourcedataextentnumbers(
+                    get<0>(partition).dataextentnumber());
+            }
+
+            merges_row_type merge = std::make_tuple(
+                mergesKey,
+                mergesValue);
+
+            merges.push_back(
+                merge);
         }
     }
 
-    return mergeCandidates;
+    return merges;
 }
 
 }
