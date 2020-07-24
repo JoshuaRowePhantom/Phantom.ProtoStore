@@ -731,9 +731,9 @@ task<ProtoIndex> ProtoStore::CreateIndex(
         createIndexRequest.ValueSchema.ValueDescriptor
     );
 
-    co_await ExecuteOperation(
+    co_await InternalExecuteOperation(
         BeginTransactionRequest(),
-        [&](IOperation* operation)->task<>
+        [&](auto operation)->task<>
     {
         WriteOperationMetadata metadata;
 
