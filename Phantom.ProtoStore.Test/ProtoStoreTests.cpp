@@ -104,7 +104,8 @@ public:
         ProtoIndex index,
         string key,
         optional<string> value,
-        SequenceNumber writeSequenceNumber
+        SequenceNumber writeSequenceNumber,
+        optional<SequenceNumber> readSequenceNumber = optional<SequenceNumber>()
     )
     {
         StringKey stringKey;
@@ -122,6 +123,7 @@ public:
             co_await operation->AddRow(
                 WriteOperationMetadata
                 {
+                    .ReadSequenceNumber = readSequenceNumber,
                     .WriteSequenceNumber = writeSequenceNumber,
                 },
                 index,
@@ -237,6 +239,142 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
             "testValue1",
             ToSequenceNumber(5),
             ToSequenceNumber(5));
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-5",
+            ToSequenceNumber(5));
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-6",
+            ToSequenceNumber(6),
+            ToSequenceNumber(5));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            optional<string>(),
+            ToSequenceNumber(4),
+            ToSequenceNumber(5));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1-5",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1-6",
+            ToSequenceNumber(6),
+            ToSequenceNumber(6)); 
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1-6",
+            ToSequenceNumber(7),
+            ToSequenceNumber(6)); 
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after_checkpoints)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-5",
+            ToSequenceNumber(5));
+
+        co_await store->Checkpoint();
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-6",
+            ToSequenceNumber(6),
+            ToSequenceNumber(5));
+
+        co_await store->Checkpoint();
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-7",
+            ToSequenceNumber(7),
+            ToSequenceNumber(6));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            optional<string>(),
+            ToSequenceNumber(4),
+            ToSequenceNumber(5));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1-5",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1-6",
+            ToSequenceNumber(6),
+            ToSequenceNumber(6));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1-7",
+            ToSequenceNumber(7),
+            ToSequenceNumber(7));
+
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            "testKey1",
+            "testValue1-7",
+            ToSequenceNumber(8),
+            ToSequenceNumber(7));
     });
 }
 
