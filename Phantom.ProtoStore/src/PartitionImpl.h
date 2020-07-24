@@ -49,7 +49,8 @@ class Partition
         ExtentLocation treeNodeLocation,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
-        KeyRangeEnd high
+        KeyRangeEnd high,
+        ReadValueDisposition readValueDisposition
     );
 
     int FindMatchingValueIndexByWriteSequenceNumber(
@@ -94,14 +95,20 @@ public:
 
     virtual cppcoro::async_generator<ResultRow> Read(
         SequenceNumber readSequenceNumber,
-        const Message* key
+        const Message* key,
+        ReadValueDisposition readValueDisposition
     ) override;
 
     virtual cppcoro::async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
-        KeyRangeEnd high
+        KeyRangeEnd high,
+        ReadValueDisposition readValueDisposition
     ) override;
 
+    virtual task<optional<SequenceNumber>> CheckForWriteConflict(
+        SequenceNumber readSequenceNumber,
+        const Message* key
+    ) override;
 };
 }

@@ -82,7 +82,8 @@ task<size_t> Partition::GetRowCount()
 
 cppcoro::async_generator<ResultRow> Partition::Read(
     SequenceNumber readSequenceNumber,
-    const Message* key
+    const Message* key,
+    ReadValueDisposition readValueDisposition
 )
 {
     std::string serializedKey;
@@ -105,7 +106,8 @@ cppcoro::async_generator<ResultRow> Partition::Read(
     auto enumeration = Enumerate(
         readSequenceNumber,
         keyRangeEnd,
-        keyRangeEnd);
+        keyRangeEnd,
+        readValueDisposition);
 
     for (auto iterator = co_await enumeration.begin();
         iterator != enumeration.end();
@@ -118,7 +120,8 @@ cppcoro::async_generator<ResultRow> Partition::Read(
 cppcoro::async_generator<ResultRow> Partition::Enumerate(
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
-    KeyRangeEnd high
+    KeyRangeEnd high,
+    ReadValueDisposition readValueDisposition
 )
 {
     auto enumeration = Enumerate(
@@ -129,7 +132,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         },
         readSequenceNumber,
         low,
-        high);
+        high,
+        readValueDisposition);
 
     for (auto iterator = co_await enumeration.begin();
         iterator != enumeration.end();
@@ -309,7 +313,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     ExtentLocation treeNodeLocation,
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
-    KeyRangeEnd high
+    KeyRangeEnd high,
+    ReadValueDisposition readValueDisposition
 )
 {
     auto cacheEntry = co_await m_partitionTreeNodeCache.GetPartitionTreeNodeCacheEntry(
@@ -350,7 +355,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 enumerationLocation,
                 readSequenceNumber,
                 low,
-                high);
+                high,
+                readValueDisposition);
 
             for (auto iterator = co_await subTreeEnumerator.begin();
                 iterator != subTreeEnumerator.end();
@@ -396,6 +402,10 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 value->ParseFromString(
                     message.value());
             }
+            else if (readValueDisposition == ReadValueDisposition::DontReadValue)
+            {
+                value.reset();
+            } 
             else if (PartitionTreeEntryValue::kValue == treeEntryValue->PartitionTreeEntryValue_case())
             {
                 value.reset(m_valueFactory->GetPrototype()->New());
@@ -429,7 +439,30 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             treeNode,
             findEntryKey);
     }
-
 }
 
+task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
+    SequenceNumber readSequenceNumber,
+    const Message* key
+)
+{
+    auto generator = Read(
+        SequenceNumber::Latest,
+        key,
+        ReadValueDisposition::DontReadValue
+    );
+
+    for (auto iterator = co_await generator.begin();
+        iterator != generator.end();
+        co_await ++iterator)
+    {
+        if ((*iterator).WriteSequenceNumber > readSequenceNumber)
+        {
+            co_return (*iterator).WriteSequenceNumber;
+        }
+        break;
+    }
+
+    co_return optional<SequenceNumber>();
+}
 }

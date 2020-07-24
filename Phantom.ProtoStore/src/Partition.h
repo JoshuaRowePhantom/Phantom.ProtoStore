@@ -12,15 +12,22 @@ public:
     virtual task<size_t> GetRowCount(
     ) = 0;
 
-    virtual cppcoro::async_generator<ResultRow> Read(
+    virtual async_generator<ResultRow> Read(
         SequenceNumber readSequenceNumber,
-        const Message* key
+        const Message* key,
+        ReadValueDisposition readValueDisposition
     ) = 0;
 
-    virtual cppcoro::async_generator<ResultRow> Enumerate(
+    virtual async_generator<ResultRow> Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
-        KeyRangeEnd high
+        KeyRangeEnd high,
+        ReadValueDisposition readValueDisposition
+    ) = 0;
+
+    virtual task<optional<SequenceNumber>> CheckForWriteConflict(
+        SequenceNumber readSequenceNumber,
+        const Message* key
     ) = 0;
 };
 }

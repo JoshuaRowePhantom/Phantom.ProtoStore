@@ -33,6 +33,7 @@ class Index
     typedef shared_ptr<vector<shared_ptr<IMemoryTable>>> MemoryTablesEnumeration;
     typedef shared_ptr<vector<shared_ptr<IPartition>>> PartitionsEnumeration;
 
+    MemoryTablesEnumeration m_inactiveMemoryTables;
     MemoryTablesEnumeration m_memoryTablesToEnumerate;
     PartitionsEnumeration m_partitions;
     // ^^^^^^^^^^^^^^^^^
@@ -40,7 +41,7 @@ class Index
 
     void UpdateMemoryTablesToEnumerate();
 
-    task<> GetItemsToEnumerate(
+    task<> GetEnumerationDataSources(
         MemoryTablesEnumeration& memoryTables,
         PartitionsEnumeration& partitions);
 

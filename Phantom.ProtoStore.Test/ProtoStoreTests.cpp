@@ -283,7 +283,7 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
     });
 }
 
-TEST_F(ProtoStoreTests, DISABLED_Can_conflict_after_row_checkpointed)
+TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
 {
     run_async([&]() -> task<>
     {

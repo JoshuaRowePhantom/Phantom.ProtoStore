@@ -311,6 +311,37 @@ cppcoro::async_generator<ResultRow> MemoryTable::Enumerate(
     }
 }
 
+task<optional<SequenceNumber>> MemoryTable::CheckForWriteConflict(
+    SequenceNumber readSequenceNumber,
+    const Message* key
+)
+{
+    KeyRangeEnd keyLow
+    {
+        .Key = key,
+        .Inclusivity = Inclusivity::Inclusive,
+    };
+
+    auto generator = Enumerate(
+        SequenceNumber::Latest,
+        keyLow,
+        keyLow
+    );
+
+    for (auto iterator = co_await generator.begin();
+        iterator != generator.end();
+        co_await ++iterator)
+    {
+        if ((*iterator).WriteSequenceNumber > readSequenceNumber)
+        {
+            co_return (*iterator).WriteSequenceNumber;
+        }
+
+        co_return optional<SequenceNumber>();
+    }
+    co_return optional<SequenceNumber>();
+}
+
 task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     MemoryTableOutcomeAndSequenceNumber writeSequenceNumber,
     MemoryTableValue& memoryTableValue,

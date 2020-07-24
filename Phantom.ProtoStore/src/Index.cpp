@@ -74,7 +74,36 @@ task<CheckpointNumber> Index::AddRow(
     row.Value = move(valueMessage);
     row.WriteSequenceNumber = writeSequenceNumber;
 
+    shared_ptr<IMemoryTable> activeMemoryTable;
+    CheckpointNumber activeCheckpointNumber;
+    MemoryTablesEnumeration inactiveMemoryTables;
+    PartitionsEnumeration partitions;
+
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+
+    for (auto& memoryTable : *m_inactiveMemoryTables)
+    {
+        auto conflictingSequenceNumber = co_await memoryTable->CheckForWriteConflict(
+            readSequenceNumber,
+            row.Key.get());
+
+        if (conflictingSequenceNumber.has_value())
+        {
+            throw WriteConflict();
+        }
+    }
+
+    for (auto& partition : *m_partitions)
+    {
+        auto conflictingSequenceNumber = co_await partition->CheckForWriteConflict(
+            readSequenceNumber,
+            row.Key.get());
+
+        if (conflictingSequenceNumber.has_value())
+        {
+            throw WriteConflict();
+        }
+    }
 
     m_dontNeedCheckpoint.clear();
 
@@ -114,7 +143,7 @@ task<> Index::ReplayRow(
     m_dontNeedCheckpoint.clear();
 }
 
-task<> Index::GetItemsToEnumerate(
+task<> Index::GetEnumerationDataSources(
     MemoryTablesEnumeration& memoryTables,
     PartitionsEnumeration& partitions)
 {
@@ -147,7 +176,7 @@ task<ReadResult> Index::Read(
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
 
-    co_await GetItemsToEnumerate(
+    co_await GetEnumerationDataSources(
         memoryTablesEnumeration,
         partitionsEnumeration);
 
@@ -166,7 +195,8 @@ task<ReadResult> Index::Read(
         {
             co_yield partition->Read(
                 readRequest.SequenceNumber,
-                keyLow.Key);
+                keyLow.Key,
+                ReadValueDisposition::ReadValue);
         }
     };
 
@@ -239,7 +269,7 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
 
-    co_await GetItemsToEnumerate(
+    co_await GetEnumerationDataSources(
         memoryTablesEnumeration,
         partitionsEnumeration);
 
@@ -259,7 +289,8 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
             co_yield partition->Enumerate(
                 enumerateRequest.SequenceNumber,
                 keyLow,
-                keyHigh);
+                keyHigh,
+                ReadValueDisposition::ReadValue);
         }
     };
 
@@ -275,7 +306,6 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
             .Value = resultRow.Value,
         };
     }
-
 }
 
 task<> Index::WriteMemoryTables(
@@ -313,8 +343,12 @@ task<> Index::SetDataSources(
 
     m_activeMemoryTable = activeMemoryTable;
     m_activeCheckpointNumber = activeCheckpointNumber;
+    m_inactiveMemoryTables = make_shared<vector<shared_ptr<IMemoryTable>>>(
+        memoryTablesToEnumerate);
     m_memoryTablesToEnumerate = make_shared<vector<shared_ptr<IMemoryTable>>>(
         memoryTablesToEnumerate);
+    m_memoryTablesToEnumerate->push_back(
+        activeMemoryTable);
     m_partitions = make_shared<vector<shared_ptr<IPartition>>>(
         partitions);
 }
