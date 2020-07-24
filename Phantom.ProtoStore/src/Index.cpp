@@ -24,12 +24,12 @@ Index::Index(
     m_valueFactory(valueFactory),
     m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor())),
     m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
-    m_currentCheckpointNumber(1),
+    m_activeCheckpointNumber(1),
     m_partitions(make_shared<vector<shared_ptr<IPartition>>>())
 {
     m_dontNeedCheckpoint.test_and_set();
 
-    m_currentMemoryTable = make_shared<MemoryTable>(
+    m_activeMemoryTable = make_shared<MemoryTable>(
         &*m_keyComparer);
 
     UpdateMemoryTablesToEnumerate();
@@ -81,16 +81,16 @@ task<CheckpointNumber> Index::AddRow(
     row.Value = move(valueMessage);
     row.WriteSequenceNumber = writeSequenceNumber;
 
-    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
 
     m_dontNeedCheckpoint.clear();
 
-    co_await m_currentMemoryTable->AddRow(
+    co_await m_activeMemoryTable->AddRow(
         readSequenceNumber,
         row, 
         operationOutcomeTask);
 
-    co_return m_currentCheckpointNumber;
+    co_return m_activeCheckpointNumber;
 }
 
 task<CheckpointNumber> Index::Replay(
@@ -104,9 +104,9 @@ task<CheckpointNumber> Index::Replay(
 
         UpdateMemoryTablesToEnumerate();
 
-        m_currentCheckpointNumber = std::max(
+        m_activeCheckpointNumber = std::max(
             loggedRowWrite.checkpointnumber() + 1,
-            m_currentCheckpointNumber
+            m_activeCheckpointNumber
         );
     }
 
@@ -139,7 +139,7 @@ void Index::UpdateMemoryTablesToEnumerate()
     auto newVector = std::make_shared<vector<shared_ptr<IMemoryTable>>>();
 
     newVector->push_back(
-        m_currentMemoryTable
+        m_activeMemoryTable
     );
 
     for (auto& activeMemoryTable : m_activeMemoryTables)
@@ -161,7 +161,7 @@ task<> Index::GetItemsToEnumerate(
     MemoryTablesEnumeration& memoryTables,
     PartitionsEnumeration& partitions)
 {
-    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
     memoryTables = m_memoryTablesToEnumerate;
     partitions = m_partitions;
 }
@@ -323,7 +323,7 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
 
 task<LoggedCheckpoint> Index::StartCheckpoint()
 {
-    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
 
     LoggedCheckpoint loggedCheckpoint;
 
@@ -335,11 +335,11 @@ task<LoggedCheckpoint> Index::StartCheckpoint()
     loggedCheckpoint.set_indexnumber(
         m_indexNumber);
     loggedCheckpoint.add_checkpointnumber(
-        m_currentCheckpointNumber);
-    m_checkpointingMemoryTables[m_currentCheckpointNumber] = m_currentMemoryTable;
+        m_activeCheckpointNumber);
+    m_checkpointingMemoryTables[m_activeCheckpointNumber] = m_activeMemoryTable;
 
-    m_currentCheckpointNumber++;
-    m_currentMemoryTable = make_shared<MemoryTable>(
+    m_activeCheckpointNumber++;
+    m_activeMemoryTable = make_shared<MemoryTable>(
         &*m_keyComparer);
 
     for (auto activeMemoryTable : m_activeMemoryTables)
@@ -362,7 +362,7 @@ task<vector<shared_ptr<IMemoryTable>>> Index::StartCheckpoint(
 {
     vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
 
-    auto lock = co_await m_partitionsLock.reader().scoped_lock_async();
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
 
     for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
     {
@@ -434,7 +434,7 @@ task<> Index::UpdatePartitions(
     vector<shared_ptr<IMemoryTable>> memoryTablesToRemove;
 
     {
-        auto lock = co_await m_partitionsLock.writer().scoped_lock_async();
+        auto lock = co_await m_dataSourcesLock.writer().scoped_lock_async();
 
         for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
         {
@@ -458,9 +458,26 @@ task<> Index::UpdatePartitions(
     // some enumerations might still be caught up in the delete.
 }
 
+task<> Index::SetDataSources(
+    shared_ptr<IMemoryTable> activeMemoryTable,
+    CheckpointNumber activeCheckpointNumber,
+    vector<shared_ptr<IMemoryTable>> memoryTablesToEnumerate,
+    vector<shared_ptr<IPartition>> partitions
+)
+{
+    co_await m_dataSourcesLock.writer().scoped_lock_async();
+
+    m_activeMemoryTable = activeMemoryTable;
+    m_activeCheckpointNumber = activeCheckpointNumber;
+    m_memoryTablesToEnumerate = make_shared<vector<shared_ptr<IMemoryTable>>>(
+        memoryTablesToEnumerate);
+    m_partitions = make_shared<vector<shared_ptr<IPartition>>>(
+        partitions);
+}
+
 task<> Index::Join()
 {
-    co_await m_currentMemoryTable->Join();
+    co_await m_activeMemoryTable->Join();
     for (auto activeMemoryTable : m_activeMemoryTables)
     {
         co_await activeMemoryTable.second->Join();

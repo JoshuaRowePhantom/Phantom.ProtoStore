@@ -20,10 +20,15 @@ class Index
     shared_ptr<RowMerger> m_rowMerger;
     shared_ptr<IMessageFactory> m_keyFactory;
     shared_ptr<IMessageFactory> m_valueFactory;
-    
-    shared_ptr<IMemoryTable> m_currentMemoryTable;
-    CheckpointNumber m_currentCheckpointNumber;
+
     std::atomic_flag m_dontNeedCheckpoint;
+
+    // This lock control access to the following members:
+    // vvvvvvvvvvvvvvvvv
+    async_reader_writer_lock m_dataSourcesLock;
+
+    shared_ptr<IMemoryTable> m_activeMemoryTable;
+    CheckpointNumber m_activeCheckpointNumber;
 
     map<CheckpointNumber, shared_ptr<IMemoryTable>> m_activeMemoryTables;
     map<CheckpointNumber, shared_ptr<IMemoryTable>> m_checkpointingMemoryTables;
@@ -33,7 +38,8 @@ class Index
 
     MemoryTablesEnumeration m_memoryTablesToEnumerate;
     PartitionsEnumeration m_partitions;
-    async_reader_writer_lock m_partitionsLock;
+    // ^^^^^^^^^^^^^^^^^
+    // The above members are locked with m_dataSourcesLock
 
     void UpdateMemoryTablesToEnumerate();
 
@@ -45,10 +51,6 @@ class Index
         const LoggedCheckpoint& loggedCheckpoint
     );
 
-    task<> WriteMemoryTables(
-        const shared_ptr<IPartitionWriter>& partitionWriter,
-        const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
-    );
 
 public:
     Index(
@@ -76,6 +78,15 @@ public:
         MemoryTableOperationOutcomeTask operationOutcomeTask
     ) override;
 
+    virtual task<CheckpointNumber> ReplayRow(
+        shared_ptr<IMemoryTable> memoryTable,
+        const string& key,
+        const string& value,
+        SequenceNumber writeSequenceNumber
+    ) override {
+        throw 0;
+    }
+
     virtual task<CheckpointNumber> Replay(
         const LoggedRowWrite& rowWrite
     ) override;
@@ -102,12 +113,24 @@ public:
         shared_ptr<IPartitionWriter> partitionWriter
     ) override;
 
+    virtual task<> WriteMemoryTables(
+        const shared_ptr<IPartitionWriter>& partitionWriter,
+        const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
+    ) override;
+
     virtual task<> Replay(
         const LoggedCheckpoint& loggedCheckpoint
     ) override;
 
     virtual task<> UpdatePartitions(
         const LoggedCheckpoint& loggedCheckpoint,
+        vector<shared_ptr<IPartition>> partitions
+    ) override;
+
+    virtual task<> SetDataSources(
+        shared_ptr<IMemoryTable> activeMemoryTable,
+        CheckpointNumber activeCheckpointNumber,
+        vector<shared_ptr<IMemoryTable>> memoryTablesToEnumerate,
         vector<shared_ptr<IPartition>> partitions
     ) override;
 

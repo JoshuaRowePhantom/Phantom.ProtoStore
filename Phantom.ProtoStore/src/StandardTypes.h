@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <exception>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -40,6 +41,7 @@ namespace Phantom::ProtoStore
 
 using std::byte;
 using std::forward;
+using std::function;
 using std::make_shared;
 using std::make_unique;
 using std::map;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandardTypes.h"
+#include "MemoryTable.h"
 
 namespace Phantom::ProtoStore
 {
@@ -54,6 +55,18 @@ public:
         shared_ptr<IPartitionWriter> partitionWriter
     ) = 0;
 
+    virtual task<> WriteMemoryTables(
+        const shared_ptr<IPartitionWriter>& partitionWriter,
+        const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
+    ) = 0;
+
+    virtual task<CheckpointNumber> ReplayRow(
+        shared_ptr<IMemoryTable> memoryTable,
+        const string& key,
+        const string& value,
+        SequenceNumber writeSequenceNumber
+    ) = 0;
+
     virtual task<> Replay(
         const LoggedCheckpoint& loggedCheckpoint
     ) = 0;
@@ -63,6 +76,12 @@ public:
         vector<shared_ptr<IPartition>> partitions
     ) = 0;
 
+    virtual task<> SetDataSources(
+        shared_ptr<IMemoryTable> activeMemoryTable,
+        CheckpointNumber activeCheckpointNumber,
+        vector<shared_ptr<IMemoryTable>> memoryTablesToEnumerate,
+        vector<shared_ptr<IPartition>> partitions
+    ) = 0;
 };
 
 }
