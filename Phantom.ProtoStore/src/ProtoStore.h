@@ -11,6 +11,7 @@
 #include "AsyncScopeMixin.h"
 #include "LogManager.h"
 #include "IndexDataSources.h"
+#include "IndexPartitionMergeGenerator.h"
 
 namespace Phantom::ProtoStore
 {
@@ -64,6 +65,7 @@ class ProtoStore
         IndexNumber IndexNumber;
         shared_ptr<IIndexDataSources> DataSources;
         shared_ptr<IIndex> Index;
+        shared_ptr<IndexPartitionMergeGenerator> MergeGenerator;
     };
 
     IndexEntry m_indexesByNumberIndex;

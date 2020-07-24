@@ -875,11 +875,14 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
         index,
         makeMemoryTable);
 
+    auto mergeGenerator = make_shared<IndexPartitionMergeGenerator>();
+
     return IndexEntry
     {
         .IndexNumber = indexesByNumberKey.indexnumber(),
         .DataSources = indexDataSources,
         .Index = index,
+        .MergeGenerator = mergeGenerator,
     };
 }
 
@@ -1045,6 +1048,9 @@ task<> ProtoStore::Checkpoint(
 
         auto partitionKeyValues = co_await GetPartitionsForIndex(
             indexEntry.IndexNumber);
+        partitionKeyValues.push_back(std::make_tuple(
+            partitionsKey,
+            partitionsValue));
 
         vector<ExtentNumber> dataExtentNumbers;
 
@@ -1061,8 +1067,6 @@ task<> ProtoStore::Checkpoint(
                     existingDataExtentNumber);
             }
         }
-        dataExtentNumbers.push_back(
-            dataExtentNumber);
 
         if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
         {

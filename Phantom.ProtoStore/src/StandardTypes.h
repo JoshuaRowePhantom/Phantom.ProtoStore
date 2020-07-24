@@ -75,6 +75,7 @@ struct ExtentOffsetRange
 
 typedef string IndexName;
 typedef google::protobuf::uint64 IndexNumber;
+typedef google::protobuf::uint64 LevelNumber;
 
 struct ExtentLocation
 {
@@ -117,9 +118,20 @@ class LoggedCreateIndex;
 class LoggedCreateDataExtent;
 class LoggedUpdatePartitions;
 class PartitionTreeNode;
+class PartitionsKey;
+class PartitionsValue;
+class MergesKey;
+class MergesValue;
+class MergeParameters;
 
 class ResultRow;
 typedef cppcoro::async_generator<ResultRow> row_generator;
 typedef cppcoro::generator<row_generator> row_generators;
+
+
+typedef std::tuple<PartitionsKey, PartitionsValue> partition_row_type;
+typedef vector<partition_row_type> partition_row_list_type;
+typedef std::tuple<MergesKey, MergesValue> merges_row_type;
+typedef vector<merges_row_type> merges_row_list_type;
 
 }

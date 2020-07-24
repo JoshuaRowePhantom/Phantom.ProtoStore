@@ -35,6 +35,8 @@ add_library (
     "src/IndexDataSources.cpp"
     "src/IndexDataSources.h"
     "src/IndexDataSourcesImpl.h"
+    "src/IndexPartitionMergeGenerator.cpp"
+    "src/IndexPartitionMergeGenerator.h"
     "src/KeyComparer.cpp"
     "src/KeyComparer.h"
     "src/LogManager.cpp"

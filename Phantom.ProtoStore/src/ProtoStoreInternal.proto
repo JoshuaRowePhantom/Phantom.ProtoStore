@@ -127,6 +127,9 @@ message PartitionsValue {
 	uint64 HeaderExtentNumber = 1;
 	uint64 Level = 2;
 	uint64 Size = 3;
+	// The merge that generated the partition.
+	// 
+	string MergeUniqueId = 4;
 }
 
 message MergesKey {
@@ -154,6 +157,10 @@ message MergeChunksValue {
 	uint64 DestinationDataExtentNumber = 2;
 	uint64 StartRowIndex = 3;
 	uint64 EndRowIndex = 4;
+}
+
+message MergeParameters {
+	uint64 MergesPerLevel = 1;
 }
 
 message PartitionTreeEntryValue {
