@@ -31,6 +31,8 @@ message LoggedAction {
 		LoggedDeleteDataExtent LoggedDeleteDataExtents = 4;
 		LoggedCommitDataExtent LoggedCommitDataExtents = 5;
 		LoggedCreateIndex LoggedCreateIndex = 6;
+		LoggedUpdatePartitions LoggedUpdatePartitions = 7;
+		LoggedPartitionsData LoggedPartitionsData = 8;
     }
 }
 
@@ -53,7 +55,14 @@ message LoggedCommitDataExtent {
 message LoggedCheckpoint {
 	uint64 IndexNumber = 1;
 	repeated uint64 CheckpointNumber = 2;
-	repeated uint64 PartitionsDataExtentNumbers = 3;
+}
+
+message LoggedUpdatePartitions {
+	uint64 IndexNumber = 1;
+}
+
+message LoggedPartitionsData {
+	repeated uint64 DataExtentNumbers = 1;
 }
 
 message LogRecordExtras {

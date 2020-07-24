@@ -10,6 +10,7 @@
 #include <cppcoro/shared_task.hpp>
 #include "AsyncScopeMixin.h"
 #include "LogManager.h"
+#include "IndexDataSources.h"
 
 namespace Phantom::ProtoStore
 {
@@ -58,11 +59,18 @@ class ProtoStore
     optional<shared_task<>> m_previousCheckpoints;
     std::atomic<ExtentOffset> m_nextCheckpointLogOffset;
 
-    shared_ptr<IIndex> m_indexesByNumberIndex;
-    shared_ptr<IIndex> m_indexesByNameIndex;
-    shared_ptr<IIndex> m_partitionsIndex;
+    struct IndexEntry
+    {
+        IndexNumber IndexNumber;
+        shared_ptr<IIndexDataSources> DataSources;
+        shared_ptr<IIndex> Index;
+    };
 
-    typedef unordered_map<google::protobuf::uint64, shared_ptr<IIndex>> IndexesByNumberMap;
+    IndexEntry m_indexesByNumberIndex;
+    IndexEntry m_indexesByNameIndex;
+    IndexEntry m_partitionsIndex;
+
+    typedef unordered_map<google::protobuf::uint64, IndexEntry> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;
 
     shared_task<> WaitForCheckpoints(
@@ -78,7 +86,7 @@ class ProtoStore
     const bool DoReplayPartitions = true;
     const bool DontReplayPartitions = false;
 
-    task<shared_ptr<IIndex>> GetIndexInternal(
+    task<const IndexEntry&> GetIndexInternal(
         google::protobuf::uint64 indexNumber,
         bool doReplayPartitions
     );
@@ -93,7 +101,7 @@ class ProtoStore
         const Descriptor* valueDescriptor
     );
 
-    shared_ptr<IIndex> MakeIndex(
+    IndexEntry MakeIndex(
         const IndexesByNumberKey& indexesKey,
         const IndexesByNumberValue& indexesValue
     );
@@ -108,6 +116,9 @@ class ProtoStore
         const LogRecord& logRecord);
 
     task<> Replay(
+        const LoggedUpdatePartitions& logRecord);
+
+    task<> Replay(
         const LoggedAction& logRecord);
 
     task<> Replay(
@@ -116,17 +127,22 @@ class ProtoStore
     task<> Replay(
         const LoggedCheckpoint& logRecord);
 
-    task<> ProtoStore::Replay(
+    task<> Replay(
         const LoggedCommitDataExtent& logRecord);
 
-    task<> ProtoStore::Replay(
+    task<> Replay(
         const LoggedCreateDataExtent& logRecord);
 
-    task<> ProtoStore::Replay(
+    task<> Replay(
         const LoggedDeleteDataExtent& logRecord);
-    
+
+    task<> Replay(
+        const LoggedPartitionsData& logRecord);
+
+    task<> ReplayPartitionsForOpenedIndexes();
+
     task<> ReplayPartitionsForIndex(
-        const shared_ptr<IIndex>& index);
+        const IndexEntry& indexEntry);
 
     task<> WriteLogRecord(
         const LogRecord& logRecord);
@@ -138,7 +154,7 @@ class ProtoStore
     );
 
     task<> Checkpoint(
-        shared_ptr<IIndex> index
+        const IndexEntry& indexEntry
     );
 
     task<shared_ptr<IPartition>> OpenPartitionForIndex(

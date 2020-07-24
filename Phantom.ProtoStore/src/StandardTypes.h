@@ -115,6 +115,7 @@ class LoggedCheckpoint;
 class LoggedAction;
 class LoggedCreateIndex;
 class LoggedCreateDataExtent;
+class LoggedUpdatePartitions;
 class PartitionTreeNode;
 
 class ResultRow;

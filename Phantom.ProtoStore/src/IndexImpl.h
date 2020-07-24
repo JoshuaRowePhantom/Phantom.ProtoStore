@@ -30,9 +30,6 @@ class Index
     shared_ptr<IMemoryTable> m_activeMemoryTable;
     CheckpointNumber m_activeCheckpointNumber;
 
-    map<CheckpointNumber, shared_ptr<IMemoryTable>> m_activeMemoryTables;
-    map<CheckpointNumber, shared_ptr<IMemoryTable>> m_checkpointingMemoryTables;
-
     typedef shared_ptr<vector<shared_ptr<IMemoryTable>>> MemoryTablesEnumeration;
     typedef shared_ptr<vector<shared_ptr<IPartition>>> PartitionsEnumeration;
 
@@ -78,17 +75,11 @@ public:
         MemoryTableOperationOutcomeTask operationOutcomeTask
     ) override;
 
-    virtual task<CheckpointNumber> ReplayRow(
+    virtual task<> ReplayRow(
         shared_ptr<IMemoryTable> memoryTable,
         const string& key,
         const string& value,
         SequenceNumber writeSequenceNumber
-    ) override {
-        throw 0;
-    }
-
-    virtual task<CheckpointNumber> Replay(
-        const LoggedRowWrite& rowWrite
     ) override;
 
     virtual task<ReadResult> Read(
@@ -105,26 +96,9 @@ public:
     virtual const IndexName& GetIndexName(
     ) const override;
 
-    virtual task<LoggedCheckpoint> StartCheckpoint(
-    ) override;
-
-    virtual task<> Checkpoint(
-        const LoggedCheckpoint& loggedCheckpoint,
-        shared_ptr<IPartitionWriter> partitionWriter
-    ) override;
-
     virtual task<> WriteMemoryTables(
         const shared_ptr<IPartitionWriter>& partitionWriter,
         const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
-    ) override;
-
-    virtual task<> Replay(
-        const LoggedCheckpoint& loggedCheckpoint
-    ) override;
-
-    virtual task<> UpdatePartitions(
-        const LoggedCheckpoint& loggedCheckpoint,
-        vector<shared_ptr<IPartition>> partitions
     ) override;
 
     virtual task<> SetDataSources(

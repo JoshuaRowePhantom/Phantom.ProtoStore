@@ -89,11 +89,11 @@ task<> LogManager::Replay(
                     logExtentUsage.IndexNumber == loggedCheckpoint.indexnumber()
                     && loggedCheckpointNumbers.contains(logExtentUsage.CheckpointNumber);
             });
-
-            if (loggedAction.loggedcheckpoints().partitionsdataextentnumbers_size())
-            {
-                m_partitionsDataExtentNumber = logExtentNumber;
-            }
+        }
+        if (loggedAction.has_loggedpartitionsdata())
+        {
+            m_partitionsDataExtentNumber = logExtentNumber;
+            m_latestLoggedPartitionsData = loggedAction.loggedpartitionsdata();
         }
     }
 
@@ -215,26 +215,43 @@ task<task<>> LogManager::Checkpoint(
                 extent);
         }
 
+        ExtentNumber lowestExtentInUse = std::numeric_limits<ExtentNumber>::max();
+
         for (auto& extentUsage : m_logExtentUsage)
         {
-            extentsToDelete.erase(
-                extentUsage.LogExtentNumber);
+            lowestExtentInUse = std::min(
+                lowestExtentInUse,
+                extentUsage.LogExtentNumber
+            );
         }
 
         for (auto& uncommittedDataExtent : m_uncommitedDataExtentNumberToLogExtentNumber)
         {
-            extentsToDelete.erase(
-                uncommittedDataExtent.second);
+            lowestExtentInUse = std::min(
+                lowestExtentInUse,
+                uncommittedDataExtent.second
+            );
         }
 
         if (m_partitionsDataExtentNumber.has_value())
         {
-            extentsToDelete.erase(
-                *m_partitionsDataExtentNumber);
+            lowestExtentInUse = std::min(
+                lowestExtentInUse,
+                *m_partitionsDataExtentNumber
+            );
         }
 
-        extentsToDelete.erase(
-            m_currentLogExtentNumber);
+        lowestExtentInUse = std::min(
+            lowestExtentInUse,
+            m_currentLogExtentNumber
+        );
+
+        erase_if(
+            extentsToDelete,
+            [lowestExtentInUse](auto extent)
+        {
+            return extent >= lowestExtentInUse;
+        });
 
         for (auto removedExtent : extentsToDelete)
         {
@@ -282,6 +299,21 @@ task<> LogManager::OpenNewLogWriter()
     m_currentLogExtentNumber = m_nextLogExtentNumber++;
     m_logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
         m_currentLogExtentNumber);
+
+    // Writing the last partitions checkpoint as the very first record
+    // ensures that all replay actions will have a set of partitions
+    // to start from.
+    LogRecord lastPartitionsCheckpointLogRecord;
+    lastPartitionsCheckpointLogRecord.mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata()->CopyFrom(
+        m_latestLoggedPartitionsData);
+
+    co_await Replay(
+        m_currentLogExtentNumber,
+        lastPartitionsCheckpointLogRecord);
+
+    co_await m_logMessageWriter->Write(
+        lastPartitionsCheckpointLogRecord,
+        FlushBehavior::Flush);
 }
 
 }

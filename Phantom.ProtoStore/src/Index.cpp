@@ -23,16 +23,9 @@ Index::Index(
     m_keyFactory(keyFactory),
     m_valueFactory(valueFactory),
     m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor())),
-    m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
-    m_activeCheckpointNumber(1),
-    m_partitions(make_shared<vector<shared_ptr<IPartition>>>())
+    m_rowMerger(make_shared<RowMerger>(&*m_keyComparer))
 {
     m_dontNeedCheckpoint.test_and_set();
-
-    m_activeMemoryTable = make_shared<MemoryTable>(
-        &*m_keyComparer);
-
-    UpdateMemoryTablesToEnumerate();
 }
 
 shared_ptr<KeyComparer> Index::GetKeyComparer()
@@ -93,68 +86,32 @@ task<CheckpointNumber> Index::AddRow(
     co_return m_activeCheckpointNumber;
 }
 
-task<CheckpointNumber> Index::Replay(
-    const LoggedRowWrite& loggedRowWrite
+task<> Index::ReplayRow(
+    shared_ptr<IMemoryTable> memoryTable,
+    const string& key,
+    const string& value,
+    SequenceNumber writeSequenceNumber
 )
 {
-    if (!m_activeMemoryTables.contains(loggedRowWrite.checkpointnumber()))
-    {
-        m_activeMemoryTables[loggedRowWrite.checkpointnumber()] = make_shared<MemoryTable>(
-            &*m_keyComparer);
-
-        UpdateMemoryTablesToEnumerate();
-
-        m_activeCheckpointNumber = std::max(
-            loggedRowWrite.checkpointnumber() + 1,
-            m_activeCheckpointNumber
-        );
-    }
-
     unique_ptr<Message> keyMessage(
         m_keyFactory->GetPrototype()->New());
     keyMessage->ParseFromString(
-        loggedRowWrite.key());
+        key);
 
     unique_ptr<Message> valueMessage(
         m_valueFactory->GetPrototype()->New());
     valueMessage->ParseFromString(
-        loggedRowWrite.value());
+        value);
 
     MemoryTableRow row;
     row.Key = move(keyMessage);
     row.Value = move(valueMessage);
-    row.WriteSequenceNumber = ToSequenceNumber(
-        loggedRowWrite.sequencenumber());
+    row.WriteSequenceNumber = writeSequenceNumber;
 
-    co_await m_activeMemoryTables[loggedRowWrite.checkpointnumber()]->ReplayRow(
+    co_await memoryTable->ReplayRow(
         row);
 
     m_dontNeedCheckpoint.clear();
-
-    co_return loggedRowWrite.checkpointnumber();
-}
-
-void Index::UpdateMemoryTablesToEnumerate()
-{
-    auto newVector = std::make_shared<vector<shared_ptr<IMemoryTable>>>();
-
-    newVector->push_back(
-        m_activeMemoryTable
-    );
-
-    for (auto& activeMemoryTable : m_activeMemoryTables)
-    {
-        newVector->push_back(
-            activeMemoryTable.second);
-    }
-
-    for (auto& checkpointingMemoryTable : m_checkpointingMemoryTables)
-    {
-        newVector->push_back(
-            checkpointingMemoryTable.second);
-    }
-
-    m_memoryTablesToEnumerate = newVector;
 }
 
 task<> Index::GetItemsToEnumerate(
@@ -321,61 +278,6 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
 
 }
 
-task<LoggedCheckpoint> Index::StartCheckpoint()
-{
-    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
-
-    LoggedCheckpoint loggedCheckpoint;
-
-    if (m_dontNeedCheckpoint.test_and_set())
-    {
-        co_return loggedCheckpoint;
-    }
-
-    loggedCheckpoint.set_indexnumber(
-        m_indexNumber);
-    loggedCheckpoint.add_checkpointnumber(
-        m_activeCheckpointNumber);
-    m_checkpointingMemoryTables[m_activeCheckpointNumber] = m_activeMemoryTable;
-
-    m_activeCheckpointNumber++;
-    m_activeMemoryTable = make_shared<MemoryTable>(
-        &*m_keyComparer);
-
-    for (auto activeMemoryTable : m_activeMemoryTables)
-    {
-        m_checkpointingMemoryTables[activeMemoryTable.first] = activeMemoryTable.second;
-
-        loggedCheckpoint.add_checkpointnumber(
-            activeMemoryTable.first);
-    }
-
-    m_activeMemoryTables.clear();
-
-    UpdateMemoryTablesToEnumerate();
-
-    co_return loggedCheckpoint;
-}
-
-task<vector<shared_ptr<IMemoryTable>>> Index::StartCheckpoint(
-    const LoggedCheckpoint& loggedCheckpoint)
-{
-    vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
-
-    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
-
-    for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
-    {
-        auto memoryTable = m_checkpointingMemoryTables[checkpointNumber];
-        assert(memoryTable);
-
-        memoryTablesToCheckpoint.push_back(
-            memoryTable);
-    }
-
-    co_return memoryTablesToCheckpoint;
-}
-
 task<> Index::WriteMemoryTables(
     const shared_ptr<IPartitionWriter>& partitionWriter,
     const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
@@ -400,64 +302,6 @@ task<> Index::WriteMemoryTables(
         move(rows));
 }
 
-task<> Index::Checkpoint(
-    const LoggedCheckpoint& loggedCheckpoint,
-    shared_ptr<IPartitionWriter> partitionWriter
-)
-{
-    auto memoryTablesToCheckpoint = co_await StartCheckpoint(
-        loggedCheckpoint);
-
-    co_await WriteMemoryTables(
-        partitionWriter,
-        memoryTablesToCheckpoint);
-}
-
-task<> Index::Replay(
-    const LoggedCheckpoint& loggedCheckpoint
-)
-{
-    for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
-    {
-        m_activeMemoryTables.erase(
-            checkpointNumber);
-    }
-
-    co_return;
-}
-
-task<> Index::UpdatePartitions(
-    const LoggedCheckpoint& loggedCheckpoint,
-    vector<shared_ptr<IPartition>> partitions
-)
-{
-    vector<shared_ptr<IMemoryTable>> memoryTablesToRemove;
-
-    {
-        auto lock = co_await m_dataSourcesLock.writer().scoped_lock_async();
-
-        for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
-        {
-            if (m_checkpointingMemoryTables.contains(checkpointNumber))
-            {
-                // Copy the memory table out of the checkpointing memory tables list
-                // so that the eventual delete operation happens outside of the lock,
-                // and hence out of the request processing path.
-                memoryTablesToRemove.push_back(m_checkpointingMemoryTables[checkpointNumber]);
-                m_checkpointingMemoryTables.erase(checkpointNumber);
-            }
-        }
-
-        m_partitions = make_shared<vector<shared_ptr<IPartition>>>(
-            partitions);
-
-        UpdateMemoryTablesToEnumerate();
-    }
-
-    // Now the memory tables will be deleted, maybe;
-    // some enumerations might still be caught up in the delete.
-}
-
 task<> Index::SetDataSources(
     shared_ptr<IMemoryTable> activeMemoryTable,
     CheckpointNumber activeCheckpointNumber,
@@ -477,15 +321,7 @@ task<> Index::SetDataSources(
 
 task<> Index::Join()
 {
-    co_await m_activeMemoryTable->Join();
-    for (auto activeMemoryTable : m_activeMemoryTables)
-    {
-        co_await activeMemoryTable.second->Join();
-    }
-    for (auto checkpointingMemoryTable : m_checkpointingMemoryTables)
-    {
-        co_await checkpointingMemoryTable.second->Join();
-    }
+    co_return;
 }
 
 }

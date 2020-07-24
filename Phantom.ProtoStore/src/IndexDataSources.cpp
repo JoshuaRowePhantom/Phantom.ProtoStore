@@ -29,6 +29,8 @@ task<> IndexDataSources::Replay(
             m_currentCheckpointNumber,
             rowWrite.checkpointnumber() + 1
         );
+
+        co_await UpdateIndexDataSources();
     }
 
     co_await m_index->ReplayRow(
