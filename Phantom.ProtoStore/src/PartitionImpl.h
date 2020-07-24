@@ -106,6 +106,9 @@ public:
         ReadValueDisposition readValueDisposition
     ) override;
 
+    virtual SequenceNumber GetLatestSequenceNumber(
+    ) override;
+
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
         const Message* key

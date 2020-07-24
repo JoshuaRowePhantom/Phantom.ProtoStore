@@ -1,4 +1,5 @@
 #include "MemoryTableImpl.h"
+#include "Phantom.System/atomic.h"
 
 namespace Phantom::ProtoStore
 {
@@ -59,7 +60,13 @@ MemoryTable::MemoryTable(
         keyComparer
     ),
     m_skipList(
-        m_comparer)
+        m_comparer),
+    m_earliestSequenceNumber(
+        SequenceNumber::Latest
+    ),
+    m_latestSequenceNumber(
+        SequenceNumber::Earliest
+    )
 {
 }
 
@@ -164,7 +171,6 @@ task<> MemoryTable::AddRow(
         iterator->WriteSequenceNumber.store(
             memoryTableWriteSequenceNumber,
             std::memory_order_release);
-
 
         // Use the transaction resolve that acquires the mutex.
         updateRowCounts = true;
@@ -311,6 +317,13 @@ cppcoro::async_generator<ResultRow> MemoryTable::Enumerate(
     }
 }
 
+SequenceNumber MemoryTable::GetLatestSequenceNumber(
+)
+{
+    return m_latestSequenceNumber.load(
+        std::memory_order_acquire);
+}
+
 task<optional<SequenceNumber>> MemoryTable::CheckForWriteConflict(
     SequenceNumber readSequenceNumber,
     const Message* key
@@ -357,6 +370,10 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     auto newWriteSequenceNumber = ToMemoryTableOutcomeAndSequenceNumber(
         memoryTableOperationOutcome.WriteSequenceNumber,
         memoryTableOperationOutcome.Outcome);
+
+    UpdateSequenceNumberRange(
+        memoryTableOperationOutcome.WriteSequenceNumber
+    );
 
     if (memoryTableOperationOutcome.Outcome == OperationOutcome::Committed)
     {
@@ -407,6 +424,35 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     co_return memoryTableOperationOutcome.Outcome;
 }
 
+void MemoryTable::UpdateSequenceNumberRange(
+    SequenceNumber writeSequenceNumber
+)
+{
+    compare_exchange_weak_transform(
+        m_earliestSequenceNumber,
+        [=](auto value)
+    {
+        return writeSequenceNumber < value 
+            ? writeSequenceNumber
+            : value;
+    },
+        std::memory_order_relaxed,
+        std::memory_order_release,
+        std::memory_order_relaxed);
+
+    compare_exchange_weak_transform(
+        m_latestSequenceNumber,
+        [=](auto value)
+    {
+        return writeSequenceNumber > value
+            ? writeSequenceNumber
+            : value;
+    },
+        std::memory_order_relaxed,
+        std::memory_order_release,
+        std::memory_order_relaxed
+        );
+}
 
 task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
     MemoryTableValue& memoryTableValue,

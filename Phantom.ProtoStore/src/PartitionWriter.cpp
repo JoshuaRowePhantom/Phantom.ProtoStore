@@ -278,6 +278,8 @@ task<> PartitionWriter::WriteRows(
     );
 
     size_t discoveredRowCount = 0;
+    auto earliestSequenceNumber = SequenceNumber::Latest;
+    auto latestSequenceNumber = SequenceNumber::Earliest;
 
     for (auto iterator = co_await rows.begin();
         iterator != rows.end();
@@ -285,7 +287,16 @@ task<> PartitionWriter::WriteRows(
     {
         ++discoveredRowCount;
         auto& row = *iterator;
-        
+     
+        if (row.WriteSequenceNumber > latestSequenceNumber)
+        {
+            latestSequenceNumber = row.WriteSequenceNumber;
+        }
+        if (row.WriteSequenceNumber < earliestSequenceNumber)
+        {
+            earliestSequenceNumber = row.WriteSequenceNumber;
+        }
+
         std::string keyString;
 
         row.Key->SerializeToString(
@@ -341,6 +352,10 @@ task<> PartitionWriter::WriteRows(
     partitionRoot.set_bloomfilteroffset(
         bloomFilterWriteResult.DataRange.Beginning
     );
+    partitionRoot.set_earliestsequencenumber(
+        ToUint64(earliestSequenceNumber));
+    partitionRoot.set_latestsequencenumber(
+        ToUint64(latestSequenceNumber));
 
     auto partitionRootWriteResult = co_await Write(
         move(partitionRoot));

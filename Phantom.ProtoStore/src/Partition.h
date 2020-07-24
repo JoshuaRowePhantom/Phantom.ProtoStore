@@ -25,6 +25,9 @@ public:
         ReadValueDisposition readValueDisposition
     ) = 0;
 
+    virtual SequenceNumber GetLatestSequenceNumber(
+    ) = 0;
+
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
         const Message* key

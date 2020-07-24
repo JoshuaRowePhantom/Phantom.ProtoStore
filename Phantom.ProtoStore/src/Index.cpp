@@ -83,6 +83,11 @@ task<CheckpointNumber> Index::AddRow(
 
     for (auto& memoryTable : *m_inactiveMemoryTables)
     {
+        if (memoryTable->GetLatestSequenceNumber() < readSequenceNumber)
+        {
+            continue;
+        }
+
         auto conflictingSequenceNumber = co_await memoryTable->CheckForWriteConflict(
             readSequenceNumber,
             row.Key.get());
@@ -95,6 +100,11 @@ task<CheckpointNumber> Index::AddRow(
 
     for (auto& partition : *m_partitions)
     {
+        if (partition->GetLatestSequenceNumber() < readSequenceNumber)
+        {
+            continue;
+        }
+
         auto conflictingSequenceNumber = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             row.Key.get());

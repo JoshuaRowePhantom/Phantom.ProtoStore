@@ -441,6 +441,12 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     }
 }
 
+SequenceNumber Partition::GetLatestSequenceNumber()
+{
+    return ToSequenceNumber(
+        m_partitionRoot.latestsequencenumber());
+}
+
 task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
     SequenceNumber readSequenceNumber,
     const Message* key

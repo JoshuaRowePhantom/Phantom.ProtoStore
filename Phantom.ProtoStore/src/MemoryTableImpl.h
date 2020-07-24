@@ -175,9 +175,16 @@ class MemoryTable
         bool updateRowCounters
     );
 
+    void UpdateSequenceNumberRange(
+        SequenceNumber writeSequenceNumber
+    );
+
     std::atomic<size_t> m_unresolvedRowCount;
     std::atomic<size_t> m_committedRowCount;
     cppcoro::async_auto_reset_event m_rowResolved;
+
+    std::atomic<SequenceNumber> m_earliestSequenceNumber;
+    std::atomic<SequenceNumber> m_latestSequenceNumber;
 
 public:
     MemoryTable(
@@ -193,7 +200,6 @@ public:
         MemoryTableOperationOutcomeTask asyncOperationOutcome
     ) override;
 
-
     virtual task<> ReplayRow(
         MemoryTableRow& row
     ) override;
@@ -202,6 +208,9 @@ public:
         SequenceNumber readSequenceNumber, 
         KeyRangeEnd low, 
         KeyRangeEnd high
+    ) override;
+
+    virtual SequenceNumber GetLatestSequenceNumber(
     ) override;
 
     task<optional<SequenceNumber>> CheckForWriteConflict(

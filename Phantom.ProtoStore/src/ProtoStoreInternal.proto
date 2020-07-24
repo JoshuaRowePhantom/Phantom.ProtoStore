@@ -212,6 +212,8 @@ message PartitionRoot {
 	uint64 RootTreeNodeOffset = 1;
 	uint64 RowCount = 2;
 	uint64 BloomFilterOffset = 3;
+	uint64 EarliestSequenceNumber = 4;
+	uint64 LatestSequenceNumber = 5;
 }
 
 message PartitionHeader {
