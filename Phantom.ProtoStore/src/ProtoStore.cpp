@@ -1031,83 +1031,83 @@ task<> ProtoStore::Checkpoint(
     auto writeSequenceNumber = ToSequenceNumber(
         m_nextWriteSequenceNumber.fetch_add(1));
 
-    Operation operation(
-        *this,
-        writeSequenceNumber,
-        writeSequenceNumber);
-
-    operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
-        dataExtentNumber);
-
-    auto addedLoggedCheckpoint = operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
-    auto addedLoggedUpdatePartitions = operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();
-
-    LoggedPartitionsData* addedLoggedPartitionsData = nullptr;
-    if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
+    co_await InternalExecuteOperation(
+        BeginTransactionRequest{},
+        [&](auto operation) -> task<>
     {
-        addedLoggedPartitionsData = operation.m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
-    }
+        operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
+            dataExtentNumber);
 
-    PartitionsKey partitionsKey;
-    partitionsKey.set_indexnumber(indexEntry.IndexNumber);
-    partitionsKey.set_dataextentnumber(dataExtentNumber);
-    PartitionsValue partitionsValue;
-    partitionsValue.set_headerextentnumber(dataExtentNumber);
-    partitionsValue.set_size(co_await dataWriter->CurrentOffset());
-    partitionsValue.set_level(0);
+        auto addedLoggedCheckpoint = operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
+        auto addedLoggedUpdatePartitions = operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();
 
-    {
-        auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
-
-        auto partitionKeyValues = co_await GetPartitionsForIndex(
-            indexEntry.IndexNumber);
-        partitionKeyValues.push_back(std::make_tuple(
-            partitionsKey,
-            partitionsValue));
-
-        vector<ExtentNumber> dataExtentNumbers;
-
-        for (auto& partitionKeyValue : partitionKeyValues)
+        LoggedPartitionsData* addedLoggedPartitionsData = nullptr;
+        if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
         {
-            auto existingDataExtentNumber = get<PartitionsKey>(partitionKeyValue).dataextentnumber();
+            addedLoggedPartitionsData = operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
+        }
 
-            dataExtentNumbers.push_back(
-                existingDataExtentNumber);
-            
+        PartitionsKey partitionsKey;
+        partitionsKey.set_indexnumber(indexEntry.IndexNumber);
+        partitionsKey.set_dataextentnumber(dataExtentNumber);
+        PartitionsValue partitionsValue;
+        partitionsValue.set_headerextentnumber(dataExtentNumber);
+        partitionsValue.set_size(co_await dataWriter->CurrentOffset());
+        partitionsValue.set_level(0);
+
+        {
+            auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
+
+            auto partitionKeyValues = co_await GetPartitionsForIndex(
+                indexEntry.IndexNumber);
+            partitionKeyValues.push_back(std::make_tuple(
+                partitionsKey,
+                partitionsValue));
+
+            vector<ExtentNumber> dataExtentNumbers;
+
+            for (auto& partitionKeyValue : partitionKeyValues)
+            {
+                auto existingDataExtentNumber = get<PartitionsKey>(partitionKeyValue).dataextentnumber();
+
+                dataExtentNumbers.push_back(
+                    existingDataExtentNumber);
+
+                if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
+                {
+                    addedLoggedPartitionsData->add_dataextentnumbers(
+                        existingDataExtentNumber);
+                }
+            }
+
             if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
             {
                 addedLoggedPartitionsData->add_dataextentnumbers(
-                    existingDataExtentNumber);
+                    dataExtentNumber);
             }
+
+            addedLoggedCheckpoint->CopyFrom(
+                loggedCheckpoint);
+            addedLoggedUpdatePartitions->set_indexnumber(
+                indexEntry.IndexNumber);
+
+            co_await operation->AddRow(
+                WriteOperationMetadata(),
+                ProtoIndex{ &*this, &*m_partitionsIndex.Index },
+                &partitionsKey,
+                &partitionsValue);
+
+            co_await operation->Commit();
+
+            auto partitions = co_await OpenPartitionsForIndex(
+                indexEntry.Index,
+                dataExtentNumbers);
+
+            co_await indexEntry.DataSources->UpdatePartitions(
+                loggedCheckpoint,
+                partitions);
         }
-
-        if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
-        {
-            addedLoggedPartitionsData->add_dataextentnumbers(
-                dataExtentNumber);
-        }
-
-        addedLoggedCheckpoint->CopyFrom(
-            loggedCheckpoint);
-        addedLoggedUpdatePartitions->set_indexnumber(
-            indexEntry.IndexNumber);
-
-        co_await operation.AddRow(
-            WriteOperationMetadata(),
-            ProtoIndex{ &*this, &*m_partitionsIndex.Index },
-            &partitionsKey,
-            &partitionsValue);
-
-        co_await operation.Commit();
-
-        auto partitions = co_await OpenPartitionsForIndex(
-            indexEntry.Index,
-            dataExtentNumbers);
-
-        co_await indexEntry.DataSources->UpdatePartitions(
-            loggedCheckpoint,
-            partitions);
-    }
+    });
 }
 
 task<vector<std::tuple<PartitionsKey, PartitionsValue>>> ProtoStore::GetPartitionsForIndex(
