@@ -12,15 +12,14 @@
 #include "LogManager.h"
 #include "IndexDataSources.h"
 #include "IndexPartitionMergeGenerator.h"
+#include "InternalProtoStore.h"
 
 namespace Phantom::ProtoStore
 {
 
-class IIndex;
-
 class ProtoStore
     :
-    public IProtoStore,
+    public IInternalProtoStore,
     public AsyncScopeMixin
 {
     Schedulers m_schedulers;
@@ -171,8 +170,6 @@ class ProtoStore
         const shared_ptr<IIndex>& index,
         const vector<ExtentNumber>& dataExtentNumbers);
 
-    typedef function<task<>(Operation*)> InternalOperationVisitor;
-
     shared_task<OperationResult> InternalExecuteOperation(
         InternalOperationVisitor visitor,
         uint64_t readSequenceNumber,
@@ -189,17 +186,6 @@ class ProtoStore
         uint64_t thisWriteSequenceNumber);
 
     shared_task<> InternalCheckpoint();
-
-    task<std::tuple<
-        SequenceNumber,
-        partition_row_list_type,
-        merges_row_list_type
-        >> GetIndexMergeInformation(
-            IndexNumber indexNumber);
-
-    task<> Merge(
-        const IndexEntry& index
-    );
 
     friend class Operation;
 

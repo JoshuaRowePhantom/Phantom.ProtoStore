@@ -427,12 +427,10 @@ task<ReadResult> ProtoStore::Read(
 
 class Operation
     :
-    public IOperationTransaction
+    public IInternalOperation
 {
-    friend class ProtoStore;
-
     ProtoStore& m_protoStore;
-    unique_ptr<LogRecord> m_logRecord;
+    ::Phantom::ProtoStore::LogRecord m_logRecord;
     async_value_source<MemoryTableOperationOutcome> m_outcomeValueSource;
     MemoryTableOperationOutcomeTask m_operationOutcomeTask;
     SequenceNumber m_readSequenceNumber;
@@ -476,7 +474,6 @@ public:
     )
     :
         m_protoStore(protoStore),
-        m_logRecord(make_unique<LogRecord>()),
         m_readSequenceNumber(readSequenceNumber),
         m_initialWriteSequenceNumber(initialWriteSequenceNumber)
     {
@@ -496,6 +493,11 @@ public:
                 outcome
             );
         }
+    }
+
+    ::Phantom::ProtoStore::LogRecord& LogRecord()
+    {
+        return m_logRecord;
     }
 
     // Inherited via IOperation
@@ -534,7 +536,7 @@ public:
             operationOutcomeTask
         );
 
-        auto loggedRowWrite = m_logRecord->add_rows();
+        auto loggedRowWrite = m_logRecord.add_rows();
         if (writeOperationMetadata.WriteSequenceNumber.has_value())
         {
             loggedRowWrite->set_sequencenumber(ToUint64(*writeOperationMetadata.WriteSequenceNumber));
@@ -585,7 +587,7 @@ public:
         m_outcomeValueSource.emplace(
             outcome);
 
-        for (auto& addedRow : *m_logRecord->mutable_rows())
+        for (auto& addedRow : *m_logRecord.mutable_rows())
         {
             if (!addedRow.sequencenumber())
             {
@@ -595,8 +597,7 @@ public:
         }
 
         co_await m_protoStore.WriteLogRecord(
-            *m_logRecord
-        );
+            m_logRecord);
 
         co_return CommitResult
         {
@@ -1035,16 +1036,16 @@ task<> ProtoStore::Checkpoint(
         BeginTransactionRequest{},
         [&](auto operation) -> task<>
     {
-        operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
+        operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
             dataExtentNumber);
 
-        auto addedLoggedCheckpoint = operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
-        auto addedLoggedUpdatePartitions = operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();
+        auto addedLoggedCheckpoint = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
+        auto addedLoggedUpdatePartitions = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();
 
         LoggedPartitionsData* addedLoggedPartitionsData = nullptr;
         if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
         {
-            addedLoggedPartitionsData = operation->m_logRecord->mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
+            addedLoggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
         }
 
         PartitionsKey partitionsKey;
@@ -1199,7 +1200,7 @@ task<ExtentNumber> ProtoStore::AllocateDataExtent()
 }
 
 task<> ProtoStore::Merge(
-    const IndexEntry& index
+    const IndexEntry& indexEntry
 )
 {
     throw 0;
