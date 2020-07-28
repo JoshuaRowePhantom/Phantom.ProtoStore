@@ -108,7 +108,13 @@ class ProtoStore
     );
 
     task<IndexNumber> AllocateIndexNumber();
+
     task<ExtentNumber> AllocateDataExtent();
+
+    task<> LogCommitDataExtent(
+        LogRecord& logRecord,
+        ExtentNumber extentNumber
+    );
 
     task<> Replay(
         ExtentNumber logExtent);

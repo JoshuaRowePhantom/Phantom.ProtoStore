@@ -1036,8 +1036,10 @@ task<> ProtoStore::Checkpoint(
         BeginTransactionRequest{},
         [&](auto operation) -> task<>
     {
-        operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcommitdataextents()->set_extentnumber(
-            dataExtentNumber);
+        co_await LogCommitDataExtent(
+            operation->LogRecord(),
+            dataExtentNumber
+        );
 
         auto addedLoggedCheckpoint = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
         auto addedLoggedUpdatePartitions = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();
@@ -1199,11 +1201,18 @@ task<ExtentNumber> ProtoStore::AllocateDataExtent()
     co_return extentNumber;
 }
 
-task<> ProtoStore::Merge(
-    const IndexEntry& indexEntry
+task<> ProtoStore::LogCommitDataExtent(
+    LogRecord& logRecord,
+    ExtentNumber extentNumber
 )
 {
-    throw 0;
+    logRecord
+        .mutable_extras()
+        ->add_loggedactions()
+        ->mutable_loggedcommitdataextents()
+        ->set_extentnumber(extentNumber);
+
+    co_return;
 }
 
 Schedulers Schedulers::Default()

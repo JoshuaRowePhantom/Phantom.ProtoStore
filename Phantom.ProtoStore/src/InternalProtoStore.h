@@ -25,6 +25,14 @@ public:
         const BeginTransactionRequest beginRequest,
         InternalOperationVisitor visitor
     ) = 0;
+
+    virtual task<ExtentNumber> AllocateDataExtent(
+    ) = 0;
+
+    virtual task<> LogCommitDataExtent(
+        LogRecord& logRecord,
+        ExtentNumber extentNumber
+    ) = 0;
 };
 
 }
