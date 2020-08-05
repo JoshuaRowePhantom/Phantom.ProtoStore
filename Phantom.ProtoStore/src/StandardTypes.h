@@ -123,10 +123,13 @@ class PartitionsKey;
 class PartitionsValue;
 class MergesKey;
 class MergesValue;
+class MergeProgressKey;
+class MergeProgressValue;
 class MergeParameters;
 
 class ResultRow;
 typedef cppcoro::async_generator<ResultRow> row_generator;
+typedef row_generator::iterator row_generator_iterator;
 typedef cppcoro::generator<row_generator> row_generators;
 
 
@@ -134,5 +137,8 @@ typedef std::tuple<PartitionsKey, PartitionsValue> partition_row_type;
 typedef vector<partition_row_type> partition_row_list_type;
 typedef std::tuple<MergesKey, MergesValue> merges_row_type;
 typedef vector<merges_row_type> merges_row_list_type;
+typedef std::tuple<MergeProgressKey, MergeProgressValue> merge_progress_row_type;
+typedef vector<merge_progress_row_type> merge_progress_row_list_type;
+
 
 }

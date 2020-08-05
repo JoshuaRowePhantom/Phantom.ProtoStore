@@ -61,9 +61,8 @@ public:
         shared_ptr<ISequentialMessageWriter> headerWriter
     );
 
-    virtual task<> WriteRows(
-        size_t rowCount,
-        row_generator rows
+    virtual task<WriteRowsResult> WriteRows(
+        WriteRowsRequest writeRowsRequest
     ) override;
 };
 

@@ -221,6 +221,8 @@ public:
         shared_ptr<IExtentStore> dataStore,
         shared_ptr<IExtentStore> dataHeaderStore);
 
+    ~ProtoStore();
+
     task<> Open(
         const OpenProtoStoreRequest& openRequest
     );

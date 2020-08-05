@@ -43,6 +43,12 @@ ProtoStore::ProtoStore(
     m_writeSequenceNumberBarrier.publish(0);
 }
 
+
+ProtoStore::~ProtoStore()
+{
+    SyncDestroy();
+}
+
 task<> ProtoStore::Create(
     const CreateProtoStoreRequest& createRequest)
 {
@@ -245,7 +251,7 @@ task<> ProtoStore::WriteLogRecord(
             nextCheckpointLogOffset,
             writeMessageResult.DataRange.End + m_checkpointLogSize))
     {
-        m_asyncScope.spawn(
+        spawn(
             Checkpoint());
     }
 }

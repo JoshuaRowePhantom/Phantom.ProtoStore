@@ -248,15 +248,36 @@ task<WriteMessageResult> PartitionWriter::WriteLeftoverTreeEntries()
         move(m_treeNodeStack.back()));
 }
 
-task<> PartitionWriter::WriteRows(
-    size_t rowCount,
-    row_generator rows
+task<WriteRowsResult> PartitionWriter::WriteRows(
+    WriteRowsRequest writeRowsRequest
 )
 {
+    auto iterator = writeRowsRequest.rows->begin();
+    WriteRowsResult result =
+    {
+        .rowsIterated = 0,
+        .rowsWritten = 0,
+        .resumptionRow = co_await move(iterator),
+    };
+
+    auto approximateRowCountToWrite = writeRowsRequest.approximateRowCount;
+    if (writeRowsRequest.inputSize > writeRowsRequest.targetSize)
+    {
+        // Compute the approximate fraction of rows we're going to write,
+        // and add a few % for noise.  It's okay if we compute a number
+        // greater or smaller than the number of rows we actually write; this is for
+        // bloom filter sizing.
+        auto approximateRowCountFractionToWrite =
+            static_cast<double>(writeRowsRequest.targetSize) / static_cast<double>(writeRowsRequest.inputSize) * 1.1;
+
+        approximateRowCountToWrite = static_cast<size_t>(
+            writeRowsRequest.approximateRowCount * approximateRowCountFractionToWrite);
+    }
+
     double desiredBloomFilterFalsePositiveRate = .001;
     auto bloomFilterBitCount = get_BloomFilter_optimal_bit_count(
         desiredBloomFilterFalsePositiveRate,
-        rowCount);
+        approximateRowCountToWrite);
     auto bloomFilterHashFunctionCount = get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
         desiredBloomFilterFalsePositiveRate);
 
@@ -277,16 +298,22 @@ task<> PartitionWriter::WriteRows(
         bloomFilterHashFunctionCount
     );
 
-    size_t discoveredRowCount = 0;
     auto earliestSequenceNumber = SequenceNumber::Latest;
     auto latestSequenceNumber = SequenceNumber::Earliest;
 
-    for (auto iterator = co_await rows.begin();
-        iterator != rows.end();
-        co_await ++iterator)
+    for (;
+        result.resumptionRow != writeRowsRequest.rows->end();
+        co_await ++result.resumptionRow)
     {
-        ++discoveredRowCount;
-        auto& row = *iterator;
+        if (co_await m_dataWriter->CurrentOffset() > writeRowsRequest.targetSize)
+        {
+            break;
+        }
+
+        ++result.rowsIterated;
+        ++result.rowsWritten;
+
+        auto& row = *result.resumptionRow;
      
         if (row.WriteSequenceNumber > latestSequenceNumber)
         {
@@ -337,8 +364,6 @@ task<> PartitionWriter::WriteRows(
             move(partitionTreeEntryValue));
     }
 
-    assert(rowCount == discoveredRowCount);
-
     auto rootTreeNodeWriteResult = co_await WriteLeftoverTreeEntries();
 
     auto bloomFilterWriteResult = co_await Write(
@@ -348,7 +373,7 @@ task<> PartitionWriter::WriteRows(
     partitionRoot.set_roottreenodeoffset(
         rootTreeNodeWriteResult.DataRange.Beginning);
     partitionRoot.set_rowcount(
-        rowCount);
+        result.rowsWritten);
     partitionRoot.set_bloomfilteroffset(
         bloomFilterWriteResult.DataRange.Beginning
     );
@@ -366,6 +391,10 @@ task<> PartitionWriter::WriteRows(
 
     co_await Write(
         move(partitionHeader));
+
+    result.writtenDataSize = co_await m_dataWriter->CurrentOffset();
+    result.writtenExtentSize = co_await m_dataWriter->CurrentOffset();
+    co_return move(result);
 }
 
 }

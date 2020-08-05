@@ -13,7 +13,7 @@ namespace Phantom::ProtoStore
 class MemoryTable
     :
     public IMemoryTable,
-    public virtual AsyncScopeMixin
+    public AsyncScopeMixin
 {
     enum class MemoryTableOutcomeAndSequenceNumber;
 
@@ -190,6 +190,8 @@ public:
     MemoryTable(
         const KeyComparer* keyComparer
     );
+
+    ~MemoryTable();
 
     virtual task<size_t> GetRowCount(
     ) override;

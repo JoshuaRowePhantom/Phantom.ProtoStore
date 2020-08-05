@@ -70,6 +70,11 @@ MemoryTable::MemoryTable(
 {
 }
 
+MemoryTable::~MemoryTable()
+{
+    SyncDestroy();
+}
+
 task<size_t> MemoryTable::GetRowCount()
 {
     while (m_unresolvedRowCount.load(
@@ -109,7 +114,7 @@ task<> MemoryTable::AddRow(
         bool updateRowCounts = true;
 
         // Use the transaction resolver without acquiring a mutex.
-        m_asyncScope.spawn(
+        spawn(
             ResolveMemoryTableRowOutcome(
                 memoryTableWriteSequenceNumber,
                 *iterator,
@@ -174,7 +179,7 @@ task<> MemoryTable::AddRow(
 
         // Use the transaction resolve that acquires the mutex.
         updateRowCounts = true;
-        m_asyncScope.spawn(
+        spawn(
             ResolveMemoryTableRowOutcome(
                 *iterator,
                 updateRowCounts));

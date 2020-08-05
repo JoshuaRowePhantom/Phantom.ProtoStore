@@ -31,6 +31,11 @@ Partition::Partition(
 {
 }
 
+Partition::~Partition()
+{
+    SyncDestroy();
+}
+
 task<> Partition::Open()
 {
     PartitionMessage message;

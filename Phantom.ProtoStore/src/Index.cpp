@@ -337,9 +337,14 @@ task<> Index::WriteMemoryTables(
         }
     }());
 
+    WriteRowsRequest writeRowsRequest =
+    {
+        .approximateRowCount = rowCount,
+        .rows = &rows,
+    };
+
     co_await partitionWriter->WriteRows(
-        rowCount,
-        move(rows));
+        move(writeRowsRequest));
 }
 
 task<> Index::SetDataSources(

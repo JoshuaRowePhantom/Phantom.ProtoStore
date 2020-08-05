@@ -16,7 +16,8 @@ namespace Phantom::ProtoStore
 class Partition
     :
     public IPartition,
-    public AsyncScopeMixin
+    private AsyncScopeMixin,
+    public virtual IJoinable
 {
     shared_ptr<KeyComparer> m_keyComparer;
     shared_ptr<IMessageFactory> m_keyFactory;
@@ -87,6 +88,8 @@ public:
         ExtentLocation headerLocation,
         ExtentLocation dataLocation
     );
+
+    ~Partition();
 
     task<> Open();
 
