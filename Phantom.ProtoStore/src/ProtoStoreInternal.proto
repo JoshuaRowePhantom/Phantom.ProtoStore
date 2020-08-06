@@ -157,10 +157,15 @@ message MergesValue {
 
 message MergeProgressKey {
 	MergesKey MergesKey = 1;
-	uint64 DataExtentNumber = 2;
+	// This field is used only for query purposes.
+	// All rows have a value of 0.  One can query for a value of 1 at the high end of a range
+	// to get all the rows with the same MergesKey but different DataExtentNumber values.
+	uint32 RangeDiscriminator = 2;
+	uint64 DataExtentNumber = 3;
 }
 
 message MergeProgressValue {
+	uint64 DataSize = 1;
 }
 
 message MergeParameters {

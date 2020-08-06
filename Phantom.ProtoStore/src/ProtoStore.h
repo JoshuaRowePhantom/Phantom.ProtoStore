@@ -15,6 +15,7 @@
 #include "InternalProtoStore.h"
 #include "Phantom.System/single_pending_task.h"
 #include "Phantom.System/encompassing_pending_task.h"
+#include "IndexMerger.h"
 
 namespace Phantom::ProtoStore
 {
@@ -203,6 +204,17 @@ class ProtoStore
 
     task<> InternalCheckpoint();
     task<> InternalMerge();
+
+    virtual cppcoro::async_mutex_scoped_lock_operation AcquireUpdatePartitionsLock(
+    ) override;
+
+    virtual task<> UpdatePartitionsForIndex(
+        IndexNumber indexNumber,
+        cppcoro::async_mutex_lock& acquiredUpdatePartitionsLock
+    ) override;
+
+    virtual task<shared_ptr<IIndex>> GetPartitionsIndex(
+    ) override;
 
     virtual task<shared_ptr<IIndex>> GetMergeProgressIndex(
     ) override;

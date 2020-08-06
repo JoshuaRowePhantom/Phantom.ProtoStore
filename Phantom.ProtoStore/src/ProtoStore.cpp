@@ -14,6 +14,8 @@
 #include <cppcoro/sync_wait.hpp>
 #include <cppcoro/when_all.hpp>
 #include <cppcoro/on_scope_exit.hpp>
+#include "IndexMerger.h"
+#include "IndexPartitionMergeGenerator.h"
 
 namespace Phantom::ProtoStore
 {
@@ -1021,7 +1023,13 @@ task<> ProtoStore::Merge()
 
 task<> ProtoStore::InternalMerge()
 {
-    co_return;
+    IndexPartitionMergeGenerator mergeGenerator;
+    IndexMerger merger(
+        this,
+        &mergeGenerator);
+
+    co_await merger.Merge();
+    co_await merger.Join();
 }
 
 task<> ProtoStore::SwitchToNewLog()
@@ -1250,6 +1258,31 @@ task<> ProtoStore::OpenPartitionWriter(
         );
 }
 
+cppcoro::async_mutex_scoped_lock_operation ProtoStore::AcquireUpdatePartitionsLock(
+)
+{
+    return m_updatePartitionsMutex.scoped_lock_async();
+}
+
+task<> ProtoStore::UpdatePartitionsForIndex(
+    IndexNumber indexNumber,
+    cppcoro::async_mutex_lock& acquiredUpdatePartitionsLock
+)
+{
+    IndexEntry indexEntry;
+    {
+        auto readLock = co_await m_indexesByNumberLock.reader().scoped_lock_async();
+        if (!m_indexesByNumber.contains(indexNumber))
+        {
+            co_return;
+        }
+        indexEntry = m_indexesByNumber[indexNumber];
+    }
+
+    co_await ReplayPartitionsForIndex(
+        indexEntry);
+}
+
 task<shared_ptr<IIndex>> ProtoStore::GetMergesIndex()
 {
     co_return m_mergesIndex.Index;
@@ -1258,6 +1291,11 @@ task<shared_ptr<IIndex>> ProtoStore::GetMergesIndex()
 task<shared_ptr<IIndex>> ProtoStore::GetMergeProgressIndex()
 {
     co_return m_mergeProgressIndex.Index;
+}
+
+task<shared_ptr<IIndex>> ProtoStore::GetPartitionsIndex()
+{
+    co_return m_partitionsIndex.Index;
 }
 
 task<> ProtoStore::LogCommitDataExtent(

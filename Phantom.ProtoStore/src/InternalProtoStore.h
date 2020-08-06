@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandardTypes.h"
+#include <cppcoro/async_mutex.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -21,6 +22,17 @@ class IInternalProtoStore
     public IProtoStore
 {
 public:
+    virtual cppcoro::async_mutex_scoped_lock_operation AcquireUpdatePartitionsLock(
+    ) = 0;
+
+    virtual task<> UpdatePartitionsForIndex(
+        IndexNumber indexNumber,
+        cppcoro::async_mutex_lock& acquiredUpdatePartitionsLock
+    ) = 0;
+
+    virtual task<shared_ptr<IIndex>> GetPartitionsIndex(
+    ) = 0;
+
     virtual task<shared_ptr<IIndex>> GetMergeProgressIndex(
     ) = 0;
 
