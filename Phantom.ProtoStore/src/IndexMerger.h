@@ -54,6 +54,11 @@ class IndexMerger
         const WriteRowsResult& writeRowsResult
     );
 
+    task<> WriteMergedPartitionsTableDataExtentNumbers(
+        IInternalOperation* operation,
+        ExtentNumber dataExtentNumber,
+        const IncompleteMerge& incompleteMerge);
+
 public:
     IndexMerger(
         IInternalProtoStore* protoStore,

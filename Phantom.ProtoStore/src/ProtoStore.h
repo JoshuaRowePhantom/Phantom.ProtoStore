@@ -179,13 +179,14 @@ class ProtoStore
         ExtentNumber dataExtentNumber,
         ExtentNumber headerExtentNumber);
 
-    task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
-        IndexNumber indexNumber);
+    virtual task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
+        IndexNumber indexNumber
+    ) override;
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentNumber>& dataExtentNumbers)
-        override;
+        const vector<ExtentNumber>& dataExtentNumbers
+    ) override;
 
     shared_task<OperationResult> InternalExecuteOperation(
         InternalOperationVisitor visitor,

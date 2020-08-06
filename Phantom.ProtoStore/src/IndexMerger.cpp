@@ -231,9 +231,20 @@ task<> IndexMerger::WriteMergeCompletion(
     // add new Partitions rows for the previously completed merged partitions,
     // add a Partitions row for the newly completed merged partition.
 
+    auto indexNumber = incompleteMerge.Merge.Key.indexnumber();
     auto mergesIndex = co_await m_protoStore->GetMergesIndex();
     auto mergeProgressIndex = co_await m_protoStore->GetMergeProgressIndex();
     auto partitionsIndex = co_await m_protoStore->GetMergeProgressIndex();
+
+    // Special case: if the merged index is the Partitions index, we have to write
+    // all the partitions for the table.
+    if (indexNumber == partitionsIndex->GetIndexNumber())
+    {
+        co_await WriteMergedPartitionsTableDataExtentNumbers(
+            operation,
+            dataExtentNumber,
+            incompleteMerge);
+    }
 
     // Delete the MergeProgress rows.
     for (auto& progressRow : incompleteMerge.CompleteProgress)
@@ -263,7 +274,7 @@ task<> IndexMerger::WriteMergeCompletion(
     {
         PartitionsKey sourcePartitionsKey;
         sourcePartitionsKey.set_indexnumber(
-            incompleteMerge.Merge.Key.indexnumber());
+            indexNumber);
         sourcePartitionsKey.set_dataextentnumber(
             sourceDataExtentNumber);
 
@@ -279,7 +290,7 @@ task<> IndexMerger::WriteMergeCompletion(
     {
         PartitionsKey completePartitionsKey;
         completePartitionsKey.set_indexnumber(
-            incompleteMerge.Merge.Key.indexnumber());
+            indexNumber);
         completePartitionsKey.set_dataextentnumber(
             completeProgress.Key.dataextentnumber());
 
@@ -305,7 +316,7 @@ task<> IndexMerger::WriteMergeCompletion(
     {
         PartitionsKey completePartitionsKey;
         completePartitionsKey.set_indexnumber(
-            incompleteMerge.Merge.Key.indexnumber());
+            indexNumber);
         completePartitionsKey.set_dataextentnumber(
             dataExtentNumber);
 
@@ -327,13 +338,48 @@ task<> IndexMerger::WriteMergeCompletion(
             &completePartitionsValue);
     }
 
-    // Special case: if the merged index is the Partitions index, we have to write
-    // all the partitions for the table.
-
     // Mark the table as needing reload of its partitions.
     operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions()->set_indexnumber(
         incompleteMerge.Merge.Key.indexnumber());
+}
 
+task<> IndexMerger::WriteMergedPartitionsTableDataExtentNumbers(
+    IInternalOperation* operation,
+    ExtentNumber dataExtentNumber,
+    const IncompleteMerge& incompleteMerge)
+{
+    auto loggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
+
+    std::set<ExtentNumber> partitions;
+    auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
+        incompleteMerge.Merge.Key.indexnumber());
+
+    for (auto& existingPartition : existingPartitions)
+    {
+        partitions.insert(
+            get<0>(existingPartition).dataextentnumber());
+    }
+
+    for (auto sourcePartition : incompleteMerge.Merge.Value.sourcedataextentnumbers())
+    {
+        partitions.erase(
+            sourcePartition);
+    }
+
+    for (auto& completeMergeProgress : incompleteMerge.CompleteProgress)
+    {
+        partitions.insert(
+            completeMergeProgress.Key.dataextentnumber());
+    }
+
+    partitions.insert(
+        dataExtentNumber);
+
+    for (auto partition : partitions)
+    {
+        loggedPartitionsData->add_dataextentnumbers(
+            partition);
+    }
 }
 
 task<bool> IndexMerger::MergeOnePartition()

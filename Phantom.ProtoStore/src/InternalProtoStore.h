@@ -30,6 +30,10 @@ public:
         cppcoro::async_mutex_lock& acquiredUpdatePartitionsLock
     ) = 0;
 
+    virtual task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
+        IndexNumber indexNumber
+    ) = 0;
+
     virtual task<shared_ptr<IIndex>> GetPartitionsIndex(
     ) = 0;
 
