@@ -242,6 +242,62 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
     });
 }
 
+TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
+{
+    run_async([&]() -> task<>
+    {
+        //auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
+        auto createRequest = GetCreateMemoryStoreRequest();
+        auto store = co_await CreateStore(createRequest);
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        ranlux48 rng;
+        auto keys = MakeRandomStrings(
+            rng,
+            20,
+            1000);
+
+        for (auto key : keys)
+        {
+            co_await AddRowToTestIndex(
+                store,
+                index,
+                key,
+                key + "-value",
+                ToSequenceNumber(5));
+
+            co_await store->Checkpoint();
+            co_await store->Merge();
+        }
+
+        for (auto key : keys)
+        {
+            co_await ExpectGetTestRow(
+                store,
+                index,
+                key,
+                key + "-value",
+                ToSequenceNumber(5),
+                ToSequenceNumber(5));
+        }
+
+        store.reset();
+        store = co_await OpenStore(createRequest);
+
+        for (auto key : keys)
+        {
+            co_await ExpectGetTestRow(
+                store,
+                index,
+                key,
+                key + "-value",
+                ToSequenceNumber(5),
+                ToSequenceNumber(5));
+        }    });
+}
+
 TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
 {
     run_async([&]() -> task<>
@@ -497,6 +553,38 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
             "testValue1",
             ToSequenceNumber(5),
             ToSequenceNumber(5));
+    });
+}
+
+TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
+{
+    run_async([&]() -> task<>
+    {
+        //auto createRequest = GetCreateFileStoreRequest("Checkpoint_deletes_old_logs");
+        auto createRequest = GetCreateMemoryStoreRequest();
+
+        auto store = co_await CreateStore(createRequest);
+
+        auto logMemoryStore = std::static_pointer_cast<MemoryExtentStore>(
+            co_await createRequest.LogExtentStore());
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        // Checkpoint twice to ensure old log is delete.
+        co_await store->Checkpoint();
+        ASSERT_EQ(true, co_await logMemoryStore->ExtentExists(0));
+
+        co_await store->Checkpoint();
+
+        ASSERT_EQ(false, co_await logMemoryStore->ExtentExists(0));
     });
 }
 
@@ -759,7 +847,6 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
         int valueCount = 100000;
 
         ranlux48 rng;
-        uniform_int_distribution<int> distribution('a', 'z');
 
         auto keys = MakeRandomStrings(
             rng,
