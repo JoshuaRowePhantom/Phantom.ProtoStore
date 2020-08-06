@@ -7,6 +7,7 @@
 #include "Schema.h"
 #include "RowMerger.h"
 #include "InternalProtoStore.h"
+#include <cppcoro/when_all.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -18,8 +19,6 @@ IndexMerger::IndexMerger(
     m_protoStore(protoStore),
     m_mergeGenerator(mergeGenerator)
 {
-    m_delayedMergeOnePartitionTask = DelayedMergeOnePartition(
-        make_completed_shared_task(true));
 }
 
 IndexMerger::~IndexMerger()
@@ -29,26 +28,8 @@ IndexMerger::~IndexMerger()
 
 task<> IndexMerger::Merge()
 {
-    shared_task<bool> mergeTask;
-
-    do
-    {
-        auto lock = m_delayedMergeOnePartitionTaskLock.scoped_lock_async();
-        mergeTask = m_delayedMergeOnePartitionTask;
-    } while (co_await mergeTask);
-}
-
-shared_task<bool> IndexMerger::DelayedMergeOnePartition(
-    shared_task<bool> previousDelayedMergeOnePartition)
-{
-    co_await previousDelayedMergeOnePartition;
-    auto result = co_await MergeOnePartition();
-
-    auto lock = m_delayedMergeOnePartitionTaskLock.scoped_lock_async();
-    m_delayedMergeOnePartitionTask = DelayedMergeOnePartition(
-        m_delayedMergeOnePartitionTask);
-
-    co_return result;
+    while (co_await MergeOneRound())
+    { }
 }
 
 task<> IndexMerger::RestartIncompleteMerge(
@@ -382,24 +363,28 @@ task<> IndexMerger::WriteMergedPartitionsTableDataExtentNumbers(
     }
 }
 
-task<bool> IndexMerger::MergeOnePartition()
+task<bool> IndexMerger::MergeOneRound()
 {
-    auto incompleteMerge = co_await FindIncompleteMerge();
+    auto incompleteMerges = FindIncompleteMerges();
+    vector<task<>> mergeTasks;
 
-    if (incompleteMerge.has_value())
+    for (auto incompleteMergeIterator = co_await incompleteMerges.begin();
+        incompleteMergeIterator != incompleteMerges.end();
+        co_await ++incompleteMergeIterator)
     {
-        co_await RestartIncompleteMerge(
-            *incompleteMerge);
-        co_return true;
+        mergeTasks.push_back(
+            RestartIncompleteMerge(
+                *incompleteMergeIterator));
     }
 
-    co_return false;
+    co_await cppcoro::when_all(
+        move(mergeTasks));
+
+    co_return !mergeTasks.empty();
 }
 
-task<optional<IndexMerger::IncompleteMerge>> IndexMerger::FindIncompleteMerge()
+async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges()
 {
-    optional<IncompleteMerge> result;
-
     auto mergesIndex = co_await m_protoStore->GetMergesIndex();
 
     EnumerateRequest enumerateMergesRequest;
@@ -418,22 +403,22 @@ task<optional<IndexMerger::IncompleteMerge>> IndexMerger::FindIncompleteMerge()
         co_await ++mergesIterator)
     {
         // We found an incomplete merge.  We're going to return it directly from here.
-        result = IncompleteMerge();
-        (*mergesIterator).Key.unpack(&result->Merge.Key);
-        (*mergesIterator).Value.unpack(&result->Merge.Value);
-        result->Merge.ReadSequenceNumber = (*mergesIterator).WriteSequenceNumber;
-        result->Merge.WriteSequenceNumber = (*mergesIterator).WriteSequenceNumber;
+        IncompleteMerge result;
+        (*mergesIterator).Key.unpack(&result.Merge.Key);
+        (*mergesIterator).Value.unpack(&result.Merge.Value);
+        result.Merge.ReadSequenceNumber = (*mergesIterator).WriteSequenceNumber;
+        result.Merge.WriteSequenceNumber = (*mergesIterator).WriteSequenceNumber;
 
         // Now get all the MergeProgress rows for this merge.
         auto mergeProgressIndex = co_await m_protoStore->GetMergeProgressIndex();
 
         MergeProgressKey mergeProgressKeyLow;
         mergeProgressKeyLow.mutable_mergeskey()->CopyFrom(
-            result->Merge.Key);
+            result.Merge.Key);
         
         MergeProgressKey mergeProgressKeyHigh;
         mergeProgressKeyHigh.mutable_mergeskey()->CopyFrom(
-            result->Merge.Key);
+            result.Merge.Key);
         mergeProgressKeyHigh.set_rangediscriminator(1);
 
         EnumerateRequest enumerateMergeProgressRequest;
@@ -459,14 +444,12 @@ task<optional<IndexMerger::IncompleteMerge>> IndexMerger::FindIncompleteMerge()
             mergeProgressRow.ReadSequenceNumber = (*mergeProgressIterator).WriteSequenceNumber;
             mergeProgressRow.WriteSequenceNumber = (*mergeProgressIterator).WriteSequenceNumber;
 
-            result->CompleteProgress.emplace_back(
+            result.CompleteProgress.emplace_back(
                 move(mergeProgressRow));
         }
 
-        break;
+        co_yield result;
     }
-
-    co_return result;
 }
 
 }

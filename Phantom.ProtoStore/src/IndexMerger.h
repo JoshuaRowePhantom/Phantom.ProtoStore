@@ -7,6 +7,7 @@
 #include "AsyncScopeMixin.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "PartitionWriter.h"
+#include <cppcoro/async_generator.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -17,13 +18,7 @@ class IndexMerger
     IInternalProtoStore* const m_protoStore;
     IndexPartitionMergeGenerator* const m_mergeGenerator;
 
-    shared_task<bool> m_delayedMergeOnePartitionTask;
-    cppcoro::async_mutex m_delayedMergeOnePartitionTaskLock;
-
-    shared_task<bool> DelayedMergeOnePartition(
-        shared_task<bool> previousDelayedMergeOnePartition);
-
-    task<bool> MergeOnePartition();
+    task<bool> MergeOneRound();
 
     task<merges_row_list_type> AcquireMergeCandidates(
         IOperation* operation);
@@ -34,7 +29,7 @@ class IndexMerger
         merges_row_type Merge;
     };
 
-    task<optional<IncompleteMerge>> FindIncompleteMerge();
+    async_generator<IncompleteMerge> FindIncompleteMerges();
 
     task<> RestartIncompleteMerge(
         IncompleteMerge incompleteMerge
