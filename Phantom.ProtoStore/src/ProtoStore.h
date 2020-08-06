@@ -171,7 +171,7 @@ class ProtoStore
     );
 
     task<> Checkpoint(
-        const IndexEntry& indexEntry
+        IndexEntry indexEntry
     );
 
     task<shared_ptr<IPartition>> OpenPartitionForIndex(

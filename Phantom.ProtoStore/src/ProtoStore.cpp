@@ -490,6 +490,7 @@ class Operation
     MemoryTableOperationOutcomeTask m_operationOutcomeTask;
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
+    shared_task<CommitResult> m_commitTask;
 
     MemoryTableOperationOutcomeTask GetOperationOutcome()
     {
@@ -533,6 +534,7 @@ public:
         m_initialWriteSequenceNumber(initialWriteSequenceNumber)
     {
         m_operationOutcomeTask = GetOperationOutcome();
+        m_commitTask = DelayedCommit();
     }
 
     ~Operation()
@@ -632,6 +634,12 @@ public:
     // Inherited via IOperationTransaction
     virtual task<CommitResult> Commit(
     ) override
+    {
+        co_return co_await m_commitTask;
+    }
+
+private:
+    shared_task<CommitResult> DelayedCommit()
     {
         MemoryTableOperationOutcome outcome =
         {
@@ -1046,7 +1054,7 @@ task<> ProtoStore::SwitchToNewLog()
 }
 
 task<> ProtoStore::Checkpoint(
-    const IndexEntry& indexEntry
+    IndexEntry indexEntry
 )
 {
     auto loggedCheckpoint = co_await indexEntry.DataSources->StartCheckpoint();
@@ -1119,12 +1127,6 @@ task<> ProtoStore::Checkpoint(
                     addedLoggedPartitionsData->add_dataextentnumbers(
                         existingDataExtentNumber);
                 }
-            }
-
-            if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
-            {
-                addedLoggedPartitionsData->add_dataextentnumbers(
-                    dataExtentNumber);
             }
 
             addedLoggedCheckpoint->CopyFrom(
