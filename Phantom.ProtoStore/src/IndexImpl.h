@@ -21,8 +21,6 @@ class Index
     shared_ptr<IMessageFactory> m_keyFactory;
     shared_ptr<IMessageFactory> m_valueFactory;
 
-    std::atomic_flag m_dontNeedCheckpoint;
-
     // This lock control access to the following members:
     // vvvvvvvvvvvvvvvvv
     async_reader_writer_lock m_dataSourcesLock;
@@ -105,7 +103,7 @@ public:
     virtual task<> SetDataSources(
         shared_ptr<IMemoryTable> activeMemoryTable,
         CheckpointNumber activeCheckpointNumber,
-        vector<shared_ptr<IMemoryTable>> memoryTablesToEnumerate,
+        vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
         vector<shared_ptr<IPartition>> partitions
     ) override;
 

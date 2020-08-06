@@ -59,7 +59,7 @@ public:
     virtual task<> SetDataSources(
         shared_ptr<IMemoryTable> activeMemoryTable,
         CheckpointNumber activeCheckpointNumber,
-        vector<shared_ptr<IMemoryTable>> memoryTablesToEnumerate,
+        vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
         vector<shared_ptr<IPartition>> partitions
     ) = 0;
 };

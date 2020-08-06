@@ -65,6 +65,9 @@ task<LoggedCheckpoint> IndexDataSources::StartCheckpoint()
 
     LoggedCheckpoint loggedCheckpoint;
 
+    loggedCheckpoint.set_indexnumber(
+        m_index->GetIndexNumber());
+
     for (auto replayedMemoryTable : m_replayedMemoryTables)
     {
         loggedCheckpoint.add_checkpointnumber(
@@ -74,6 +77,7 @@ task<LoggedCheckpoint> IndexDataSources::StartCheckpoint()
     }
     m_replayedMemoryTables.clear();
 
+    loggedCheckpoint.add_checkpointnumber(m_currentCheckpointNumber);
     m_checkpointingMemoryTables[m_currentCheckpointNumber] = m_activeMemoryTable;
 
     m_currentCheckpointNumber++;
@@ -81,7 +85,25 @@ task<LoggedCheckpoint> IndexDataSources::StartCheckpoint()
 
     co_await UpdateIndexDataSources();
 
-    co_return loggedCheckpoint;
+    // Only return the loggedCheckpoint if there are in fact rows to checkpoint.
+    for (auto checkpoint : loggedCheckpoint.checkpointnumber())
+    {
+        if (co_await m_checkpointingMemoryTables[checkpoint]->GetRowCount() > 0)
+        {
+            co_return loggedCheckpoint;
+        }
+    }
+
+    // If there are no rows to checkpoint, return an empty LoggedCheckpoint,
+    // and forget about the empty memory tables.
+    for (auto checkpoint : loggedCheckpoint.checkpointnumber())
+    {
+        co_await m_checkpointingMemoryTables[checkpoint]->Join();
+        m_checkpointingMemoryTables.erase(
+            checkpoint);
+    }
+
+    co_return LoggedCheckpoint();
 }
 
 task<WriteRowsResult> IndexDataSources::Checkpoint(
@@ -129,32 +151,33 @@ task<> IndexDataSources::UpdatePartitions(
 
         co_await UpdateIndexDataSources();
     }
+
+    for (auto& oldMemoryTable : oldMemoryTables)
+    {
+        co_await oldMemoryTable.second->Join();
+    }
 }
 
 task<> IndexDataSources::UpdateIndexDataSources()
 {
-    vector<shared_ptr<IMemoryTable>> memoryTables;
+    vector<shared_ptr<IMemoryTable>> inactiveMemoryTables;
 
     for (auto memoryTable : m_checkpointingMemoryTables)
     {
-        memoryTables.push_back(
+        inactiveMemoryTables.push_back(
             memoryTable.second);
     }
 
     for (auto memoryTable : m_replayedMemoryTables)
     {
-        memoryTables.push_back(
+        inactiveMemoryTables.push_back(
             memoryTable.second);
     }
-
-    memoryTables.push_back(
-        m_activeMemoryTable
-    );
 
     co_await m_index->SetDataSources(
         m_activeMemoryTable,
         m_currentCheckpointNumber,
-        memoryTables,
+        inactiveMemoryTables,
         m_partitions);
 }
 

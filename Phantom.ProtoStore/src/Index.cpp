@@ -25,7 +25,6 @@ Index::Index(
     m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor())),
     m_rowMerger(make_shared<RowMerger>(&*m_keyComparer))
 {
-    m_dontNeedCheckpoint.test_and_set();
 }
 
 shared_ptr<KeyComparer> Index::GetKeyComparer()
@@ -115,8 +114,6 @@ task<CheckpointNumber> Index::AddRow(
         }
     }
 
-    m_dontNeedCheckpoint.clear();
-
     co_await m_activeMemoryTable->AddRow(
         readSequenceNumber,
         row, 
@@ -149,8 +146,6 @@ task<> Index::ReplayRow(
 
     co_await memoryTable->ReplayRow(
         row);
-
-    m_dontNeedCheckpoint.clear();
 }
 
 task<> Index::GetEnumerationDataSources(
@@ -350,7 +345,7 @@ task<WriteRowsResult> Index::WriteMemoryTables(
 task<> Index::SetDataSources(
     shared_ptr<IMemoryTable> activeMemoryTable,
     CheckpointNumber activeCheckpointNumber,
-    vector<shared_ptr<IMemoryTable>> memoryTablesToEnumerate,
+    vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
     vector<shared_ptr<IPartition>> partitions
 )
 {
@@ -359,9 +354,9 @@ task<> Index::SetDataSources(
     m_activeMemoryTable = activeMemoryTable;
     m_activeCheckpointNumber = activeCheckpointNumber;
     m_inactiveMemoryTables = make_shared<vector<shared_ptr<IMemoryTable>>>(
-        memoryTablesToEnumerate);
+        inactiveMemoryTables);
     m_memoryTablesToEnumerate = make_shared<vector<shared_ptr<IMemoryTable>>>(
-        memoryTablesToEnumerate);
+        inactiveMemoryTables);
     m_memoryTablesToEnumerate->push_back(
         activeMemoryTable);
     m_partitions = make_shared<vector<shared_ptr<IPartition>>>(
