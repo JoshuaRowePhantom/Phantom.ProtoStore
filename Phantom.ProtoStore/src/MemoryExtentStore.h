@@ -27,5 +27,8 @@ namespace Phantom::ProtoStore
         virtual task<> DeleteExtent(
             ExtentNumber extentNumber)
             override;
+
+        task<bool> ExtentExists(
+            ExtentNumber extentNumber);
     };
 }

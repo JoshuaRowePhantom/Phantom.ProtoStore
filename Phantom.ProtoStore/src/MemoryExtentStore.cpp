@@ -297,6 +297,15 @@ namespace Phantom::ProtoStore
             m_extents.erase(
                 extentNumber);
         }
+
+        task<bool> ExtentExists(
+            ExtentNumber extentNumber)
+        {
+            auto lock = co_await m_extentsMutex.scoped_lock_async();
+
+            co_return m_extents.contains(
+                extentNumber);
+        }
     };
 
     MemoryExtentStore::MemoryExtentStore(
@@ -332,6 +341,13 @@ namespace Phantom::ProtoStore
         ExtentNumber extentNumber)
     {
         return m_impl->DeleteExtent(
+            extentNumber);
+    }
+
+    task<bool> MemoryExtentStore::ExtentExists(
+        ExtentNumber extentNumber)
+    {
+        return m_impl->ExtentExists(
             extentNumber);
     }
 
