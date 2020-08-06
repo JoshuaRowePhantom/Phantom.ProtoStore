@@ -396,10 +396,10 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
 
         if (updateRowCounters)
         {
-            m_unresolvedRowCount.fetch_sub(
+            m_committedRowCount.fetch_add(
                 1,
                 std::memory_order_relaxed);
-            m_committedRowCount.fetch_add(
+            m_unresolvedRowCount.fetch_sub(
                 1,
                 std::memory_order_relaxed);
             m_rowResolved.set();
@@ -700,7 +700,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
 
     if (comparisonResult == std::weak_ordering::equivalent)
     {
-        comparisonResult = key1.Row.WriteSequenceNumber <=> key2.Row.WriteSequenceNumber;
+        comparisonResult = key2.Row.WriteSequenceNumber <=> key1.Row.WriteSequenceNumber;
     }
 
     return comparisonResult;
