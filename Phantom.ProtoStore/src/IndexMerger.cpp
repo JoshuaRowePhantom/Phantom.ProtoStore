@@ -380,7 +380,14 @@ task<bool> IndexMerger::MergeOneRound()
     co_await cppcoro::when_all(
         move(mergeTasks));
 
-    co_return !mergeTasks.empty();
+    if (!mergeTasks.empty())
+    {
+        co_return true;
+    }
+    else
+    {
+        co_return co_await GenerateMerges();
+    }
 }
 
 async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges()
@@ -452,4 +459,8 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
     }
 }
 
+task<bool> IndexMerger::GenerateMerges()
+{
+    co_return false;
+}
 }

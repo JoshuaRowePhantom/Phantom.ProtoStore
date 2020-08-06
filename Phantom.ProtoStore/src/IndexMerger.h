@@ -19,6 +19,7 @@ class IndexMerger
     IndexPartitionMergeGenerator* const m_mergeGenerator;
 
     task<bool> MergeOneRound();
+    task<bool> GenerateMerges();
 
     task<merges_row_list_type> AcquireMergeCandidates(
         IOperation* operation);
