@@ -23,7 +23,7 @@ public:
     virtual task<LoggedCheckpoint> StartCheckpoint(
     ) = 0;
 
-    virtual task<> Checkpoint(
+    virtual task<WriteRowsResult> Checkpoint(
         const LoggedCheckpoint& loggedCheckpoint,
         shared_ptr<IPartitionWriter> partitionWriter
     ) = 0;

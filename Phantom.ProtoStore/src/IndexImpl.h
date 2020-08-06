@@ -97,7 +97,7 @@ public:
     virtual const IndexName& GetIndexName(
     ) const override;
 
-    virtual task<> WriteMemoryTables(
+    virtual task<WriteRowsResult> WriteMemoryTables(
         const shared_ptr<IPartitionWriter>& partitionWriter,
         const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
     ) override;

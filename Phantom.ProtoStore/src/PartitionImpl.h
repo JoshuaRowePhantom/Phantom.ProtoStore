@@ -46,12 +46,19 @@ class Partition
         std::optional<int> lastFindResult;
     };
 
+    enum class EnumerateBehavior
+    {
+        PointInTimeRead,
+        Checkpoint,
+    };
+
     cppcoro::async_generator<ResultRow> Enumerate(
         ExtentLocation treeNodeLocation,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high,
-        ReadValueDisposition readValueDisposition
+        ReadValueDisposition readValueDisposition,
+        EnumerateBehavior enumerateBehavior
     );
 
     int FindMatchingValueIndexByWriteSequenceNumber(
@@ -96,6 +103,9 @@ public:
     virtual task<size_t> GetRowCount(
     ) override;
 
+    virtual task<ExtentOffset> GetApproximateDataSize(
+    ) override;
+
     virtual cppcoro::async_generator<ResultRow> Read(
         SequenceNumber readSequenceNumber,
         const Message* key,
@@ -107,6 +117,10 @@ public:
         KeyRangeEnd low,
         KeyRangeEnd high,
         ReadValueDisposition readValueDisposition
+    ) override;
+
+    virtual cppcoro::async_generator<ResultRow> Checkpoint(
+        optional<PartitionCheckpointStartKey> startKey
     ) override;
 
     virtual SequenceNumber GetLatestSequenceNumber(

@@ -85,6 +85,11 @@ task<size_t> Partition::GetRowCount()
     co_return m_partitionRoot.rowcount();
 }
 
+task<ExtentOffset> Partition::GetApproximateDataSize()
+{
+    co_return m_partitionHeader.partitionrootoffset();
+}
+
 cppcoro::async_generator<ResultRow> Partition::Read(
     SequenceNumber readSequenceNumber,
     const Message* key,
@@ -138,7 +143,52 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         readSequenceNumber,
         low,
         high,
-        readValueDisposition);
+        readValueDisposition,
+        EnumerateBehavior::PointInTimeRead);
+
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
+    {
+        co_yield *iterator;
+    }
+}
+
+cppcoro::async_generator<ResultRow> Partition::Checkpoint(
+    std::optional<PartitionCheckpointStartKey> startKey
+)
+{
+    auto readSequenceNumber = SequenceNumber::Latest;
+
+    KeyRangeEnd low =
+    {
+        .Key = nullptr,
+        .Inclusivity = Inclusivity::Inclusive,
+    };
+
+    KeyRangeEnd high =
+    {
+        .Key = nullptr,
+        .Inclusivity = Inclusivity::Inclusive,
+    };
+
+    if (startKey)
+    {
+        low.Key = startKey->Key;
+        readSequenceNumber = startKey->WriteSequenceNumber;
+    }
+
+    auto enumeration = Enumerate(
+        ExtentLocation
+        {
+            m_dataLocation.extentNumber,
+            m_partitionRoot.roottreenodeoffset()
+        },
+        readSequenceNumber,
+        low,
+        high,
+        ReadValueDisposition::ReadValue,
+        EnumerateBehavior::Checkpoint);
 
     for (auto iterator = co_await enumeration.begin();
         iterator != enumeration.end();
@@ -319,7 +369,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high,
-    ReadValueDisposition readValueDisposition
+    ReadValueDisposition readValueDisposition,
+    EnumerateBehavior enumerateBehavior
 )
 {
     auto cacheEntry = co_await m_partitionTreeNodeCache.GetPartitionTreeNodeCacheEntry(
@@ -361,7 +412,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 readSequenceNumber,
                 low,
                 high,
-                readValueDisposition);
+                readValueDisposition,
+                enumerateBehavior);
 
             for (auto iterator = co_await subTreeEnumerator.begin();
                 iterator != subTreeEnumerator.end();
@@ -433,16 +485,24 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             nextKey = key;
         }
 
-        FindTreeEntryKey findEntryKey;
-        findEntryKey.key = key;
-        findEntryKey.matchingKeyComparisonResult = std::weak_ordering::greater;
-        findEntryKey.lastFindResult = lowTreeEntryIndex;
-        findEntryKey.readSequenceNumber = readSequenceNumber;
-        
-        lowTreeEntryIndex = co_await FindTreeEntry(
-            cacheEntry,
-            treeNode,
-            findEntryKey);
+        if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)
+        {
+            FindTreeEntryKey findEntryKey;
+            findEntryKey.key = key;
+            findEntryKey.matchingKeyComparisonResult = std::weak_ordering::greater;
+            findEntryKey.lastFindResult = lowTreeEntryIndex;
+            findEntryKey.readSequenceNumber = readSequenceNumber;
+
+            lowTreeEntryIndex = co_await FindTreeEntry(
+                cacheEntry,
+                treeNode,
+                findEntryKey);
+        }
+        else
+        {
+            assert(enumerateBehavior == EnumerateBehavior::Checkpoint);
+            lowTreeEntryIndex++;
+        }
     }
 }
 

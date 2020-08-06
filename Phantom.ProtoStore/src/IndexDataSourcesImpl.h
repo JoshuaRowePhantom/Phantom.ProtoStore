@@ -46,7 +46,7 @@ public:
     virtual task<LoggedCheckpoint> StartCheckpoint(
     ) override;
 
-    virtual task<> Checkpoint(
+    virtual task<WriteRowsResult> Checkpoint(
         const LoggedCheckpoint& loggedCheckpoint,
         shared_ptr<IPartitionWriter> partitionWriter
     ) override;

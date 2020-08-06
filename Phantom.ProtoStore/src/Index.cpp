@@ -318,7 +318,7 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
     }
 }
 
-task<> Index::WriteMemoryTables(
+task<WriteRowsResult> Index::WriteMemoryTables(
     const shared_ptr<IPartitionWriter>& partitionWriter,
     const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
 )
@@ -343,7 +343,7 @@ task<> Index::WriteMemoryTables(
         .rows = &rows,
     };
 
-    co_await partitionWriter->WriteRows(
+    co_return co_await partitionWriter->WriteRows(
         move(writeRowsRequest));
 }
 

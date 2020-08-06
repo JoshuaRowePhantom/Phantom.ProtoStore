@@ -38,7 +38,9 @@ ProtoStore::ProtoStore(
     m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
     m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
     m_dataHeaderMessageAccessor(MakeRandomMessageAccessor(m_dataHeaderMessageStore)),
-    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor))
+    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
+    m_checkpointTask([=] { return InternalCheckpoint(); }),
+    m_mergeTask([=] { return InternalMerge(); })
 {
     m_writeSequenceNumberBarrier.publish(0);
 }
@@ -141,9 +143,49 @@ task<> ProtoStore::Open(
         );
     }
 
+    {
+        IndexesByNumberKey indexesByNumberKey;
+        IndexesByNumberValue indexesByNumberValue;
+
+        MakeIndexesByNumberRow(
+            indexesByNumberKey,
+            indexesByNumberValue,
+            "__System.Merges",
+            3,
+            SequenceNumber::Earliest,
+            MergesKey::descriptor(),
+            MergesValue::descriptor());
+
+        m_mergesIndex = MakeIndex(
+            indexesByNumberKey,
+            indexesByNumberValue
+        );
+    }
+
+    {
+        IndexesByNumberKey indexesByNumberKey;
+        IndexesByNumberValue indexesByNumberValue;
+
+        MakeIndexesByNumberRow(
+            indexesByNumberKey,
+            indexesByNumberValue,
+            "__System.MergeProgress",
+            4,
+            SequenceNumber::Earliest,
+            MergeProgressKey::descriptor(),
+            MergeProgressValue::descriptor());
+
+        m_mergeProgressIndex = MakeIndex(
+            indexesByNumberKey,
+            indexesByNumberValue
+        );
+    }
+
     m_indexesByNumber[m_indexesByNumberIndex.IndexNumber] = m_indexesByNumberIndex;
     m_indexesByNumber[m_indexesByNameIndex.IndexNumber] = m_indexesByNameIndex;
     m_indexesByNumber[m_partitionsIndex.IndexNumber] = m_partitionsIndex;
+    m_indexesByNumber[m_mergesIndex.IndexNumber] = m_mergesIndex;
+    m_indexesByNumber[m_mergeProgressIndex.IndexNumber] = m_mergeProgressIndex;
 
     m_logManager.emplace(
         m_schedulers,
@@ -292,7 +334,7 @@ task<> ProtoStore::Replay(
 {
     for (auto& loggedRowWrite : logRecord.rows())
     {
-        auto indexEntry = co_await GetIndexInternal(
+        auto indexEntry = co_await GetIndexEntryInternal(
             loggedRowWrite.indexnumber(),
             DoReplayPartitions);
 
@@ -418,9 +460,14 @@ task<ProtoIndex> ProtoStore::GetIndex(
     );
 
     co_return ProtoIndex(
-        this,
-        &*index
+        index
     );
+}
+
+task<shared_ptr<IIndex>> ProtoStore::GetIndex(
+    IndexNumber indexNumber)
+{
+    co_return (co_await GetIndexEntryInternal(indexNumber, DoReplayPartitions)).Index;
 }
 
 task<ReadResult> ProtoStore::Read(
@@ -708,7 +755,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
 
     auto indexesByNameValue = readResult.Value.cast_if<IndexesByNameValue>();
 
-    co_return (co_await GetIndexInternal(
+    co_return (co_await GetIndexEntryInternal(
         indexesByNameValue->indexnumber(),
         DoReplayPartitions)
         ).Index;
@@ -746,7 +793,7 @@ task<ProtoIndex> ProtoStore::CreateIndex(
 
         co_await operation->AddRow(
             metadata,
-            ProtoIndex(this, &*m_indexesByNumberIndex.Index),
+            m_indexesByNumberIndex.Index,
             &indexesByNumberKey,
             &indexesByNumberValue
         );
@@ -761,23 +808,22 @@ task<ProtoIndex> ProtoStore::CreateIndex(
 
         co_await operation->AddRow(
             metadata,
-            ProtoIndex(this, &*m_indexesByNameIndex.Index),
+            m_indexesByNameIndex.Index,
             &indexesByNameKey,
             &indexesByNameValue
         );
 
     });
 
-    auto indexEntry = co_await GetIndexInternal(
+    auto indexEntry = co_await GetIndexEntryInternal(
         indexNumber,
         DoReplayPartitions);
 
     co_return ProtoIndex(
-        this,
-        &*indexEntry.Index);
+        indexEntry.Index);
 }
 
-task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexInternal(
+task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexEntryInternal(
     google::protobuf::uint64 indexNumber,
     bool doReplayPartitions
 )
@@ -940,37 +986,12 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     co_return partition;
 }
 
-shared_task<> ProtoStore::WaitForCheckpoints(
-    optional<shared_task<>> previousCheckpoint,
-    shared_task<> newCheckpoint
-)
-{
-    if (previousCheckpoint.has_value())
-    {
-        co_await *previousCheckpoint;
-    }
-    co_await newCheckpoint;
-}
-
 task<> ProtoStore::Checkpoint()
 {
-    shared_task newAllCheckpointsTask;
-    shared_task newCheckpointTask;
-
-    {
-        auto lock = co_await m_checkpointTaskLock.scoped_lock_async();
-        newCheckpointTask = InternalCheckpoint();
-        newAllCheckpointsTask = WaitForCheckpoints(
-            m_previousCheckpoints,
-            newCheckpointTask);
-        m_previousCheckpoints = newAllCheckpointsTask;
-    }
-
-    co_await newCheckpointTask;
-    co_await newAllCheckpointsTask;
+    co_await m_checkpointTask.spawn();
 }
 
-shared_task<> ProtoStore::InternalCheckpoint()
+task<> ProtoStore::InternalCheckpoint()
 {
     // Switch to a new log at the start of the checkpoint to make it more likely
     // to be able to clean up the current log at the next checkpoint.
@@ -991,6 +1012,16 @@ shared_task<> ProtoStore::InternalCheckpoint()
 
     co_await cppcoro::when_all(
         move(checkpointTasks));
+}
+
+task<> ProtoStore::Merge()
+{
+    co_await m_mergeTask.spawn();
+}
+
+task<> ProtoStore::InternalMerge()
+{
+    co_return;
 }
 
 task<> ProtoStore::SwitchToNewLog()
@@ -1017,21 +1048,14 @@ task<> ProtoStore::Checkpoint(
         co_return;
     }
 
-    auto dataExtentNumber = co_await AllocateDataExtent();
+    ExtentNumber dataExtentNumber;
+    shared_ptr<IPartitionWriter> partitionWriter;
 
-    auto dataWriter = co_await m_dataMessageStore->OpenExtentForSequentialWriteAccess(
-        dataExtentNumber);
-    auto headerWriter = co_await m_dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(
-        dataExtentNumber);
+    co_await OpenPartitionWriter(
+        dataExtentNumber,
+        partitionWriter);
 
-    PartitionWriterParameters partitionWriterParameters{};
-
-    auto partitionWriter = make_shared<PartitionWriter>(
-        partitionWriterParameters,
-        dataWriter,
-        headerWriter);
-
-    co_await indexEntry.DataSources->Checkpoint(
+    auto writeRowsResult = co_await indexEntry.DataSources->Checkpoint(
         loggedCheckpoint,
         partitionWriter);
 
@@ -1061,7 +1085,7 @@ task<> ProtoStore::Checkpoint(
         partitionsKey.set_dataextentnumber(dataExtentNumber);
         PartitionsValue partitionsValue;
         partitionsValue.set_headerextentnumber(dataExtentNumber);
-        partitionsValue.set_size(co_await dataWriter->CurrentOffset());
+        partitionsValue.set_size(writeRowsResult.writtenDataSize);
         partitionsValue.set_level(0);
 
         {
@@ -1102,7 +1126,7 @@ task<> ProtoStore::Checkpoint(
 
             co_await operation->AddRow(
                 WriteOperationMetadata(),
-                ProtoIndex{ &*this, &*m_partitionsIndex.Index },
+                m_partitionsIndex.Index,
                 &partitionsKey,
                 &partitionsValue);
 
@@ -1136,7 +1160,7 @@ task<vector<std::tuple<PartitionsKey, PartitionsValue>>> ProtoStore::GetPartitio
     enumerateRequest.KeyHigh = &partitionsKeyHigh;
     enumerateRequest.KeyHighInclusivity = Inclusivity::Exclusive;
     enumerateRequest.SequenceNumber = SequenceNumber::LatestCommitted;
-    enumerateRequest.Index = ProtoIndex{ this, &*m_partitionsIndex.Index, };
+    enumerateRequest.Index = ProtoIndex{ m_partitionsIndex.Index };
 
     auto enumeration = m_partitionsIndex.Index->Enumerate(
         enumerateRequest);
@@ -1205,6 +1229,35 @@ task<ExtentNumber> ProtoStore::AllocateDataExtent()
         logRecord);
 
     co_return extentNumber;
+}
+
+task<> ProtoStore::OpenPartitionWriter(
+    ExtentNumber& out_dataExtentNumber,
+    shared_ptr<IPartitionWriter>& out_partitionWriter
+)
+{
+    out_dataExtentNumber = co_await AllocateDataExtent();
+
+    auto dataWriter = co_await m_dataMessageStore->OpenExtentForSequentialWriteAccess(
+        out_dataExtentNumber);
+    auto headerWriter = co_await m_dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(
+        out_dataExtentNumber);
+
+    out_partitionWriter = make_shared<PartitionWriter>(
+        PartitionWriterParameters(),
+        dataWriter,
+        headerWriter
+        );
+}
+
+task<shared_ptr<IIndex>> ProtoStore::GetMergesIndex()
+{
+    co_return m_mergesIndex.Index;
+}
+
+task<shared_ptr<IIndex>> ProtoStore::GetMergeProgressIndex()
+{
+    co_return m_mergeProgressIndex.Index;
 }
 
 task<> ProtoStore::LogCommitDataExtent(

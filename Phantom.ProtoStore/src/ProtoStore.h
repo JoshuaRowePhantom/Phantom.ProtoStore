@@ -13,6 +13,8 @@
 #include "IndexDataSources.h"
 #include "IndexPartitionMergeGenerator.h"
 #include "InternalProtoStore.h"
+#include "Phantom.System/single_pending_task.h"
+#include "Phantom.System/encompassing_pending_task.h"
 
 namespace Phantom::ProtoStore
 {
@@ -55,8 +57,9 @@ class ProtoStore
     std::map<ExtentNumber, shared_ptr<IPartition>> m_activePartitions;
     vector<ExtentNumber> m_replayPartitionsActivePartitions;
 
-    cppcoro::async_mutex m_checkpointTaskLock;
-    optional<shared_task<>> m_previousCheckpoints;
+    encompassing_pending_task m_checkpointTask;
+    single_pending_task m_mergeTask;
+
     std::atomic<ExtentOffset> m_nextCheckpointLogOffset;
 
     struct IndexEntry
@@ -70,14 +73,11 @@ class ProtoStore
     IndexEntry m_indexesByNumberIndex;
     IndexEntry m_indexesByNameIndex;
     IndexEntry m_partitionsIndex;
+    IndexEntry m_mergesIndex;
+    IndexEntry m_mergeProgressIndex;
 
     typedef unordered_map<google::protobuf::uint64, IndexEntry> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;
-
-    shared_task<> WaitForCheckpoints(
-        optional<shared_task<>> previousCheckpoint,
-        shared_task<> newCheckpoint
-    );
 
     task<shared_ptr<IIndex>> GetIndexInternal(
         const string& indexName,
@@ -87,10 +87,14 @@ class ProtoStore
     const bool DoReplayPartitions = true;
     const bool DontReplayPartitions = false;
 
-    task<const IndexEntry&> GetIndexInternal(
+    task<const IndexEntry&> GetIndexEntryInternal(
         google::protobuf::uint64 indexNumber,
         bool doReplayPartitions
     );
+
+    virtual task<shared_ptr<IIndex>> GetIndex(
+        google::protobuf::uint64 indexNumber)
+        override;
 
     void MakeIndexesByNumberRow(
         IndexesByNumberKey& indexesByNumberKey,
@@ -110,6 +114,11 @@ class ProtoStore
     task<IndexNumber> AllocateIndexNumber();
 
     task<ExtentNumber> AllocateDataExtent();
+
+    virtual task<> OpenPartitionWriter(
+        ExtentNumber& out_dataExtentNumber,
+        shared_ptr<IPartitionWriter>& out_partitionWriter
+    ) override;
 
     task<> LogCommitDataExtent(
         LogRecord& logRecord,
@@ -172,9 +181,10 @@ class ProtoStore
     task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
         IndexNumber indexNumber);
 
-    task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
+    virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentNumber>& dataExtentNumbers);
+        const vector<ExtentNumber>& dataExtentNumbers)
+        override;
 
     shared_task<OperationResult> InternalExecuteOperation(
         InternalOperationVisitor visitor,
@@ -191,7 +201,14 @@ class ProtoStore
         uint64_t previousWriteSequenceNumber,
         uint64_t thisWriteSequenceNumber);
 
-    shared_task<> InternalCheckpoint();
+    task<> InternalCheckpoint();
+    task<> InternalMerge();
+
+    virtual task<shared_ptr<IIndex>> GetMergeProgressIndex(
+    ) override;
+
+    virtual task<shared_ptr<IIndex>> GetMergesIndex(
+    ) override;
 
     friend class Operation;
 
@@ -232,6 +249,9 @@ public:
     );
 
     virtual task<> Checkpoint(
+    ) override;
+
+    virtual task<> Merge(
     ) override;
 
     virtual task<OperationResult> ExecuteOperation(

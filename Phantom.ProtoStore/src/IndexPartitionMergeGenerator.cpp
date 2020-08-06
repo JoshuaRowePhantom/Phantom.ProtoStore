@@ -17,7 +17,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
 
     for (auto& ongoingMerge : ongoingMerges)
     {
-        for (auto dataExtentNumber : get<1>(ongoingMerge).sourcedataextentnumbers())
+        for (auto dataExtentNumber : ongoingMerge.Value.sourcedataextentnumbers())
         {
             mergingPartitions.insert(
                 dataExtentNumber);
@@ -27,12 +27,12 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
     for (auto& partition : partitions)
     {
         // See if the partition has already been acquired as a merge candidate.
-        if (mergingPartitions.contains(get<0>(partition).dataextentnumber()))
+        if (mergingPartitions.contains(partition.Key.dataextentnumber()))
         {
             continue;
         }
 
-        auto sourceLevel = get<1>(partition).level();
+        auto sourceLevel = partition.Value.level();
         auto& partitionsAtSourceLevel = partitionsBySourceLevel[sourceLevel];
         partitionsAtSourceLevel.push_back(
             partition);
@@ -48,7 +48,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
 
         for (auto& partition : partitionsAtSourceLevel.second)
         {
-            auto mergeUniqueId = get<1>(partition).mergeuniqueid();
+            auto mergeUniqueId = partition.Value.mergeuniqueid();
             if (mergeUniqueId
                 || mergeIds.insert(mergeUniqueId).second)
             {
@@ -62,7 +62,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             MergesKey mergesKey;
             mergesKey.set_indexnumber(indexNumber);
             mergesKey.set_mergesuniqueid(
-                get<0>(partitionsAtSourceLevel.second[0]).dataextentnumber());
+                partitionsAtSourceLevel.second[0].Key.dataextentnumber());
 
             MergesValue mergesValue;
             mergesValue.set_sourcelevelnumber(
@@ -73,12 +73,14 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             for (auto& partition : partitionsAtSourceLevel.second)
             {
                 mergesValue.add_sourcedataextentnumbers(
-                    get<0>(partition).dataextentnumber());
+                    partition.Key.dataextentnumber());
             }
 
-            merges_row_type merge = std::make_tuple(
+            merges_row_type merge =
+            {
                 mergesKey,
-                mergesValue);
+                mergesValue,
+            };
 
             merges.push_back(
                 merge);

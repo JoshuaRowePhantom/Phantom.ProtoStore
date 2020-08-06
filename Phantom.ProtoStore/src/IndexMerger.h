@@ -6,6 +6,7 @@
 #include <cppcoro/async_mutex.hpp>
 #include "AsyncScopeMixin.h"
 #include "src/ProtoStoreInternal.pb.h"
+#include "PartitionWriter.h"
 
 namespace Phantom::ProtoStore
 {
@@ -29,7 +30,6 @@ class IndexMerger
 
     struct IncompleteMerge
     {
-        merge_progress_row_type IncompleteProgress;
         merge_progress_row_list_type CompleteProgress;
         merges_row_type Merge;
     };
@@ -38,6 +38,20 @@ class IndexMerger
 
     task<> RestartIncompleteMerge(
         IncompleteMerge incompleteMerge
+    );
+
+    task<> WriteMergeProgress(
+        IInternalOperation* operation,
+        ExtentNumber dataExtentNumber,
+        const IncompleteMerge& incompleteMerge,
+        const WriteRowsResult& writeRowsResult
+    );
+
+    task<> WriteMergeCompletion(
+        IInternalOperation* operation,
+        ExtentNumber dataExtentNumber,
+        const IncompleteMerge& incompleteMerge,
+        const WriteRowsResult& writeRowsResult
     );
 
 public:

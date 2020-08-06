@@ -72,24 +72,28 @@ class ProtoIndex
 {
     friend class ProtoStore;
     friend class Operation;
-    ProtoStore* m_protoStore;
     IIndex* m_index;
 
-    ProtoIndex(
-        ProtoStore* protoStore,
-        IIndex* index)
-        :
-        m_protoStore(protoStore),
-        m_index(index)
-    {
-    }
 
 public:
     ProtoIndex()
         :
-        m_protoStore(nullptr),
         m_index(nullptr)
     {}
+
+    ProtoIndex(
+        IIndex* index)
+        :
+        m_index(index)
+    {
+    }
+
+    ProtoIndex(
+        shared_ptr<IIndex> index)
+        :
+        m_index(index.get())
+    {
+    }
 
     ProtoStore* ProtoStore() const;
     const IndexName& IndexName() const;
@@ -509,6 +513,7 @@ class IOperationTransaction
     :
     public IOperation
 {
+public:
     virtual task<CommitResult> Commit(
     ) = 0;
 };
@@ -669,6 +674,8 @@ public:
     virtual task<> Checkpoint(
     ) = 0;
 
+    virtual task<> Merge(
+    ) = 0;
 };
 
 class IExtentStore;

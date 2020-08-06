@@ -14,25 +14,43 @@ public:
     ) = 0;
 };
 
-typedef std::function<task<>(Operation*)> InternalOperationVisitor;
+typedef std::function<task<>(IInternalOperation*)> InternalOperationVisitor;
 
 class IInternalProtoStore
     :
     public IProtoStore
 {
 public:
+    virtual task<shared_ptr<IIndex>> GetMergeProgressIndex(
+    ) = 0;
+
+    virtual task<shared_ptr<IIndex>> GetMergesIndex(
+    ) = 0;
+
     virtual task<OperationResult> InternalExecuteOperation(
         const BeginTransactionRequest beginRequest,
         InternalOperationVisitor visitor
-    ) = 0;
-
-    virtual task<ExtentNumber> AllocateDataExtent(
     ) = 0;
 
     virtual task<> LogCommitDataExtent(
         LogRecord& logRecord,
         ExtentNumber extentNumber
     ) = 0;
+
+    virtual task<shared_ptr<IIndex>> GetIndex(
+        google::protobuf::uint64 indexNumber
+    ) = 0;
+
+    virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
+        const shared_ptr<IIndex>& index,
+        const vector<ExtentNumber>& dataExtentNumbers
+    ) = 0;
+
+    virtual task<> OpenPartitionWriter(
+        ExtentNumber& out_dataExtentNumber,
+        shared_ptr<IPartitionWriter>& out_partitionWriter
+    ) = 0;
+
 };
 
 }

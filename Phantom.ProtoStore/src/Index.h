@@ -2,6 +2,7 @@
 
 #include "StandardTypes.h"
 #include "MemoryTable.h"
+#include "PartitionWriter.h"
 
 namespace Phantom::ProtoStore
 {
@@ -43,7 +44,7 @@ public:
     virtual task<> Join(
     ) = 0;
 
-    virtual task<> WriteMemoryTables(
+    virtual task<WriteRowsResult> WriteMemoryTables(
         const shared_ptr<IPartitionWriter>& partitionWriter,
         const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
     ) = 0;

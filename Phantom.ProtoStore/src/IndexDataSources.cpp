@@ -84,7 +84,7 @@ task<LoggedCheckpoint> IndexDataSources::StartCheckpoint()
     co_return loggedCheckpoint;
 }
 
-task<> IndexDataSources::Checkpoint(
+task<WriteRowsResult> IndexDataSources::Checkpoint(
     const LoggedCheckpoint& loggedCheckpoint,
     shared_ptr<IPartitionWriter> partitionWriter)
 {
@@ -104,7 +104,7 @@ task<> IndexDataSources::Checkpoint(
         }
     }
 
-    co_await m_index->WriteMemoryTables(
+    co_return co_await m_index->WriteMemoryTables(
         partitionWriter,
         memoryTablesToCheckpoint);
 }

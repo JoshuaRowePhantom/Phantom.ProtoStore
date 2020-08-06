@@ -137,33 +137,30 @@ message MergesKey {
 	uint64 MergesUniqueId = 2;
 }
 
+message MergeResumeKey {
+	bytes Key = 1;
+	uint64 WriteSequenceNumber = 2;
+}
+
 message MergesValue {
 	repeated uint64 SourceDataExtentNumbers = 1;
 	uint64 SourceLevelNumber = 2;
 	uint64 DestinationLevelNumber = 3;
+
+	// If StartKey is set, then resume the merge at the
+	// given start key.  Otherwise, resume the merge
+	// at the beginning of the key space.
+	oneof MergeResumeKeyType {
+		MergeResumeKey ResumeKey = 4;
+    }
 }
 
-enum MergePartitionStatus {
-	Incomplete = 0;
-	Complete = 1;
-}
-
-// Merge progress is sorted first by Status
-// to make it easy to find incomplete merges.
 message MergeProgressKey {
-	MergePartitionStatus Status = 1;
-	MergesKey MergesKey = 2;
+	MergesKey MergesKey = 1;
+	uint64 DataExtentNumber = 2;
 }
 
 message MergeProgressValue {
-	MergePartitionStatus MergePartitionStatus = 1;
-	
-	// If StartKey is set, then begin the merge at the
-	// given start key.  Otherwise, begin the merge
-	// at the beginning of the key space.
-	oneof MergeProgressValueType {
-		bytes StartKey = 2;
-    }
 }
 
 message MergeParameters {
