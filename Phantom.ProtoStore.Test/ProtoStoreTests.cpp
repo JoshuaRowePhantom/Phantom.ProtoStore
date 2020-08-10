@@ -246,8 +246,8 @@ TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
 {
     run_async([&]() -> task<>
     {
-        //auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
-        auto createRequest = GetCreateMemoryStoreRequest();
+        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
+        //auto createRequest = GetCreateMemoryStoreRequest();
         auto store = co_await CreateStore(createRequest);
 
         auto index = co_await CreateTestIndex(

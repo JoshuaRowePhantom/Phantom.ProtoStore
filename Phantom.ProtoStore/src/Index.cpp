@@ -247,7 +247,9 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
         .Inclusivity = enumerateRequest.KeyLowInclusivity,
     };
 
-    if (!keyLow.Key)
+    if (!keyLow.Key
+        &&
+        enumerateRequest.KeyLow.has_value())
     {
         unpackedKeyLow.reset(
             m_keyFactory->GetPrototype()->New());
@@ -262,7 +264,9 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
         .Inclusivity = enumerateRequest.KeyHighInclusivity,
     };
 
-    if (!keyHigh.Key)
+    if (!keyHigh.Key
+        &&
+        enumerateRequest.KeyHigh.has_value())
     {
         unpackedKeyHigh.reset(
             m_keyFactory->GetPrototype()->New());

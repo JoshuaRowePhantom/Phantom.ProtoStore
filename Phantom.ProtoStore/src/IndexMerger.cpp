@@ -245,7 +245,7 @@ task<> IndexMerger::WriteMergeCompletion(
     auto indexNumber = incompleteMerge.Merge.Key.indexnumber();
     auto mergesIndex = co_await m_protoStore->GetMergesIndex();
     auto mergeProgressIndex = co_await m_protoStore->GetMergeProgressIndex();
-    auto partitionsIndex = co_await m_protoStore->GetMergeProgressIndex();
+    auto partitionsIndex = co_await m_protoStore->GetPartitionsIndex();
 
     // Special case: if the merged index is the Partitions index, we have to write
     // all the partitions for the table.
