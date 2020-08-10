@@ -310,8 +310,21 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
     auto enumeration = m_rowMerger->Merge(
         enumerateAllItemsLambda());
 
+    optional<string> previousKey;
+    string currentKey;
+
     for co_await(auto resultRow : enumeration)
     {
+        resultRow.Key->SerializeToString(
+            &currentKey);
+
+        if (currentKey == previousKey)
+        {
+            continue;
+        }
+
+        previousKey = currentKey;
+
         // Don't return deleted rows.
         if (resultRow.Value == nullptr)
         {
