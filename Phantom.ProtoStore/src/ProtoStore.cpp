@@ -473,11 +473,19 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndex(
 }
 
 task<ReadResult> ProtoStore::Read(
-    ReadRequest& readRequest
+    const ReadRequest& readRequest
 )
 {
     return readRequest.Index.m_index->Read(
         readRequest);
+}
+
+async_generator<EnumerateResult> ProtoStore::Enumerate(
+    const EnumerateRequest& enumerateRequest
+)
+{
+    return enumerateRequest.Index.m_index->Enumerate(
+        enumerateRequest);
 }
 
 class Operation
@@ -624,11 +632,19 @@ public:
     }
 
     virtual task<ReadResult> Read(
-        ReadRequest& readRequest
+        const ReadRequest& readRequest
     ) override
     {
         return m_protoStore.Read(
             readRequest);
+    }
+
+    virtual async_generator<EnumerateResult> Enumerate(
+        const EnumerateRequest& enumerateRequest
+    ) override
+    {
+        return m_protoStore.Enumerate(
+            enumerateRequest);
     }
 
     // Inherited via IOperationTransaction

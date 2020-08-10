@@ -281,7 +281,11 @@ public:
     ) override;
 
     virtual task<ReadResult> Read(
-        ReadRequest& readRequest
+        const ReadRequest& readRequest
+    ) override;
+
+    virtual async_generator<EnumerateResult> Enumerate(
+        const EnumerateRequest& enumerateRequest
     ) override;
 
     virtual task<> Join(

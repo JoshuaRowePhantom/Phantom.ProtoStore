@@ -423,7 +423,11 @@ public:
     ) = 0;
 
     virtual task<ReadResult> Read(
-        ReadRequest& readRequest
+        const ReadRequest& readRequest
+    ) = 0;
+
+    virtual async_generator<EnumerateResult> Enumerate(
+        const EnumerateRequest& enumerateRequest
     ) = 0;
 };
 

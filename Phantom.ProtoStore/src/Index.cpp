@@ -65,9 +65,13 @@ task<CheckpointNumber> Index::AddRow(
         m_keyFactory->GetPrototype()->New());
     key.unpack<>(keyMessage.get());
 
-    unique_ptr<Message> valueMessage(
-        m_valueFactory->GetPrototype()->New());
-    value.unpack<>(valueMessage.get());
+    unique_ptr<Message> valueMessage;
+    if (value)
+    {
+        valueMessage.reset(
+            m_valueFactory->GetPrototype()->New());
+        value.unpack<>(valueMessage.get());
+    }
 
     row.Key = move(keyMessage);
     row.Value = move(valueMessage);
@@ -308,6 +312,12 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
 
     for co_await(auto resultRow : enumeration)
     {
+        // Don't return deleted rows.
+        if (resultRow.Value == nullptr)
+        {
+            continue;
+        }
+
         co_yield EnumerateResult
         {
             .Key = resultRow.Key,

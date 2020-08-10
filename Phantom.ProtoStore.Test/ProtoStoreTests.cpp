@@ -165,6 +165,55 @@ public:
             ASSERT_EQ(expectedSequenceNumber, readResult.WriteSequenceNumber);
         }
     }
+
+    task<vector<row<StringKey, StringValue>>> EnumerateTestRows(
+        const shared_ptr<IProtoStore>& store,
+        ProtoIndex index,
+        optional<string> keyLow,
+        Inclusivity keyLowInclusivity,
+        optional<string> keyHigh,
+        Inclusivity keyHighInclusivity,
+        SequenceNumber readSequenceNumber
+    )
+    {
+        StringKey keyLowStringKey;
+        StringKey keyHighStringKey;
+        if (keyLow)
+        {
+            keyLowStringKey.set_value(*keyLow);
+        }
+        if (keyHigh)
+        {
+            keyHighStringKey.set_value(*keyHigh);
+        }
+
+        EnumerateRequest enumerateRequest;
+        enumerateRequest.KeyLow = keyLow.has_value() ? &keyLowStringKey : nullptr;
+        enumerateRequest.KeyLowInclusivity = keyLowInclusivity;
+        enumerateRequest.KeyHigh = keyHigh.has_value() ? &keyHighStringKey : nullptr;
+        enumerateRequest.KeyHighInclusivity = keyHighInclusivity;
+        enumerateRequest.SequenceNumber = readSequenceNumber;
+        enumerateRequest.Index = index;
+
+        auto enumeration = store->Enumerate(
+            enumerateRequest);
+
+        vector<row<StringKey, StringValue>> result;
+
+        for (auto iterator = co_await enumeration.begin();
+            iterator != enumeration.end();
+            co_await ++iterator)
+        {
+            row<StringKey, StringValue> resultRow;
+            (*iterator).Key.unpack(&resultRow.Key);
+            (*iterator).Value.unpack(&resultRow.Value);
+            resultRow.ReadSequenceNumber = (*iterator).WriteSequenceNumber;
+            resultRow.WriteSequenceNumber = (*iterator).WriteSequenceNumber;
+            result.push_back(resultRow);
+        }
+
+        co_return result;
+    }
 };
 
 TEST_F(ProtoStoreTests, CanCreate_memory_backed_store)
@@ -239,6 +288,53 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
             "testValue1",
             ToSequenceNumber(5),
             ToSequenceNumber(5));
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_read_and_delete_and_enumerate_one_row)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            optional<string>(),
+            ToSequenceNumber(6),
+            ToSequenceNumber(5));
+
+        auto enumerateAtSequenceNumber5 = co_await EnumerateTestRows(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(5));
+
+        auto enumerateAtSequenceNumber6 = co_await EnumerateTestRows(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(6));
+
+        ASSERT_EQ(false , enumerateAtSequenceNumber5.empty());
+        ASSERT_EQ(true, enumerateAtSequenceNumber6.empty());
     });
 }
 
