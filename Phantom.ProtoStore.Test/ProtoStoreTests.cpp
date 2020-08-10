@@ -214,6 +214,38 @@ public:
 
         co_return result;
     }
+
+    task<> AssertEnumeration(
+        const shared_ptr<IProtoStore>& store,
+        ProtoIndex index,
+        optional<string> keyLow,
+        Inclusivity keyLowInclusivity,
+        optional<string> keyHigh,
+        Inclusivity keyHighInclusivity,
+        SequenceNumber readSequenceNumber,
+        map<string, tuple<string, uint64_t>> expectedRows
+    )
+    {
+        auto actualRows = co_await EnumerateTestRows(
+            store,
+            index,
+            keyLow,
+            keyLowInclusivity,
+            keyHigh,
+            keyHighInclusivity,
+            readSequenceNumber);
+
+        for (auto& actualRow : actualRows)
+        {
+            ASSERT_TRUE(expectedRows.contains(actualRow.Key.value()));
+            ASSERT_EQ(get<0>(expectedRows[actualRow.Key.value()]), actualRow.Value.value());
+            ASSERT_EQ(ToSequenceNumber(get<1>(expectedRows[actualRow.Key.value()])), actualRow.WriteSequenceNumber);
+
+            expectedRows.erase(actualRow.Key.value());
+        }
+
+        ASSERT_TRUE(expectedRows.empty());
+    }
 };
 
 TEST_F(ProtoStoreTests, CanCreate_memory_backed_store)
@@ -333,8 +365,194 @@ TEST_F(ProtoStoreTests, Can_read_and_delete_and_enumerate_one_row)
             Inclusivity::Inclusive,
             ToSequenceNumber(6));
 
-        ASSERT_EQ(false , enumerateAtSequenceNumber5.empty());
-        ASSERT_EQ(true, enumerateAtSequenceNumber6.empty());
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(5),
+            {
+                { "testKey1", {"testValue1", 5}},
+            });
+
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(6),
+            {
+            });
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_add)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(5),
+            {
+                { "testKey1", {"testValue1", 5}},
+            });
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        co_await store->Checkpoint();
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(5),
+            {
+                { "testKey1", {"testValue1", 5}},
+            });
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_update)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-2",
+            ToSequenceNumber(6),
+            ToSequenceNumber(5));
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(5),
+            {
+                { "testKey1", {"testValue1", 5}},
+            });
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(6),
+            {
+                { "testKey1", {"testValue1-2", 6}},
+            });
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint_and_update)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        co_await store->Checkpoint();
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-2",
+            ToSequenceNumber(6),
+            ToSequenceNumber(5));
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(5),
+            {
+                { "testKey1", {"testValue1", 5}},
+            });
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(6),
+            {
+                { "testKey1", {"testValue1-2", 6}},
+            });
     });
 }
 
