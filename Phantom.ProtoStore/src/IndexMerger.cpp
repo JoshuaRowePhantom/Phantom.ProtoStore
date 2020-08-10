@@ -28,8 +28,22 @@ IndexMerger::~IndexMerger()
 
 task<> IndexMerger::Merge()
 {
-    while (co_await MergeOneRound())
-    { }
+    co_await GenerateMerges();
+
+    auto incompleteMerges = FindIncompleteMerges();
+    vector<task<>> mergeTasks;
+
+    for (auto incompleteMergeIterator = co_await incompleteMerges.begin();
+        incompleteMergeIterator != incompleteMerges.end();
+        co_await ++incompleteMergeIterator)
+    {
+        mergeTasks.push_back(
+            RestartIncompleteMerge(
+                *incompleteMergeIterator));
+    }
+
+    co_await cppcoro::when_all(
+        move(mergeTasks));
 }
 
 task<> IndexMerger::RestartIncompleteMerge(
@@ -73,86 +87,91 @@ task<> IndexMerger::RestartIncompleteMerge(
         inputSize += co_await partition->GetApproximateDataSize();
     }
 
-    auto rowGenerators = [&]() -> row_generators
+    bool isCompleteMerge;
+
+    do
     {
-        for (auto& partition : partitions)
+        auto rowGenerators = [&]() -> row_generators
         {
-            co_yield partition->Checkpoint(
-                partitionCheckpointStartKey);
-        }
-    };
+            for (auto& partition : partitions)
+            {
+                co_yield partition->Checkpoint(
+                    partitionCheckpointStartKey);
+            }
+        };
 
-    RowMerger rowMerger(
-        index->GetKeyComparer().get());
+        RowMerger rowMerger(
+            index->GetKeyComparer().get());
 
-    auto rowGenerator = rowMerger.Merge(
-        rowGenerators());
+        auto rowGenerator = rowMerger.Merge(
+            rowGenerators());
 
-    ExtentNumber dataExtentNumber;
-    shared_ptr<IPartitionWriter> partitionWriter;
+        ExtentNumber dataExtentNumber;
+        shared_ptr<IPartitionWriter> partitionWriter;
 
-    co_await m_protoStore->OpenPartitionWriter(
-        dataExtentNumber,
-        partitionWriter);
+        co_await m_protoStore->OpenPartitionWriter(
+            dataExtentNumber,
+            partitionWriter);
 
-    WriteRowsRequest writeRowsRequest =
-    {
-        .approximateRowCount = approximateRowCount,
-        .rows = &rowGenerator,
-        .inputSize = inputSize,
-        .targetSize = 1024 * 1024 * 1024,
-    };
-
-    auto writeRowsResult = co_await partitionWriter->WriteRows(
-        writeRowsRequest);
-
-    bool isCompletedMerge = writeRowsResult.resumptionRow == rowGenerator.end();
-
-    optional<cppcoro::async_mutex_lock> updatePartitionsLock;
-    if (isCompletedMerge)
-    {
-        updatePartitionsLock.emplace(
-            co_await m_protoStore->AcquireUpdatePartitionsLock());
-    }
-
-    co_await m_protoStore->InternalExecuteOperation(
-        BeginTransactionRequest{},
-        [&](auto operation) -> task<>
-    {
-        co_await m_protoStore->LogCommitDataExtent(
-            operation->LogRecord(),
-            dataExtentNumber);
-
-        if (!isCompletedMerge)
+        WriteRowsRequest writeRowsRequest =
         {
-            co_await WriteMergeProgress(
-                operation,
-                dataExtentNumber,
-                incompleteMerge,
-                writeRowsResult);
-        }
-        else
-        {
-            co_await WriteMergeCompletion(
-                operation,
-                dataExtentNumber,
-                incompleteMerge,
-                writeRowsResult);
-        }
-    });
+            .approximateRowCount = approximateRowCount,
+            .rows = &rowGenerator,
+            .inputSize = inputSize,
+            .targetSize = 1024 * 1024 * 1024,
+        };
 
-    if (isCompletedMerge)
-    {
-        co_await m_protoStore->UpdatePartitionsForIndex(
-            incompleteMerge.Merge.Key.indexnumber(),
-            *updatePartitionsLock);
-    }
+        auto writeRowsResult = co_await partitionWriter->WriteRows(
+            writeRowsRequest);
+
+        isCompleteMerge = writeRowsResult.resumptionRow == rowGenerator.end();
+
+        if (isCompleteMerge)
+        {
+        }
+
+        co_await m_protoStore->InternalExecuteOperation(
+            BeginTransactionRequest{},
+            [&](auto operation) -> task<>
+        {
+            co_await m_protoStore->LogCommitDataExtent(
+                operation->LogRecord(),
+                dataExtentNumber);
+
+            if (!isCompleteMerge)
+            {
+                co_await WriteMergeProgress(
+                    operation,
+                    dataExtentNumber,
+                    incompleteMerge,
+                    writeRowsResult);
+            }
+            else
+            {
+                auto updatePartitionsLock = co_await m_protoStore->AcquireUpdatePartitionsLock();
+
+                co_await WriteMergeCompletion(
+                    operation,
+                    dataExtentNumber,
+                    incompleteMerge,
+                    writeRowsResult);
+
+                co_await operation->Commit();
+
+                co_await m_protoStore->UpdatePartitionsForIndex(
+                    incompleteMerge.Merge.Key.indexnumber(),
+                    updatePartitionsLock);
+
+                co_await operation->Commit();
+            }
+        });
+    } while (!isCompleteMerge);
 }
 
 task<> IndexMerger::WriteMergeProgress(
     IInternalOperation* operation,
     ExtentNumber dataExtentNumber,
-    const IncompleteMerge& incompleteMerge,
+    IncompleteMerge& incompleteMerge,
     const WriteRowsResult& writeRowsResult
 )
 {
@@ -198,6 +217,17 @@ task<> IndexMerger::WriteMergeProgress(
         &incompleteMerge.Merge.Key,
         &mergesValue
         );
+
+    // Also update the IncompleteMerge with these rows.
+    incompleteMerge.Merge.Value = mergesValue;
+    incompleteMerge.CompleteProgress.push_back(
+        {
+            completeMergeProgressKey,
+            completeMergeProgressValue,
+            SequenceNumber::Latest,
+            SequenceNumber::Latest,
+        }
+    );
 }
 
 task<> IndexMerger::WriteMergeCompletion(
@@ -363,33 +393,6 @@ task<> IndexMerger::WriteMergedPartitionsTableDataExtentNumbers(
     }
 }
 
-task<bool> IndexMerger::MergeOneRound()
-{
-    auto incompleteMerges = FindIncompleteMerges();
-    vector<task<>> mergeTasks;
-
-    for (auto incompleteMergeIterator = co_await incompleteMerges.begin();
-        incompleteMergeIterator != incompleteMerges.end();
-        co_await ++incompleteMergeIterator)
-    {
-        mergeTasks.push_back(
-            RestartIncompleteMerge(
-                *incompleteMergeIterator));
-    }
-
-    co_await cppcoro::when_all(
-        move(mergeTasks));
-
-    if (!mergeTasks.empty())
-    {
-        co_return true;
-    }
-    else
-    {
-        co_return co_await GenerateMerges();
-    }
-}
-
 async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges()
 {
     auto mergesIndex = co_await m_protoStore->GetMergesIndex();
@@ -459,8 +462,101 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
     }
 }
 
-task<bool> IndexMerger::GenerateMerges()
+task<> IndexMerger::GenerateMerges()
 {
-    co_return false;
+    map<IndexNumber, partition_row_list_type> partitionRowsByIndexNumber;
+    map<IndexNumber, merges_row_list_type> mergesRowsByIndexNumber;
+    auto mergesIndex = co_await m_protoStore->GetMergesIndex();
+
+    {
+        auto partitionsIndex = co_await m_protoStore->GetPartitionsIndex();
+
+        EnumerateRequest enumeratePartitionsRequest;
+        enumeratePartitionsRequest.KeyLow = nullptr;
+        enumeratePartitionsRequest.KeyLowInclusivity = Inclusivity::Inclusive;
+        enumeratePartitionsRequest.KeyHigh = nullptr;
+        enumeratePartitionsRequest.KeyHighInclusivity = Inclusivity::Exclusive;
+        enumeratePartitionsRequest.SequenceNumber = SequenceNumber::LatestCommitted;
+        enumeratePartitionsRequest.Index = partitionsIndex;
+
+        auto partitionsEnumeration = partitionsIndex->Enumerate(
+            enumeratePartitionsRequest);
+
+        for (auto partitionsIterator = co_await partitionsEnumeration.begin();
+            partitionsIterator != partitionsEnumeration.end();
+            co_await ++partitionsIterator)
+        {
+            partition_row_type partitionRow;
+            (*partitionsIterator).Key.unpack(
+                &partitionRow.Key);
+            (*partitionsIterator).Value.unpack(
+                &partitionRow.Value);
+            partitionRow.ReadSequenceNumber = (*partitionsIterator).WriteSequenceNumber;
+            partitionRow.WriteSequenceNumber = (*partitionsIterator).WriteSequenceNumber;
+
+            auto indexNumber = partitionRow.Key.indexnumber();
+
+            partitionRowsByIndexNumber[indexNumber].push_back(
+                move(partitionRow));
+        }
+    }
+
+    {
+        EnumerateRequest enumerateMergesRequest;
+        enumerateMergesRequest.KeyLow = nullptr;
+        enumerateMergesRequest.KeyLowInclusivity = Inclusivity::Inclusive;
+        enumerateMergesRequest.KeyHigh = nullptr;
+        enumerateMergesRequest.KeyHighInclusivity = Inclusivity::Exclusive;
+        enumerateMergesRequest.SequenceNumber = SequenceNumber::LatestCommitted;
+        enumerateMergesRequest.Index = mergesIndex;
+
+        auto mergesEnumeration = mergesIndex->Enumerate(
+            enumerateMergesRequest);
+
+        for (auto mergesIterator = co_await mergesEnumeration.begin();
+            mergesIterator != mergesEnumeration.end();
+            co_await ++mergesIterator)
+        {
+            merges_row_type mergesRow;
+            (*mergesIterator).Key.unpack(
+                &mergesRow.Key);
+            (*mergesIterator).Value.unpack(
+                &mergesRow.Value);
+            mergesRow.ReadSequenceNumber = (*mergesIterator).WriteSequenceNumber;
+            mergesRow.WriteSequenceNumber = (*mergesIterator).WriteSequenceNumber;
+
+            auto indexNumber = mergesRow.Key.indexnumber();
+
+            mergesRowsByIndexNumber[indexNumber].push_back(
+                move(mergesRow));
+        }
+    }
+
+    bool result = false;
+
+    for (auto indexNumberAndPartitions : partitionRowsByIndexNumber)
+    {
+        auto indexNumber = indexNumberAndPartitions.first;
+        auto newMerges = m_mergeGenerator->GetMergeCandidates(
+            indexNumber,
+            MergeParameters{},
+            indexNumberAndPartitions.second,
+            mergesRowsByIndexNumber[indexNumber]);
+
+        co_await m_protoStore->InternalExecuteOperation(
+            BeginTransactionRequest{},
+            [&](auto operation) -> task<>
+        {
+            for (auto& newMerge : newMerges)
+            {
+                co_await operation->AddRow(
+                    WriteOperationMetadata{},
+                    mergesIndex,
+                    &newMerge.Key,
+                    &newMerge.Value
+                );
+            }
+        });
+    }
 }
 }

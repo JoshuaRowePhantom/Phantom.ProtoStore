@@ -18,8 +18,7 @@ class IndexMerger
     IInternalProtoStore* const m_protoStore;
     IndexPartitionMergeGenerator* const m_mergeGenerator;
 
-    task<bool> MergeOneRound();
-    task<bool> GenerateMerges();
+    task<> GenerateMerges();
 
     task<merges_row_list_type> AcquireMergeCandidates(
         IOperation* operation);
@@ -39,7 +38,7 @@ class IndexMerger
     task<> WriteMergeProgress(
         IInternalOperation* operation,
         ExtentNumber dataExtentNumber,
-        const IncompleteMerge& incompleteMerge,
+        IncompleteMerge& incompleteMerge,
         const WriteRowsResult& writeRowsResult
     );
 
