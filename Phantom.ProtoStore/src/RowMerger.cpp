@@ -28,10 +28,22 @@ row_generator RowMerger::Merge(
         const ResultRow& row2
         )
     {
-        return m_keyComparer->Compare(
+        auto keyOrdering = m_keyComparer->Compare(
             row1.Key,
             row2.Key
-        ) == std::weak_ordering::less;
+        );
+
+        if (keyOrdering == std::weak_ordering::less)
+        {
+            return true;
+        }
+
+        if (keyOrdering == std::weak_ordering::greater)
+        {
+            return false;
+        }
+
+        return row1.WriteSequenceNumber > row2.WriteSequenceNumber;
     };
 
     auto result = merge_sorted_generators<ResultRow>(

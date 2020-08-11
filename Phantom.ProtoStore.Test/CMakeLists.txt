@@ -32,6 +32,7 @@ add_executable(
 	"MessageStoreTests.cpp"
 	"ProtoStoreTests.cpp"
 	"ProtoValueTests.cpp"
+	"RowMergerTests.cpp"
 	"SchemaTests.cpp"
 	"SkipListTest.cpp"
 	"StandardIncludes.cpp"
