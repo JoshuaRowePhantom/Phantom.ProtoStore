@@ -556,6 +556,60 @@ TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint_and_update)
     });
 }
 
+TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_two_checkpoint_and_update_and_checkpoint)
+{
+    run_async([&]() -> task<>
+    {
+        auto store = co_await CreateMemoryStore();
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1",
+            ToSequenceNumber(5));
+
+        co_await store->Checkpoint();
+
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue1-2",
+            ToSequenceNumber(6),
+            ToSequenceNumber(5));
+
+        co_await store->Checkpoint();
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(5),
+            {
+                { "testKey1", {"testValue1", 5}},
+            });
+
+        co_await AssertEnumeration(
+            store,
+            index,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            optional<string>(),
+            Inclusivity::Inclusive,
+            ToSequenceNumber(6),
+            {
+                { "testKey1", {"testValue1-2", 6}},
+            });
+    });
+}
+
 TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
 {
     run_async([&]() -> task<>
