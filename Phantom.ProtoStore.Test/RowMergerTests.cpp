@@ -17,9 +17,12 @@ protected:
     typedef std::vector<test_row_type> test_row_list_type;
     typedef std::vector<test_row_list_type> test_row_list_list_type;
 
+    typedef std::optional<string> nil;
+
     void DoRowMergerTest(
         test_row_list_list_type sourceTestRows,
-        test_row_list_type expectedMergedTestRows
+        test_row_list_type expectedMergedTestRows,
+        row_generator (RowMerger::*mergeFunction)(row_generators)
     )
     {
         run_async([&]() -> task<>
@@ -64,7 +67,7 @@ protected:
                 }
             };
 
-            auto rowMergerEnumeration = rowMerger.Merge(
+            auto rowMergerEnumeration = (rowMerger.*mergeFunction)(
                 rowSources());
 
             test_row_list_type actualMergedTestRows;
@@ -93,12 +96,14 @@ protected:
 
     void DoRowMergerTestPermutations(
         test_row_list_list_type sourceTestRows,
-        test_row_list_type expectedMergedTestRows
+        test_row_list_type expectedMergedTestRows,
+        row_generator(RowMerger::* mergeFunction)(row_generators)
     )
     {
         DoRowMergerTest(
             sourceTestRows,
-            expectedMergedTestRows
+            expectedMergedTestRows,
+            mergeFunction
         );
 
         std::reverse(
@@ -108,7 +113,8 @@ protected:
 
         DoRowMergerTest(
             sourceTestRows,
-            expectedMergedTestRows);
+            expectedMergedTestRows,
+            mergeFunction);
     }
 };
 
@@ -116,7 +122,8 @@ TEST_F(RowMergerTests, Can_merge_empty)
 {
     DoRowMergerTest(
         {},
-        {}
+        {},
+        &RowMerger::Merge
     );
 }
 
@@ -126,7 +133,8 @@ TEST_F(RowMergerTests, Can_merge_one_empty)
         {
             {},
         },
-        {}
+        {},
+        & RowMerger::Merge
     );
 }
 
@@ -137,7 +145,8 @@ TEST_F(RowMergerTests, Can_merge_two_empty)
             {},
             {},
         },
-        {}
+        {},
+        & RowMerger::Merge
     );
 }
 
@@ -151,7 +160,8 @@ TEST_F(RowMergerTests, Can_merge_one_non_empty)
         },
         {
             {"a","a-v",2},
-        }
+        },
+        & RowMerger::Merge
     );
 }
 
@@ -169,7 +179,8 @@ TEST_F(RowMergerTests, Can_merge_two_sources_different_keys)
         {
             {"a","a-v",2},
             {"b","b-v",2},
-        }
+        },
+        & RowMerger::Merge
         );
 }
 
@@ -187,7 +198,8 @@ TEST_F(RowMergerTests, Can_merge_two_sources_same_key_in_reverse_write_sequence_
         {
             {"a","a-v2",2},
             {"a","a-v1",1},
-        }
+        },
+        & RowMerger::Merge
         );
 }
 
@@ -215,7 +227,40 @@ TEST_F(RowMergerTests, Can_merge_three_sources_one_shorter)
             {"b","b-v1",1},
             {"c","c-v2",2},
             {"c","c-v1",1},
-        }
+        },
+        & RowMerger::Merge
+        );
+}
+
+TEST_F(RowMergerTests, Can_enumerate_three_sources_with_deletes)
+{
+    DoRowMergerTestPermutations(
+        {
+            {
+                {"a","a-v1",1},
+                {"b","b-v2",2},
+                {"d",nil(),2},
+                {"e","e-v3",3},
+                {"e","e-v2",2},
+            },
+            {
+                {"a","a-v2",2},
+                {"b","b-v1",1},
+                {"c","c-v1",1},
+            },
+            {
+                {"c","c-v2",2},
+                {"d","d-v1",1},
+                {"e",nil(),1},
+            }
+        },
+        {
+            {"a","a-v2",2},
+            {"b","b-v2",2},
+            {"c","c-v2",2},
+            {"e","e-v3",3},
+        },
+        & RowMerger::Enumerate
         );
 }
 

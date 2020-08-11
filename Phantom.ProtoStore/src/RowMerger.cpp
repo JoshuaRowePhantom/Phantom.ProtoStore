@@ -59,4 +59,37 @@ row_generator RowMerger::Merge(
     }
 }
 
+row_generator RowMerger::Enumerate(
+    row_generators rowSources
+)
+{
+    auto mergeEnumeration = Merge(
+        move(rowSources));
+
+    optional<string> previousKey;
+    string currentKey;
+
+    for (auto iterator = co_await mergeEnumeration.begin();
+        iterator != mergeEnumeration.end();
+        co_await ++iterator)
+    {
+        (*iterator).Key->SerializeToString(
+            &currentKey
+        );
+
+        if (previousKey == currentKey)
+        {
+            continue;
+        }
+
+        previousKey = move(currentKey);
+
+        if (!(*iterator).Value)
+        {
+            continue;
+        }
+
+        co_yield *iterator;
+    }
+}
 }
