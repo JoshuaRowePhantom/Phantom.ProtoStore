@@ -340,7 +340,7 @@ int Partition::FindMatchingValueIndexByWriteSequenceNumber(
 
     // Otherwise, do a binary search in the remaining items.
     int left = 1;
-    int right = valueSet.values_size() - 1;
+    int right = valueSet.values_size();
 
     while (left < right)
     {
@@ -349,11 +349,11 @@ int Partition::FindMatchingValueIndexByWriteSequenceNumber(
 
         if (writeSequenceNumber > readSequenceNumberInt64)
         {
-            right = middle - 1;
+            left = middle + 1;
         }
         else if (writeSequenceNumber < readSequenceNumberInt64)
         {
-            left = middle + 1;
+            right = middle;
         }
         else
         {
