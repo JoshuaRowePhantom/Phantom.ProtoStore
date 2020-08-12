@@ -85,6 +85,24 @@ task<WriteMessageResult> PartitionWriter::Write(
     co_return co_await Write(message);
 }
 
+static google::protobuf::uint64 GetLowestWriteSequenceNumberForLastChild(
+    const PartitionTreeNode& treeNode
+)
+{
+    auto& lastChild = treeNode.treeentries(treeNode.treeentries_size() - 1);
+    if (lastChild.has_child())
+    {
+        return lastChild.child().lowestwritesequencenumberforkey();
+    }
+    if (lastChild.has_value())
+    {
+        return lastChild.value().writesequencenumber();
+    }
+    return lastChild.valueset().values(
+        lastChild.valueset().values_size() - 1
+    ).writesequencenumber();
+}
+
 task<> PartitionWriter::AddValueToTreeEntry(
     string&& key,
     PartitionTreeEntryValue&& partitionTreeEntryValue)
@@ -142,8 +160,6 @@ task<> PartitionWriter::AddValueToTreeEntry(
             assert(partitionTreeEntryToAdd->PartitionTreeEntryType_case()
                 == PartitionTreeEntry::kValueSet);
 
-            partitionTreeEntryToAdd->set_lowestwritesequencenumber(
-                partitionTreeEntryValue.writesequencenumber());
             *partitionTreeEntryToAdd->mutable_valueset()->add_values() = move(partitionTreeEntryValue);
             // Since we did this at level zero, there's definitely no more work to do on this insertion.
             co_return;
@@ -166,21 +182,18 @@ task<> PartitionWriter::AddValueToTreeEntry(
             break;
         }
 
-
         auto newPartitionTreeEntry = PartitionTreeEntry();
 
         newPartitionTreeEntry.set_key(
             treeNode->treeentries(treeNode->treeentries_size() - 1).key());
-        newPartitionTreeEntry.set_highestwritesequencenumber(
-            treeNode->treeentries(treeNode->treeentries_size() - 1).highestwritesequencenumber());
-        newPartitionTreeEntry.set_lowestwritesequencenumber(
-            treeNode->treeentries(treeNode->treeentries_size() - 1).lowestwritesequencenumber());
+        newPartitionTreeEntry.mutable_child()->set_lowestwritesequencenumberforkey(
+            GetLowestWriteSequenceNumberForLastChild(*treeNode));
 
         // The current tree entry doesn't fit, so we need to flush the tree node.
         auto treeNodeWriteResult = co_await Write(
             move(*treeNode));
 
-        newPartitionTreeEntry.set_treenodeoffset(
+        newPartitionTreeEntry.mutable_child()->set_treenodeoffset(
             treeNodeWriteResult.DataRange.Beginning);
 
         treeNode->Clear();
@@ -204,8 +217,6 @@ task<> PartitionWriter::AddValueToTreeEntry(
 
     // Now we need a place to keep the value.
     m_currentLeafTreeEntry = PartitionTreeEntry();
-    m_currentLeafTreeEntry->set_lowestwritesequencenumber(partitionTreeEntryValue.writesequencenumber());
-    m_currentLeafTreeEntry->set_highestwritesequencenumber(partitionTreeEntryValue.writesequencenumber());
     *m_currentLeafTreeEntry->mutable_key() = move(key);
     *m_currentLeafTreeEntry->mutable_value() = move(partitionTreeEntryValue);
 }
@@ -231,15 +242,13 @@ task<WriteMessageResult> PartitionWriter::WriteLeftoverTreeEntries()
         auto treeNodeEntry = m_treeNodeStack[index + 1].add_treeentries();
         treeNodeEntry->set_key(
             treeNode->treeentries(treeNode->treeentries_size() - 1).key());
-        treeNodeEntry->set_lowestwritesequencenumber(
-            treeNode->treeentries(treeNode->treeentries_size() - 1).lowestwritesequencenumber());
-        treeNodeEntry->set_highestwritesequencenumber(
-            treeNode->treeentries(treeNode->treeentries_size() - 1).highestwritesequencenumber());
+        treeNodeEntry->mutable_child()->set_lowestwritesequencenumberforkey(
+            GetLowestWriteSequenceNumberForLastChild(*treeNode));
 
         auto treeNodeWriteResult = co_await Write(
             move(*treeNode));
 
-        treeNodeEntry->set_treenodeoffset(
+        treeNodeEntry->mutable_child()->set_treenodeoffset(
             treeNodeWriteResult.DataRange.Beginning);
     }
 

@@ -227,13 +227,25 @@ task<int> Partition::FindTreeEntry(
 
         if (keyComparison == std::weak_ordering::equivalent)
         {
-            if (middleTreeNodeEntry.lowestwritesequencenumber() > readSequenceNumberUint64)
+            if (middleTreeNodeEntry.has_child())
             {
-                keyComparison = std::weak_ordering::greater;
+                keyComparison = middleTreeNodeEntry.child().lowestwritesequencenumberforkey() <=> readSequenceNumberUint64;
             }
-            if (middleTreeNodeEntry.highestwritesequencenumber() < readSequenceNumberUint64)
+            else if (middleTreeNodeEntry.has_value())
             {
-                keyComparison = std::weak_ordering::less;
+                keyComparison = middleTreeNodeEntry.value().writesequencenumber() <=> readSequenceNumberUint64;
+            }
+            else
+            {
+                assert(middleTreeNodeEntry.has_valueset());
+                if (middleTreeNodeEntry.valueset().values(middleTreeNodeEntry.valueset().values_size() - 1).writesequencenumber() > readSequenceNumberUint64)
+                {
+                    keyComparison = std::weak_ordering::greater;
+                }
+                else if (middleTreeNodeEntry.valueset().values(0).writesequencenumber() < readSequenceNumberUint64)
+                {
+                    keyComparison = std::weak_ordering::less;
+                }
             }
         }
 
@@ -399,12 +411,12 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         auto key = co_await cacheEntry->GetKey(lowTreeEntryIndex);
         const Message* nextKey;
 
-        if (PartitionTreeEntry::kTreeNodeOffset == treeNodeEntry.PartitionTreeEntryType_case())
+        if (treeNodeEntry.has_child())
         {
             ExtentLocation enumerationLocation =
             {
                 m_dataLocation.extentNumber,
-                treeNodeEntry.treenodeoffset(),
+                treeNodeEntry.child().treenodeoffset(),
             };
 
             auto subTreeEnumerator = Enumerate(

@@ -188,15 +188,21 @@ message PartitionTreeEntryValueSet {
 	repeated PartitionTreeEntryValue Values = 1;
 }
 
+message PartitionTreeEntryChild {
+	// The offset to the PartitionMessage containing a PartitionTreeNode
+	uint64 TreeNodeOffset = 1;
+	// The lowest write sequence number for the given Key that is contained
+	// in the subtree.
+	uint64 LowestWriteSequenceNumberForKey = 2;
+}
+
 message PartitionTreeEntry {
 	// The key for this tree entry,
 	// or the highest key in the subtree owned by this tree entry.
 	bytes Key = 1;
-	uint64 LowestWriteSequenceNumber = 2;
-	uint64 HighestWriteSequenceNumber = 3;
 	oneof PartitionTreeEntryType {
 		// Set if the tree points to a subtree.
-		uint64 TreeNodeOffset = 4;
+		PartitionTreeEntryChild Child = 4;
 		// Set if the tree points to a single value
 		PartitionTreeEntryValue Value = 5;
 		// Set if the tree points to multiple values for the

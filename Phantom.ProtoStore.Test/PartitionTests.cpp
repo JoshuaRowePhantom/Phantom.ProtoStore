@@ -329,7 +329,7 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     });
 }
 
-TEST_F(PartitionTests, Read_expected_row_version_from_multiple_value_single_level_tree)
+TEST_F(PartitionTests, Read_expected_row_version_from_multiple_value_single_level_tree_with_sequence_number_hole)
 {
     run_async([&]()->task<>
     {
@@ -349,7 +349,148 @@ TEST_F(PartitionTests, Read_expected_row_version_from_multiple_value_single_leve
         auto value2 = treeEntry1->mutable_valueset()->add_values();
         value2->set_value(
             ToSerializedStringValue("value2"));
+        value2->set_writesequencenumber(3);
+
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            treeMessageWriteResult,
+            1,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await MakePartition(0);
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            { "key1", "value1", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            { "key1", "value1", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            { "key1", "value2", ToSequenceNumber(3) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(3),
+            { "key1", "value2", ToSequenceNumber(3) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(2),
+            { "key1", nil(), SequenceNumber::Earliest }
+        );
+    });
+}
+
+TEST_F(PartitionTests, Read_expected_row_version_from_multiple_value_single_level_tree_with_consecutive_sequence_numbers)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1"));
+
+        auto value1 = treeEntry1->mutable_valueset()->add_values();
+        value1->set_value(
+            ToSerializedStringValue("value1"));
+        value1->set_writesequencenumber(5);
+
+        auto value2 = treeEntry1->mutable_valueset()->add_values();
+        value2->set_value(
+            ToSerializedStringValue("value2"));
         value2->set_writesequencenumber(4);
+
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            treeMessageWriteResult,
+            1,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await MakePartition(0);
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            { "key1", "value1", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            { "key1", "value1", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            { "key1", "value2", ToSequenceNumber(4) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(3),
+            { "key1", nil(), SequenceNumber::Earliest }
+        );
+    });
+}
+
+TEST_F(PartitionTests, Read_expected_row_version_from_multiple_tree_entries_single_level_tree_consecutive_sequence_numbers)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry1->mutable_value()->set_value(
+            ToSerializedStringValue("value1"));
+        treeEntry1->mutable_value()->set_writesequencenumber(5);
+        
+        auto treeEntry2 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry2->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry2->mutable_value()->set_value(
+            ToSerializedStringValue("value2"));
+        treeEntry2->mutable_value()->set_writesequencenumber(4);
 
         auto treeMessageWriteResult = co_await dataWriter->Write(
             treeMessage,
