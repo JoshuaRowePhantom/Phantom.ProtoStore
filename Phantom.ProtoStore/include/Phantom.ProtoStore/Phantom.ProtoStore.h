@@ -691,6 +691,7 @@ struct Schedulers
     std::shared_ptr<IScheduler> ComputeScheduler;
 
     static Schedulers Default();
+    static Schedulers Inline();
 };
 
 struct OpenProtoStoreRequest
