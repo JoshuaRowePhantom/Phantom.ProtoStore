@@ -454,44 +454,50 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 }
             }
 
-            if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
+            // treeEntryValue is null if the node matched, but the read sequence number was earlier than any
+            // value in the tree node.
+            if (treeEntryValue != nullptr)
             {
-                PartitionMessage message;
-                co_await m_dataMessageAccessor->ReadMessage(
-                    {
-                        .extentNumber = m_dataLocation.extentNumber,
-                        .extentOffset = treeEntryValue->valueoffset(),
-                    },
-                    message);
-                
-                assert(message.PartitionMessageType_case() == PartitionMessage::kValue);
+                // The node matched, and we should have a value to return.
+                if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
+                {
+                    PartitionMessage message;
+                    co_await m_dataMessageAccessor->ReadMessage(
+                        {
+                            .extentNumber = m_dataLocation.extentNumber,
+                            .extentOffset = treeEntryValue->valueoffset(),
+                        },
+                        message);
 
-                value.reset(m_valueFactory->GetPrototype()->New());
-                value->ParseFromString(
-                    message.value());
-            }
-            else if (readValueDisposition == ReadValueDisposition::DontReadValue)
-            {
-                value.reset();
-            } 
-            else if (PartitionTreeEntryValue::kValue == treeEntryValue->PartitionTreeEntryValue_case())
-            {
-                value.reset(m_valueFactory->GetPrototype()->New());
-                value->ParseFromString(
-                    treeEntryValue->value());
-            }
-            else 
-            {
-                assert(PartitionTreeEntryValue::kDeleted == treeEntryValue->PartitionTreeEntryValue_case());
-                value.reset();
-            }
+                    assert(message.PartitionMessageType_case() == PartitionMessage::kValue);
 
-            co_yield ResultRow
-            {
-                .Key = key,
-                .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->writesequencenumber()),
-                .Value = value.get(),
-            };
+                    value.reset(m_valueFactory->GetPrototype()->New());
+                    value->ParseFromString(
+                        message.value());
+                }
+                else if (readValueDisposition == ReadValueDisposition::DontReadValue)
+                {
+                    value.reset();
+                }
+                else if (PartitionTreeEntryValue::kValue == treeEntryValue->PartitionTreeEntryValue_case())
+                {
+                    value.reset(m_valueFactory->GetPrototype()->New());
+                    value->ParseFromString(
+                        treeEntryValue->value());
+                }
+                else
+                {
+                    assert(PartitionTreeEntryValue::kDeleted == treeEntryValue->PartitionTreeEntryValue_case());
+                    value.reset();
+                }
+
+                co_yield ResultRow
+                {
+                    .Key = key,
+                    .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->writesequencenumber()),
+                    .Value = value.get(),
+                };
+            }
 
             nextKey = key;
         }

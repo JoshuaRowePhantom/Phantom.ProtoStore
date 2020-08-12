@@ -222,8 +222,22 @@ TEST_F(PartitionTests, Can_read_expected_row_version_from_single_level_tree)
         co_await AssertReadResult(
             partition,
             "key1",
+            ToSequenceNumber(6),
+            { "key1", "value1", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
             ToSequenceNumber(5),
             { "key1", "value1", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            { "key1", nil(), SequenceNumber::Earliest }
         );
     });
 }
