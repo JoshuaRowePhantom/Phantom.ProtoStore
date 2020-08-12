@@ -433,6 +433,10 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             if (treeNodeEntry.has_value())
             {
                 treeEntryValue = &treeNodeEntry.value();
+                if (treeEntryValue->writesequencenumber() > ToUint64(readSequenceNumber))
+                {
+                    treeEntryValue = nullptr;
+                }
             }
             else
             {
@@ -440,7 +444,14 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                     treeNodeEntry.valueset(),
                     readSequenceNumber);
 
-                treeEntryValue = &treeNodeEntry.valueset().values(valueIndex);
+                if (valueIndex < treeNodeEntry.valueset().values_size())
+                {
+                    treeEntryValue = &treeNodeEntry.valueset().values(valueIndex);
+                }
+                else
+                {
+                    treeEntryValue = nullptr;
+                }
             }
 
             if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())

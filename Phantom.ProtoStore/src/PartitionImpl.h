@@ -91,7 +91,7 @@ public:
         shared_ptr<IMessageFactory> keyFactory,
         shared_ptr<IMessageFactory> valueFactory,
         shared_ptr<IRandomMessageAccessor> dataHeaderMessageAccessor,
-        shared_ptr<IRandomMessageAccessor> dataMessage,
+        shared_ptr<IRandomMessageAccessor> dataMessageAccessor,
         ExtentLocation headerLocation,
         ExtentLocation dataLocation
     );

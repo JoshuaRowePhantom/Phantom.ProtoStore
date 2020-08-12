@@ -30,6 +30,7 @@ add_executable(
 	"MemoryMappedFileExtentStoreTests.cpp"
 	"MemoryTableTests.cpp"
 	"MessageStoreTests.cpp"
+	"PartitionTests.cpp"
 	"ProtoStoreTests.cpp"
 	"ProtoValueTests.cpp"
 	"RowMergerTests.cpp"
