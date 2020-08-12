@@ -190,7 +190,7 @@ protected:
     shared_ptr<IMessageFactory> valueFactory;
 };
 
-TEST_F(PartitionTests, Can_read_expected_row_version_from_single_value_single_level_tree)
+TEST_F(PartitionTests, Read_expected_row_version_from_single_value_single_level_tree)
 {
     run_async([&]()->task<>
     {
@@ -242,7 +242,94 @@ TEST_F(PartitionTests, Can_read_expected_row_version_from_single_value_single_le
     });
 }
 
-TEST_F(PartitionTests, Can_read_expected_row_version_from_multiple_value_single_level_tree)
+TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
+{
+    run_async([&]()->task<>
+    {
+        // This test writes a valid tree structure that _should_ find the message,
+        // but a bloom filter that never hits.  Read() should therefore not find the message.
+
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry1->mutable_value()->set_value(
+            ToSerializedStringValue("value1"));
+        treeEntry1->mutable_value()->set_writesequencenumber(5);
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage bloomFilterMessage;
+        
+        using namespace std::string_literals;
+        bloomFilterMessage.mutable_partitionbloomfilter()->set_filter("\x0"s);
+        // Uncomment this next line to see that the test fails.
+        //bloomFilterMessage.mutable_partitionbloomfilter()->set_filter("\xff");
+
+        bloomFilterMessage.mutable_partitionbloomfilter()->set_algorithm(PartitionBloomFilterHashAlgorithm::Version1);
+        bloomFilterMessage.mutable_partitionbloomfilter()->set_hashfunctioncount(1);
+
+        auto bloomFilterWriteResult = co_await dataWriter->Write(
+            bloomFilterMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage partitionRootMessage;
+        auto partitionRoot = partitionRootMessage.mutable_partitionroot();
+        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult.DataRange.Beginning);
+        partitionRoot->set_roottreenodeoffset(treeMessageWriteResult.DataRange.Beginning);
+        partitionRoot->set_rowcount(0);
+        partitionRoot->set_earliestsequencenumber(
+            5);
+        partitionRoot->set_latestsequencenumber(
+            5);
+
+        auto partitionRootWriteResult = co_await dataWriter->Write(
+            partitionRootMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage partitionHeaderMessage;
+        auto partitionHeader = partitionHeaderMessage.mutable_partitionheader();
+        partitionHeader->set_partitionrootoffset(partitionRootWriteResult.DataRange.Beginning);
+
+        co_await dataWriter->Write(
+            partitionHeaderMessage,
+            FlushBehavior::Flush);
+
+        co_await headerWriter->Write(
+            partitionHeaderMessage,
+            FlushBehavior::Flush);
+
+        auto partition = co_await MakePartition(0);
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            { "key1", nil(), SequenceNumber::Earliest }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            { "key1", nil(), SequenceNumber::Earliest }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            { "key1", nil(), SequenceNumber::Earliest }
+        );
+    });
+}
+
+TEST_F(PartitionTests, Read_expected_row_version_from_multiple_value_single_level_tree)
 {
     run_async([&]()->task<>
     {
