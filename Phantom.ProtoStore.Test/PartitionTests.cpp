@@ -178,6 +178,25 @@ protected:
         ASSERT_EQ(enumeration.end(), iterator);
     }
 
+    typedef optional<SequenceNumber> noWriteConflict;
+
+    task<> AssertCheckForWriteConflictResult(
+        const shared_ptr<Partition>& partition,
+        string key,
+        SequenceNumber readSequenceNumber,
+        optional<SequenceNumber> expectedResult)
+    {
+        StringKey keyMessage;
+        keyMessage.set_value(key);
+
+        auto actualResult = co_await partition->CheckForWriteConflict(
+            readSequenceNumber,
+            &keyMessage
+        );
+
+        ASSERT_EQ(actualResult, expectedResult);
+    }
+
     shared_ptr<KeyComparer> keyComparer;
     shared_ptr<MemoryExtentStore> dataMemoryExtentStore;
     shared_ptr<MessageStore> dataMessageStore;
@@ -691,6 +710,511 @@ TEST_F(PartitionTests, Read_expected_row_version_from_multiple_level_tree_not_in
             "a",
             ToSequenceNumber(4),
             { "a", nil(), SequenceNumber::Earliest }
+        );
+    });
+}
+
+TEST_F(PartitionTests, CheckForWriteConflict_expected_row_version_from_single_value_single_level_tree)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry1->mutable_value()->set_value(
+            ToSerializedStringValue("value1"));
+        treeEntry1->mutable_value()->set_writesequencenumber(5);
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            treeMessageWriteResult,
+            1,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            ToSequenceNumber(5)
+        );
+    });
+}
+
+TEST_F(PartitionTests, CheckForWriteConflict_can_skip_from_bloom_filter)
+{
+    run_async([&]()->task<>
+    {
+        // This test writes a valid tree structure that _should_ find the message,
+        // but a bloom filter that never hits.  CheckForWriteConflict() should therefore not find the message.
+
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry1->mutable_value()->set_value(
+            ToSerializedStringValue("value1"));
+        treeEntry1->mutable_value()->set_writesequencenumber(5);
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage bloomFilterMessage;
+
+        using namespace std::string_literals;
+        bloomFilterMessage.mutable_partitionbloomfilter()->set_filter("\x0"s);
+        // Uncomment this next line to see that the test fails.
+        //bloomFilterMessage.mutable_partitionbloomfilter()->set_filter("\xff");
+
+        bloomFilterMessage.mutable_partitionbloomfilter()->set_algorithm(PartitionBloomFilterHashAlgorithm::Version1);
+        bloomFilterMessage.mutable_partitionbloomfilter()->set_hashfunctioncount(1);
+
+        auto bloomFilterWriteResult = co_await dataWriter->Write(
+            bloomFilterMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage partitionRootMessage;
+        auto partitionRoot = partitionRootMessage.mutable_partitionroot();
+        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult.DataRange.Beginning);
+        partitionRoot->set_roottreenodeoffset(treeMessageWriteResult.DataRange.Beginning);
+        partitionRoot->set_rowcount(0);
+        partitionRoot->set_earliestsequencenumber(
+            5);
+        partitionRoot->set_latestsequencenumber(
+            5);
+
+        auto partitionRootWriteResult = co_await dataWriter->Write(
+            partitionRootMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage partitionHeaderMessage;
+        auto partitionHeader = partitionHeaderMessage.mutable_partitionheader();
+        partitionHeader->set_partitionrootoffset(partitionRootWriteResult.DataRange.Beginning);
+
+        co_await dataWriter->Write(
+            partitionHeaderMessage,
+            FlushBehavior::Flush);
+
+        co_await headerWriter->Write(
+            partitionHeaderMessage,
+            FlushBehavior::Flush);
+
+        auto partition = co_await OpenPartition(0);
+        // The partition should fail an integrity check because
+        // there is a key not present in the bloom filter.
+        auto integrityCheckResults = co_await partition->CheckIntegrity(
+            IntegrityCheckError{});
+        ASSERT_EQ(1, integrityCheckResults.size());
+        ASSERT_EQ(IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter, integrityCheckResults[0].Code);
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            noWriteConflict()
+        );
+    });
+}
+
+TEST_F(PartitionTests, CheckForWriteConflict_expected_row_version_from_multiple_value_single_level_tree_with_sequence_number_hole)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1"));
+
+        auto value1 = treeEntry1->mutable_valueset()->add_values();
+        value1->set_value(
+            ToSerializedStringValue("value1"));
+        value1->set_writesequencenumber(5);
+
+        auto value2 = treeEntry1->mutable_valueset()->add_values();
+        value2->set_value(
+            ToSerializedStringValue("value2"));
+        value2->set_writesequencenumber(3);
+
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            treeMessageWriteResult,
+            1,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(3),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(2),
+            ToSequenceNumber(5)
+        );
+    });
+}
+
+TEST_F(PartitionTests, CheckForWriteConflict_expected_row_version_from_multiple_value_single_level_tree_with_consecutive_sequence_numbers)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1"));
+
+        auto value1 = treeEntry1->mutable_valueset()->add_values();
+        value1->set_value(
+            ToSerializedStringValue("value1"));
+        value1->set_writesequencenumber(5);
+
+        auto value2 = treeEntry1->mutable_valueset()->add_values();
+        value2->set_value(
+            ToSerializedStringValue("value2"));
+        value2->set_writesequencenumber(4);
+
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            treeMessageWriteResult,
+            1,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(3),
+            ToSequenceNumber(5)
+        );
+    });
+}
+
+TEST_F(PartitionTests, CheckForWriteConflict_expected_row_version_from_multiple_tree_entries_single_level_tree_consecutive_sequence_numbers)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry1->mutable_value()->set_value(
+            ToSerializedStringValue("value1"));
+        treeEntry1->mutable_value()->set_writesequencenumber(5);
+
+        auto treeEntry2 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry2->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry2->mutable_value()->set_value(
+            ToSerializedStringValue("value2"));
+        treeEntry2->mutable_value()->set_writesequencenumber(4);
+
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            treeMessageWriteResult,
+            1,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(3),
+            ToSequenceNumber(5)
+        );
+    });
+}
+
+TEST_F(PartitionTests, CheckForWriteConflict_expected_row_version_from_multiple_tree_entries_single_level_tree_sequence_number_hole)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage treeMessage;
+        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry1->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry1->mutable_value()->set_value(
+            ToSerializedStringValue("value1"));
+        treeEntry1->mutable_value()->set_writesequencenumber(5);
+
+        auto treeEntry2 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        treeEntry2->set_key(
+            ToSerializedStringKey("key1")
+        );
+        treeEntry2->mutable_value()->set_value(
+            ToSerializedStringValue("value2"));
+        treeEntry2->mutable_value()->set_writesequencenumber(3);
+
+        auto treeMessageWriteResult = co_await dataWriter->Write(
+            treeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            treeMessageWriteResult,
+            1,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(6),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(4),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(3),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "key1",
+            ToSequenceNumber(2),
+            ToSequenceNumber(5)
+        );
+    });
+}
+
+TEST_F(PartitionTests, CheckForWriteConflict_expected_row_version_from_multiple_level_tree_not_in_root_at_first_in_children)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage level0TreeMessage;
+        auto level0entry0 = level0TreeMessage.mutable_partitiontreenode()->add_treeentries();
+        level0entry0->set_key(ToSerializedStringKey("a"));
+        level0entry0->mutable_value()->set_value(ToSerializedStringValue("a-value"));
+        level0entry0->mutable_value()->set_writesequencenumber(5);
+
+        auto level0entry1 = level0TreeMessage.mutable_partitiontreenode()->add_treeentries();
+        level0entry1->set_key(ToSerializedStringKey("b"));
+        level0entry1->mutable_value()->set_value(ToSerializedStringValue("b-value"));
+        level0entry1->mutable_value()->set_writesequencenumber(5);
+
+        auto level0TreeMessageWriteResult = co_await dataWriter->Write(
+            level0TreeMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage level1TreeMessage;
+        level1TreeMessage.mutable_partitiontreenode()->set_level(1);
+        auto level1entry0 = level1TreeMessage.mutable_partitiontreenode()->add_treeentries();
+        level1entry0->set_key(ToSerializedStringKey("b"));
+        level1entry0->mutable_child()->set_lowestwritesequencenumberforkey(5);
+        level1entry0->mutable_child()->set_treenodeoffset(level0TreeMessageWriteResult.DataRange.Beginning);
+
+        auto level1TreeMessageWriteResult = co_await dataWriter->Write(
+            level1TreeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            level1TreeMessageWriteResult,
+            2,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "a",
+            ToSequenceNumber(6),
+            noWriteConflict()
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "a",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5)
+        );
+
+        co_await AssertCheckForWriteConflictResult(
+            partition,
+            "a",
+            ToSequenceNumber(4),
+            ToSequenceNumber(5)
         );
     });
 }

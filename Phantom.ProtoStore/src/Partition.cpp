@@ -556,7 +556,7 @@ task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
         iterator != generator.end();
         co_await ++iterator)
     {
-        if ((*iterator).WriteSequenceNumber > readSequenceNumber)
+        if ((*iterator).WriteSequenceNumber >= readSequenceNumber)
         {
             co_return (*iterator).WriteSequenceNumber;
         }
