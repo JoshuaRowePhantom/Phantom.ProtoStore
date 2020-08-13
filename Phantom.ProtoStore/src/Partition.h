@@ -45,5 +45,9 @@ public:
         SequenceNumber readSequenceNumber,
         const Message* key
     ) = 0;
+
+    virtual task<IntegrityCheckErrorList> CheckIntegrity(
+        const IntegrityCheckError& errorPrototype
+    ) = 0;
 };
 }

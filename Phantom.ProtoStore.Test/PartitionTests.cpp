@@ -39,15 +39,15 @@ protected:
             valueMessageDescription);
 
         dataMemoryExtentStore = make_shared<MemoryExtentStore>(
-            Schedulers::Default());
+            Schedulers::Inline());
         dataHeaderMemoryExtentStore = make_shared<MemoryExtentStore>(
-            Schedulers::Default());
+            Schedulers::Inline());
 
         dataMessageStore = make_shared<MessageStore>(
-            Schedulers::Default(),
+            Schedulers::Inline(),
             dataMemoryExtentStore);
         dataHeaderMessageStore = make_shared<MessageStore>(
-            Schedulers::Default(),
+            Schedulers::Inline(),
             dataHeaderMemoryExtentStore);
 
         dataMessageAccessor = make_shared<RandomMessageAccessor>(
@@ -125,7 +125,7 @@ protected:
             FlushBehavior::Flush);
     }
 
-    task<shared_ptr<Partition>> MakePartition(
+    task<shared_ptr<Partition>> OpenPartition(
         ExtentNumber extentNumber)
     {
         auto partition = make_shared<Partition>(
@@ -139,7 +139,7 @@ protected:
         );
 
         co_await partition->Open();
-
+        
         co_return partition;
     }
 
@@ -217,7 +217,9 @@ TEST_F(PartitionTests, Read_expected_row_version_from_single_value_single_level_
             dataWriter,
             headerWriter);
 
-        auto partition = co_await MakePartition(0);
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
 
         co_await AssertReadResult(
             partition,
@@ -304,7 +306,13 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
             partitionHeaderMessage,
             FlushBehavior::Flush);
 
-        auto partition = co_await MakePartition(0);
+        auto partition = co_await OpenPartition(0);
+        // The partition should fail an integrity check because
+        // there is a key not present in the bloom filter.
+        auto integrityCheckResults = co_await partition->CheckIntegrity(
+            IntegrityCheckError{});
+        ASSERT_EQ(1, integrityCheckResults.size());
+        ASSERT_EQ(IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter, integrityCheckResults[0].Code);
 
         co_await AssertReadResult(
             partition,
@@ -363,7 +371,9 @@ TEST_F(PartitionTests, Read_expected_row_version_from_multiple_value_single_leve
             dataWriter,
             headerWriter);
 
-        auto partition = co_await MakePartition(0);
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
 
         co_await AssertReadResult(
             partition,
@@ -436,7 +446,9 @@ TEST_F(PartitionTests, Read_expected_row_version_from_multiple_value_single_leve
             dataWriter,
             headerWriter);
 
-        auto partition = co_await MakePartition(0);
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
 
         co_await AssertReadResult(
             partition,
@@ -504,7 +516,9 @@ TEST_F(PartitionTests, Read_expected_row_version_from_multiple_tree_entries_sing
             dataWriter,
             headerWriter);
 
-        auto partition = co_await MakePartition(0);
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
 
         co_await AssertReadResult(
             partition,
@@ -572,7 +586,9 @@ TEST_F(PartitionTests, Read_expected_row_version_from_multiple_tree_entries_sing
             dataWriter,
             headerWriter);
 
-        auto partition = co_await MakePartition(0);
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
 
         co_await AssertReadResult(
             partition,
@@ -611,4 +627,71 @@ TEST_F(PartitionTests, Read_expected_row_version_from_multiple_tree_entries_sing
     });
 }
 
+TEST_F(PartitionTests, Read_expected_row_version_from_multiple_level_tree_not_in_root_at_first_in_children)
+{
+    run_async([&]()->task<>
+    {
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+
+        PartitionMessage level0TreeMessage;
+        auto level0entry0 = level0TreeMessage.mutable_partitiontreenode()->add_treeentries();
+        level0entry0->set_key(ToSerializedStringKey("a"));
+        level0entry0->mutable_value()->set_value(ToSerializedStringValue("a-value"));
+        level0entry0->mutable_value()->set_writesequencenumber(5);
+
+        auto level0entry1 = level0TreeMessage.mutable_partitiontreenode()->add_treeentries();
+        level0entry1->set_key(ToSerializedStringKey("b"));
+        level0entry1->mutable_value()->set_value(ToSerializedStringValue("b-value"));
+        level0entry1->mutable_value()->set_writesequencenumber(5);
+
+        auto level0TreeMessageWriteResult = co_await dataWriter->Write(
+            level0TreeMessage,
+            FlushBehavior::Flush);
+
+        PartitionMessage level1TreeMessage;
+        level1TreeMessage.mutable_partitiontreenode()->set_level(1);
+        auto level1entry0 = level1TreeMessage.mutable_partitiontreenode()->add_treeentries();
+        level1entry0->set_key(ToSerializedStringKey("b"));
+        level1entry0->mutable_child()->set_lowestwritesequencenumberforkey(5);
+        level1entry0->mutable_child()->set_treenodeoffset(level0TreeMessageWriteResult.DataRange.Beginning);
+
+        auto level1TreeMessageWriteResult = co_await dataWriter->Write(
+            level1TreeMessage,
+            FlushBehavior::Flush);
+
+        co_await WriteBloomFilterAndRootAndHeader(
+            level1TreeMessageWriteResult,
+            2,
+            ToSequenceNumber(5),
+            ToSequenceNumber(5),
+            dataWriter,
+            headerWriter);
+
+        auto partition = co_await OpenPartition(0);
+        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
+        ASSERT_EQ(0, errorList.size());
+
+        co_await AssertReadResult(
+            partition,
+            "a",
+            ToSequenceNumber(6),
+            { "a", "a-value", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "a",
+            ToSequenceNumber(5),
+            { "a", "a-value", ToSequenceNumber(5) }
+        );
+
+        co_await AssertReadResult(
+            partition,
+            "a",
+            ToSequenceNumber(4),
+            { "a", nil(), SequenceNumber::Earliest }
+        );
+    });
+}
 }

@@ -483,24 +483,24 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
                     assert(message.PartitionMessageType_case() == PartitionMessage::kValue);
 
-                    value.reset(m_valueFactory->GetPrototype()->New());
-                    value->ParseFromString(
-                        message.value());
+value.reset(m_valueFactory->GetPrototype()->New());
+value->ParseFromString(
+    message.value());
                 }
                 else if (readValueDisposition == ReadValueDisposition::DontReadValue)
                 {
-                    value.reset();
+                value.reset();
                 }
                 else if (PartitionTreeEntryValue::kValue == treeEntryValue->PartitionTreeEntryValue_case())
                 {
-                    value.reset(m_valueFactory->GetPrototype()->New());
-                    value->ParseFromString(
-                        treeEntryValue->value());
+                value.reset(m_valueFactory->GetPrototype()->New());
+                value->ParseFromString(
+                    treeEntryValue->value());
                 }
                 else
                 {
-                    assert(PartitionTreeEntryValue::kDeleted == treeEntryValue->PartitionTreeEntryValue_case());
-                    value.reset();
+                assert(PartitionTreeEntryValue::kDeleted == treeEntryValue->PartitionTreeEntryValue_case());
+                value.reset();
                 }
 
                 co_yield ResultRow
@@ -565,4 +565,283 @@ task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
 
     co_return optional<SequenceNumber>();
 }
+
+task<> Partition::CheckTreeNodeIntegrity(
+    IntegrityCheckErrorList& errorList,
+    const IntegrityCheckError& errorPrototype,
+    ExtentLocation treeNodeLocation,
+    const Message* precedingKey,
+    SequenceNumber precedingSequenceNumber,
+    const Message* maxKey,
+    SequenceNumber lowestSequenceNumberForMaxKey)
+{
+    PartitionMessage treeNodeMessage;
+    co_await m_dataMessageAccessor->ReadMessage(
+        treeNodeLocation,
+        treeNodeMessage
+    );
+
+    if (!treeNodeMessage.has_partitiontreenode())
+    {
+        auto error = errorPrototype;
+        error.Code = IntegrityCheckErrorCode::Partition_MissingTreeNode;
+        error.Location = treeNodeLocation;
+        errorList.push_back(error);
+        co_return;
+    }
+
+    const Message* precedingKeyForChild = precedingKey;
+    SequenceNumber precedingSequenceNumberForChild = precedingSequenceNumber;
+    unique_ptr<Message> localPrecedingKeyForChild;
+
+    for (auto index = 0;
+        index < treeNodeMessage.partitiontreenode().treeentries_size();
+        index++)
+    {
+        auto treeEntryErrorPrototype = errorPrototype;
+        treeEntryErrorPrototype.Location = treeNodeLocation;
+        treeEntryErrorPrototype.TreeNodeEntryIndex = index;
+        treeEntryErrorPrototype.Key = treeNodeMessage.partitiontreenode().treeentries(index).key();
+
+        co_await CheckChildTreeEntryIntegrity(
+            errorList,
+            treeEntryErrorPrototype,
+            treeNodeMessage.partitiontreenode(),
+            index,
+            precedingKeyForChild,
+            precedingSequenceNumber,
+            maxKey,
+            lowestSequenceNumberForMaxKey);
+
+        localPrecedingKeyForChild.reset(
+            m_keyFactory->GetPrototype()->New());
+
+        auto& treeEntry = treeNodeMessage.partitiontreenode().treeentries(index);
+
+        localPrecedingKeyForChild->ParseFromString(
+            treeEntry.key());
+        precedingKeyForChild = localPrecedingKeyForChild.get();
+
+        if (treeEntry.has_child())
+        {
+            precedingSequenceNumberForChild = ToSequenceNumber(
+                treeEntry.child().lowestwritesequencenumberforkey());
+        }
+        else if (treeEntry.has_value())
+        {
+            precedingSequenceNumberForChild = ToSequenceNumber(
+                treeEntry.value().writesequencenumber());
+        }
+        else if (treeEntry.has_valueset())
+        {
+            if (treeEntry.valueset().values_size() < 2)
+            {
+                auto error = treeEntryErrorPrototype;
+                error.Code = IntegrityCheckErrorCode::Partition_ValueSetTooSmall;
+                errorList.push_back(error);
+            }
+
+            if (treeEntry.valueset().values_size() > 0)
+            {
+                precedingSequenceNumberForChild = ToSequenceNumber(
+                    treeEntry.valueset().values(treeEntry.valueset().values_size() - 1).writesequencenumber());
+            }
+        }
+        else
+        {
+            auto error = treeEntryErrorPrototype;
+            error.Code = IntegrityCheckErrorCode::Partition_NoContentInTreeEntry;
+            errorList.push_back(error);
+        }
+    }
+}
+
+task<> Partition::CheckChildTreeEntryIntegrity(
+    IntegrityCheckErrorList& errorList,
+    const IntegrityCheckError& errorPrototype,
+    const PartitionTreeNode& parent,
+    size_t treeEntryIndex,
+    const Message* precedingKey,
+    SequenceNumber precedingSequenceNumber,
+    const Message* maxKey,
+    SequenceNumber lowestSequenceNumberForMaxKey)
+{
+    const PartitionTreeEntry& treeEntry = parent.treeentries(treeEntryIndex);
+
+    unique_ptr<Message> keyMessage(
+        m_keyFactory->GetPrototype()->New());
+    keyMessage->ParseFromString(
+        treeEntry.key());
+
+    if (!m_bloomFilter->test(
+        treeEntry.key()))
+    {
+        auto error = errorPrototype;
+        error.Code = IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter;
+        errorList.push_back(error);
+    }
+
+    auto keyComparisonResult = std::weak_ordering::less;
+    
+    if (precedingKey)
+    {
+        keyComparisonResult = m_keyComparer->Compare(
+            precedingKey,
+            keyMessage.get());
+    }
+
+    if (keyComparisonResult == std::weak_ordering::greater)
+    {
+        auto error = errorPrototype;
+        error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderKey;
+        errorList.push_back(error);
+    }
+
+    if (maxKey)
+    {
+        auto maxKeyComparisonResult = m_keyComparer->Compare(
+            keyMessage.get(),
+            maxKey);
+
+        if (maxKeyComparisonResult == std::weak_ordering::greater)
+        {
+            auto error = errorPrototype;
+            error.Code = IntegrityCheckErrorCode::Partition_KeyOutOfMaxRange;
+            errorList.push_back(error);
+        }
+
+        if (maxKeyComparisonResult == std::weak_ordering::equivalent)
+        {
+            SequenceNumber lowestSequenceNumberForKey;
+
+            if (treeEntry.has_child())
+            {
+                lowestSequenceNumberForKey = ToSequenceNumber(
+                    treeEntry.child().lowestwritesequencenumberforkey());
+            }
+            else if (treeEntry.has_value())
+            {
+                lowestSequenceNumberForKey = ToSequenceNumber(
+                    treeEntry.value().writesequencenumber());
+            }
+            else if (treeEntry.has_valueset())
+            {
+                lowestSequenceNumberForKey = ToSequenceNumber(
+                    treeEntry.valueset().values(
+                        treeEntry.valueset().values_size() - 1
+                    ).writesequencenumber());
+            }
+            else
+            {
+                auto error = errorPrototype;
+                error.Code = IntegrityCheckErrorCode::Partition_NoContentInTreeEntry;
+                errorList.push_back(error);
+                co_return;
+            }
+
+            if (ToUint64(lowestSequenceNumberForKey) < ToUint64(lowestSequenceNumberForMaxKey))
+            {
+                auto error = errorPrototype;
+                error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMinRange;
+                errorList.push_back(error);
+            }
+        }
+    }
+
+    if (parent.level() > 0)
+    {
+        if (!treeEntry.has_child())
+        {
+            auto error = errorPrototype;
+            error.Code = IntegrityCheckErrorCode::Partition_NonLeafNodeNeedsChild;
+            errorList.push_back(error);
+            co_return;
+        }
+
+        auto childSequenceNumber = treeEntry.child().lowestwritesequencenumberforkey();
+
+        if (keyComparisonResult == std::weak_ordering::equivalent
+            && ToUint64(precedingSequenceNumber) < childSequenceNumber)
+        {
+            auto error = errorPrototype;
+            error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
+            errorList.push_back(error);
+        }
+
+        co_await CheckTreeNodeIntegrity(
+            errorList,
+            errorPrototype,
+            { m_dataLocation.extentNumber, treeEntry.child().treenodeoffset() },
+            precedingKey,
+            precedingSequenceNumber,
+            keyMessage.get(),
+            ToSequenceNumber(childSequenceNumber)
+        );
+    }
+    else
+    {
+        if (treeEntry.has_child())
+        {
+            auto error = errorPrototype;
+            error.Code = IntegrityCheckErrorCode::Partition_LeafNodeHasChild;
+            errorList.push_back(error);
+        }
+        else if (treeEntry.has_value())
+        {
+            if (keyComparisonResult == std::weak_ordering::equivalent
+                && ToUint64(precedingSequenceNumber) < treeEntry.value().writesequencenumber())
+            {
+                auto error = errorPrototype;
+                error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
+                errorList.push_back(error);
+            }
+        }
+        else if (treeEntry.has_valueset())
+        {
+            for (auto valueIndex = 0;
+                valueIndex < treeEntry.valueset().values_size();
+                valueIndex++)
+            {
+                auto valueSequenceNumber = treeEntry.valueset().values(valueIndex).writesequencenumber();
+
+                if (keyComparisonResult == std::weak_ordering::equivalent
+                    && ToUint64(precedingSequenceNumber) < valueSequenceNumber)
+                {
+                    auto error = errorPrototype;
+                    error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
+                    error.TreeNodeValueIndex = valueIndex;
+                    errorList.push_back(error);
+                }
+
+                keyComparisonResult = std::weak_ordering::equivalent;
+                precedingSequenceNumber = ToSequenceNumber(valueSequenceNumber);
+            }
+        }
+        else
+        {
+            auto error = errorPrototype;
+            error.Code = IntegrityCheckErrorCode::Partition_LeafNodeNeedsValueOrValueSet;
+            errorList.push_back(error);
+        }
+    }
+}
+
+task<IntegrityCheckErrorList> Partition::CheckIntegrity(
+    const IntegrityCheckError& errorPrototype)
+{
+    IntegrityCheckErrorList errorList;
+
+    co_await CheckTreeNodeIntegrity(
+        errorList,
+        errorPrototype,
+        { m_dataLocation.extentNumber,  m_partitionRoot.roottreenodeoffset() },
+        nullptr,
+        SequenceNumber::Latest,
+        nullptr,
+        SequenceNumber::Earliest
+    );
+
+    co_return errorList;
+}
+
 }

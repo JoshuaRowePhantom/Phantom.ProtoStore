@@ -711,6 +711,43 @@ struct CreateProtoStoreRequest
     size_t LogAlignment = 0;
 };
 
+enum class IntegrityCheckErrorCode
+{
+    Partition_KeyNotInBloomFilter = 1,
+    Partition_MissingTreeNode = 2,
+    Partition_ValueSetTooSmall = 3,
+    Partition_MissingTreeNodeEntryContent = 4,
+    Partition_OutOfOrderKey = 5,
+    Partition_OutOfOrderSequenceNumber = 6,
+    Partition_SequenceNumberOutOfMinRange = 7,
+    Partition_SequenceNumberOutOfMaxRange = 8,
+    Partition_KeyOutOfMinRange = 9,
+    Partition_KeyOutOfMaxRange = 10,
+    Partition_NonLeafNodeNeedsChild = 11,
+    Partition_LeafNodeNeedsValueOrValueSet = 12,
+    Partition_LeafNodeHasChild = 13,
+    Partition_NoContentInTreeEntry = 14,
+};
+
+typedef std::uint64_t ExtentNumber;
+typedef std::uint64_t ExtentOffset;
+struct ExtentLocation
+{
+    ExtentNumber extentNumber;
+    ExtentOffset extentOffset;
+};
+
+struct IntegrityCheckError
+{
+    IntegrityCheckErrorCode Code;
+    std::optional<std::string> Key;
+    std::optional<ExtentLocation> Location;
+    std::optional<int> TreeNodeEntryIndex;
+    std::optional<int> TreeNodeValueIndex;
+};
+
+typedef std::vector<IntegrityCheckError> IntegrityCheckErrorList;
+
 class IProtoStoreFactory
 {
 public:

@@ -63,8 +63,6 @@ using google::protobuf::Descriptor;
 using google::protobuf::io::ZeroCopyInputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
 
-typedef std::uint64_t ExtentNumber;
-typedef std::uint64_t ExtentOffset;
 typedef google::protobuf::uint64 CheckpointNumber;
 typedef google::protobuf::uint64 MergeId;
 
@@ -77,12 +75,6 @@ struct ExtentOffsetRange
 typedef string IndexName;
 typedef google::protobuf::uint64 IndexNumber;
 typedef google::protobuf::uint64 LevelNumber;
-
-struct ExtentLocation
-{
-    ExtentNumber extentNumber;
-    ExtentOffset extentOffset;
-};
 
 class IExtentStore;
 class IMessageStore;

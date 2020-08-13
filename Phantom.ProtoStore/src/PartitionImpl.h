@@ -85,6 +85,25 @@ class Partition
         KeyRangeEnd high
     );
 
+    task<> CheckTreeNodeIntegrity(
+        IntegrityCheckErrorList& errorList,
+        const IntegrityCheckError& errorPrototype,
+        ExtentLocation location,
+        const Message* precedingKey,
+        SequenceNumber precedingSequenceNumber,
+        const Message* maxKey,
+        SequenceNumber lowestSequenceNumberForMaxKey);
+
+    task<> CheckChildTreeEntryIntegrity(
+        IntegrityCheckErrorList& errorList,
+        const IntegrityCheckError& errorPrototype,
+        const PartitionTreeNode& parent,
+        size_t treeEntryIndex,
+        const Message* precedingKey,
+        SequenceNumber precedingSequenceNumber,
+        const Message* maxKey,
+        SequenceNumber lowestSequenceNumberForMaxKey);
+
 public:
     Partition(
         shared_ptr<KeyComparer> keyComparer,
@@ -129,6 +148,10 @@ public:
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
         const Message* key
+    ) override;
+
+    virtual task<IntegrityCheckErrorList> CheckIntegrity(
+        const IntegrityCheckError& errorPrototype
     ) override;
 };
 }
