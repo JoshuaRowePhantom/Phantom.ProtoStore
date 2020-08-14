@@ -76,6 +76,7 @@ task<> ProtoStore::Create(
 task<> ProtoStore::Open(
     const OpenProtoStoreRequest& openRequest)
 {
+    m_integrityChecks = openRequest.IntegrityChecks;
     m_schedulers = openRequest.Schedulers;
     m_checkpointLogSize = openRequest.CheckpointLogSize;
     m_nextCheckpointLogOffset.store(m_checkpointLogSize);
@@ -1007,6 +1008,15 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
 
     co_await partition->Open();
 
+    if (m_integrityChecks.contains(IntegrityCheck::CheckPartitionOnOpen))
+    {
+        auto errorList = co_await partition->CheckIntegrity(
+            IntegrityCheckError{});
+        if (!errorList.empty())
+        {
+            throw IntegrityException(errorList);
+        }
+    }
     m_activePartitions[dataExtentNumber] = partition;
 
     co_return partition;

@@ -39,6 +39,8 @@ class ProtoStore
     const shared_ptr<IRandomMessageAccessor> m_dataHeaderMessageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
     
+    std::set<IntegrityCheck> m_integrityChecks;
+
     std::optional<LogManager> m_logManager;
     
     Header m_header;

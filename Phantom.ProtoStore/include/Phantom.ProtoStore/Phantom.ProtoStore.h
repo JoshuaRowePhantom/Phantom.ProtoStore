@@ -694,6 +694,12 @@ struct Schedulers
     static Schedulers Inline();
 };
 
+enum class IntegrityCheck
+{
+    CheckPartitionOnOpen = 1,
+    CheckPartitionOnWrite = 2,
+};
+
 struct OpenProtoStoreRequest
 {
     std::function<task<shared_ptr<IExtentStore>>()> HeaderExtentStore;
@@ -703,6 +709,13 @@ struct OpenProtoStoreRequest
     std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
     Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;
+
+    std::set<IntegrityCheck> IntegrityChecks = 
+    {
+#ifndef NDEBUG
+        IntegrityCheck::CheckPartitionOnOpen,
+#endif
+    };
 };
 
 struct CreateProtoStoreRequest
@@ -747,6 +760,18 @@ struct IntegrityCheckError
 };
 
 typedef std::vector<IntegrityCheckError> IntegrityCheckErrorList;
+
+class IntegrityException : std::exception
+{
+public:
+    const IntegrityCheckErrorList Errors;
+
+    IntegrityException(
+        IntegrityCheckErrorList errors
+    ) : exception("Integrity check error"),
+        Errors(errors)
+    {}
+};
 
 class IProtoStoreFactory
 {

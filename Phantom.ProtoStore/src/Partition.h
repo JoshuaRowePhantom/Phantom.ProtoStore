@@ -57,6 +57,7 @@ public:
     // Given a key, return a SequenceNumber of any write conflicts.
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
+        SequenceNumber writeSequenceNumber,
         const Message* key
     ) = 0;
 

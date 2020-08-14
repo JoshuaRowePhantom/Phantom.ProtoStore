@@ -331,6 +331,7 @@ SequenceNumber MemoryTable::GetLatestSequenceNumber(
 
 task<optional<SequenceNumber>> MemoryTable::CheckForWriteConflict(
     SequenceNumber readSequenceNumber,
+    SequenceNumber writeSequenceNumber,
     const Message* key
 )
 {
@@ -350,7 +351,9 @@ task<optional<SequenceNumber>> MemoryTable::CheckForWriteConflict(
         iterator != generator.end();
         co_await ++iterator)
     {
-        if ((*iterator).WriteSequenceNumber > readSequenceNumber)
+        if ((*iterator).WriteSequenceNumber >= writeSequenceNumber
+            ||
+            (*iterator).WriteSequenceNumber > readSequenceNumber)
         {
             co_return (*iterator).WriteSequenceNumber;
         }

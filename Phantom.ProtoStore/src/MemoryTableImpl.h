@@ -217,6 +217,7 @@ public:
 
     task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
+        SequenceNumber writeSequenceNumber,
         const Message* key
     ) override;
 

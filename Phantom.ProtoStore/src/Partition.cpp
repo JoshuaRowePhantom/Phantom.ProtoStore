@@ -543,6 +543,7 @@ SequenceNumber Partition::GetLatestSequenceNumber()
 
 task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
     SequenceNumber readSequenceNumber,
+    SequenceNumber writeSequenceNumber,
     const Message* key
 )
 {
@@ -556,7 +557,9 @@ task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
         iterator != generator.end();
         co_await ++iterator)
     {
-        if ((*iterator).WriteSequenceNumber >= readSequenceNumber)
+        if ((*iterator).WriteSequenceNumber >= writeSequenceNumber
+            ||
+            (*iterator).WriteSequenceNumber > readSequenceNumber)
         {
             co_return (*iterator).WriteSequenceNumber;
         }
@@ -768,6 +771,13 @@ task<> Partition::CheckChildTreeEntryIntegrity(
             errorList.push_back(error);
         }
 
+        if (childSequenceNumber > ToUint64(GetLatestSequenceNumber()))
+        {
+            auto error = errorPrototype;
+            error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMaxRange;
+            errorList.push_back(error);
+        }
+
         co_await CheckTreeNodeIntegrity(
             errorList,
             errorPrototype,
@@ -788,11 +798,20 @@ task<> Partition::CheckChildTreeEntryIntegrity(
         }
         else if (treeEntry.has_value())
         {
+            auto valueSequenceNumber = treeEntry.value().writesequencenumber();
+
             if (keyComparisonResult == std::weak_ordering::equivalent
-                && ToUint64(precedingSequenceNumber) < treeEntry.value().writesequencenumber())
+                && ToUint64(precedingSequenceNumber) < valueSequenceNumber)
             {
                 auto error = errorPrototype;
                 error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
+                errorList.push_back(error);
+            }
+
+            if (valueSequenceNumber > ToUint64(GetLatestSequenceNumber()))
+            {
+                auto error = errorPrototype;
+                error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMaxRange;
                 errorList.push_back(error);
             }
         }
@@ -810,6 +829,13 @@ task<> Partition::CheckChildTreeEntryIntegrity(
                     auto error = errorPrototype;
                     error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
                     error.TreeNodeValueIndex = valueIndex;
+                    errorList.push_back(error);
+                }
+
+                if (valueSequenceNumber > ToUint64(GetLatestSequenceNumber()))
+                {
+                    auto error = errorPrototype;
+                    error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMaxRange;
                     errorList.push_back(error);
                 }
 
