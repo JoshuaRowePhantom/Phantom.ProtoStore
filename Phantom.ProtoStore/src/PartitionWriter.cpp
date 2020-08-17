@@ -150,15 +150,12 @@ task<> PartitionWriter::AddValueToTreeEntry(
 
             // The tree entry might have "value" set, in which case we need
             // to move it to a new valueset via a temporary.
-            if (partitionTreeEntryToAdd->PartitionTreeEntryType_case()
-                == PartitionTreeEntryValue::kValue)
+            if (partitionTreeEntryToAdd->has_value())
             {
                 auto existingValue = move(*partitionTreeEntryToAdd->mutable_value());
                 *partitionTreeEntryToAdd->mutable_valueset()->add_values() = move(existingValue);
             }
-            // Now we can just append to the valueset.
-            assert(partitionTreeEntryToAdd->PartitionTreeEntryType_case()
-                == PartitionTreeEntry::kValueSet);
+            assert(partitionTreeEntryToAdd->has_valueset());
 
             *partitionTreeEntryToAdd->mutable_valueset()->add_values() = move(partitionTreeEntryValue);
             // Since we did this at level zero, there's definitely no more work to do on this insertion.
