@@ -4,6 +4,7 @@
 #include "Schema.h"
 #include "KeyComparer.h"
 #include <compare>
+#include <algorithm>
 
 namespace Phantom::ProtoStore
 {
@@ -350,30 +351,31 @@ int Partition::FindMatchingValueIndexByWriteSequenceNumber(
         return 0;
     }
 
-    // Otherwise, do a binary search in the remaining items.
-    int left = 1;
-    int right = valueSet.values_size();
-
-    while (left < right)
+    struct comparer
     {
-        auto middle = left + (right - left) / 2;
-        auto writeSequenceNumber = valueSet.values(middle).writesequencenumber();
+        bool operator()(
+            const PartitionTreeEntryValue& partitionTreeEntryValue,
+            SequenceNumber readSequenceNumber
+            ) const
+        {
+            return partitionTreeEntryValue.writesequencenumber() > ToUint64(readSequenceNumber);
+        }
 
-        if (writeSequenceNumber > readSequenceNumberInt64)
+        bool operator()(
+            SequenceNumber readSequenceNumber,
+            const PartitionTreeEntryValue& partitionTreeEntryValue
+            ) const
         {
-            left = middle + 1;
+            return ToUint64(readSequenceNumber) > partitionTreeEntryValue.writesequencenumber();
         }
-        else if (writeSequenceNumber < readSequenceNumberInt64)
-        {
-            right = middle;
-        }
-        else
-        {
-            return middle;
-        }
-    }
+    };
 
-    return left;
+    return std::lower_bound(
+        valueSet.values().begin() + 1,
+        valueSet.values().end(),
+        readSequenceNumber,
+        comparer()
+    ) - valueSet.values().begin();
 }
 
 cppcoro::async_generator<ResultRow> Partition::Enumerate(
