@@ -8,7 +8,6 @@
 #include <cppcoro/when_all.hpp>
 #include <cppcoro/when_all_ready.hpp>
 
-#include <vector>
 using namespace std;
 
 namespace Phantom::ProtoStore
@@ -22,7 +21,7 @@ public:
     CreateProtoStoreRequest GetCreateMemoryStoreRequest()
     {
         CreateProtoStoreRequest createRequest;
-
+        
         createRequest.HeaderExtentStore = UseMemoryExtentStore();
         createRequest.LogExtentStore = UseMemoryExtentStore();
         createRequest.DataExtentStore = UseMemoryExtentStore();
@@ -39,7 +38,7 @@ public:
         createRequest.LogExtentStore = UseFilesystemStore(testName, "log", 4096);
         createRequest.DataExtentStore = UseFilesystemStore(testName, "data", 4096);
         createRequest.DataHeaderExtentStore = UseFilesystemStore(testName, "dataheader", 4096);
-        createRequest.Schedulers = Schedulers::Default();
+        createRequest.Schedulers = Schedulers::Inline();
 
         return createRequest;
     }

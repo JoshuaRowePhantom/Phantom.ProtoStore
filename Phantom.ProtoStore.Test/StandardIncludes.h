@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include "Phantom.ProtoStore/Phantom.ProtoStore.h"
 #include "Phantom.ProtoStore/src/StandardTypes.h"
+#include "Phantom.System/async_utility.h"
 #include <google/protobuf/util/message_differencer.h>
 #include <random>
 #include <filesystem>

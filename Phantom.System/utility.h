@@ -1,9 +1,7 @@
 #pragma once
 
+#include <memory>
 #include <span>
-#include <cppcoro/shared_task.hpp>
-#include <cppcoro/sync_wait.hpp>
-#include <cppcoro/task.hpp>
 
 namespace Phantom
 {
@@ -12,15 +10,8 @@ namespace Phantom
 template<typename T>
 constexpr bool always_false = false;
 
-template<
-    typename TFunctor
->
-auto run_async(
-    TFunctor functor)
-{
-    return cppcoro::sync_wait(
-        functor());
-}
+struct empty
+{};
 
 template<typename T>
 std::span<std::byte> as_bytes(
@@ -45,31 +36,6 @@ std::unique_ptr<T> copy_unique(
     const T& other)
 {
     return make_unique<T>(other);
-}
-
-struct empty
-{};
-
-template<typename T>
-cppcoro::task<T> make_completed_task(T&& value)
-{
-    co_return std::forward<T>(value);
-}
-
-inline cppcoro::task<> make_completed_task()
-{
-    co_return;
-}
-
-template<typename T>
-cppcoro::shared_task<T> make_completed_shared_task(T&& value)
-{
-    co_return std::forward<T>(value);
-}
-
-inline cppcoro::shared_task<> make_completed_shared_task()
-{
-    co_return;
 }
 
 }

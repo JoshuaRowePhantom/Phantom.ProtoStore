@@ -6,6 +6,7 @@ add_library (
 	"async_reader_writer_lock.cpp"
 	"async_reader_writer_lock.h"
 	"async_scoped_lock.h"
+	"async_utility.h"
 	"async_value_source.h"
 	"empty.cpp"
 	"encompassing_pending_task.h"

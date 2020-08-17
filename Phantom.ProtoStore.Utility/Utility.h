@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include "Phantom.System/async_utility.h"
 #include "Phantom.System/utility.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
