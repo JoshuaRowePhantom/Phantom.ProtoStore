@@ -1,6 +1,7 @@
 
 add_executable(
 	Phantom.System.Test
+	"as_awaitable_tests.cpp"
 	"async_reader_writer_lock_tests.cpp"
 	"async_value_source_tests.cpp"
 	"encompassing_pending_task_tests.cpp"
@@ -10,7 +11,7 @@ add_executable(
 	"StandardIncludes.h"
 	"ThreadingTests.cpp"
 	"ThreadingTests.h"
-	)
+	 )
 
 target_link_libraries(
 	Phantom.System.Test

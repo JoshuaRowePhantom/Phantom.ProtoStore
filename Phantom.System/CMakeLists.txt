@@ -10,6 +10,7 @@ add_library (
 	"async_value_source.h"
 	"empty.cpp"
 	"encompassing_pending_task.h"
+	"functional.h"
 	"merge.h"
 	"pooled_ptr.h" 
 	"put_back.h"
