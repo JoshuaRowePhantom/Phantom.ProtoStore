@@ -29,11 +29,11 @@ template<
 
 template<
     can_co_await T
-> T as_awaitable(
+> T&& as_awaitable(
     T&& t
 )
 {
-    return t;
+    return move(t);
 }
 
 template<
@@ -96,23 +96,6 @@ auto run_async(
 {
     return cppcoro::sync_wait(
         functor());
-}
-
-template<typename T>
-cppcoro::task<T> make_completed_task(T&& value)
-{
-    co_return std::forward<T>(value);
-}
-
-inline cppcoro::task<> make_completed_task()
-{
-    co_return;
-}
-
-template<typename T>
-cppcoro::shared_task<T> make_completed_shared_task(T&& value)
-{
-    co_return std::forward<T>(value);
 }
 
 inline cppcoro::shared_task<> make_completed_shared_task()

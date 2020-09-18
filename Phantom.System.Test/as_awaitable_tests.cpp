@@ -45,4 +45,30 @@ TEST(as_awaitable_tests, as_awaitable_can_return_ordinary_class)
     ASSERT_EQ(std::string("foo"), value);
 }
 
+TEST(as_awaitable_tests, as_awaitable_can_co_await_returned_value)
+{
+    run_async([]() -> cppcoro::task<>
+    {
+        auto result = co_await as_awaitable(
+            std::string("foo"));
+
+        ASSERT_EQ(std::string("foo"), result);
+    });
+}
+
+TEST(as_awaitable_tests, as_awaitable_can_co_await_returned_task)
+{
+    run_async([]() -> cppcoro::task<>
+    {
+        cppcoro::task<std::string> awaitable = as_awaitable(
+            []() -> cppcoro::task<std::string>
+        {
+            co_return "foo";
+        }());
+
+        auto result = co_await awaitable;
+        ASSERT_EQ(std::string("foo"), result);
+    });
+}
+
 }
