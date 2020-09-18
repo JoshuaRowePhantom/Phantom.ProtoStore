@@ -33,7 +33,7 @@ template<
     T&& t
 )
 {
-    return move(t);
+    return std::move(t);
 }
 
 template<
