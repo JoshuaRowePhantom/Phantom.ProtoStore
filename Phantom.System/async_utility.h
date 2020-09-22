@@ -110,6 +110,9 @@ inline cppcoro::shared_task<> make_completed_shared_task()
 //   comparer.operator()
 //   TIterator::operator++()
 //   TIterator::operator+=()
+//   TIterator::operator-()
+//   TIterator::operator*()
+//   decltype(TIterator::operator*())
 template <
     typename TIterator,
     typename TKey,
@@ -133,7 +136,7 @@ template <
             middle += step);
 
         auto isLessThan = co_await as_awaitable(lessThanComparer(
-            *middle,
+            co_await as_awaitable(co_await as_awaitable(*middle))),
             value));
 
         if (isLessThan)
@@ -158,6 +161,8 @@ template <
 //   TIterator::operator++()
 //   TIterator::operator+=()
 //   TIterator::operator-()
+//   TIterator::operator*()
+//   decltype(TIterator::operator*())
 template <
     typename TIterator,
     typename TKey,
@@ -182,7 +187,7 @@ template <
 
         auto isLessThan = co_await as_awaitable(lessThanComparer(
             value,
-            *middle));
+            co_await as_awaitable(co_await as_awaitable(*middle))));
 
         if (!isLessThan)
         {
