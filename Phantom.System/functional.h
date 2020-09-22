@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 namespace Phantom
 {
 
@@ -21,23 +23,88 @@ public:
 
     template<
         typename ... TArgs
-    > auto operator()(
-        TArgs...&& args
+    > decltype(auto) operator()(
+        TArgs&& ... args
         )
     {
         return m_operation(
-            converter(std::forward<TArgs>(args))...
+            m_converter(std::forward<TArgs>(args))...
         );
     }
 };
 
-template<
-    typename TConverter1,
-    typename TConverter2
-> class ArgumentConverter
+class IdentityConverter
 {
 public:
-
+    template<
+        typename T
+    > decltype(auto) operator()(
+        T&& arg)
+    {
+        return std::forward<T>(arg);
+    }
 };
 
+template<
+    typename TConverter,
+    typename ... TConverters
+> class ArgumentConverter
+    : public ArgumentConverter<TConverters...>
+{
+    TConverter m_converter;
+public:
+    ArgumentConverter(
+        TConverter converter,
+        TConverters ... converters
+    ) : m_converter(converter),
+        ArgumentConverter<TConverters...>(converters...)
+    {}
+
+    template<
+        typename T
+    > decltype(auto) operator()(
+        T&& arg,
+        typename std::enable_if<std::is_invocable_v<TConverter, T>, int>::type = 0
+        )
+    {
+        return m_converter(std::forward<T>(arg));
+    }
+
+    template<
+        typename T
+    > decltype(auto) operator()(
+        T&& arg,
+        typename std::enable_if<!std::is_invocable_v<TConverter, T>, int>::type = 0
+        )
+    {
+        return ArgumentConverter<TConverters...>::operator()(
+            std::forward<T>(arg));
+    }
+};
+
+template<
+> class ArgumentConverter<IdentityConverter>
+    : public IdentityConverter
+{
+public:
+    ArgumentConverter(
+        IdentityConverter
+    )
+    {}
+};
+
+template<
+    typename TConverter
+> class ArgumentConverter<TConverter>
+    : public ArgumentConverter<TConverter, IdentityConverter>
+{
+public:
+    ArgumentConverter(
+        TConverter converter)
+        : ArgumentConverter<TConverter, IdentityConverter>(
+            converter,
+            IdentityConverter()
+            )
+    {}
+};
 }

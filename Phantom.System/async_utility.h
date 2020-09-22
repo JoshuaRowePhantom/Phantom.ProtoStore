@@ -137,7 +137,7 @@ template <
 
         auto isLessThan = co_await as_awaitable(lessThanComparer(
             co_await as_awaitable(co_await as_awaitable(*middle))),
-            value));
+            value);
 
         if (isLessThan)
         {
