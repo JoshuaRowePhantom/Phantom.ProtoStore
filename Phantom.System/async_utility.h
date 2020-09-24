@@ -43,14 +43,12 @@ template<
 {
     T m_t;
 public:
+    template<
+        typename TI
+    >
     simple_awaitable(
-        T&& t
-    ) : m_t(std::move(t))
-    {}
-
-    simple_awaitable(
-        const T& t
-    ) : m_t(t)
+        TI&& t
+    ) : m_t(std::forward<TI>(t))
     {}
 
     T& await_resume() & noexcept
@@ -66,11 +64,11 @@ public:
 
 template<
     typename T
-> simple_awaitable<std::remove_reference_t<T>> as_awaitable(
+> simple_awaitable<T> as_awaitable(
     T&& t
 )
 {
-    return simple_awaitable(std::forward<T>(t));
+    return simple_awaitable<T>(std::forward<T>(t));
 }
 
 template<
@@ -117,11 +115,11 @@ template <
     typename TIterator,
     typename TKey,
     typename TComparer
-> TIterator async_lower_bound(
+> cppcoro::task<TIterator> async_lower_bound(
     TIterator first,
     TIterator last,
     const TKey& value,
-    TComparer comparer
+    TComparer lessThanComparer
 )
 {
     auto count = co_await as_awaitable(
@@ -130,14 +128,15 @@ template <
     while (count > 0) 
     {
         auto middle = first;
-        difference_type step = count / 2;
+        auto step = count / 2;
 
         co_await as_awaitable(
             middle += step);
 
         auto isLessThan = co_await as_awaitable(lessThanComparer(
-            co_await as_awaitable(co_await as_awaitable(*middle))),
-            value);
+            co_await as_awaitable(co_await as_awaitable(*middle)),
+            value
+        ));
 
         if (isLessThan)
         {
@@ -150,7 +149,7 @@ template <
         }
     }
 
-    return first;
+    co_return first;
 }
 
 // Given two ordinary iterators, a key, and a co_awaitable comparer that returns
@@ -167,11 +166,11 @@ template <
     typename TIterator,
     typename TKey,
     typename TComparer
-> TIterator async_upper_bound(
+> cppcoro::task<TIterator> async_upper_bound(
     TIterator first,
     TIterator last,
     const TKey& value,
-    TComparer asyncLessThanComparer
+    TComparer lessThanComparer
 )
 {
     auto count = co_await as_awaitable(
@@ -187,7 +186,8 @@ template <
 
         auto isLessThan = co_await as_awaitable(lessThanComparer(
             value,
-            co_await as_awaitable(co_await as_awaitable(*middle))));
+            co_await as_awaitable(co_await as_awaitable(*middle))
+        ));
 
         if (!isLessThan)
         {
@@ -201,7 +201,7 @@ template <
         }
     }
 
-    return first;
+    co_return first;
 }
 
 }
