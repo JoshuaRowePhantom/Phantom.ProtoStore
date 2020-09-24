@@ -123,7 +123,7 @@ template <
 )
 {
     auto count = co_await as_awaitable(
-        first - last);
+        last - first);
 
     while (count > 0) 
     {
@@ -174,7 +174,7 @@ template <
 )
 {
     auto count = co_await as_awaitable(
-        first - last);
+        last - first);
 
     while (count > 0)
     {
