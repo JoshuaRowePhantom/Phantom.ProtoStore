@@ -3,6 +3,7 @@ add_executable(
 	Phantom.System.Test
 	"ArgumentConverterTests.cpp"
 	"as_awaitable_tests.cpp"
+	"async_bound_tests.cpp"
 	"async_reader_writer_lock_tests.cpp"
 	"async_value_source_tests.cpp"
 	"encompassing_pending_task_tests.cpp"

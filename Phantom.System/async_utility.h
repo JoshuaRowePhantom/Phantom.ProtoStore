@@ -111,6 +111,7 @@ inline cppcoro::shared_task<> make_completed_shared_task()
 //   TIterator::operator-()
 //   TIterator::operator*()
 //   decltype(TIterator::operator*())
+// Implementation adapter from https://en.cppreference.com/w/cpp/algorithm/lower_bound
 template <
     typename TIterator,
     typename TKey,
@@ -127,20 +128,20 @@ template <
 
     while (count > 0) 
     {
-        auto middle = first;
+        auto iterator = first;
         auto step = count / 2;
 
         co_await as_awaitable(
-            middle += step);
+            iterator += step);
 
         auto isLessThan = co_await as_awaitable(lessThanComparer(
-            co_await as_awaitable(co_await as_awaitable(*middle)),
+            co_await as_awaitable(co_await as_awaitable(*iterator)),
             value
         ));
 
         if (isLessThan)
         {
-            first = co_await as_awaitable(++middle);
+            first = co_await as_awaitable(++iterator);
             count -= step + 1;
         }
         else
@@ -178,21 +179,21 @@ template <
 
     while (count > 0)
     {
-        auto middle = first;
+        auto iterator = first;
         auto step = count / 2;
 
         co_await as_awaitable(
-            middle += step);
+            iterator += step);
 
         auto isLessThan = co_await as_awaitable(lessThanComparer(
             value,
-            co_await as_awaitable(co_await as_awaitable(*middle))
+            co_await as_awaitable(co_await as_awaitable(*iterator))
         ));
 
         if (!isLessThan)
         {
             first = co_await as_awaitable(
-                ++middle);
+                ++iterator);
             count -= step + 1;
         }
         else
