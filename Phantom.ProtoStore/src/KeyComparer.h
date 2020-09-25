@@ -206,31 +206,20 @@ public:
     }
 };
 
-enum class KeyUsage
-{
-    // The key is the low end of a range
-    RangeEndLow,
-    // The key is the high end of a range
-    RangeEndHigh,
-};
-
 struct KeyRangeComparerArgument
 {
     const Message* Key;
     SequenceNumber SequenceNumber;
     Inclusivity Inclusivity;
-    KeyUsage Usage;
 
     KeyRangeComparerArgument(
         const Message* key,
         Phantom::ProtoStore::SequenceNumber sequenceNumber,
-        Phantom::ProtoStore::Inclusivity inclusivity,
-        KeyUsage usage
+        Phantom::ProtoStore::Inclusivity inclusivity
     ) :
         Key(key),
         SequenceNumber(sequenceNumber),
-        Inclusivity(inclusivity),
-        Usage(usage)
+        Inclusivity(inclusivity)
     {}
 };
 

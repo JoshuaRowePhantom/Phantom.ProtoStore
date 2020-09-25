@@ -465,14 +465,7 @@ std::weak_ordering KeyRangeComparer::operator()(
     {
         if (right.Inclusivity == Inclusivity::Exclusive)
         {
-            if (right.Usage == KeyUsage::RangeEndLow)
-            {
-                result = std::weak_ordering::less;
-            }
-            else if (right.Usage == KeyUsage::RangeEndHigh)
-            {
-                result = std::weak_ordering::greater;
-            }
+            result = std::weak_ordering::less;
         }
     }
 
@@ -498,14 +491,7 @@ std::weak_ordering KeyRangeComparer::operator()(
     {
         if (left.Inclusivity == Inclusivity::Exclusive)
         {
-            if (left.Usage == KeyUsage::RangeEndLow)
-            {
-                result = std::weak_ordering::greater;
-            }
-            else if (left.Usage == KeyUsage::RangeEndHigh)
-            {
-                result = std::weak_ordering::less;
-            }
+            result = std::weak_ordering::greater;
         }
     }
 

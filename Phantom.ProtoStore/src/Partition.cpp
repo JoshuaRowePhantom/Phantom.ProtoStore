@@ -272,7 +272,6 @@ task<int> Partition::FindLowTreeEntryIndex(
         low.Key,
         readSequenceNumber,
         low.Inclusivity,
-        KeyUsage::RangeEndLow,
     };
 
     auto lowerBound = co_await async_lower_bound(
@@ -298,18 +297,20 @@ task<int> Partition::FindHighTreeEntryIndex(
     {
         high.Key,
         readSequenceNumber,
-        high.Inclusivity,
-        KeyUsage::RangeEndHigh,
+        // We invert the sense of exclusivity so that
+        // if the user requested an Inclusive search, we find one past the key,
+        // and if the user requested an Exclusive search, we find the key.
+        high.Inclusivity == Inclusivity::Inclusive ? Inclusivity::Exclusive : Inclusivity::Inclusive,
     };
 
-    auto upperBound = co_await async_upper_bound(
+    auto lowerBound = co_await async_lower_bound(
         co_await partitionTreeNodeCacheEntry->begin(),
         co_await partitionTreeNodeCacheEntry->end(),
         key,
         FindTreeEntryKeyLessThanComparer { *m_keyComparer }
     );
 
-    co_return upperBound - co_await partitionTreeNodeCacheEntry->begin();
+    co_return lowerBound - co_await partitionTreeNodeCacheEntry->begin();
 }
 
 int Partition::FindMatchingValueIndexByWriteSequenceNumber(

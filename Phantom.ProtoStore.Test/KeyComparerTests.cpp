@@ -324,12 +324,12 @@ TEST(KeyRangeComparerTests, Uses_key_order_first)
     greater.set_int32_value(1);
 
     DoKeyRangeComparerTestNotEquivalent<TestKey>(
-        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive, KeyUsage::RangeEndLow),
+        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive),
         KeyAndSequenceNumberComparerArgument(&greater, SequenceNumber::Latest)
         );
 }
 
-TEST(KeyRangeComparerTests, Uses_Inclusivity_on_Low)
+TEST(KeyRangeComparerTests, Uses_Inclusivity)
 {
     TestKey lesser;
     TestKey greater;
@@ -339,21 +339,7 @@ TEST(KeyRangeComparerTests, Uses_Inclusivity_on_Low)
 
     DoKeyRangeComparerTestNotEquivalent<TestKey>(
         KeyAndSequenceNumberComparerArgument(&lesser, SequenceNumber::Earliest),
-        KeyRangeComparerArgument(&greater, SequenceNumber::Earliest, Inclusivity::Exclusive, KeyUsage::RangeEndLow)
-        );
-}
-
-TEST(KeyRangeComparerTests, Uses_Inclusivity_on_High)
-{
-    TestKey lesser;
-    TestKey greater;
-
-    lesser.set_int32_value(0);
-    greater.set_int32_value(0);
-
-    DoKeyRangeComparerTestNotEquivalent<TestKey>(
-        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Exclusive, KeyUsage::RangeEndHigh),
-        KeyAndSequenceNumberComparerArgument(&greater, SequenceNumber::Earliest)
+        KeyRangeComparerArgument(&greater, SequenceNumber::Earliest, Inclusivity::Exclusive)
         );
 }
 
@@ -366,7 +352,7 @@ TEST(KeyRangeComparerTests, Uses_sequence_number_second)
 
     DoKeyRangeComparerTestNotEquivalent<TestKey>(
         KeyAndSequenceNumberComparerArgument(&lesser, SequenceNumber::Latest),
-        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive, KeyUsage::RangeEndLow)
+        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive)
         );
 }
 
