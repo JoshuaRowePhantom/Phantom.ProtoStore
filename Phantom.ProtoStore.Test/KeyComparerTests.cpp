@@ -19,6 +19,36 @@ void DoKeyComparerTest(
     ASSERT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(&greater, &greater));
 }
 
+template<typename TKey, typename TValue>
+void DoKeyAndSequenceNumberComparerTest(
+    const TValue& lesser,
+    const TValue& greater)
+{
+    KeyComparer keyComparer(
+        TKey::GetDescriptor());
+    KeyAndSequenceNumberComparer keyAndSequenceNumberComparer(
+        keyComparer);
+
+    ASSERT_EQ(std::weak_ordering::less, keyAndSequenceNumberComparer(lesser, greater));
+    ASSERT_EQ(std::weak_ordering::greater, keyAndSequenceNumberComparer(greater, lesser));
+    ASSERT_EQ(std::weak_ordering::equivalent, keyAndSequenceNumberComparer(lesser, lesser));
+    ASSERT_EQ(std::weak_ordering::equivalent, keyAndSequenceNumberComparer(greater, greater));
+}
+
+template<typename TKey, typename TValue1, typename TValue2>
+void DoKeyRangeComparerTestNotEquivalent(
+    const TValue1& lesser,
+    const TValue2& greater)
+{
+    KeyComparer keyComparer(
+        TKey::GetDescriptor());
+    KeyRangeComparer keyAndSequenceNumberComparer(
+        keyComparer);
+
+    ASSERT_EQ(std::weak_ordering::less, keyAndSequenceNumberComparer(lesser, greater));
+    ASSERT_EQ(std::weak_ordering::greater, keyAndSequenceNumberComparer(greater, lesser));
+}
+
 TEST(KeyComparerTests, TestKey_int32)
 {
     TestKey lesser;
@@ -257,6 +287,87 @@ TEST(KeyComparerTests, Uses_message_level_sort_order_on_outer_key)
     DoKeyComparerTest(
         lesser,
         greater);
+}
+
+TEST(KeyAndSequenceNumberComparerTests, Uses_key_order_first)
+{
+    TestKey lesser;
+    TestKey greater;
+
+    lesser.set_int32_value(0);
+    greater.set_int32_value(1);
+
+    DoKeyAndSequenceNumberComparerTest<TestKey>(
+        KeyAndSequenceNumberComparerArgument { &lesser, SequenceNumber::Earliest },
+        KeyAndSequenceNumberComparerArgument { &greater, SequenceNumber::Latest }
+        );
+}
+
+TEST(KeyAndSequenceNumberComparerTests, Uses_sequence_number_second)
+{
+    TestKey lesser;
+
+    lesser.set_int32_value(0);
+
+    DoKeyAndSequenceNumberComparerTest<TestKey>(
+        KeyAndSequenceNumberComparerArgument{ &lesser, SequenceNumber::Latest },
+        KeyAndSequenceNumberComparerArgument{ &lesser, SequenceNumber::Earliest }
+        );
+}
+
+TEST(KeyRangeComparerTests, Uses_key_order_first)
+{
+    TestKey lesser;
+    TestKey greater;
+
+    lesser.set_int32_value(0);
+    greater.set_int32_value(1);
+
+    DoKeyRangeComparerTestNotEquivalent<TestKey>(
+        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive, KeyUsage::RangeEndLow),
+        KeyAndSequenceNumberComparerArgument(&greater, SequenceNumber::Latest)
+        );
+}
+
+TEST(KeyRangeComparerTests, Uses_Inclusivity_on_Low)
+{
+    TestKey lesser;
+    TestKey greater;
+
+    lesser.set_int32_value(0);
+    greater.set_int32_value(0);
+
+    DoKeyRangeComparerTestNotEquivalent<TestKey>(
+        KeyAndSequenceNumberComparerArgument(&lesser, SequenceNumber::Earliest),
+        KeyRangeComparerArgument(&greater, SequenceNumber::Earliest, Inclusivity::Exclusive, KeyUsage::RangeEndLow)
+        );
+}
+
+TEST(KeyRangeComparerTests, Uses_Inclusivity_on_High)
+{
+    TestKey lesser;
+    TestKey greater;
+
+    lesser.set_int32_value(0);
+    greater.set_int32_value(0);
+
+    DoKeyRangeComparerTestNotEquivalent<TestKey>(
+        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Exclusive, KeyUsage::RangeEndHigh),
+        KeyAndSequenceNumberComparerArgument(&greater, SequenceNumber::Earliest)
+        );
+}
+
+TEST(KeyRangeComparerTests, Uses_sequence_number_second)
+{
+    TestKey lesser;
+    TestKey greater;
+
+    lesser.set_int32_value(0);
+
+    DoKeyRangeComparerTestNotEquivalent<TestKey>(
+        KeyAndSequenceNumberComparerArgument(&lesser, SequenceNumber::Latest),
+        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive, KeyUsage::RangeEndLow)
+        );
 }
 
 }

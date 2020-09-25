@@ -5,6 +5,9 @@
 #include "KeyComparer.h"
 #include <compare>
 #include <algorithm>
+#include "PartitionTreeNodeCache.h"
+#include "KeyComparer.h"
+#include "Phantom.System/async_utility.h"
 
 namespace Phantom::ProtoStore
 {
@@ -199,73 +202,61 @@ cppcoro::async_generator<ResultRow> Partition::Checkpoint(
     }
 }
 
-task<int> Partition::FindTreeEntry(
-    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-    const PartitionTreeNode* treeNode,
-    const FindTreeEntryKey& findEntryKey
-)
+struct Partition::FindTreeEntryKeyLessThanComparer
 {
-    auto left = findEntryKey.lastFindResult.value_or(-1) + 1;
-    auto right = treeNode->treeentries_size();
-    auto readSequenceNumberUint64 = ToUint64(findEntryKey.readSequenceNumber);
+    const KeyComparer& m_keyComparer;
     
-    while (right > left)
+    FindTreeEntryKeyLessThanComparer(
+        const KeyComparer& keyComparer
+    ) : m_keyComparer(keyComparer)
+    {}
+
+    task<bool> operator()(
+        const PartitionTreeNodeCacheEntry::iterator_type::value_type& cacheEntry,
+        const KeyRangeComparerArgument& key
+        )
     {
-        auto middle = left + (right - left) / 2;
+        KeyRangeLessThanComparer comparer(
+            m_keyComparer);
 
-        auto middleKey = co_await partitionTreeNodeCacheEntry->GetKey(
-            middle);
-        auto& middleTreeNodeEntry = treeNode->treeentries(middle);
+        KeyAndSequenceNumberComparerArgument cacheEntryKey
+        {
+            co_await *(cacheEntry.Key),
+            ToSequenceNumber(
+                cacheEntry.TreeEntry->has_child()
+                    ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
+                    : cacheEntry.TreeEntry->has_value()
+                    ? cacheEntry.TreeEntry->value().writesequencenumber()
+                    : cacheEntry.TreeEntry->valueset().values(cacheEntry.TreeEntry->valueset().values_size() - 1).writesequencenumber()
+            )
+        };
 
-        auto keyComparison = m_keyComparer->Compare(
-            findEntryKey.key,
-            middleKey);
-
-        if (keyComparison == std::weak_ordering::equivalent)
-        {
-            keyComparison = findEntryKey.matchingKeyComparisonResult;
-        }
-
-        if (keyComparison == std::weak_ordering::equivalent)
-        {
-            if (middleTreeNodeEntry.has_child())
-            {
-                keyComparison = middleTreeNodeEntry.child().lowestwritesequencenumberforkey() <=> readSequenceNumberUint64;
-            }
-            else if (middleTreeNodeEntry.has_value())
-            {
-                keyComparison = middleTreeNodeEntry.value().writesequencenumber() <=> readSequenceNumberUint64;
-            }
-            else
-            {
-                assert(middleTreeNodeEntry.has_valueset());
-                if (middleTreeNodeEntry.valueset().values(middleTreeNodeEntry.valueset().values_size() - 1).writesequencenumber() > readSequenceNumberUint64)
-                {
-                    keyComparison = std::weak_ordering::greater;
-                }
-                else if (middleTreeNodeEntry.valueset().values(0).writesequencenumber() < readSequenceNumberUint64)
-                {
-                    keyComparison = std::weak_ordering::less;
-                }
-            }
-        }
-
-        if (keyComparison == std::weak_ordering::equivalent)
-        {
-            co_return middle;
-        }
-        else if (keyComparison == std::weak_ordering::less)
-        {
-            right = middle;
-        }
-        else
-        {
-            left = middle + 1;
-        }
+        co_return comparer(cacheEntryKey, key);
     }
 
-    co_return left;
-}
+    task<bool> operator()(
+        const KeyRangeComparerArgument& key,
+        const PartitionTreeNodeCacheEntry::iterator_type::value_type& cacheEntry
+        )
+    {
+        KeyRangeLessThanComparer comparer(
+            m_keyComparer);
+
+        KeyAndSequenceNumberComparerArgument cacheEntryKey
+        {
+            co_await *(cacheEntry.Key),
+            ToSequenceNumber(
+                cacheEntry.TreeEntry->has_child()
+                    ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
+                    : cacheEntry.TreeEntry->has_value()
+                    ? cacheEntry.TreeEntry->value().writesequencenumber()
+                    : cacheEntry.TreeEntry->valueset().values(cacheEntry.TreeEntry->valueset().values_size() - 1).writesequencenumber()
+            )
+        };
+
+        co_return comparer(key, cacheEntryKey);
+    }
+};
 
 task<int> Partition::FindLowTreeEntryIndex(
     const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
@@ -274,29 +265,24 @@ task<int> Partition::FindLowTreeEntryIndex(
     KeyRangeEnd low
 )
 {
-    int lowTreeEntryIndex = 0;
-    std::weak_ordering lowTreeEntryComparison = std::weak_ordering::less;
-
-    if (low.Key)
+    KeyRangeLessThanComparer keyRangeLessThanComparer{ *m_keyComparer };
+    
+    KeyRangeComparerArgument key
     {
-        FindTreeEntryKey key;
-        key.key = low.Key;
-        key.readSequenceNumber = readSequenceNumber;
-        
-        // We always ignore even non-leaf tree entries whose
-        // key matches our low if we're low-exclusive.
-        if (low.Inclusivity == Inclusivity::Exclusive)
-        {
-            key.matchingKeyComparisonResult = std::weak_ordering::greater;
-        }
+        low.Key,
+        readSequenceNumber,
+        low.Inclusivity,
+        KeyUsage::RangeEndLow,
+    };
 
-        lowTreeEntryIndex = co_await FindTreeEntry(
-            partitionTreeNodeCacheEntry,
-            treeNode,
-            key);
-    }
+    auto lowerBound = co_await async_lower_bound(
+        co_await partitionTreeNodeCacheEntry->begin(),
+        co_await partitionTreeNodeCacheEntry->end(),
+        key,
+        FindTreeEntryKeyLessThanComparer { *m_keyComparer }
+    );
 
-    co_return lowTreeEntryIndex;
+    co_return lowerBound - co_await partitionTreeNodeCacheEntry->begin();
 }
 
 task<int> Partition::FindHighTreeEntryIndex(
@@ -306,37 +292,24 @@ task<int> Partition::FindHighTreeEntryIndex(
     KeyRangeEnd high
 )
 {
-    int highTreeEntryIndex = treeNode->treeentries_size();
-    std::weak_ordering highTreeEntryComparison = std::weak_ordering::less;
+    KeyRangeLessThanComparer keyRangeLessThanComparer{ *m_keyComparer };
 
-    if (high.Key)
+    KeyRangeComparerArgument key
     {
-        FindTreeEntryKey key;
-        key.key = high.Key;
-        key.readSequenceNumber = readSequenceNumber;
+        high.Key,
+        readSequenceNumber,
+        high.Inclusivity,
+        KeyUsage::RangeEndHigh,
+    };
 
-        if (high.Inclusivity == Inclusivity::Exclusive
-            && treeNode->level() == 0)
-        {
-            key.matchingKeyComparisonResult = std::weak_ordering::equivalent;
-        }
-        else
-        {
-            key.matchingKeyComparisonResult = std::weak_ordering::greater;
-        }
+    auto upperBound = co_await async_upper_bound(
+        co_await partitionTreeNodeCacheEntry->begin(),
+        co_await partitionTreeNodeCacheEntry->end(),
+        key,
+        FindTreeEntryKeyLessThanComparer { *m_keyComparer }
+    );
 
-        highTreeEntryIndex = co_await FindTreeEntry(
-            partitionTreeNodeCacheEntry,
-            treeNode,
-            key);
-
-        if (treeNode->level() != 0)
-        {
-            highTreeEntryIndex++;
-        }
-    }
-
-    co_return highTreeEntryIndex;
+    co_return upperBound - co_await partitionTreeNodeCacheEntry->begin();
 }
 
 int Partition::FindMatchingValueIndexByWriteSequenceNumber(
@@ -518,16 +491,17 @@ value->ParseFromString(
 
         if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)
         {
-            FindTreeEntryKey findEntryKey;
-            findEntryKey.key = key;
-            findEntryKey.matchingKeyComparisonResult = std::weak_ordering::greater;
-            findEntryKey.lastFindResult = lowTreeEntryIndex;
-            findEntryKey.readSequenceNumber = readSequenceNumber;
+            KeyRangeEnd low =
+            {
+                key,
+                Inclusivity::Exclusive,
+            };
 
-            lowTreeEntryIndex = co_await FindTreeEntry(
+            lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
                 cacheEntry,
                 treeNode,
-                findEntryKey);
+                readSequenceNumber,
+                low);
         }
         else
         {

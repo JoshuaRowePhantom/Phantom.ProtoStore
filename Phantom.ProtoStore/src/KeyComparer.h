@@ -30,25 +30,30 @@ private:
     template<IsOrderedBy<std::weak_ordering> T>
     std::weak_ordering CompareValues(
         const T& left,
-        const T& right    ) const;
+        const T& right
+    ) const;
 
     template<IsOrderedBy<std::strong_ordering> T>
         std::weak_ordering CompareValues(
             const T& left,
-            const T& right    ) const;
+            const T& right
+    ) const;
 
     template<IsOrderedBy<std::partial_ordering> T>
         std::weak_ordering CompareValues(
             const T& left,
-            const T& right    ) const;
+            const T& right
+    ) const;
     
     std::weak_ordering KeyComparer::CompareValues(
         const std::string& left,
-        const std::string& right    ) const;
+        const std::string& right
+    ) const;
 
     std::weak_ordering KeyComparer::CompareValues(
         const google::protobuf::Message& left,
-        const google::protobuf::Message& right    ) const;
+        const google::protobuf::Message& right
+    ) const;
 
     std::weak_ordering KeyComparer::CompareFields(
         const google::protobuf::Message* left,
@@ -56,7 +61,8 @@ private:
         const google::protobuf::Reflection* leftReflection,
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
-        const google::protobuf::FieldDescriptor* rightFieldDescriptor    ) const;
+        const google::protobuf::FieldDescriptor* rightFieldDescriptor
+    ) const;
 
     template<typename T>
     std::weak_ordering CompareFields(
@@ -66,7 +72,8 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<T> = compare_tag<T>()    ) const;
+        compare_tag<T> = compare_tag<T>()
+    ) const;
 
     std::weak_ordering KeyComparer::CompareNonRepeatedFields(
         const google::protobuf::Message* left,
@@ -75,7 +82,8 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<std::string> tag    ) const;
+        compare_tag<std::string> tag
+    ) const;
 
     std::weak_ordering KeyComparer::CompareNonRepeatedFields(
         const google::protobuf::Message* left,
@@ -84,7 +92,8 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<google::protobuf::Message> tag    ) const;
+        compare_tag<google::protobuf::Message> tag
+    ) const;
 
     template<typename T>
     std::weak_ordering CompareNonRepeatedFields(
@@ -94,7 +103,8 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<T> = compare_tag<T>()    ) const;
+        compare_tag<T> = compare_tag<T>()
+    ) const;
 
     template<typename T>
     std::weak_ordering CompareRepeatedFields(
@@ -104,11 +114,13 @@ private:
         const google::protobuf::Reflection* rightReflection,
         const google::protobuf::FieldDescriptor* leftFieldDescriptor,
         const google::protobuf::FieldDescriptor* rightFieldDescriptor,
-        compare_tag<T> = compare_tag<T>()    ) const;
+        compare_tag<T> = compare_tag<T>()
+    ) const;
 
     std::weak_ordering ApplySortOrder(
         SortOrder sortOrder,
-        std::weak_ordering value    ) const;
+        std::weak_ordering value
+    ) const;
 
 public:
     KeyComparer(
@@ -116,12 +128,158 @@ public:
 
     std::weak_ordering Compare(
         const google::protobuf::Message* value1,
-        const google::protobuf::Message* value2    ) const;
+        const google::protobuf::Message* value2
+    ) const;
 
     std::weak_ordering operator()(
         const google::protobuf::Message* value1,
         const google::protobuf::Message* value2
     ) const;
+};
+
+struct KeyAndSequenceNumberComparerArgument
+{
+    const Message* Key;
+    SequenceNumber SequenceNumber;
+
+    KeyAndSequenceNumberComparerArgument(
+        const Message* key,
+        Phantom::ProtoStore::SequenceNumber sequenceNumber
+    ) :
+        Key(key),
+        SequenceNumber(sequenceNumber)
+    {}
+};
+
+class KeyAndSequenceNumberComparer
+{
+    const KeyComparer& m_keyComparer;
+
+public:
+    KeyAndSequenceNumberComparer(
+        const KeyComparer& keyComparer
+    ) : m_keyComparer(keyComparer)
+    {}
+
+    std::weak_ordering operator ()(
+        const KeyAndSequenceNumberComparerArgument& left,
+        const KeyAndSequenceNumberComparerArgument& right
+    )
+    {
+        auto comparisonResult = m_keyComparer.Compare(
+            left.Key,
+            right.Key);
+
+        if (comparisonResult == std::weak_ordering::equivalent)
+        {
+            // Intentionally backward, so that later sequence numbers compare earlier.
+            comparisonResult = right.SequenceNumber <=> left.SequenceNumber;
+        }
+
+        return comparisonResult;
+    }
+};
+
+class KeyAndSequenceNumberLessThanComparer
+{
+    KeyAndSequenceNumberComparer m_keyAndSequenceNumberComparer;
+
+public:
+    KeyAndSequenceNumberLessThanComparer(
+        const KeyComparer& keyComparer
+    ) : m_keyAndSequenceNumberComparer(keyComparer)
+    {}
+
+    template <
+        typename T1,
+        typename T2
+    > bool operator()(
+        const T1& left,
+        const T2& right
+    )
+    {
+        auto comparisonResult = m_keyAndSequenceNumberComparer.Compare(
+            left,
+            right);
+
+        return comparisonResult == std::weak_ordering::less;
+    }
+};
+
+enum class KeyUsage
+{
+    // The key is the low end of a range
+    RangeEndLow,
+    // The key is the high end of a range
+    RangeEndHigh,
+};
+
+struct KeyRangeComparerArgument
+{
+    const Message* Key;
+    SequenceNumber SequenceNumber;
+    Inclusivity Inclusivity;
+    KeyUsage Usage;
+
+    KeyRangeComparerArgument(
+        const Message* key,
+        Phantom::ProtoStore::SequenceNumber sequenceNumber,
+        Phantom::ProtoStore::Inclusivity inclusivity,
+        KeyUsage usage
+    ) :
+        Key(key),
+        SequenceNumber(sequenceNumber),
+        Inclusivity(inclusivity),
+        Usage(usage)
+    {}
+};
+
+class KeyRangeComparer
+{
+    const KeyComparer& m_keyComparer;
+public:
+    KeyRangeComparer(
+        const KeyComparer& keyComparer
+    ) : m_keyComparer(keyComparer)
+    {
+    }
+
+    std::weak_ordering operator()(
+        const KeyAndSequenceNumberComparerArgument& left,
+        const KeyRangeComparerArgument& right
+        ) const;
+
+    std::weak_ordering operator()(
+        const KeyRangeComparerArgument& left,
+        const KeyAndSequenceNumberComparerArgument& right
+        ) const;
+};
+
+class KeyRangeLessThanComparer
+{
+    KeyRangeComparer m_keyRangeComparer;
+public:
+    KeyRangeLessThanComparer(
+        const KeyRangeComparer& keyRangeComparer
+    ) :
+        m_keyRangeComparer(keyRangeComparer)
+    {}
+
+    bool operator()(
+        const KeyAndSequenceNumberComparerArgument& left,
+        const KeyRangeComparerArgument& right
+        ) const
+    {
+        return m_keyRangeComparer(left, right) == std::weak_ordering::less;
+    }
+
+    bool operator()(
+        const KeyRangeComparerArgument& left,
+        const KeyAndSequenceNumberComparerArgument& right
+        ) const
+    {
+        return m_keyRangeComparer(left, right) == std::weak_ordering::less;
+    }
 };
 
 }

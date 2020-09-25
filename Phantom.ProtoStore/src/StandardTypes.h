@@ -111,6 +111,7 @@ class LoggedCreateIndex;
 class LoggedCreateDataExtent;
 class LoggedUpdatePartitions;
 class PartitionTreeNode;
+class PartitionTreeEntry;
 class PartitionsKey;
 class PartitionsValue;
 class MergesKey;
@@ -142,6 +143,5 @@ typedef row<MergesKey, MergesValue> merges_row_type;
 typedef vector<merges_row_type> merges_row_list_type;
 typedef row<MergeProgressKey, MergeProgressValue> merge_progress_row_type;
 typedef vector<merge_progress_row_type> merge_progress_row_list_type;
-
 
 }

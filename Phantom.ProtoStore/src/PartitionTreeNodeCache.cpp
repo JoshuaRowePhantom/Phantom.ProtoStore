@@ -18,6 +18,7 @@ PartitionTreeNodeCacheEntry::PartitionTreeNodeCacheEntry(
         messageLocation);
 }
 
+
 shared_task<const PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNodeInternal(
     shared_ptr<IRandomMessageAccessor> messageAccessor,
     ExtentLocation messageLocation)
@@ -53,7 +54,7 @@ shared_task<const Message*> PartitionTreeNodeCacheEntry::GetKeyInternal(
     co_return key;
 }
 
-shared_task<const PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNode()
+shared_task<const PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNode() const
 {
     return m_readTreeNodeTask;
 }
@@ -63,6 +64,25 @@ task<const Message*> PartitionTreeNodeCacheEntry::GetKey(
 {
     co_await m_readTreeNodeTask;
     co_return co_await m_keys[index];
+}
+
+task<PartitionTreeNodeCacheEntry::iterator_type> PartitionTreeNodeCacheEntry::begin() const
+{
+    co_return iterator_type(
+        this,
+        co_await ReadTreeNode(),
+        0
+    );
+}
+
+task<PartitionTreeNodeCacheEntry::iterator_type> PartitionTreeNodeCacheEntry::end() const
+{
+    auto treeNode = co_await ReadTreeNode();
+
+    co_return iterator_type(
+        this,
+        treeNode,
+        treeNode->treeentries_size());
 }
 
 PartitionTreeNodeCache::PartitionTreeNodeCache(
@@ -128,5 +148,84 @@ task<shared_ptr<PartitionTreeNodeCacheEntry>> PartitionTreeNodeCache::GetPartiti
         cacheEntryFindResult1.first);
 
     co_return insertionResult.first->second;
+}
+
+PartitionTreeNodeCacheEntry::iterator_type::iterator_type(
+    const PartitionTreeNodeCacheEntry* cacheEntry,
+    const PartitionTreeNode* treeNode,
+    int index)
+    :
+    m_cacheEntry(cacheEntry),
+    m_treeNode(treeNode),
+    m_value { nullptr, nullptr },
+    m_index(index)
+{
+    // This sets m_value.
+    *this += 0;
+}
+
+PartitionTreeNodeCacheEntry::iterator_type& PartitionTreeNodeCacheEntry::iterator_type::operator++()
+{
+    return *this += 1;
+}
+
+PartitionTreeNodeCacheEntry::iterator_type& PartitionTreeNodeCacheEntry::iterator_type::operator++(int)
+{
+    return *this += 1;
+}
+
+
+PartitionTreeNodeCacheEntry::iterator_type& PartitionTreeNodeCacheEntry::iterator_type::operator+=(
+    int offset)
+{
+    m_index += offset;
+    if (m_index < m_treeNode->treeentries_size())
+    {
+        m_value = value_type
+        {
+            &m_treeNode->treeentries(m_index),
+            &m_cacheEntry->m_keys[0],
+        };
+    }
+    return *this;
+}
+
+PartitionTreeNodeCacheEntry::iterator_type PartitionTreeNodeCacheEntry::iterator_type::operator+(
+    int offset
+    ) const
+{
+    iterator_type result(*this);
+    return result += offset;
+}
+
+int PartitionTreeNodeCacheEntry::iterator_type::operator-(
+    const iterator_type& other
+    ) const
+{
+    return m_index - other.m_index;
+}
+
+const PartitionTreeNodeCacheEntry::value_type& PartitionTreeNodeCacheEntry::iterator_type::operator*() const
+{
+    return m_value;
+}
+
+const PartitionTreeNodeCacheEntry::value_type* PartitionTreeNodeCacheEntry::iterator_type::operator->() const
+{
+    return &m_value;
+}
+
+bool PartitionTreeNodeCacheEntry::iterator_type::operator==(
+    const iterator_type& other
+    ) const
+{
+    return other.m_index == m_index;
+}
+
+bool PartitionTreeNodeCacheEntry::iterator_type::operator!=(
+    const iterator_type& other
+    ) const
+{
+    return other.m_index != m_index;
 }
 }

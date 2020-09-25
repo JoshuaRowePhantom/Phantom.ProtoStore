@@ -1,3 +1,5 @@
+#pragma once
+
 #include "StandardTypes.h"
 #include "SkipList.h"
 #include <atomic>
@@ -28,7 +30,53 @@ public:
         ExtentLocation messageLocation
     );
 
-    shared_task<const PartitionTreeNode*> ReadTreeNode();
+    struct value_type
+    {
+        const PartitionTreeEntry* TreeEntry;
+        const shared_task<const Message*>* Key;
+    };
+
+    class iterator_type
+    {
+        static PartitionTreeEntry EmptyTreeEntry;
+        static shared_task<const Message*> EmptyKeyTask;
+
+        const PartitionTreeNodeCacheEntry* m_cacheEntry;
+        const PartitionTreeNode* m_treeNode;
+        value_type m_value;
+        int m_index;
+
+        friend class PartitionTreeNodeCacheEntry;
+        iterator_type(
+            const PartitionTreeNodeCacheEntry* cacheEntry,
+            const PartitionTreeNode* treeNode,
+            int index);
+    public:
+        typedef value_type value_type;
+
+        bool operator==(const iterator_type& other) const;
+        bool operator!=(const iterator_type& other) const;
+
+        iterator_type& operator++();
+        iterator_type& operator++(int);
+        iterator_type operator+(
+            int offset
+            ) const;
+        iterator_type& operator+=(
+            int offset);
+
+        int operator-(
+            const iterator_type& other
+            ) const;
+
+        const value_type* operator->() const;
+        const value_type& operator*() const;
+    };
+
+    task<iterator_type> begin() const;
+    task<iterator_type> end() const;
+
+    shared_task<const PartitionTreeNode*> ReadTreeNode() const;
     task<const Message*> GetKey(
         size_t index);
 };

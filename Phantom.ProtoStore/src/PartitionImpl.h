@@ -38,13 +38,8 @@ class Partition
 
     PartitionTreeNodeCache m_partitionTreeNodeCache;
 
-    struct FindTreeEntryKey
-    {
-        SequenceNumber readSequenceNumber;
-        const Message* key;
-        std::weak_ordering matchingKeyComparisonResult = std::weak_ordering::equivalent;
-        std::optional<int> lastFindResult;
-    };
+    struct FindTreeEntryKey;
+    struct FindTreeEntryKeyLessThanComparer;
 
     enum class EnumerateBehavior
     {
