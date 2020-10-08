@@ -84,20 +84,27 @@ class Partition
         IntegrityCheckErrorList& errorList,
         const IntegrityCheckError& errorPrototype,
         ExtentLocation location,
-        const Message* precedingKey,
-        SequenceNumber precedingSequenceNumber,
-        const Message* maxKey,
-        SequenceNumber lowestSequenceNumberForMaxKey);
+        const Message* lowestKeyInclusive,
+        SequenceNumber lowestKeyHighestSequenceNumber,
+        const Message* maxKeyExclusive,
+        SequenceNumber highestSequenceNumberForMaxKey);
 
     task<> CheckChildTreeEntryIntegrity(
         IntegrityCheckErrorList& errorList,
         const IntegrityCheckError& errorPrototype,
         const PartitionTreeNode& parent,
         size_t treeEntryIndex,
-        const Message* precedingKey,
-        SequenceNumber precedingSequenceNumber,
-        const Message* maxKey,
-        SequenceNumber lowestSequenceNumberForMaxKey);
+        const Message* currentKey,
+        const Message* expectedCurrentKey,
+        SequenceNumber expectedHighestSequenceNumber,
+        const Message* maxKeyExclusive,
+        SequenceNumber highestSequenceNumberForMaxKey);
+
+    void GetKeyValues(
+        const PartitionTreeEntry& treeEntry,
+        unique_ptr<Message>& key,
+        SequenceNumber& highestSequenceNumber,
+        SequenceNumber& lowestSequenceNumber);
 
 public:
     Partition(

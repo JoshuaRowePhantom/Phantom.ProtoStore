@@ -11,7 +11,7 @@ template<
     typename TItem,
     typename TContainer
 > cppcoro::task<std::vector<TItem>> ToVector(
-    TContainer& container)
+    TContainer container)
 {
     std::vector<TItem> result;
     auto end = container.end();

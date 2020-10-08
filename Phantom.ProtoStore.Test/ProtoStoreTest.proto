@@ -73,3 +73,12 @@ message StringKey {
 message StringValue {
 	string Value = 2;
 }
+
+message PartitionTestKey {
+	int32 Key = 1;
+}
+
+message PartitionTestValue {
+	int32 Key = 1;
+	uint64 SequenceNumber = 2;
+}

@@ -246,7 +246,7 @@ protected:
 public:
     BloomFilterContainerBase(
         std::span<const TElementType, SpanExtent> elements,
-        typename TBase::hash_function_type hashFunction = hash_function_type()
+        typename TBase::hash_function_type hashFunction = typename TBase::hash_function_type()
     )
         :
         TBase(hashFunction),
@@ -260,7 +260,7 @@ public:
 
     size_t size_bits() const
     {
-        return m_elements.size() * bits_per_element;
+        return m_elements.size() * TBase::bits_per_element;
     }
 };
 
@@ -305,7 +305,7 @@ protected:
 public:
     BloomFilterContainerBase(
         std::span<TElementType, SpanExtent> elements,
-        typename TBase::hash_function_type hashFunction = hash_function_type()
+        typename TBase::hash_function_type hashFunction = typename TBase::hash_function_type()
     )
         :
         TBase(hashFunction),
@@ -319,7 +319,7 @@ public:
 
     size_t size_bits() const
     {
-        return m_elements.size() * bits_per_element;
+        return m_elements.size() * TBase::bits_per_element;
     }
 };
 
@@ -358,31 +358,31 @@ protected:
 public:
     BloomFilterContainerBase(
         size_t bitCount,
-        typename TBase::hash_function_type hashFunction = hash_function_type(),
+        typename TBase::hash_function_type hashFunction = typename TBase::hash_function_type(),
         TAllocator allocator = TAllocator()
     )
         :
         TBase(hashFunction),
         m_elements(
-            (bitCount + bits_per_element - 1) / bits_per_element, 
+            (bitCount + TBase::bits_per_element - 1) / TBase::bits_per_element,
             allocator
         )
     {}
 
     BloomFilterContainerBase(
         container_type&& container,
-        typename TBase::hash_function_type hashFunction = hash_function_type()
+        typename TBase::hash_function_type hashFunction = typename TBase::hash_function_type()
     )
         :
         TBase(hashFunction),
-        m_elements(std::forward<TContainer>(container))
+        m_elements(std::forward<container_type>(container))
     {}
 
     template<
         typename THashFunction
     > BloomFilterContainerBase(
         container_type container,
-        typename TBase::hash_function_type hashFunction = hash_function_type()
+        typename TBase::hash_function_type hashFunction = typename TBase::hash_function_type()
         )
         :
         TBase(hashFunction),
@@ -398,7 +398,7 @@ public:
 
     size_t size_bits() const
     {
-        return m_elements.size() * bits_per_element;
+        return m_elements.size() * TBase::bits_per_element;
     }
 };
 
@@ -483,20 +483,7 @@ template<
 {
 public:
     using TBase::TBase;
-};
-} // namespace detail
 
-template <
-    typename THashFunction,
-    typename TElementType = uintmax_t,
-    typename TContainerType = std::vector<TElementType>
-> class BloomFilter
-    :
-    public detail::BloomFilterBase<THashFunction, TElementType, TContainerType>
-{
-
-public:
-    using detail::BloomFilterBase<THashFunction, TElementType, TContainerType>::BloomFilterBase;
 
     template<
         typename TKey
@@ -504,23 +491,23 @@ public:
         const TKey& key
     )
     {
-        auto hash = initial_hash(
+        auto hash = TBase::initial_hash(
             key,
-            size_bits());
+            TBase::size_bits());
 
         bool nextHash;
 
         do
         {
-            auto bit_index = extract_bit_index(
+            auto bit_index = TBase::extract_bit_index(
                 hash);
 
-            nextHash = next_hash(
+            nextHash = TBase::next_hash(
                 hash);
 
-            fetch_or(
-                element_at(bit_index / bits_per_element),
-                one << (bit_index % bits_per_element),
+            TBase::fetch_or(
+                TBase::element_at(bit_index / TBase::bits_per_element),
+                TBase::one << (bit_index % TBase::bits_per_element),
                 nextHash ? std::memory_order_relaxed : std::memory_order_release
             );
         } while (nextHash);
@@ -532,20 +519,20 @@ public:
         const TKey& key
     ) const
     {
-        auto hash = initial_hash(
+        auto hash = TBase::initial_hash(
             key,
-            size_bits());
+            TBase::size_bits());
 
         bool isFirst = true;
 
         do
         {
-            auto bit_index = extract_bit_index(
+            auto bit_index = TBase::extract_bit_index(
                 hash);
 
-            if (!test_bit(
-                element_at(bit_index / bits_per_element),
-                one << (bit_index % bits_per_element),
+            if (!TBase::test_bit(
+                TBase::element_at(bit_index / TBase::bits_per_element),
+                TBase::one << (bit_index % TBase::bits_per_element),
                 isFirst ? std::memory_order_acquire : std::memory_order_relaxed
             ))
             {
@@ -554,11 +541,25 @@ public:
 
             isFirst = false;
 
-        } while (next_hash(
+        } while (TBase::next_hash(
             hash));
 
         return true;
     }
+};
+} // namespace detail
+
+template <
+    typename THashFunction,
+    typename TElementType = uintmax_t,
+    typename TContainerType = std::vector<TElementType>
+> class BloomFilter
+    :
+    public detail::BloomFilterBase<THashFunction, TElementType, TContainerType>
+{
+public:
+    using detail::BloomFilterBase<THashFunction, TElementType, TContainerType>::BloomFilterBase;
+
 };
 
 inline double get_BloomFilter_optimal_bit_count_per_element(

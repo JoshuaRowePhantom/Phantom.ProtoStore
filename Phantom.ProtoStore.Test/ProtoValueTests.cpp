@@ -16,7 +16,7 @@ TEST(ProtoValueTests, Construct_from_Message_pointer)
 TEST(ProtoValueTests, Construct_from_span)
 {
     span<byte> bytes;
-    ProtoValue v = bytes;
+    ProtoValue v(bytes);
 
     ASSERT_EQ(true, holds_alternative<std::monostate>(v.message));
     ASSERT_EQ(get<span<const byte>>(v.message_data).data(), bytes.data());

@@ -63,4 +63,5 @@ target_include_directories(
 )
 
 gtest_discover_tests(
-	Phantom.ProtoStore.Test)
+	Phantom.ProtoStore.Test
+	EXTRA_ARGS --gtest_break_on_failure=1)

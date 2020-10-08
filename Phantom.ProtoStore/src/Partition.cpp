@@ -224,10 +224,8 @@ struct Partition::FindTreeEntryKeyLessThanComparer
             co_await *(cacheEntry.Key),
             ToSequenceNumber(
                 cacheEntry.TreeEntry->has_child()
-                    ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
-                    : cacheEntry.TreeEntry->has_value()
-                    ? cacheEntry.TreeEntry->value().writesequencenumber()
-                    : cacheEntry.TreeEntry->valueset().values(cacheEntry.TreeEntry->valueset().values_size() - 1).writesequencenumber()
+                    ? cacheEntry.TreeEntry->child().highestwritesequencenumberforkey()
+                    : cacheEntry.TreeEntry->valueset().values(0).writesequencenumber()
             )
         };
 
@@ -247,10 +245,8 @@ struct Partition::FindTreeEntryKeyLessThanComparer
             co_await *(cacheEntry.Key),
             ToSequenceNumber(
                 cacheEntry.TreeEntry->has_child()
-                    ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
-                    : cacheEntry.TreeEntry->has_value()
-                    ? cacheEntry.TreeEntry->value().writesequencenumber()
-                    : cacheEntry.TreeEntry->valueset().values(cacheEntry.TreeEntry->valueset().values_size() - 1).writesequencenumber()
+                    ? cacheEntry.TreeEntry->child().highestwritesequencenumberforkey()
+                    : cacheEntry.TreeEntry->valueset().values(0).writesequencenumber()
             )
         };
 
@@ -307,7 +303,7 @@ task<int> Partition::FindHighTreeEntryIndex(
         co_await partitionTreeNodeCacheEntry->begin(),
         co_await partitionTreeNodeCacheEntry->end(),
         key,
-        FindTreeEntryKeyLessThanComparer { *m_keyComparer }
+        FindTreeEntryKeyLessThanComparer{ *m_keyComparer }
     );
 
     co_return lowerBound - co_await partitionTreeNodeCacheEntry->begin();
@@ -418,28 +414,17 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             // We're looking at a matching tree entry, now we need to find the right value
             // based on the write sequence number.
             const PartitionTreeEntryValue* treeEntryValue;
-            if (treeNodeEntry.has_value())
+            auto valueIndex = FindMatchingValueIndexByWriteSequenceNumber(
+                treeNodeEntry.valueset(),
+                readSequenceNumber);
+
+            if (valueIndex < treeNodeEntry.valueset().values_size())
             {
-                treeEntryValue = &treeNodeEntry.value();
-                if (treeEntryValue->writesequencenumber() > ToUint64(readSequenceNumber))
-                {
-                    treeEntryValue = nullptr;
-                }
+                treeEntryValue = &treeNodeEntry.valueset().values(valueIndex);
             }
             else
             {
-                auto valueIndex = FindMatchingValueIndexByWriteSequenceNumber(
-                    treeNodeEntry.valueset(),
-                    readSequenceNumber);
-
-                if (valueIndex < treeNodeEntry.valueset().values_size())
-                {
-                    treeEntryValue = &treeNodeEntry.valueset().values(valueIndex);
-                }
-                else
-                {
-                    treeEntryValue = nullptr;
-                }
+                treeEntryValue = nullptr;
             }
 
             // treeEntryValue is null if the node matched, but the read sequence number was earlier than any
@@ -550,9 +535,9 @@ task<> Partition::CheckTreeNodeIntegrity(
     IntegrityCheckErrorList& errorList,
     const IntegrityCheckError& errorPrototype,
     ExtentLocation treeNodeLocation,
-    const Message* precedingKey,
-    SequenceNumber precedingSequenceNumber,
-    const Message* maxKey,
+    const Message* lowestKeyInclusive,
+    SequenceNumber lowestKeyHighestSequenceNumber,
+    const Message* maxKeyExclusive,
     SequenceNumber lowestSequenceNumberForMaxKey)
 {
     PartitionMessage treeNodeMessage;
@@ -569,10 +554,30 @@ task<> Partition::CheckTreeNodeIntegrity(
         errorList.push_back(error);
         co_return;
     }
+    
+    if (treeNodeMessage.partitiontreenode().treeentries_size() == 0)
+    {
+        co_return;
+    }
 
-    const Message* precedingKeyForChild = precedingKey;
-    SequenceNumber precedingSequenceNumberForChild = precedingSequenceNumber;
-    unique_ptr<Message> localPrecedingKeyForChild;
+    unique_ptr<Message> currentKeyHolder;
+    const Message* currentKey = lowestKeyInclusive;
+    
+    if (!currentKey)
+    {
+        SequenceNumber lowestKeyLowestSequenceNumber;
+
+        // If there is no current key, it means we're looking at the root.
+        // Deserialize the first key to get the current key.
+        GetKeyValues(
+            treeNodeMessage.partitiontreenode().treeentries(0),
+            currentKeyHolder,
+            lowestKeyHighestSequenceNumber,
+            lowestKeyLowestSequenceNumber
+        );
+        currentKey = currentKeyHolder.get();
+        lowestKeyInclusive = currentKey;
+    }
 
     for (auto index = 0;
         index < treeNodeMessage.partitiontreenode().treeentries_size();
@@ -583,56 +588,68 @@ task<> Partition::CheckTreeNodeIntegrity(
         treeEntryErrorPrototype.TreeNodeEntryIndex = index;
         treeEntryErrorPrototype.Key = treeNodeMessage.partitiontreenode().treeentries(index).key();
 
+        auto& treeEntry = treeNodeMessage.partitiontreenode().treeentries(index);
+
+        unique_ptr<Message> nextKeyHolder;
+
+        const Message* nextKey = maxKeyExclusive;
+        SequenceNumber nextKeyHighestSequenceNumber = lowestSequenceNumberForMaxKey;
+        SequenceNumber nextKeyLowestSequenceNumber = lowestSequenceNumberForMaxKey;
+
+        if (index + 1 < treeNodeMessage.partitiontreenode().treeentries_size())
+        {
+            GetKeyValues(
+                treeNodeMessage.partitiontreenode().treeentries(index + 1),
+                nextKeyHolder,
+                nextKeyHighestSequenceNumber,
+                nextKeyLowestSequenceNumber);
+            nextKey = nextKeyHolder.get();
+        }
+
         co_await CheckChildTreeEntryIntegrity(
             errorList,
             treeEntryErrorPrototype,
             treeNodeMessage.partitiontreenode(),
             index,
-            precedingKeyForChild,
-            precedingSequenceNumber,
-            maxKey,
-            lowestSequenceNumberForMaxKey);
+            currentKey,
+            lowestKeyInclusive,
+            lowestKeyHighestSequenceNumber,
+            nextKey,
+            nextKeyHighestSequenceNumber);
 
-        localPrecedingKeyForChild.reset(
-            m_keyFactory->GetPrototype()->New());
+        currentKeyHolder = move(nextKeyHolder);
+        currentKey = currentKeyHolder.get();
+    }
+}
 
-        auto& treeEntry = treeNodeMessage.partitiontreenode().treeentries(index);
+void Partition::GetKeyValues(
+    const PartitionTreeEntry& treeEntry,
+    unique_ptr<Message>& key,
+    SequenceNumber& highestSequenceNumber,
+    SequenceNumber& lowestSequenceNumber)
+{
+    key.reset(
+        m_keyFactory->GetPrototype()->New());
 
-        localPrecedingKeyForChild->ParseFromString(
-            treeEntry.key());
-        precedingKeyForChild = localPrecedingKeyForChild.get();
-
-        if (treeEntry.has_child())
-        {
-            precedingSequenceNumberForChild = ToSequenceNumber(
-                treeEntry.child().lowestwritesequencenumberforkey());
-        }
-        else if (treeEntry.has_value())
-        {
-            precedingSequenceNumberForChild = ToSequenceNumber(
-                treeEntry.value().writesequencenumber());
-        }
-        else if (treeEntry.has_valueset())
-        {
-            if (treeEntry.valueset().values_size() < 2)
-            {
-                auto error = treeEntryErrorPrototype;
-                error.Code = IntegrityCheckErrorCode::Partition_ValueSetTooSmall;
-                errorList.push_back(error);
-            }
-
-            if (treeEntry.valueset().values_size() > 0)
-            {
-                precedingSequenceNumberForChild = ToSequenceNumber(
-                    treeEntry.valueset().values(treeEntry.valueset().values_size() - 1).writesequencenumber());
-            }
-        }
-        else
-        {
-            auto error = treeEntryErrorPrototype;
-            error.Code = IntegrityCheckErrorCode::Partition_NoContentInTreeEntry;
-            errorList.push_back(error);
-        }
+    if (treeEntry.has_child())
+    {
+        highestSequenceNumber = ToSequenceNumber(
+            treeEntry.child().highestwritesequencenumberforkey());
+        lowestSequenceNumber = ToSequenceNumber(
+            treeEntry.child().highestwritesequencenumberforkey());
+    }
+    else if (treeEntry.has_valueset()
+        && treeEntry.valueset().values_size() > 0)
+    {
+        highestSequenceNumber = ToSequenceNumber(
+            treeEntry.valueset().values().begin()->writesequencenumber());
+        lowestSequenceNumber = ToSequenceNumber(
+            (treeEntry.valueset().values().end() - 1)->writesequencenumber());
+    }
+    else
+    {
+        highestSequenceNumber = SequenceNumber::Latest;
+        lowestSequenceNumber = SequenceNumber::Latest;
     }
 }
 
@@ -641,17 +658,45 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     const IntegrityCheckError& errorPrototype,
     const PartitionTreeNode& parent,
     size_t treeEntryIndex,
-    const Message* precedingKey,
-    SequenceNumber precedingSequenceNumber,
-    const Message* maxKey,
-    SequenceNumber lowestSequenceNumberForMaxKey)
+    const Message* currentKey,
+    const Message* expectedCurrentKey,
+    SequenceNumber expectedHighestSequenceNumber,
+    const Message* maxKeyExclusive,
+    SequenceNumber highestSequenceNumberForMaxKey)
 {
     const PartitionTreeEntry& treeEntry = parent.treeentries(treeEntryIndex);
 
-    unique_ptr<Message> keyMessage(
-        m_keyFactory->GetPrototype()->New());
-    keyMessage->ParseFromString(
-        treeEntry.key());
+    SequenceNumber currentHighestSequenceNumber;
+    SequenceNumber currentLowestSequenceNumber;
+    if (treeEntry.has_child())
+    {
+        currentHighestSequenceNumber = ToSequenceNumber(
+            treeEntry.child().highestwritesequencenumberforkey());
+        currentLowestSequenceNumber = ToSequenceNumber(
+            treeEntry.child().highestwritesequencenumberforkey());
+    }
+    else if (treeEntry.has_valueset()
+        && treeEntry.valueset().values_size() > 0)
+    {
+        currentHighestSequenceNumber = ToSequenceNumber(
+            treeEntry.valueset().values(0).writesequencenumber());
+        currentLowestSequenceNumber = ToSequenceNumber(
+            (treeEntry.valueset().values().end() - 1)->writesequencenumber());
+    }
+    else
+    {
+        auto error = errorPrototype;
+        error.Code = IntegrityCheckErrorCode::Partition_NoContentInTreeEntry;
+        errorList.push_back(error);
+        co_return;
+    }
+
+    if (currentHighestSequenceNumber > GetLatestSequenceNumber())
+    {
+        auto error = errorPrototype;
+        error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMaxRange;
+        errorList.push_back(error);
+    }
 
     if (!m_bloomFilter->test(
         treeEntry.key()))
@@ -661,69 +706,51 @@ task<> Partition::CheckChildTreeEntryIntegrity(
         errorList.push_back(error);
     }
 
-    auto keyComparisonResult = std::weak_ordering::less;
-    
-    if (precedingKey)
-    {
-        keyComparisonResult = m_keyComparer->Compare(
-            precedingKey,
-            keyMessage.get());
-    }
+    auto keyComparisonResult = m_keyComparer->Compare(
+        expectedCurrentKey,
+        currentKey);
 
-    if (keyComparisonResult == std::weak_ordering::greater)
+    if (keyComparisonResult != std::weak_ordering::equivalent)
     {
         auto error = errorPrototype;
         error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderKey;
         errorList.push_back(error);
+        co_return;
     }
 
-    if (maxKey)
+    if (currentHighestSequenceNumber != expectedHighestSequenceNumber)
+    {
+        auto error = errorPrototype;
+        error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
+        errorList.push_back(error);
+        co_return;
+    }
+
+    // If there is a max key, ensure the tree entry is below that value.
+    if (maxKeyExclusive)
     {
         auto maxKeyComparisonResult = m_keyComparer->Compare(
-            keyMessage.get(),
-            maxKey);
+            currentKey,
+            maxKeyExclusive);
 
         if (maxKeyComparisonResult == std::weak_ordering::greater)
         {
             auto error = errorPrototype;
             error.Code = IntegrityCheckErrorCode::Partition_KeyOutOfMaxRange;
             errorList.push_back(error);
+            co_return;
         }
 
         if (maxKeyComparisonResult == std::weak_ordering::equivalent)
         {
             SequenceNumber lowestSequenceNumberForKey;
 
-            if (treeEntry.has_child())
-            {
-                lowestSequenceNumberForKey = ToSequenceNumber(
-                    treeEntry.child().lowestwritesequencenumberforkey());
-            }
-            else if (treeEntry.has_value())
-            {
-                lowestSequenceNumberForKey = ToSequenceNumber(
-                    treeEntry.value().writesequencenumber());
-            }
-            else if (treeEntry.has_valueset())
-            {
-                lowestSequenceNumberForKey = ToSequenceNumber(
-                    treeEntry.valueset().values(
-                        treeEntry.valueset().values_size() - 1
-                    ).writesequencenumber());
-            }
-            else
-            {
-                auto error = errorPrototype;
-                error.Code = IntegrityCheckErrorCode::Partition_NoContentInTreeEntry;
-                errorList.push_back(error);
-                co_return;
-            }
-
-            if (ToUint64(lowestSequenceNumberForKey) < ToUint64(lowestSequenceNumberForMaxKey))
+            if (currentLowestSequenceNumber <= highestSequenceNumberForMaxKey)
             {
                 auto error = errorPrototype;
                 error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMinRange;
                 errorList.push_back(error);
+                co_return;
             }
         }
     }
@@ -738,31 +765,14 @@ task<> Partition::CheckChildTreeEntryIntegrity(
             co_return;
         }
 
-        auto childSequenceNumber = treeEntry.child().lowestwritesequencenumberforkey();
-
-        if (keyComparisonResult == std::weak_ordering::equivalent
-            && ToUint64(precedingSequenceNumber) < childSequenceNumber)
-        {
-            auto error = errorPrototype;
-            error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
-            errorList.push_back(error);
-        }
-
-        if (childSequenceNumber > ToUint64(GetLatestSequenceNumber()))
-        {
-            auto error = errorPrototype;
-            error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMaxRange;
-            errorList.push_back(error);
-        }
-
         co_await CheckTreeNodeIntegrity(
             errorList,
             errorPrototype,
             { m_dataLocation.extentNumber, treeEntry.child().treenodeoffset() },
-            precedingKey,
-            precedingSequenceNumber,
-            keyMessage.get(),
-            ToSequenceNumber(childSequenceNumber)
+            currentKey,
+            currentHighestSequenceNumber,
+            maxKeyExclusive,
+            highestSequenceNumberForMaxKey
         );
     }
     else
@@ -773,35 +783,18 @@ task<> Partition::CheckChildTreeEntryIntegrity(
             error.Code = IntegrityCheckErrorCode::Partition_LeafNodeHasChild;
             errorList.push_back(error);
         }
-        else if (treeEntry.has_value())
-        {
-            auto valueSequenceNumber = treeEntry.value().writesequencenumber();
-
-            if (keyComparisonResult == std::weak_ordering::equivalent
-                && ToUint64(precedingSequenceNumber) < valueSequenceNumber)
-            {
-                auto error = errorPrototype;
-                error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
-                errorList.push_back(error);
-            }
-
-            if (valueSequenceNumber > ToUint64(GetLatestSequenceNumber()))
-            {
-                auto error = errorPrototype;
-                error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMaxRange;
-                errorList.push_back(error);
-            }
-        }
         else if (treeEntry.has_valueset())
         {
-            for (auto valueIndex = 0;
+            for (auto valueIndex = 1;
                 valueIndex < treeEntry.valueset().values_size();
                 valueIndex++)
             {
-                auto valueSequenceNumber = treeEntry.valueset().values(valueIndex).writesequencenumber();
+                auto previousValueSequenceNumber = ToSequenceNumber(
+                    treeEntry.valueset().values(valueIndex - 1).writesequencenumber());
+                auto currentValueSequenceNumber = ToSequenceNumber(
+                    treeEntry.valueset().values(valueIndex).writesequencenumber());
 
-                if (keyComparisonResult == std::weak_ordering::equivalent
-                    && ToUint64(precedingSequenceNumber) < valueSequenceNumber)
+                if (previousValueSequenceNumber <= currentValueSequenceNumber)
                 {
                     auto error = errorPrototype;
                     error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderSequenceNumber;
@@ -809,15 +802,12 @@ task<> Partition::CheckChildTreeEntryIntegrity(
                     errorList.push_back(error);
                 }
 
-                if (valueSequenceNumber > ToUint64(GetLatestSequenceNumber()))
+                if (currentValueSequenceNumber > GetLatestSequenceNumber())
                 {
                     auto error = errorPrototype;
                     error.Code = IntegrityCheckErrorCode::Partition_SequenceNumberOutOfMaxRange;
                     errorList.push_back(error);
                 }
-
-                keyComparisonResult = std::weak_ordering::equivalent;
-                precedingSequenceNumber = ToSequenceNumber(valueSequenceNumber);
             }
         }
         else

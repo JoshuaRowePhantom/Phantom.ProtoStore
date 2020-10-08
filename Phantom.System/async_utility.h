@@ -64,11 +64,11 @@ public:
 
 template<
     typename T
-> simple_awaitable<T> as_awaitable(
+> simple_awaitable<typename std::remove_reference<T>::type> as_awaitable(
     T&& t
 )
 {
-    return simple_awaitable<T>(std::forward<T>(t));
+    return simple_awaitable<typename std::remove_reference<T>::type>(std::forward<T>(t));
 }
 
 template<

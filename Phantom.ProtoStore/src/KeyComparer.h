@@ -45,17 +45,17 @@ private:
             const T& right
     ) const;
     
-    std::weak_ordering KeyComparer::CompareValues(
+    std::weak_ordering CompareValues(
         const std::string& left,
         const std::string& right
     ) const;
 
-    std::weak_ordering KeyComparer::CompareValues(
+    std::weak_ordering CompareValues(
         const google::protobuf::Message& left,
         const google::protobuf::Message& right
     ) const;
 
-    std::weak_ordering KeyComparer::CompareFields(
+    std::weak_ordering CompareFields(
         const google::protobuf::Message* left,
         const google::protobuf::Message* right,
         const google::protobuf::Reflection* leftReflection,
@@ -75,7 +75,7 @@ private:
         compare_tag<T> = compare_tag<T>()
     ) const;
 
-    std::weak_ordering KeyComparer::CompareNonRepeatedFields(
+    std::weak_ordering CompareNonRepeatedFields(
         const google::protobuf::Message* left,
         const google::protobuf::Message* right,
         const google::protobuf::Reflection* leftReflection,
@@ -85,7 +85,7 @@ private:
         compare_tag<std::string> tag
     ) const;
 
-    std::weak_ordering KeyComparer::CompareNonRepeatedFields(
+    std::weak_ordering CompareNonRepeatedFields(
         const google::protobuf::Message* left,
         const google::protobuf::Message* right,
         const google::protobuf::Reflection* leftReflection,
@@ -198,7 +198,7 @@ public:
         const T2& right
     )
     {
-        auto comparisonResult = m_keyAndSequenceNumberComparer.Compare(
+        auto comparisonResult = m_keyAndSequenceNumberComparer(
             left,
             right);
 

@@ -178,6 +178,7 @@ message PartitionTreeEntryValue {
 		bytes Value = 1;
 		// Set if this entry is an offset into the file.
 		uint64 ValueOffset = 2;
+		// Set if this entry is to a deleted row.
 		bool Deleted = 3;
     }
 	uint64 WriteSequenceNumber = 4;
@@ -191,9 +192,9 @@ message PartitionTreeEntryValueSet {
 message PartitionTreeEntryChild {
 	// The offset to the PartitionMessage containing a PartitionTreeNode
 	uint64 TreeNodeOffset = 1;
-	// The lowest write sequence number for the given Key that is contained
+	// The highest write sequence number for the given Key that is contained
 	// in the subtree.
-	uint64 LowestWriteSequenceNumberForKey = 2;
+	uint64 HighestWriteSequenceNumberForKey = 2;
 }
 
 message PartitionTreeEntry {
@@ -203,8 +204,6 @@ message PartitionTreeEntry {
 	oneof PartitionTreeEntryType {
 		// Set if the tree points to a subtree.
 		PartitionTreeEntryChild Child = 4;
-		// Set if the tree points to a single value
-		PartitionTreeEntryValue Value = 5;
 		// Set if the tree points to multiple values for the
 		// same key but different sequence numbers.
 		PartitionTreeEntryValueSet ValueSet = 6;

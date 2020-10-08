@@ -9,6 +9,156 @@
 namespace Phantom::ProtoStore
 {
 
+PartitionTreeWriter::PartitionTreeWriter(
+    shared_ptr<ISequentialMessageWriter> dataWriter
+) : m_dataWriter(dataWriter)
+{
+    m_treeNodeStack.push_back(StackEntry());
+
+    // Ensure there is a partition tree node in the first message we create,
+    // in case the partition ends up empty.
+    m_treeNodeStack[0].Message.mutable_partitiontreenode();
+}
+
+void PartitionTreeWriter::StartTreeEntry(
+    string key)
+{
+    auto treeEntry = m_treeNodeStack[0].Message.mutable_partitiontreenode()->mutable_treeentries()->Add();
+    treeEntry->set_key(move(key));
+
+    m_treeNodeStack[0].EstimatedSize += treeEntry->ByteSizeLong();
+}
+
+void PartitionTreeWriter::AddTreeEntryValue(
+    PartitionTreeEntryValue partitionTreeEntryValue
+)
+{
+    *m_treeNodeStack[0].Message.mutable_partitiontreenode()->mutable_treeentries(
+        m_treeNodeStack[0].Message.mutable_partitiontreenode()->treeentries_size() - 1
+    )->mutable_valueset()->add_values() = move(partitionTreeEntryValue);
+
+    m_treeNodeStack[0].EstimatedSize += partitionTreeEntryValue.ByteSizeLong();
+}
+
+bool PartitionTreeWriter::IsCurrentKey(
+    const string& key
+)
+{
+    auto treeEntriesSize = m_treeNodeStack[0].Message.partitiontreenode().treeentries_size();
+    return treeEntriesSize > 0
+        && m_treeNodeStack[0].Message.partitiontreenode().treeentries(treeEntriesSize - 1).key() == key;
+}
+
+task<WriteMessageResult> PartitionTreeWriter::Write(
+    uint32_t level)
+{
+    return Write(
+        level,
+        true);
+}
+
+task<WriteMessageResult> PartitionTreeWriter::Write(
+    uint32_t level,
+    bool createNewLevel)
+{
+    auto writeMessageResult = co_await m_dataWriter->Write(
+        m_treeNodeStack[level].Message,
+        FlushBehavior::DontFlush);
+
+    if (m_treeNodeStack.size() < level + 2)
+    {
+        if (!createNewLevel)
+        {
+            co_return writeMessageResult;
+        }
+
+        m_treeNodeStack.resize(level + 2);
+    }
+
+    auto higherLevelTreeEntry = m_treeNodeStack[level + 1].Message.mutable_partitiontreenode()->add_treeentries();
+    higherLevelTreeEntry->set_key(
+        move(*m_treeNodeStack[level].Message.mutable_partitiontreenode()->mutable_treeentries(0)->mutable_key())
+    );
+    higherLevelTreeEntry->mutable_child()->set_treenodeoffset(
+        writeMessageResult.DataRange.Beginning
+    );
+    higherLevelTreeEntry->mutable_child()->set_highestwritesequencenumberforkey(
+        GetHighestSequenceNumber(m_treeNodeStack[level].Message.mutable_partitiontreenode()->treeentries(0))
+    );
+    m_treeNodeStack[level + 1].EstimatedSize += higherLevelTreeEntry->ByteSizeLong();
+
+    m_treeNodeStack[level].Message.Clear();
+    m_treeNodeStack[level].EstimatedSize = 0;
+
+    co_return writeMessageResult;
+}
+
+google::protobuf::uint64 PartitionTreeWriter::GetHighestSequenceNumber(
+    const PartitionTreeEntry& treeEntry
+)
+{
+    if (treeEntry.has_child())
+    {
+        return treeEntry.child().highestwritesequencenumberforkey();
+    }
+    return treeEntry.valueset().values(0).writesequencenumber();
+}
+
+task<WriteMessageResult> PartitionTreeWriter::WriteRoot()
+{
+    WriteMessageResult result;
+    for (auto level = 0; level < m_treeNodeStack.size(); level++)
+    {
+        result = co_await Write(
+            level,
+            false);
+    }
+
+    co_return result;
+}
+
+int PartitionTreeWriter::GetKeyCount(
+    uint32_t level)
+{
+    return level >= m_treeNodeStack.size()
+        ? 0
+        : m_treeNodeStack[level].Message.partitiontreenode().treeentries_size();
+}
+
+uint32_t PartitionTreeWriter::GetLevelCount()
+{
+    return m_treeNodeStack.size();
+}
+
+size_t PartitionTreeWriter::GetEstimatedSizeForNewTreeEntryValue(
+    const PartitionTreeEntryValue& partitionTreeEntryValue
+)
+{
+    return m_treeNodeStack[0].EstimatedSize + partitionTreeEntryValue.ByteSizeLong();
+}
+
+size_t PartitionTreeWriter::GetEstimatedSizeForNewTreeEntry(
+    const string& key,
+    const PartitionTreeEntryValue& partitionTreeEntryValue
+)
+{
+    return m_treeNodeStack[0].EstimatedSize + partitionTreeEntryValue.ByteSizeLong() + key.size();
+}
+
+size_t PartitionTreeWriter::GetEstimatedSizeForWriteOfParent(
+    uint32_t level
+)
+{
+    auto parentLevelEstimatedSize =
+        level >= m_treeNodeStack.size()
+        ? 0
+        : m_treeNodeStack[level].EstimatedSize;
+
+    auto keySize = m_treeNodeStack[level].Message.partitiontreenode().treeentries(0).key().size();
+
+    return parentLevelEstimatedSize + keySize;
+}
+
 PartitionWriter::PartitionWriter(
     PartitionWriterParameters parameters,
     shared_ptr<ISequentialMessageWriter> dataWriter,
@@ -17,9 +167,9 @@ PartitionWriter::PartitionWriter(
     :
     m_parameters(parameters),
     m_dataWriter(dataWriter),
-    m_headerWriter(headerWriter)
+    m_headerWriter(headerWriter),
+    m_partitionTreeWriter(dataWriter)
 {}
-
 
 task<WriteMessageResult> PartitionWriter::Write(
     const PartitionMessage& partitionMessage,
@@ -33,7 +183,7 @@ task<WriteMessageResult> PartitionWriter::Write(
 }
 
 task<WriteMessageResult> PartitionWriter::Write(
-    PartitionHeader&& partitionHeader
+    PartitionHeader partitionHeader
 )
 {
     PartitionMessage message;
@@ -50,7 +200,7 @@ task<WriteMessageResult> PartitionWriter::Write(
 }
 
 task<WriteMessageResult> PartitionWriter::Write(
-    PartitionRoot&& partitionRoot
+    PartitionRoot partitionRoot
 )
 {
     PartitionMessage message;
@@ -59,7 +209,7 @@ task<WriteMessageResult> PartitionWriter::Write(
 }
 
 task<WriteMessageResult> PartitionWriter::Write(
-    PartitionTreeNode&& partitionTreeNode
+    PartitionTreeNode partitionTreeNode
 )
 {
     PartitionMessage message;
@@ -68,7 +218,7 @@ task<WriteMessageResult> PartitionWriter::Write(
 }
 
 task<WriteMessageResult> PartitionWriter::Write(
-    PartitionBloomFilter&& partitionBloomFilter
+    PartitionBloomFilter partitionBloomFilter
 )
 {
     PartitionMessage message;
@@ -77,7 +227,7 @@ task<WriteMessageResult> PartitionWriter::Write(
 }
 
 task<WriteMessageResult> PartitionWriter::Write(
-    string&& value
+    string value
 )
 {
     PartitionMessage message;
@@ -85,173 +235,77 @@ task<WriteMessageResult> PartitionWriter::Write(
     co_return co_await Write(message);
 }
 
-static google::protobuf::uint64 GetLowestWriteSequenceNumberForLastChild(
-    const PartitionTreeNode& treeNode
-)
+task<> PartitionWriter::AddValueToTreeEntry(
+    string key,
+    PartitionTreeEntryValue partitionTreeEntryValue)
 {
-    auto& lastChild = treeNode.treeentries(treeNode.treeentries_size() - 1);
-    if (lastChild.has_child())
+    bool needNewTreeEntry = !m_partitionTreeWriter.IsCurrentKey(
+        key);
+
+    bool flushLevel0 = 
+        m_partitionTreeWriter.GetKeyCount(0) >= m_parameters.MinimumKeysPerTreeNode;
+
+    if (flushLevel0)
     {
-        return lastChild.child().lowestwritesequencenumberforkey();
+        size_t estimatedNewSizeOfLevel0;
+
+        if (needNewTreeEntry)
+        {
+            estimatedNewSizeOfLevel0 = m_partitionTreeWriter.GetEstimatedSizeForNewTreeEntry(
+                key,
+                partitionTreeEntryValue);
+        }
+        else
+        {
+            estimatedNewSizeOfLevel0 = m_partitionTreeWriter.GetEstimatedSizeForNewTreeEntryValue(
+                partitionTreeEntryValue);
+        }
+
+        flushLevel0 = estimatedNewSizeOfLevel0 > m_parameters.DesiredTreeNodeSize;
     }
-    if (lastChild.has_value())
+
+    if (flushLevel0)
     {
-        return lastChild.value().writesequencenumber();
+        co_await FlushCompleteTreeNode(0);
     }
-    return lastChild.valueset().values(
-        lastChild.valueset().values_size() - 1
-    ).writesequencenumber();
+
+    if (needNewTreeEntry)
+    {
+        m_partitionTreeWriter.StartTreeEntry(
+            move(key));
+    }
+
+    m_partitionTreeWriter.AddTreeEntryValue(
+        move(partitionTreeEntryValue));
 }
 
-task<> PartitionWriter::AddValueToTreeEntry(
-    string&& key,
-    PartitionTreeEntryValue&& partitionTreeEntryValue)
+task<> PartitionWriter::FlushCompleteTreeNode(
+    uint32_t level)
 {
-    std::optional<PartitionTreeEntry> partitionTreeEntryToAddHolder;
-    PartitionTreeEntry* partitionTreeEntryToAdd = m_currentLeafTreeEntry ? &*m_currentLeafTreeEntry : nullptr;
+    bool flushNextLevel = 
+        m_partitionTreeWriter.GetKeyCount(level + 1) > m_parameters.MinimumKeysPerTreeNode;
     
-    for (int index = 0; index < m_treeNodeStack.size(); index++)
+    if (flushNextLevel)
     {
-        auto treeNode = &m_treeNodeStack[index];
+        auto estimatedNewSizeOfNextLevel = m_partitionTreeWriter.GetEstimatedSizeForWriteOfParent(
+            level);
 
-        // If we're at index 0, we try to insert the current PartitionTreeEntryValue.
-        // If the key is for the same tree entry,
-        // and if the partition tree entry value will fit in the current
-        // node without the size expanding too big according to our parameters,
-        // fit it in.  
-        if (
-            // If we're at the leaf level
-            index == 0
-            &&
-            // And the key is the same as the previous partition tree entry
-            partitionTreeEntryToAdd->key() == key
-            &&
-            // And the resulting TreeNode message would be in-spec
-            (
-                (treeNode->ByteSizeLong()
-                    + partitionTreeEntryToAdd->ByteSizeLong()
-                    + partitionTreeEntryValue.ByteSizeLong()
-                    < m_parameters.DesiredTreeNodeSize
-                    )
-                ||
-                (treeNode->treeentries_size() < m_parameters.MinimumKeysPerTreeNode)
-                ||
-                ((partitionTreeEntryToAdd->has_value() ? 1 : partitionTreeEntryToAdd->valueset().values_size())
-                    <  m_parameters.MinimumValuesPerTreeNodeEntry)
-            )
-            )
-        {
-            // The we can insert the value into the current partition tree entry.
-
-            // We've concluded we should insert the value into the current partition tree entry.
-            // Because we're inserting a value, assert we're at the lowest level
-            // of the tree in this time through the loop.
-            assert(partitionTreeEntryToAdd == &*m_currentLeafTreeEntry);
-
-            // The tree entry might have "value" set, in which case we need
-            // to move it to a new valueset via a temporary.
-            if (partitionTreeEntryToAdd->has_value())
-            {
-                auto existingValue = move(*partitionTreeEntryToAdd->mutable_value());
-                *partitionTreeEntryToAdd->mutable_valueset()->add_values() = move(existingValue);
-            }
-            assert(partitionTreeEntryToAdd->has_valueset());
-
-            *partitionTreeEntryToAdd->mutable_valueset()->add_values() = move(partitionTreeEntryValue);
-            // Since we did this at level zero, there's definitely no more work to do on this insertion.
-            co_return;
-        }
-
-        // We decided that the current tree entry has to go.  
-        // See if we can fit it into the current node.
-        if (
-            (treeNode->ByteSizeLong()
-                + partitionTreeEntryToAdd->ByteSizeLong()
-                < m_parameters.DesiredTreeNodeSize
-                )
-            ||
-            (treeNode->treeentries_size() < m_parameters.MinimumKeysPerTreeNode)
-            )
-        {
-            // The resulting tree node will be in-spec.
-            *treeNode->add_treeentries() = move(*partitionTreeEntryToAdd);
-            partitionTreeEntryToAdd = nullptr;
-            break;
-        }
-
-        auto newPartitionTreeEntry = PartitionTreeEntry();
-
-        newPartitionTreeEntry.set_key(
-            treeNode->treeentries(treeNode->treeentries_size() - 1).key());
-        newPartitionTreeEntry.mutable_child()->set_lowestwritesequencenumberforkey(
-            GetLowestWriteSequenceNumberForLastChild(*treeNode));
-
-        // The current tree entry doesn't fit, so we need to flush the tree node.
-        auto treeNodeWriteResult = co_await Write(
-            move(*treeNode));
-
-        newPartitionTreeEntry.mutable_child()->set_treenodeoffset(
-            treeNodeWriteResult.DataRange.Beginning);
-
-        treeNode->Clear();
-        *treeNode->add_treeentries() = move(*partitionTreeEntryToAdd);
-        treeNode->set_level(index);
-
-        partitionTreeEntryToAddHolder = move(newPartitionTreeEntry);
-        partitionTreeEntryToAdd = &*partitionTreeEntryToAddHolder;
+        flushNextLevel = estimatedNewSizeOfNextLevel > m_parameters.DesiredTreeNodeSize;
     }
 
-    // If we reached here, it's because we couldn't fit the value into the current tree.
-    // We also might have needed a new tree node.
-    
-    // First, add a new tree node.
-    if (partitionTreeEntryToAdd)
+    if (flushNextLevel)
     {
-        auto treeNode = &m_treeNodeStack.emplace_back();
-        treeNode->set_level(m_treeNodeStack.size() - 1);
-        *treeNode->add_treeentries() = *move(partitionTreeEntryToAdd);
+        co_await FlushCompleteTreeNode(
+            level + 1);
     }
 
-    // Now we need a place to keep the value.
-    m_currentLeafTreeEntry = PartitionTreeEntry();
-    *m_currentLeafTreeEntry->mutable_key() = move(key);
-    *m_currentLeafTreeEntry->mutable_value() = move(partitionTreeEntryValue);
+    co_await m_partitionTreeWriter.Write(
+        level);
 }
 
 task<WriteMessageResult> PartitionWriter::WriteLeftoverTreeEntries()
 {
-    // The current leaf tree entry still needs to be added.
-    // We'll violate the tree node limits for this one.
-    // It's possible there is no tree node if there was only one row.
-    if (m_treeNodeStack.empty())
-    {
-        auto treeNode = &m_treeNodeStack.emplace_back();
-        treeNode->set_level(0);
-    }
-    *m_treeNodeStack[0].add_treeentries() = move(*m_currentLeafTreeEntry);
-
-    // Now go up the stack, writing each node and adding a new tree node entry
-    // for the written node to its parent.
-    for (size_t index = 0; index < m_treeNodeStack.size() - 1; index++)
-    {
-        auto treeNode = &m_treeNodeStack[index];
-
-        auto treeNodeEntry = m_treeNodeStack[index + 1].add_treeentries();
-        treeNodeEntry->set_key(
-            treeNode->treeentries(treeNode->treeentries_size() - 1).key());
-        treeNodeEntry->mutable_child()->set_lowestwritesequencenumberforkey(
-            GetLowestWriteSequenceNumberForLastChild(*treeNode));
-
-        auto treeNodeWriteResult = co_await Write(
-            move(*treeNode));
-
-        treeNodeEntry->mutable_child()->set_treenodeoffset(
-            treeNodeWriteResult.DataRange.Beginning);
-    }
-
-    // This will be the root tree node.
-    co_return co_await Write(
-        move(m_treeNodeStack.back()));
+    return m_partitionTreeWriter.WriteRoot();
 }
 
 task<WriteRowsResult> PartitionWriter::WriteRows(
@@ -347,7 +401,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
         {
             partitionTreeEntryValue.set_deleted(true);
         }
-        else if (row.Value->ByteSizeLong() > 20)
+        else if (row.Value->ByteSizeLong() > m_parameters.MaxEmbeddedValueSize)
         {
             string value;
             row.Value->SerializeToString(

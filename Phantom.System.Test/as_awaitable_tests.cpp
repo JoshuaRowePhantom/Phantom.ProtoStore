@@ -41,7 +41,7 @@ TEST(as_awaitable_tests, as_awaitable_can_return_ordinary_class)
     std::string stringValue("foo");
     auto awaitable = as_awaitable(stringValue);
     ASSERT_TRUE(awaitable.await_ready());
-    auto& value = move(awaitable).await_resume();
+    auto value = move(awaitable).await_resume();
     ASSERT_EQ(std::string("foo"), value);
 }
 

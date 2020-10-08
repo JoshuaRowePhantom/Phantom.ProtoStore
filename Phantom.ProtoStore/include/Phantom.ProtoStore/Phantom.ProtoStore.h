@@ -728,7 +728,6 @@ enum class IntegrityCheckErrorCode
 {
     Partition_KeyNotInBloomFilter = 1,
     Partition_MissingTreeNode = 2,
-    Partition_ValueSetTooSmall = 3,
     Partition_MissingTreeNodeEntryContent = 4,
     Partition_OutOfOrderKey = 5,
     Partition_OutOfOrderSequenceNumber = 6,
