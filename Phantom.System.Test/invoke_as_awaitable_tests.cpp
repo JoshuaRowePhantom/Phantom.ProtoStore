@@ -14,7 +14,7 @@ TEST(invoke_as_awaitable_tests, can_invoke_nonasync_lambda)
         auto result = co_await invoke_as_awaitable(
             lambda);
 
-        ASSERT_EQ(5, result);
+        EXPECT_EQ(5, result);
     });
 }
 
@@ -28,7 +28,7 @@ TEST(invoke_as_awaitable_tests, can_invoke_async_lambda)
         auto result = co_await invoke_as_awaitable(
             lambda);
 
-        ASSERT_EQ(5, result);
+        EXPECT_EQ(5, result);
     });
 }
 
@@ -45,7 +45,7 @@ TEST(invoke_as_awaitable_tests, can_forward_arguments)
             lambda,
             []() -> cppcoro::task<int> { co_return 5; }());
 
-        ASSERT_EQ(5, result);
+        EXPECT_EQ(5, result);
     });
 }
 }

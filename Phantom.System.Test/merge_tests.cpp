@@ -36,7 +36,7 @@ TEST(merge_tests, merge_sorted_generators_can_merge_empty_sequence)
         ));
 
         auto expectedResult = std::vector<int>();
-        ASSERT_EQ(expectedResult, actualResult);
+        EXPECT_EQ(expectedResult, actualResult);
     });
 }
 
@@ -79,7 +79,7 @@ TEST(merge_tests, merge_sorted_generators_can_merge_multiple_sequences)
             9,
         };
 
-        ASSERT_EQ(expectedResult, actualResult);
+        EXPECT_EQ(expectedResult, actualResult);
     });
 }
 

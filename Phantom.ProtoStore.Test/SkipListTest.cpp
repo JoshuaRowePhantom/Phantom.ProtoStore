@@ -38,8 +38,8 @@ TEST(SkipListTests, starts_empty)
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(expectedValues, actualValues);
-    ASSERT_EQ(skipList.end(), skipList.find("foo").first);
+    EXPECT_EQ(expectedValues, actualValues);
+    EXPECT_EQ(skipList.end(), skipList.find("foo").first);
 }
 
 TEST(SkipListTests, insert_convertible_values_via_converting_constructor)
@@ -47,8 +47,8 @@ TEST(SkipListTests, insert_convertible_values_via_converting_constructor)
     SkipList<std::string, std::string, 4, WeakComparer<std::string>> skipList;
 
     auto insert = skipList.insert("a", "b");
-    ASSERT_EQ("a", insert.first->first);
-    ASSERT_EQ("b", insert.first->second);
+    EXPECT_EQ("a", insert.first->first);
+    EXPECT_EQ("b", insert.first->second);
 }
 
 TEST(SkipListTests, insert_convertible_values_via_conversion_operator)
@@ -64,8 +64,8 @@ TEST(SkipListTests, insert_convertible_values_via_conversion_operator)
     SkipList<std::string, std::string, 4, WeakComparer<std::string>> skipList;
 
     auto insert = skipList.insert("a", Value());
-    ASSERT_EQ("a", insert.first->first);
-    ASSERT_EQ("b", insert.first->second);
+    EXPECT_EQ("a", insert.first->first);
+    EXPECT_EQ("b", insert.first->second);
 }
 
 TEST(SkipListTests, insert_immovable_object)
@@ -74,8 +74,8 @@ TEST(SkipListTests, insert_immovable_object)
 
     auto value = make_unique<string>("b");
     auto insert = skipList.insert("a", move(value));
-    ASSERT_EQ("a", insert.first->first);
-    ASSERT_EQ("b", *(insert.first->second));
+    EXPECT_EQ("a", insert.first->first);
+    EXPECT_EQ("b", *(insert.first->second));
 }
 
 TEST(SkipListTests, insert_distinct_strings)
@@ -87,25 +87,25 @@ TEST(SkipListTests, insert_distinct_strings)
         1
     );
 
-    ASSERT_EQ("a", insert1.first->first);
-    ASSERT_EQ(1, insert1.first->second);
-    ASSERT_EQ(true, insert1.second);
+    EXPECT_EQ("a", insert1.first->first);
+    EXPECT_EQ(1, insert1.first->second);
+    EXPECT_EQ(true, insert1.second);
 
     auto insert2 = skipList.insert(
         "c",
         3);
 
-    ASSERT_EQ("c", insert2.first->first);
-    ASSERT_EQ(3, insert2.first->second);
-    ASSERT_EQ(true, insert2.second);
+    EXPECT_EQ("c", insert2.first->first);
+    EXPECT_EQ(3, insert2.first->second);
+    EXPECT_EQ(true, insert2.second);
 
     auto insert3 = skipList.insert(
         "b",
         2);
 
-    ASSERT_EQ("b", insert3.first->first);
-    ASSERT_EQ(2, insert3.first->second);
-    ASSERT_EQ(true, insert3.second);
+    EXPECT_EQ("b", insert3.first->first);
+    EXPECT_EQ(2, insert3.first->second);
+    EXPECT_EQ(true, insert3.second);
 
     vector<pair<const string, int>> expectedValues
     {
@@ -118,7 +118,7 @@ TEST(SkipListTests, insert_distinct_strings)
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(expectedValues, actualValues);
+    EXPECT_EQ(expectedValues, actualValues);
 }
 
 TEST(SkipListTests, can_find_without_finger)
@@ -133,24 +133,24 @@ TEST(SkipListTests, can_find_without_finger)
     for (int value = 0; value < 100; value += 2)
     {
         auto findResult = skipList.find(value);
-        ASSERT_EQ(true, findResult.first);
-        ASSERT_EQ(value, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
+        EXPECT_EQ(true, findResult.first);
+        EXPECT_EQ(value, findResult.first->first);
+        EXPECT_EQ(std::weak_ordering::equivalent, findResult.second);
     }
 
     for (int value = -1; value < 99; value += 2)
     {
         auto findResult = skipList.find(value);
-        ASSERT_EQ(true, findResult.first);
-        ASSERT_EQ(value + 1, findResult.first->first);
-        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+        EXPECT_EQ(true, findResult.first);
+        EXPECT_EQ(value + 1, findResult.first->first);
+        EXPECT_EQ(std::weak_ordering::greater, findResult.second);
     }
 
     {
         auto findResult = skipList.find(99);
-        ASSERT_EQ(false, findResult.first);
-        ASSERT_EQ(skipList.end(), findResult.first);
-        ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+        EXPECT_EQ(false, findResult.first);
+        EXPECT_EQ(skipList.end(), findResult.first);
+        EXPECT_EQ(std::weak_ordering::greater, findResult.second);
     }
 }
 
@@ -172,31 +172,31 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
         for (int value = 0; value < 100; value += 2)
         {
             auto findResult = skipList.find(value, insertionPoint);
-            ASSERT_EQ(true, findResult.first);
-            ASSERT_EQ(value, findResult.first->first);
-            ASSERT_EQ(std::weak_ordering::equivalent, findResult.second);
+            EXPECT_EQ(true, findResult.first);
+            EXPECT_EQ(value, findResult.first->first);
+            EXPECT_EQ(std::weak_ordering::equivalent, findResult.second);
         }
 
         for (int value = -1; value < 99; value += 2)
         {
             auto findResult = skipList.find(value, insertionPoint);
-            ASSERT_EQ(true, findResult.first);
-            ASSERT_EQ(value + 1, findResult.first->first);
-            ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+            EXPECT_EQ(true, findResult.first);
+            EXPECT_EQ(value + 1, findResult.first->first);
+            EXPECT_EQ(std::weak_ordering::greater, findResult.second);
         }
 
         {
             auto findResult = skipList.find(99, insertionPoint);
-            ASSERT_EQ(false, findResult.first);
-            ASSERT_EQ(skipList.end(), findResult.first);
-            ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+            EXPECT_EQ(false, findResult.first);
+            EXPECT_EQ(skipList.end(), findResult.first);
+            EXPECT_EQ(std::weak_ordering::greater, findResult.second);
         }
 
         {
             auto findResult = skipList.find(99, insertionPoint);
-            ASSERT_EQ(false, findResult.first);
-            ASSERT_EQ(skipList.end(), findResult.first);
-            ASSERT_EQ(std::weak_ordering::greater, findResult.second);
+            EXPECT_EQ(false, findResult.first);
+            EXPECT_EQ(skipList.end(), findResult.first);
+            EXPECT_EQ(std::weak_ordering::greater, findResult.second);
         }
     };
 
@@ -205,8 +205,8 @@ TEST(SkipListTests, can_find_forward_and_backward_from_insertion_point)
     for (insertionValue = 0; insertionValue < 100; insertionValue += 2)
     {
         auto insertResult = skipList.insert(insertionValue, insertionValue);
-        ASSERT_EQ(true, insertResult.first);
-        ASSERT_EQ(false, insertResult.second);
+        EXPECT_EQ(true, insertResult.first);
+        EXPECT_EQ(false, insertResult.second);
         insertionPoint = insertResult.first;
 
         doFindOperations();
@@ -222,33 +222,33 @@ TEST(SkipListTests, insert_duplicate_strings_returns_false)
         1
     );
 
-    ASSERT_EQ("a", insert1.first->first);
-    ASSERT_EQ(1, insert1.first->second);
-    ASSERT_EQ(true, insert1.second);
+    EXPECT_EQ("a", insert1.first->first);
+    EXPECT_EQ(1, insert1.first->second);
+    EXPECT_EQ(true, insert1.second);
 
     auto insert2 = skipList.insert(
         "c",
         3);
 
-    ASSERT_EQ("c", insert2.first->first);
-    ASSERT_EQ(3, insert2.first->second);
-    ASSERT_EQ(true, insert2.second);
+    EXPECT_EQ("c", insert2.first->first);
+    EXPECT_EQ(3, insert2.first->second);
+    EXPECT_EQ(true, insert2.second);
 
     auto insert3 = skipList.insert(
         "b",
         2);
 
-    ASSERT_EQ("b", insert3.first->first);
-    ASSERT_EQ(2, insert3.first->second);
-    ASSERT_EQ(true, insert3.second);
+    EXPECT_EQ("b", insert3.first->first);
+    EXPECT_EQ(2, insert3.first->second);
+    EXPECT_EQ(true, insert3.second);
 
     auto insert4 = skipList.insert(
         "b",
         4);
 
-    ASSERT_EQ("b", insert4.first->first);
-    ASSERT_EQ(2, insert4.first->second);
-    ASSERT_EQ(false, insert4.second);
+    EXPECT_EQ("b", insert4.first->first);
+    EXPECT_EQ(2, insert4.first->second);
+    EXPECT_EQ(false, insert4.second);
 
     vector<pair<const string, int>> expectedValues
     {
@@ -261,7 +261,7 @@ TEST(SkipListTests, insert_duplicate_strings_returns_false)
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(expectedValues, actualValues);
+    EXPECT_EQ(expectedValues, actualValues);
 }
 
 TEST(SkipListTests, insert_duplicate_strings_iterator_can_replace_value)
@@ -287,7 +287,7 @@ TEST(SkipListTests, insert_duplicate_strings_iterator_can_replace_value)
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(expectedValues, actualValues);
+    EXPECT_EQ(expectedValues, actualValues);
 }
 
 struct ReentrantValue
@@ -432,7 +432,7 @@ TEST(SkipListTests, insert_distinct_values_reentrantly_at_insertion_point_does_i
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(expectedValues, actualValues);
+    EXPECT_EQ(expectedValues, actualValues);
 }
 
 TEST(SkipListTests, insert_duplicate_values_reentrantly_at_insertion_point_does_not_replace_and_puts_key_back)
@@ -462,11 +462,11 @@ TEST(SkipListTests, insert_duplicate_values_reentrantly_at_insertion_point_does_
         move(reentrantValue),
         6);
 
-    ASSERT_EQ("c", (const string&)nonReplacingInsert.first->first);
-    ASSERT_EQ(3, nonReplacingInsert.first->second);
-    ASSERT_EQ(false, nonReplacingInsert.second);
-    ASSERT_EQ("c", reentrantValue.m_value);
-    ASSERT_EQ(2, reentrantValue.m_totalMovementCount);
+    EXPECT_EQ("c", (const string&)nonReplacingInsert.first->first);
+    EXPECT_EQ(3, nonReplacingInsert.first->second);
+    EXPECT_EQ(false, nonReplacingInsert.second);
+    EXPECT_EQ("c", reentrantValue.m_value);
+    EXPECT_EQ(2, reentrantValue.m_totalMovementCount);
 
     vector<pair<string, int>> expectedValues
     {
@@ -480,7 +480,7 @@ TEST(SkipListTests, insert_duplicate_values_reentrantly_at_insertion_point_does_
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(expectedValues, actualValues);
+    EXPECT_EQ(expectedValues, actualValues);
 }
 
 TEST(SkipListPerformanceTests, PerformanceTest(Perf1))
@@ -550,7 +550,7 @@ TEST(SkipListPerformanceTests, PerformanceTest(Perf1))
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(
+    EXPECT_EQ(
         expectedValues,
         actualValues);
 }
@@ -578,7 +578,7 @@ TEST(SkipListTests, SkipList_using_void_value)
         skipList.begin(),
         skipList.end());
 
-    ASSERT_EQ(
+    EXPECT_EQ(
         expectedValues,
         actualValues);
 }

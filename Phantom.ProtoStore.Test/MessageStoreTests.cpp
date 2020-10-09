@@ -33,7 +33,7 @@ namespace Phantom::ProtoStore
                 0,
                 actualMessage);
 
-            ASSERT_TRUE(MessageDifferencer::Equals(
+            EXPECT_TRUE(MessageDifferencer::Equals(
                 expectedMessage,
                 actualMessage));
         });
@@ -78,11 +78,11 @@ namespace Phantom::ProtoStore
                 readResult1.DataRange.End,
                 actualMessage2);
 
-            ASSERT_TRUE(MessageDifferencer::Equals(
+            EXPECT_TRUE(MessageDifferencer::Equals(
                 expectedMessage1,
                 actualMessage1));
 
-            ASSERT_TRUE(MessageDifferencer::Equals(
+            EXPECT_TRUE(MessageDifferencer::Equals(
                 expectedMessage2,
                 actualMessage2));
         });
@@ -118,7 +118,7 @@ namespace Phantom::ProtoStore
                 expectedMessage,
                 FlushBehavior::Flush);
 
-            ASSERT_EQ(expectedEndOfMessage, writeResult.DataRange.End);
+            EXPECT_EQ(expectedEndOfMessage, writeResult.DataRange.End);
 
             auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(0);
 
@@ -128,11 +128,11 @@ namespace Phantom::ProtoStore
                 offset,
                 actualMessage);
 
-            ASSERT_TRUE(MessageDifferencer::Equals(
+            EXPECT_TRUE(MessageDifferencer::Equals(
                 expectedMessage,
                 actualMessage));
 
-            ASSERT_EQ(expectedEndOfMessage, readResult.DataRange.End);
+            EXPECT_EQ(expectedEndOfMessage, readResult.DataRange.End);
         });
     }
 
@@ -166,7 +166,7 @@ namespace Phantom::ProtoStore
                 expectedMessage,
                 FlushBehavior::Flush);
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 expectedEndOfMessage, 
                 writeResult.DataRange.End);
 
@@ -203,7 +203,7 @@ namespace Phantom::ProtoStore
 
             MessageStoreTestMessage actualMessage;
 
-            ASSERT_THROW(
+            EXPECT_THROW(
                 co_await randomMessageReader->Read(
                     offset,
                     actualMessage),

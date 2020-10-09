@@ -88,7 +88,7 @@ protected:
                 actualMergedTestRows.push_back(testRow);
             }
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 actualMergedTestRows,
                 expectedMergedTestRows);
         });

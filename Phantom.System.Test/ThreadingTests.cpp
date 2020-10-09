@@ -4,7 +4,7 @@
 
 TEST(ThreadingTests, First)
 {
-    ASSERT_TRUE(true);
+    EXPECT_TRUE(true);
 }
 
 #include <cppcoro/when_all.hpp>

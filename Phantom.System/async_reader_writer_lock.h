@@ -93,7 +93,7 @@ class async_linked_reader_lock::lock_async_operation
 {
     async_linked_reader_lock m_readerLock;
     lock_async_operation* m_next;
-    std::experimental::coroutine_handle<> m_awaiter;
+    std::coroutine_handle<> m_awaiter;
 
     friend class async_reader_writer_lock;
 public:
@@ -103,7 +103,7 @@ public:
 
     bool await_ready() noexcept;
 
-    bool await_suspend(std::experimental::coroutine_handle<> awaiter) noexcept;
+    bool await_suspend(std::coroutine_handle<> awaiter) noexcept;
 
     void await_resume() const noexcept;
 };
@@ -112,7 +112,7 @@ class async_linked_writer_lock::lock_async_operation
 {
     async_linked_writer_lock m_writerLock;
     lock_async_operation* m_next;
-    std::experimental::coroutine_handle<> m_awaiter;
+    std::coroutine_handle<> m_awaiter;
 
     friend class async_reader_writer_lock;
 public:
@@ -122,7 +122,7 @@ public:
 
     bool await_ready() noexcept;
 
-    bool await_suspend(std::experimental::coroutine_handle<> awaiter) noexcept;
+    bool await_suspend(std::coroutine_handle<> awaiter) noexcept;
 
     void await_resume() const noexcept;
 };

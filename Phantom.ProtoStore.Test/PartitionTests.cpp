@@ -369,18 +369,18 @@ protected:
         auto iterator = co_await enumeration.begin();
         if (get<1>(expectedResult))
         {
-            ASSERT_NE(enumeration.end(), iterator);
+            EXPECT_NE(enumeration.end(), iterator);
 
             auto keyMessage = static_cast<const PartitionTestKey*>((*iterator).Key);
             auto valueMessage = static_cast<const PartitionTestValue*>((*iterator).Value);
 
-            ASSERT_EQ(get<0>(expectedResult), keyMessage->key());
-            ASSERT_EQ(get<1>(expectedResult), valueMessage->key());
-            ASSERT_EQ(get<2>(expectedResult), (*iterator).WriteSequenceNumber);
+            EXPECT_EQ(get<0>(expectedResult), keyMessage->key());
+            EXPECT_EQ(get<1>(expectedResult), valueMessage->key());
+            EXPECT_EQ(get<2>(expectedResult), (*iterator).WriteSequenceNumber);
             co_await ++iterator;
         }
 
-        ASSERT_EQ(enumeration.end(), iterator);
+        EXPECT_EQ(enumeration.end(), iterator);
     }
 
     task<> DoReadScenarioTest(
@@ -415,11 +415,11 @@ protected:
                     auto actualKey = static_cast<const PartitionTestKey*>((*iterator).Key);
                     auto actualValue = static_cast<const PartitionTestValue*>((*iterator).Value);
 
-                    ASSERT_TRUE(expectedRow.has_value());
-                    ASSERT_EQ(actualKey->key(), get<shared_ptr<PartitionTestKey>>(*expectedRow)->key());
-                    ASSERT_EQ(actualValue->key(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->key());
-                    ASSERT_EQ(actualValue->sequencenumber(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->sequencenumber());
-                    ASSERT_EQ((*iterator).WriteSequenceNumber, get<SequenceNumber>(*expectedRow));
+                    EXPECT_TRUE(expectedRow.has_value());
+                    EXPECT_EQ(actualKey->key(), get<shared_ptr<PartitionTestKey>>(*expectedRow)->key());
+                    EXPECT_EQ(actualValue->key(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->key());
+                    EXPECT_EQ(actualValue->sequencenumber(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->sequencenumber());
+                    EXPECT_EQ((*iterator).WriteSequenceNumber, get<SequenceNumber>(*expectedRow));
 
                     expectedRow.reset();
                 }
@@ -447,7 +447,7 @@ protected:
             &keyMessage
         );
 
-        ASSERT_EQ(actualResult, expectedResult);
+        EXPECT_EQ(actualResult, expectedResult);
     }
 
     shared_ptr<KeyComparer> keyComparer;
@@ -530,8 +530,8 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
         // there is a key not present in the bloom filter.
         auto integrityCheckResults = co_await partition->CheckIntegrity(
             IntegrityCheckError{});
-        ASSERT_EQ(1, integrityCheckResults.size());
-        ASSERT_EQ(IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter, integrityCheckResults[0].Code);
+        EXPECT_EQ(1, integrityCheckResults.size());
+        EXPECT_EQ(IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter, integrityCheckResults[0].Code);
 
         co_await AssertReadResult(
             partition,
@@ -561,7 +561,7 @@ TEST_F(PartitionTests, Test_Read_scenario)
     run_async([&]() -> task<>
     {
         co_await DoReadScenarioTest(
-            co_await GenerateScenario(1));
+            co_await GenerateScenario(2));
     });
 }
 
@@ -608,7 +608,7 @@ TEST_F(PartitionTests, Test_Read_variations)
 //
 //        auto partition = co_await OpenPartition(0);
 //        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
-//        ASSERT_EQ(0, errorList.size());
+//        EXPECT_EQ(0, errorList.size());
 //
 //        co_await AssertCheckForWriteConflictResult(
 //            partition,
@@ -665,7 +665,7 @@ TEST_F(PartitionTests, Test_Read_variations)
 //
 //        auto partition = co_await OpenPartition(0);
 //        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
-//        ASSERT_EQ(0, errorList.size());
+//        EXPECT_EQ(0, errorList.size());
 //
 //        co_await AssertCheckForWriteConflictResult(
 //            partition,

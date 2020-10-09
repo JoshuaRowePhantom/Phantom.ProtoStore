@@ -34,7 +34,7 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForRead_cannot_read_past_end_of
             4096);
         auto extent = co_await store->OpenExtentForRead(0);
         auto buffer = co_await extent->CreateReadBuffer();
-        ASSERT_THROW(
+        EXPECT_THROW(
             (co_await buffer->Read(
                 0,
                 1))
@@ -74,7 +74,7 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForRead_can_read_data_written_b
             actualData.data(),
             actualData.size());
 
-        ASSERT_EQ(
+        EXPECT_EQ(
             expectedData,
             actualData);
     }
@@ -140,7 +140,7 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_gro
             actualData.data(),
             actualData.size());
 
-        ASSERT_EQ(
+        EXPECT_EQ(
             expectedData,
             actualData);
     }
@@ -176,7 +176,7 @@ TEST(MemoryMappedFileExtentStoreTests, DeleteExtent_erases_the_content)
         auto extent = co_await store->OpenExtentForRead(0);
         auto readBuffer = co_await extent->CreateReadBuffer();
 
-        ASSERT_THROW(
+        EXPECT_THROW(
             (co_await readBuffer->Read(
                 0,
                 1))

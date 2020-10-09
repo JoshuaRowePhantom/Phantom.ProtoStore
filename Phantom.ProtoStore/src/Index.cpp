@@ -218,8 +218,12 @@ task<ReadResult> Index::Read(
     auto enumeration = m_rowMerger->Merge(
         enumerateAllItemsLambda());
 
-    for co_await(auto resultRow : enumeration)
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
     {
+        auto& resultRow = *iterator;
+
         if (!resultRow.Value)
         {
             break;
@@ -316,8 +320,12 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
     auto enumeration = m_rowMerger->Enumerate(
         enumerateAllItemsLambda());
 
-    for co_await(auto resultRow : enumeration)
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
     {
+        auto& resultRow = *iterator;
+
         co_yield EnumerateResult
         {
             .Key = resultRow.Key,

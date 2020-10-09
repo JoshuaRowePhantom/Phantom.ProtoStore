@@ -47,7 +47,7 @@ bool async_linked_reader_lock::lock_async_operation::await_ready(
 }
 
 bool async_linked_reader_lock::lock_async_operation::await_suspend(
-    std::experimental::coroutine_handle<> awaiter
+    std::coroutine_handle<> awaiter
 ) noexcept
 {
     m_awaiter = awaiter;
@@ -139,7 +139,7 @@ bool async_linked_writer_lock::lock_async_operation::await_ready() noexcept
 }
 
 bool async_linked_writer_lock::lock_async_operation::await_suspend(
-    std::experimental::coroutine_handle<> awaiter
+    std::coroutine_handle<> awaiter
 ) noexcept
 {
     m_awaiter = awaiter;

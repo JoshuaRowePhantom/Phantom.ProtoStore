@@ -41,32 +41,32 @@ int value_publisher_tests::sm_nDestructorCalledCount = 0;
 
 TEST_F(value_publisher_tests, does_not_destroy_unconstructed_value)
 {
-    ASSERT_EQ(0, sm_nConstructorCalledCount);
-    ASSERT_EQ(0, sm_nDestructorCalledCount);
+    EXPECT_EQ(0, sm_nConstructorCalledCount);
+    EXPECT_EQ(0, sm_nDestructorCalledCount);
 
     {
         async_value_source<ConstructorAndDestructorTracker> value;
     }
 
-    ASSERT_EQ(0, sm_nConstructorCalledCount);
-    ASSERT_EQ(0, sm_nDestructorCalledCount);
+    EXPECT_EQ(0, sm_nConstructorCalledCount);
+    EXPECT_EQ(0, sm_nDestructorCalledCount);
 }
 
 TEST_F(value_publisher_tests, destroys_constructed_value)
 {
     {
-        ASSERT_EQ(0, sm_nConstructorCalledCount);
-        ASSERT_EQ(0, sm_nDestructorCalledCount);
+        EXPECT_EQ(0, sm_nConstructorCalledCount);
+        EXPECT_EQ(0, sm_nDestructorCalledCount);
 
         async_value_source<ConstructorAndDestructorTracker> value;
         value.emplace();
 
-        ASSERT_EQ(1, sm_nConstructorCalledCount);
-        ASSERT_EQ(0, sm_nDestructorCalledCount);
+        EXPECT_EQ(1, sm_nConstructorCalledCount);
+        EXPECT_EQ(0, sm_nDestructorCalledCount);
     }
 
-    ASSERT_EQ(1, sm_nConstructorCalledCount);
-    ASSERT_EQ(1, sm_nDestructorCalledCount);
+    EXPECT_EQ(1, sm_nConstructorCalledCount);
+    EXPECT_EQ(1, sm_nDestructorCalledCount);
 }
 
 TEST_F(value_publisher_tests, can_get_value_after_set_initially)
@@ -75,7 +75,7 @@ TEST_F(value_publisher_tests, can_get_value_after_set_initially)
     {
         async_value_source<std::string> publisher;
         publisher.emplace("foo");
-        ASSERT_EQ(co_await publisher.wait(), "foo");
+        EXPECT_EQ(co_await publisher.wait(), "foo");
     });
 }
 
@@ -92,7 +92,7 @@ TEST_F(value_publisher_tests, can_get_exception_after_exception_initially)
         {
             publisher.unhandled_exception();
         }
-        ASSERT_THROW(
+        EXPECT_THROW(
             co_await publisher.wait(), 
             std::range_error);
     });
@@ -105,8 +105,8 @@ TEST_F(value_publisher_tests, can_get_value_before_set_initially)
         async_value_source<std::string> publisher;
         auto task1 = [&]()->task<>
         {
-            ASSERT_EQ(false, publisher.is_set());
-            ASSERT_EQ(co_await publisher.wait(), "foo");
+            EXPECT_EQ(false, publisher.is_set());
+            EXPECT_EQ(co_await publisher.wait(), "foo");
         } ();
         auto task2 = [&]()->task<>
         {
@@ -126,8 +126,8 @@ TEST_F(value_publisher_tests, can_get_exception_before_set_initially)
         async_value_source<std::string> publisher;
         auto task1 = [&]()->task<>
         {
-            ASSERT_EQ(false, publisher.is_set());
-            ASSERT_THROW(
+            EXPECT_EQ(false, publisher.is_set());
+            EXPECT_THROW(
                 co_await publisher.wait(),
                 std::range_error);
         } ();

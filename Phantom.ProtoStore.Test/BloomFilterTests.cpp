@@ -6,10 +6,10 @@ namespace Phantom::ProtoStore
 {
 TEST(BloomFilterTests, get_BloomFilter_parameters)
 {
-    ASSERT_EQ(14378, get_BloomFilter_optimal_bit_count(.001, 1000));
-    ASSERT_EQ(143776, get_BloomFilter_optimal_bit_count(.001, 10000));
-    ASSERT_EQ(10, get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(.001));
-    ASSERT_EQ(14, get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(.0001));
+    EXPECT_EQ(14378, get_BloomFilter_optimal_bit_count(.001, 1000));
+    EXPECT_EQ(143776, get_BloomFilter_optimal_bit_count(.001, 10000));
+    EXPECT_EQ(10, get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(.001));
+    EXPECT_EQ(14, get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(.0001));
 }
 
 TEST(BloomFilterTests, prng_seeding_hash_produces_correct_number_of_values)
@@ -28,63 +28,63 @@ TEST(BloomFilterTests, prng_seeding_hash_produces_correct_number_of_values)
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 2
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 3
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 4
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 5
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 6
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 7
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 8
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 9
         auto extractedBitIndex = hashFunction.extract_bit_index(
             hash);
         ASSERT_GE(extractedBitIndex, 0);
         ASSERT_LE(extractedBitIndex, bitCount);
-        ASSERT_TRUE(hashFunction.next_hash(hash));
+        EXPECT_TRUE(hashFunction.next_hash(hash));
     }
     { // 10
         auto extractedBitIndex = hashFunction.extract_bit_index(
@@ -110,7 +110,7 @@ TEST(BloomFilterTests, can_add_and_test)
         10);
 
     bloomFilter.add(1);
-    ASSERT_EQ(true, bloomFilter.test(1));
+    EXPECT_EQ(true, bloomFilter.test(1));
 }
 
 TEST(BloomFilterTests, can_add_many_strings_with_desired_probability)
@@ -148,7 +148,7 @@ TEST(BloomFilterTests, can_add_many_strings_with_desired_probability)
 
     for (auto elementString : elementStrings)
     {
-        ASSERT_EQ(true, bloomFilter.test(
+        EXPECT_EQ(true, bloomFilter.test(
             elementString));
     }
 
@@ -209,7 +209,7 @@ TEST(BloomFilterTests, can_save_and_restore_from_span)
 
     for (auto elementString : elementStrings)
     {
-        ASSERT_EQ(true, constBloomFilter.test(
+        EXPECT_EQ(true, constBloomFilter.test(
             elementString));
     }
 

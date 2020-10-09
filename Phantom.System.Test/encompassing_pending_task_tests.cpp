@@ -18,7 +18,7 @@ TEST(encompassing_pending_task_tests, join_on_not_spawned_returns_right_away)
         });
 
         co_await task.join();
-        ASSERT_EQ(0, taskGeneratorCalledCount);
+        EXPECT_EQ(0, taskGeneratorCalledCount);
     });
 }
 
@@ -44,14 +44,14 @@ TEST(encompassing_pending_task_tests, spawn_immediately_starts_new_tasks_that_do
             return taskRunner();
         });
 
-        ASSERT_EQ(0, taskGeneratorCalledCount);
+        EXPECT_EQ(0, taskGeneratorCalledCount);
 
         auto task1 = cppcoro::make_shared_task(
             task.spawn());
         asyncScope.spawn(task1);
 
-        ASSERT_EQ(1, taskGeneratorCalledCount);
-        ASSERT_EQ(1, taskExecutionCalledCount);
+        EXPECT_EQ(1, taskGeneratorCalledCount);
+        EXPECT_EQ(1, taskExecutionCalledCount);
 
         auto task2 = cppcoro::make_shared_task(
             task.spawn());
@@ -63,37 +63,37 @@ TEST(encompassing_pending_task_tests, spawn_immediately_starts_new_tasks_that_do
 
         asyncScope.spawn(task3);
 
-        ASSERT_EQ(3, taskGeneratorCalledCount);
-        ASSERT_EQ(3, taskExecutionCalledCount);
+        EXPECT_EQ(3, taskGeneratorCalledCount);
+        EXPECT_EQ(3, taskExecutionCalledCount);
         
-        ASSERT_EQ(false, task1.is_ready());
-        ASSERT_EQ(false, task2.is_ready());
-        ASSERT_EQ(false, task3.is_ready());
+        EXPECT_EQ(false, task1.is_ready());
+        EXPECT_EQ(false, task2.is_ready());
+        EXPECT_EQ(false, task3.is_ready());
 
         proceedEvent.set();
 
-        ASSERT_EQ(true, task1.is_ready());
-        ASSERT_EQ(false, task2.is_ready());
-        ASSERT_EQ(false, task3.is_ready());
+        EXPECT_EQ(true, task1.is_ready());
+        EXPECT_EQ(false, task2.is_ready());
+        EXPECT_EQ(false, task3.is_ready());
 
         co_await task1;
 
-        ASSERT_EQ(3, taskGeneratorCalledCount);
-        ASSERT_EQ(3, taskExecutionCalledCount);
+        EXPECT_EQ(3, taskGeneratorCalledCount);
+        EXPECT_EQ(3, taskExecutionCalledCount);
 
         proceedEvent.set();
 
-        ASSERT_EQ(true, task1.is_ready());
-        ASSERT_EQ(true, task2.is_ready());
-        ASSERT_EQ(false, task3.is_ready());
+        EXPECT_EQ(true, task1.is_ready());
+        EXPECT_EQ(true, task2.is_ready());
+        EXPECT_EQ(false, task3.is_ready());
 
         co_await task2;
 
         proceedEvent.set();
 
-        ASSERT_EQ(true, task1.is_ready());
-        ASSERT_EQ(true, task2.is_ready());
-        ASSERT_EQ(true, task3.is_ready());
+        EXPECT_EQ(true, task1.is_ready());
+        EXPECT_EQ(true, task2.is_ready());
+        EXPECT_EQ(true, task3.is_ready());
 
         co_await task.join();
 

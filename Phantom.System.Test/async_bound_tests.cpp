@@ -16,7 +16,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_empty_collection)
             0,
             std::less<int>());
 
-        ASSERT_EQ(
+        EXPECT_EQ(
             v.begin(),
             result);
     });
@@ -40,7 +40,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_non_empty_collection)
                 0,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 0,
                 result);
         }
@@ -52,7 +52,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_non_empty_collection)
                 1,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 0,
                 result);
         }
@@ -64,7 +64,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_non_empty_collection)
                 2,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 1,
                 result);
         }
@@ -76,7 +76,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_non_empty_collection)
                 3,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 1,
                 result);
         }
@@ -88,7 +88,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_non_empty_collection)
                 4,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 2,
                 result);
         }
@@ -100,7 +100,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_non_empty_collection)
                 5,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 2,
                 result);
         }
@@ -112,7 +112,7 @@ TEST(async_lower_bound_tests, can_find_lower_bound_in_non_empty_collection)
                 6,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 3,
                 result);
         }
@@ -130,7 +130,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_empty_collection)
             0,
             std::less<int>());
 
-        ASSERT_EQ(
+        EXPECT_EQ(
             v.begin(),
             result);
     });
@@ -154,7 +154,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_non_empty_collection)
                 0,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 0,
                 result);
         }
@@ -166,7 +166,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_non_empty_collection)
                 1,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 1,
                 result);
         }
@@ -178,7 +178,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_non_empty_collection)
                 2,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 1,
                 result);
         }
@@ -190,7 +190,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_non_empty_collection)
                 3,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 2,
                 result);
         }
@@ -202,7 +202,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_non_empty_collection)
                 4,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 2,
                 result);
         }
@@ -214,7 +214,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_non_empty_collection)
                 5,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 3,
                 result);
         }
@@ -226,7 +226,7 @@ TEST(async_upper_bound_tests, can_find_upper_bound_in_non_empty_collection)
                 6,
                 std::less<int>());
 
-            ASSERT_EQ(
+            EXPECT_EQ(
                 v.begin() + 3,
                 result);
         }

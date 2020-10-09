@@ -1,6 +1,6 @@
 #pragma once
 
-#include <experimental/resumable>
+#include <coroutine>
 #include <functional>
 #include <type_traits>
 #include <cppcoro/shared_task.hpp>
@@ -39,7 +39,7 @@ template<
 template<
     typename T
 > class simple_awaitable
-    : public std::experimental::suspend_never
+    : public std::suspend_never
 {
     T m_t;
 public:

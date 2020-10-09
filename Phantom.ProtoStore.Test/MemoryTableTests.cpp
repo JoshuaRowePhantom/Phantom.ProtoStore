@@ -111,8 +111,12 @@ protected:
 
         vector<ExpectedRow> storedRows;
 
-        for co_await(auto row : enumeration)
+        for (auto iterator = co_await enumeration.begin();
+            iterator != enumeration.end();
+            co_await ++iterator)
         {
+            auto& row = *iterator;
+
             storedRows.push_back(
                 {
                     .Key = static_cast<const StringKey*>(row.Key)->value(),
@@ -122,7 +126,7 @@ protected:
             );
         }
 
-        ASSERT_EQ(
+        EXPECT_EQ(
             expectedRows,
             storedRows);
 
@@ -235,7 +239,7 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
             .Value = copy_unique(value2),
         };
 
-        ASSERT_THROW(
+        EXPECT_THROW(
             co_await memoryTable.AddRow(
                 SequenceNumber::Earliest,
                 row2,
@@ -244,8 +248,8 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
                     6)),
             WriteConflict);
 
-        ASSERT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
-        ASSERT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
+        EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
+        EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
 
         co_await EnumerateExpectedRows(
             5,
@@ -288,15 +292,15 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
             .Value = copy_unique(value2),
         };
 
-        ASSERT_THROW(
+        EXPECT_THROW(
             co_await memoryTable.AddRow(
                 ToSequenceNumber(7),
                 row2,
                 WithOutcome(OperationOutcome::Committed, 7)),
             WriteConflict);
 
-        ASSERT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
-        ASSERT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
+        EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
+        EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
 
         co_await EnumerateExpectedRows(
             5,

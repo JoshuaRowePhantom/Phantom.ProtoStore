@@ -154,14 +154,14 @@ public:
 
         if (!expectedValue.has_value())
         {
-            ASSERT_EQ(false, readResult.Value.has_value());
+            EXPECT_EQ(false, readResult.Value.has_value());
         }
         else
         {
             StringValue actualValue;
             readResult.Value.unpack(&actualValue);
-            ASSERT_EQ(*expectedValue, actualValue.value());
-            ASSERT_EQ(expectedSequenceNumber, readResult.WriteSequenceNumber);
+            EXPECT_EQ(*expectedValue, actualValue.value());
+            EXPECT_EQ(expectedSequenceNumber, readResult.WriteSequenceNumber);
         }
     }
 
@@ -236,14 +236,14 @@ public:
 
         for (auto& actualRow : actualRows)
         {
-            ASSERT_TRUE(expectedRows.contains(actualRow.Key.value()));
-            ASSERT_EQ(get<0>(expectedRows[actualRow.Key.value()]), actualRow.Value.value());
-            ASSERT_EQ(ToSequenceNumber(get<1>(expectedRows[actualRow.Key.value()])), actualRow.WriteSequenceNumber);
+            EXPECT_TRUE(expectedRows.contains(actualRow.Key.value()));
+            EXPECT_EQ(get<0>(expectedRows[actualRow.Key.value()]), actualRow.Value.value());
+            EXPECT_EQ(ToSequenceNumber(get<1>(expectedRows[actualRow.Key.value()])), actualRow.WriteSequenceNumber);
 
             expectedRows.erase(actualRow.Key.value());
         }
 
-        ASSERT_TRUE(expectedRows.empty());
+        EXPECT_TRUE(expectedRows.empty());
     }
 };
 
@@ -289,7 +289,7 @@ TEST_F(ProtoStoreTests, Open_fails_on_uncreated_store)
         openRequest.DataExtentStore = UseMemoryExtentStore();
         openRequest.DataHeaderExtentStore = UseMemoryExtentStore();
 
-        ASSERT_THROW(
+        EXPECT_THROW(
             co_await storeFactory->Open(
                 openRequest),
             range_error);
@@ -817,7 +817,7 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
             "testValue1",
             ToSequenceNumber(5));
 
-        ASSERT_THROW(
+        EXPECT_THROW(
             co_await AddRowToTestIndex(
                 store,
                 index,
@@ -862,7 +862,7 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
 
         co_await store->Checkpoint();
 
-        ASSERT_THROW(
+        EXPECT_THROW(
             co_await AddRowToTestIndex(
                 store,
                 index,
@@ -947,11 +947,11 @@ TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
 
         // Checkpoint twice to ensure old log is delete.
         co_await store->Checkpoint();
-        ASSERT_EQ(true, co_await logMemoryStore->ExtentExists(0));
+        EXPECT_EQ(true, co_await logMemoryStore->ExtentExists(0));
 
         co_await store->Checkpoint();
 
-        ASSERT_EQ(false, co_await logMemoryStore->ExtentExists(0));
+        EXPECT_EQ(false, co_await logMemoryStore->ExtentExists(0));
     });
 }
 
@@ -1118,8 +1118,8 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
             move(operation1),
             move(operation2));
 
-        ASSERT_NO_THROW(get<0>(result).result());
-        ASSERT_THROW(get<1>(result).result(), WriteConflict);
+        EXPECT_NO_THROW(get<0>(result).result());
+        EXPECT_THROW(get<1>(result).result(), WriteConflict);
 
         co_await ExpectGetTestRow(
             store,
@@ -1167,7 +1167,7 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
             readRequest.Key = &key;
             readRequest.Index = index;
 
-            ASSERT_THROW(
+            EXPECT_THROW(
                 co_await store->Read(
                     readRequest),
                 UnresolvedTransactionConflict);
@@ -1279,7 +1279,7 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
                     expectedValue,
                     actualValue);
 
-                ASSERT_TRUE(messageDifferencerResult);
+                EXPECT_TRUE(messageDifferencerResult);
             }(value));
         }
 

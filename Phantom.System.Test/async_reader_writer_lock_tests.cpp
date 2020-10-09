@@ -51,18 +51,18 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_reads_after_write_lock_
         runner.spawn(writeLockLambda());
         runner.spawn(readLockLambda());
 
-        ASSERT_EQ(false, writeLockAcquired.is_set());
-        ASSERT_EQ(false, readLockAcquired.is_set());
+        EXPECT_EQ(false, writeLockAcquired.is_set());
+        EXPECT_EQ(false, readLockAcquired.is_set());
 
         lock.reader().unlock();
 
-        ASSERT_EQ(false, writeLockAcquired.is_set());
-        ASSERT_EQ(false, readLockAcquired.is_set());
+        EXPECT_EQ(false, writeLockAcquired.is_set());
+        EXPECT_EQ(false, readLockAcquired.is_set());
 
         lock.reader().unlock();
 
         co_await writeLockAcquired;
-        ASSERT_EQ(false, readLockAcquired.is_set());
+        EXPECT_EQ(false, readLockAcquired.is_set());
 
         releaseWriteLock.set();
         co_await readLockAcquired;
@@ -102,7 +102,7 @@ TEST(async_reader_writer_lock_tests, cannot_acquire_more_writes_after_write_lock
         runner.spawn(writeLockLambda2());
 
         co_await writeLockAcquired1;
-        ASSERT_EQ(false, writeLockAcquired2.is_set());
+        EXPECT_EQ(false, writeLockAcquired2.is_set());
 
         releaseWriteLock1.set();
 
@@ -119,20 +119,20 @@ TEST(async_reader_writer_lock_tests, can_try_lock)
     run_async([]() -> task<>
     {
         async_reader_writer_lock lock;
-        ASSERT_EQ(true, lock.reader().try_lock());
-        ASSERT_EQ(true, lock.reader().try_lock());
-        ASSERT_EQ(false, lock.writer().try_lock());
+        EXPECT_EQ(true, lock.reader().try_lock());
+        EXPECT_EQ(true, lock.reader().try_lock());
+        EXPECT_EQ(false, lock.writer().try_lock());
         lock.reader().unlock();
-        ASSERT_EQ(false, lock.writer().try_lock());
+        EXPECT_EQ(false, lock.writer().try_lock());
         lock.reader().unlock();
-        ASSERT_EQ(true, lock.writer().try_lock());
-        ASSERT_EQ(false, lock.writer().try_lock());
-        ASSERT_EQ(false, lock.reader().try_lock());
+        EXPECT_EQ(true, lock.writer().try_lock());
+        EXPECT_EQ(false, lock.writer().try_lock());
+        EXPECT_EQ(false, lock.reader().try_lock());
         lock.writer().unlock();
-        ASSERT_EQ(true, lock.writer().try_lock());
-        ASSERT_EQ(false, lock.writer().try_lock());
+        EXPECT_EQ(true, lock.writer().try_lock());
+        EXPECT_EQ(false, lock.writer().try_lock());
         lock.writer().unlock();
-        ASSERT_EQ(true, lock.reader().try_lock());
+        EXPECT_EQ(true, lock.reader().try_lock());
         lock.reader().unlock();
 
         co_return;
@@ -145,7 +145,7 @@ TEST(async_reader_writer_lock_tests, waiting_writer_lock_prevents_try_read_lock)
     {
         async_reader_writer_lock lock;
         
-        ASSERT_EQ(true, lock.reader().try_lock());
+        EXPECT_EQ(true, lock.reader().try_lock());
         async_scope runner;
 
         auto writeLockLambda1 = [&]() -> task<>
@@ -155,7 +155,7 @@ TEST(async_reader_writer_lock_tests, waiting_writer_lock_prevents_try_read_lock)
 
         runner.spawn(writeLockLambda1());
 
-        ASSERT_EQ(false, lock.reader().try_lock());
+        EXPECT_EQ(false, lock.reader().try_lock());
         lock.reader().unlock();
 
         co_await runner.join();

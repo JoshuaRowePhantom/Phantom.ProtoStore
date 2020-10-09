@@ -416,7 +416,7 @@ namespace Phantom::ProtoStore
         auto readableExtent = co_await OpenExtentForRead(
             extentNumber);
 
-        return co_await OpenExtentForSequentialReadAccess(
+        co_return co_await OpenExtentForSequentialReadAccess(
             readableExtent);
         
     }

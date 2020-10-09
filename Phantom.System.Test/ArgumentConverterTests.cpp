@@ -37,11 +37,11 @@ TEST_F(ArgumentConverterTests, Can_convert_one_type)
     auto argumentConverter = ArgumentConverter(converter1);
 
     std::string resultString = argumentConverter(std::string("foo"));
-    ASSERT_EQ(std::string("foo"), resultString);
+    EXPECT_EQ(std::string("foo"), resultString);
     std::string resultTag1 = argumentConverter(tagged_value<tag1> { "bar" });
-    ASSERT_EQ(std::string("bar"), resultTag1);
+    EXPECT_EQ(std::string("bar"), resultTag1);
     tagged_value<tag2> resultTag2 = argumentConverter(tagged_value<tag2> { "baz" });
-    ASSERT_EQ(std::string("baz"), resultTag2.value);
+    EXPECT_EQ(std::string("baz"), resultTag2.value);
 }
 
 TEST_F(ArgumentConverterTests, Can_convert_two_types)
@@ -53,11 +53,11 @@ TEST_F(ArgumentConverterTests, Can_convert_two_types)
         converter2);
 
     std::string resultString = argumentConverter(std::string("foo"));
-    ASSERT_EQ(std::string("foo"), resultString);
+    EXPECT_EQ(std::string("foo"), resultString);
     std::string resultTag1 = argumentConverter(tagged_value<tag1> { "bar" });
-    ASSERT_EQ(std::string("bar"), resultTag1);
+    EXPECT_EQ(std::string("bar"), resultTag1);
     std::string resultTag2 = argumentConverter(tagged_value<tag2> { "baz" });
-    ASSERT_EQ(std::string("baz"), resultTag2);
+    EXPECT_EQ(std::string("baz"), resultTag2);
 }
 
 TEST_F(ArgumentConverterTests, ArgumentConversionAdapter_can_invoke_via_converter)
@@ -79,13 +79,13 @@ TEST_F(ArgumentConverterTests, ArgumentConversionAdapter_can_invoke_via_converte
         tagged_value<tag1> { "bar" },
         tagged_value<tag2> { "baz" }
     );
-    ASSERT_EQ(std::string("barbaz"), resultString1);
+    EXPECT_EQ(std::string("barbaz"), resultString1);
 
     std::string resultString2 = argumentConversionAdapter(
         std::string { "bar" },
         tagged_value<tag2> { "baz" }
     );
-    ASSERT_EQ(std::string("barbaz"), resultString2);
+    EXPECT_EQ(std::string("barbaz"), resultString2);
 }
 
 }

@@ -7,8 +7,8 @@ namespace Phantom
 TEST(as_awaitable_tests, as_awaitable_can_return_ordinary_integer_value_without_waiting)
 {
     auto awaitable = as_awaitable(5);
-    ASSERT_TRUE(awaitable.await_ready());
-    ASSERT_EQ(5, awaitable.await_resume());
+    EXPECT_TRUE(awaitable.await_ready());
+    EXPECT_EQ(5, awaitable.await_resume());
 }
 
 struct as_awaitable_test_move_only_class : public std::string
@@ -31,18 +31,18 @@ struct as_awaitable_test_move_only_class : public std::string
 TEST(as_awaitable_tests, as_awaitable_can_return_move_only_class)
 {
     auto awaitable = as_awaitable(as_awaitable_test_move_only_class("foo"));
-    ASSERT_TRUE(awaitable.await_ready());
+    EXPECT_TRUE(awaitable.await_ready());
     auto value = move(awaitable).await_resume();
-    ASSERT_EQ(std::string("foo"), std::string(value));
+    EXPECT_EQ(std::string("foo"), std::string(value));
 }
 
 TEST(as_awaitable_tests, as_awaitable_can_return_ordinary_class)
 {
     std::string stringValue("foo");
     auto awaitable = as_awaitable(stringValue);
-    ASSERT_TRUE(awaitable.await_ready());
+    EXPECT_TRUE(awaitable.await_ready());
     auto value = move(awaitable).await_resume();
-    ASSERT_EQ(std::string("foo"), value);
+    EXPECT_EQ(std::string("foo"), value);
 }
 
 TEST(as_awaitable_tests, as_awaitable_can_co_await_returned_value)
@@ -52,7 +52,7 @@ TEST(as_awaitable_tests, as_awaitable_can_co_await_returned_value)
         auto result = co_await as_awaitable(
             std::string("foo"));
 
-        ASSERT_EQ(std::string("foo"), result);
+        EXPECT_EQ(std::string("foo"), result);
     });
 }
 
@@ -67,7 +67,7 @@ TEST(as_awaitable_tests, as_awaitable_can_co_await_returned_task)
         }());
 
         auto result = co_await awaitable;
-        ASSERT_EQ(std::string("foo"), result);
+        EXPECT_EQ(std::string("foo"), result);
     });
 }
 

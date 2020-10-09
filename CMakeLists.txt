@@ -10,7 +10,7 @@ project ("Phantom.Scalable.Native")
 set(CMAKE_CXX_STANDARD 20)
 
 if (MSVC)
-	add_compile_options("/await")
+	add_compile_options("/std:c++latest")
 	add_compile_options("/WX")
 
 	add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:/GL>")

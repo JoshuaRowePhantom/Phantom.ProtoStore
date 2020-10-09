@@ -25,7 +25,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForRead_cannot_read_past_end_of_zero_leng
         MemoryExtentStore store(Schedulers::Default());
         auto extent = co_await store.OpenExtentForRead(0);
         auto buffer = co_await extent->CreateReadBuffer();
-        ASSERT_THROW(
+        EXPECT_THROW(
             (co_await buffer->Read(
                 0,
                 1))
@@ -62,7 +62,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForRead_can_read_data_written_by_OpenExte
             actualData.data(),
             actualData.size());
 
-        ASSERT_EQ(
+        EXPECT_EQ(
             expectedData,
             actualData);
     }
@@ -112,7 +112,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_grow)
             actualData.data(),
             actualData.size());
 
-        ASSERT_EQ(
+        EXPECT_EQ(
             expectedData,
             actualData);
     }
@@ -145,7 +145,7 @@ TEST(MemoryExtentStoreTests, DeleteExtent_erases_the_content)
         auto extent = co_await store.OpenExtentForRead(0);
         auto readBuffer = co_await extent->CreateReadBuffer();
 
-        ASSERT_THROW(
+        EXPECT_THROW(
             (co_await readBuffer->Read(
                 0,
                 1))

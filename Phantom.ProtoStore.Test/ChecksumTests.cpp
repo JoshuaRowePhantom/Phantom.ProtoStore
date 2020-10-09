@@ -24,10 +24,10 @@ namespace Phantom::ProtoStore
     {
         auto checksumFactory = MakeChecksumAlgorithmFactory();
         auto checksum1 = checksumFactory->Create();
-        ASSERT_EQ(ChecksumAlgorithmVersion::Crc32c, checksum1->Version());
+        EXPECT_EQ(ChecksumAlgorithmVersion::Crc32c, checksum1->Version());
         auto checksum2 = checksumFactory->Create(
             ChecksumAlgorithmVersion::Default);
-        ASSERT_EQ(ChecksumAlgorithmVersion::Crc32c, checksum2->Version());
+        EXPECT_EQ(ChecksumAlgorithmVersion::Crc32c, checksum2->Version());
     }
 
     bool RunCrc32c(
@@ -86,17 +86,17 @@ namespace Phantom::ProtoStore
 
     TEST(ChecksumTests, Crc32TestVectors_0)
     {
-        ASSERT_TRUE(RunCrc32c({ }, 0));
+        EXPECT_TRUE(RunCrc32c({ }, 0));
     }
     
     TEST(ChecksumTests, Crc32TestVectors_a)
     {
-        ASSERT_TRUE(RunCrc32c({ "a" }, 0xc1'd0'43'30));
+        EXPECT_TRUE(RunCrc32c({ "a" }, 0xc1'd0'43'30));
     }
     
     TEST(ChecksumTests, Crc32TestVectors_123456789)
     {
-        ASSERT_TRUE(RunCrc32c({ "123456789" }, 0xe3'06'92'83));
+        EXPECT_TRUE(RunCrc32c({ "123456789" }, 0xe3'06'92'83));
     }
 
     TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_move_forward_and_backward)
@@ -134,26 +134,26 @@ namespace Phantom::ProtoStore
 
             const void* data;
             int size;
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(4, size);
-            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(4, size);
+            EXPECT_EQ(4, checksummingInputStream.ByteCount());
             checksummingInputStream.BackUp(1);
-            ASSERT_EQ(3, checksummingInputStream.ByteCount());
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(1, size);
-            ASSERT_EQ(4, checksummingInputStream.ByteCount());
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(8, size);
-            ASSERT_EQ(12, checksummingInputStream.ByteCount());
+            EXPECT_EQ(3, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(1, size);
+            EXPECT_EQ(4, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(8, size);
+            EXPECT_EQ(12, checksummingInputStream.ByteCount());
             checksummingInputStream.BackUp(3);
-            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+            EXPECT_EQ(9, checksummingInputStream.ByteCount());
         }
         checksum->Finalize();
 
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0xe3'06'92'83, computed);
+        EXPECT_EQ(0xe3'06'92'83, computed);
     }
 
     TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_move_forward)
@@ -191,21 +191,21 @@ namespace Phantom::ProtoStore
 
             const void* data;
             int size;
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(4, size);
-            ASSERT_EQ(4, checksummingInputStream.ByteCount());
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(5, size);
-            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(4, size);
+            EXPECT_EQ(4, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(5, size);
+            EXPECT_EQ(9, checksummingInputStream.ByteCount());
             ASSERT_FALSE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+            EXPECT_EQ(9, checksummingInputStream.ByteCount());
         }
         checksum->Finalize();
 
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0xe3'06'92'83, computed);
+        EXPECT_EQ(0xe3'06'92'83, computed);
     }
 
     TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_skip_forward_past_eof)
@@ -243,18 +243,18 @@ namespace Phantom::ProtoStore
 
             const void* data;
             int size;
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(4, size);
-            ASSERT_EQ(4, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(4, size);
+            EXPECT_EQ(4, checksummingInputStream.ByteCount());
             ASSERT_FALSE(checksummingInputStream.Skip(10));
-            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+            EXPECT_EQ(9, checksummingInputStream.ByteCount());
         }
         checksum->Finalize();
 
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0xe3'06'92'83, computed);
+        EXPECT_EQ(0xe3'06'92'83, computed);
     }
 
     TEST(ChecksummingZeroCopyInputStreamTests, Crc32_can_skip_forward_before_eof)
@@ -292,18 +292,18 @@ namespace Phantom::ProtoStore
 
             const void* data;
             int size;
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(4, size);
-            ASSERT_EQ(4, checksummingInputStream.ByteCount());
-            ASSERT_TRUE(checksummingInputStream.Skip(5));
-            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(4, size);
+            EXPECT_EQ(4, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Skip(5));
+            EXPECT_EQ(9, checksummingInputStream.ByteCount());
         }
         checksum->Finalize();
 
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0xe3'06'92'83, computed);
+        EXPECT_EQ(0xe3'06'92'83, computed);
     }
 
 
@@ -348,18 +348,18 @@ namespace Phantom::ProtoStore
 
             const void* data;
             int size;
-            ASSERT_TRUE(checksummingInputStream.Next(&data, &size));
-            ASSERT_EQ(4, size);
-            ASSERT_EQ(4, checksummingInputStream.ByteCount());
-            ASSERT_TRUE(checksummingInputStream.Skip(5));
-            ASSERT_EQ(9, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Next(&data, &size));
+            EXPECT_EQ(4, size);
+            EXPECT_EQ(4, checksummingInputStream.ByteCount());
+            EXPECT_TRUE(checksummingInputStream.Skip(5));
+            EXPECT_EQ(9, checksummingInputStream.ByteCount());
         }
         checksum->Finalize();
 
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0xe3'06'92'83, computed);
+        EXPECT_EQ(0xe3'06'92'83, computed);
     }
 
     TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_zero_from_empty_buffer)
@@ -384,7 +384,7 @@ namespace Phantom::ProtoStore
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0, computed);
+        EXPECT_EQ(0, computed);
     }
 
     TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_zero_from_non_empty_buffer_with_backup)
@@ -403,7 +403,7 @@ namespace Phantom::ProtoStore
 
             void* data;
             int size;
-            ASSERT_TRUE(outputStream.Next(&data, &size));
+            EXPECT_TRUE(outputStream.Next(&data, &size));
             ASSERT_GT(size, 0);
             outputStream.BackUp(size);
         }
@@ -412,7 +412,7 @@ namespace Phantom::ProtoStore
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0, computed);
+        EXPECT_EQ(0, computed);
     }
 
     TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_nonzero_from_BackUp)
@@ -432,7 +432,7 @@ namespace Phantom::ProtoStore
 
             void* data;
             int size;
-            ASSERT_TRUE(outputStream.Next(&data, &size));
+            EXPECT_TRUE(outputStream.Next(&data, &size));
             ASSERT_GT(size, 0);
             memcpy_s(data, size, "123456789abcdefg", 16);
             outputStream.BackUp(size - 9);
@@ -442,7 +442,7 @@ namespace Phantom::ProtoStore
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0xe3'06'92'83, computed);
+        EXPECT_EQ(0xe3'06'92'83, computed);
     }
 
     TEST(ChecksummingZeroCopyOutputStreamTests, Crc32_can_compute_nonzero_without_BackUp)
@@ -462,8 +462,8 @@ namespace Phantom::ProtoStore
 
             void* data;
             int size;
-            ASSERT_TRUE(outputStream.Next(&data, &size));
-            ASSERT_EQ(size, 32);
+            EXPECT_TRUE(outputStream.Next(&data, &size));
+            EXPECT_EQ(size, 32);
             memset(data, 0, size);
         }
         checksum->Finalize();
@@ -471,7 +471,7 @@ namespace Phantom::ProtoStore
         int32_t computed = GetComputedCrc32c(
             checksum);
 
-        ASSERT_EQ(0x8a'91'36'aa, computed);
+        EXPECT_EQ(0x8a'91'36'aa, computed);
     }
 
     TEST(ChecksummingZeroCopyOutputStreamTests, Actually_copies_the_input_to_the_output)
@@ -491,23 +491,23 @@ namespace Phantom::ProtoStore
 
             void* data;
             int size;
-            ASSERT_TRUE(outputStream.Next(&data, &size));
-            ASSERT_EQ(size, 5);
-            ASSERT_EQ(5, outputStream.ByteCount());
+            EXPECT_TRUE(outputStream.Next(&data, &size));
+            EXPECT_EQ(size, 5);
+            EXPECT_EQ(5, outputStream.ByteCount());
             memcpy_s(data, size, "1___1", 5);
 
-            ASSERT_TRUE(outputStream.Next(&data, &size));
-            ASSERT_EQ(size, 5);
-            ASSERT_EQ(10, outputStream.ByteCount());
+            EXPECT_TRUE(outputStream.Next(&data, &size));
+            EXPECT_EQ(size, 5);
+            EXPECT_EQ(10, outputStream.ByteCount());
             memcpy_s(data, size, "2___2", 5);
 
-            ASSERT_TRUE(outputStream.Next(&data, &size));
-            ASSERT_EQ(size, 3);
-            ASSERT_EQ(13, outputStream.ByteCount());
+            EXPECT_TRUE(outputStream.Next(&data, &size));
+            EXPECT_EQ(size, 3);
+            EXPECT_EQ(13, outputStream.ByteCount());
             memcpy_s(data, size, "3", 3);
 
             outputStream.BackUp(2);
-            ASSERT_EQ(11, outputStream.ByteCount());
+            EXPECT_EQ(11, outputStream.ByteCount());
         }
         checksum->Finalize();
 
@@ -515,7 +515,7 @@ namespace Phantom::ProtoStore
 
         std::string expectedString = "1___12___23\0\0"s;
 
-        ASSERT_EQ(expectedString, stringData);
+        EXPECT_EQ(expectedString, stringData);
     }
 
 }

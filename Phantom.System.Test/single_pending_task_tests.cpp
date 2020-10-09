@@ -18,7 +18,7 @@ TEST(single_pending_task_tests, join_on_not_spawned_returns_right_away)
         });
 
         co_await task.join();
-        ASSERT_EQ(0, taskGeneratorCalledCount);
+        EXPECT_EQ(0, taskGeneratorCalledCount);
     });
 }
 
@@ -44,14 +44,14 @@ TEST(single_pending_task_tests, spawn_queues_multiple_task_runs)
             return taskRunner();
         });
 
-        ASSERT_EQ(0, taskGeneratorCalledCount);
+        EXPECT_EQ(0, taskGeneratorCalledCount);
 
         auto task1 = cppcoro::make_shared_task(
             task.spawn());
         asyncScope.spawn(task1);
 
-        ASSERT_EQ(1, taskGeneratorCalledCount);
-        ASSERT_EQ(1, taskExecutionCalledCount);
+        EXPECT_EQ(1, taskGeneratorCalledCount);
+        EXPECT_EQ(1, taskExecutionCalledCount);
 
         auto task2 = cppcoro::make_shared_task(
             task.spawn());
@@ -63,23 +63,23 @@ TEST(single_pending_task_tests, spawn_queues_multiple_task_runs)
 
         asyncScope.spawn(task3);
 
-        ASSERT_EQ(1, taskGeneratorCalledCount);
-        ASSERT_EQ(1, taskExecutionCalledCount);
+        EXPECT_EQ(1, taskGeneratorCalledCount);
+        EXPECT_EQ(1, taskExecutionCalledCount);
 
         proceedEvent.set();
 
         co_await task1;
 
-        ASSERT_EQ(2, taskGeneratorCalledCount);
-        ASSERT_EQ(2, taskExecutionCalledCount);
+        EXPECT_EQ(2, taskGeneratorCalledCount);
+        EXPECT_EQ(2, taskExecutionCalledCount);
 
         proceedEvent.set();
         co_await task2;
         co_await task3;
 
         co_await task.join();
-        ASSERT_EQ(2, taskGeneratorCalledCount);
-        ASSERT_EQ(2, taskExecutionCalledCount);
+        EXPECT_EQ(2, taskGeneratorCalledCount);
+        EXPECT_EQ(2, taskExecutionCalledCount);
 
         co_await asyncScope.join();
     });

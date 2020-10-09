@@ -568,7 +568,7 @@ public:
                 &m_value);
         }
 
-        void await_suspend(std::experimental::coroutine_handle<> awaitingCoroutine) noexcept
+        void await_suspend(std::coroutine_handle<> awaitingCoroutine) noexcept
         {
             m_scheduler->await_suspend(
                 &m_value,
@@ -592,7 +592,7 @@ public:
 
     virtual void await_suspend(
         std::any* scheduleOperationValue,
-        std::experimental::coroutine_handle<> awaitingCoroutine
+        std::coroutine_handle<> awaitingCoroutine
     ) noexcept = 0;
 
     virtual void await_resume(
@@ -645,7 +645,7 @@ public:
 
     virtual void await_suspend(
         std::any* value,
-        std::experimental::coroutine_handle<> awaitingCoroutine
+        std::coroutine_handle<> awaitingCoroutine
     ) noexcept override
     {
         return std::any_cast<underlying_schedule_operation>(value)->await_suspend(

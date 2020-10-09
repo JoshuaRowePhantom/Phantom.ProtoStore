@@ -14,12 +14,12 @@ TEST(SchemaTests, Can_round_trip_to_message_descriptor_with_compiled_class)
         messageDescription,
         TestKey::descriptor());
 
-    ASSERT_EQ("Phantom.ProtoStore.TestKey", messageDescription.messagename());
+    EXPECT_EQ("Phantom.ProtoStore.TestKey", messageDescription.messagename());
 
     auto messageFactory = Schema::MakeMessageFactory(
         messageDescription);
 
-    ASSERT_EQ(
+    EXPECT_EQ(
         TestKey::descriptor(),
         messageFactory->GetPrototype()->GetDescriptor());
 }

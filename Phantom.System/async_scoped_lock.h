@@ -98,7 +98,7 @@ public:
     }
 
     bool await_suspend(
-        std::experimental::coroutine_handle<> awaiter
+        std::coroutine_handle<> awaiter
     ) noexcept
     {
         return m_awaitable.await_suspend(

@@ -39,7 +39,7 @@ namespace Phantom::System
                 destructorInvoked);
         }
 
-        ASSERT_TRUE(returnedToPool);
+        EXPECT_TRUE(returnedToPool);
         ASSERT_FALSE(destructorInvoked);
     }
 
@@ -80,7 +80,7 @@ namespace Phantom::System
                 destructorInvoked);
         }
 
-        ASSERT_TRUE(returnedToPool);
+        EXPECT_TRUE(returnedToPool);
         ASSERT_FALSE(destructorInvoked);
     }
 }

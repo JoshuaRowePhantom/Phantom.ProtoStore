@@ -27,7 +27,7 @@ TEST(HeaderAccessorTests, Throws_exception_when_no_valid_header)
             randomMessageAccessor);
 
         Header header;
-        ASSERT_THROW(
+        EXPECT_THROW(
             co_await headerAccessor->ReadHeader(
                 header),
             range_error);
@@ -60,7 +60,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_no_valid_location2
         co_await headerAccessor->ReadHeader(
             actualHeader);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(
+        EXPECT_TRUE(MessageDifferencer::Equals(
             location1Header,
             actualHeader));
     });
@@ -106,8 +106,8 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location1)
             DefaultHeaderLocation2,
             actualLocation2Header);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
     });
 }
 
@@ -137,7 +137,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_no_valid_location1
         co_await headerAccessor->ReadHeader(
             actualHeader);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(
+        EXPECT_TRUE(MessageDifferencer::Equals(
             location2Header,
             actualHeader));
     });
@@ -183,8 +183,8 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location2)
             DefaultHeaderLocation2,
             actualLocation2Header);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
     });
 }
 
@@ -221,7 +221,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_location1_is_older
         co_await headerAccessor->ReadHeader(
             actualHeader);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(
+        EXPECT_TRUE(MessageDifferencer::Equals(
             location2Header,
             actualHeader));
     });
@@ -274,8 +274,8 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location1_is_older)
             DefaultHeaderLocation2,
             actualLocation2Header);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation1Header, newHeader));
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, newHeader));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
     });
 }
 
@@ -312,7 +312,7 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_location2_is_older
         co_await headerAccessor->ReadHeader(
             actualHeader);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(
+        EXPECT_TRUE(MessageDifferencer::Equals(
             location1Header,
             actualHeader));
     });
@@ -365,8 +365,8 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location2_is_older)
             DefaultHeaderLocation2,
             actualLocation2Header);
 
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation2Header, newHeader));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, newHeader));
     });
 }
 
@@ -419,8 +419,8 @@ TEST(HeaderAccessorTests, Can_alternate_write_request_locations)
             actualLocation2Header);
 
         location1Header = newHeader;
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
 
         newHeader.set_epoch(4);
         co_await headerAccessor->WriteHeader(
@@ -434,8 +434,8 @@ TEST(HeaderAccessorTests, Can_alternate_write_request_locations)
             actualLocation2Header);
 
         location2Header = newHeader;
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
 
         newHeader.set_epoch(5);
         co_await headerAccessor->WriteHeader(
@@ -449,8 +449,8 @@ TEST(HeaderAccessorTests, Can_alternate_write_request_locations)
             actualLocation2Header);
 
         location1Header = newHeader;
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        ASSERT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
+        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
     });
 }
 

@@ -13,10 +13,10 @@ void DoKeyComparerTest(
     KeyComparer keyComparer(
         T::GetDescriptor());
 
-    ASSERT_EQ(std::weak_ordering::less, keyComparer.Compare(&lesser, &greater));
-    ASSERT_EQ(std::weak_ordering::greater, keyComparer.Compare(&greater, &lesser));
-    ASSERT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(&lesser, &lesser));
-    ASSERT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(&greater, &greater));
+    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(&lesser, &greater));
+    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(&greater, &lesser));
+    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(&lesser, &lesser));
+    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(&greater, &greater));
 }
 
 template<typename TKey, typename TValue>
@@ -29,10 +29,10 @@ void DoKeyAndSequenceNumberComparerTest(
     KeyAndSequenceNumberComparer keyAndSequenceNumberComparer(
         keyComparer);
 
-    ASSERT_EQ(std::weak_ordering::less, keyAndSequenceNumberComparer(lesser, greater));
-    ASSERT_EQ(std::weak_ordering::greater, keyAndSequenceNumberComparer(greater, lesser));
-    ASSERT_EQ(std::weak_ordering::equivalent, keyAndSequenceNumberComparer(lesser, lesser));
-    ASSERT_EQ(std::weak_ordering::equivalent, keyAndSequenceNumberComparer(greater, greater));
+    EXPECT_EQ(std::weak_ordering::less, keyAndSequenceNumberComparer(lesser, greater));
+    EXPECT_EQ(std::weak_ordering::greater, keyAndSequenceNumberComparer(greater, lesser));
+    EXPECT_EQ(std::weak_ordering::equivalent, keyAndSequenceNumberComparer(lesser, lesser));
+    EXPECT_EQ(std::weak_ordering::equivalent, keyAndSequenceNumberComparer(greater, greater));
 }
 
 template<typename TKey, typename TValue1, typename TValue2>
@@ -45,8 +45,8 @@ void DoKeyRangeComparerTestNotEquivalent(
     KeyRangeComparer keyAndSequenceNumberComparer(
         keyComparer);
 
-    ASSERT_EQ(std::weak_ordering::less, keyAndSequenceNumberComparer(lesser, greater));
-    ASSERT_EQ(std::weak_ordering::greater, keyAndSequenceNumberComparer(greater, lesser));
+    EXPECT_EQ(std::weak_ordering::less, keyAndSequenceNumberComparer(lesser, greater));
+    EXPECT_EQ(std::weak_ordering::greater, keyAndSequenceNumberComparer(greater, lesser));
 }
 
 TEST(KeyComparerTests, TestKey_int32)
