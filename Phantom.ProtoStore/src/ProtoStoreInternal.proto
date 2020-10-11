@@ -192,9 +192,9 @@ message PartitionTreeEntryValueSet {
 message PartitionTreeEntryChild {
 	// The offset to the PartitionMessage containing a PartitionTreeNode
 	uint64 TreeNodeOffset = 1;
-	// The highest write sequence number for the given Key that is contained
+	// The lowest write sequence number for the given Key that is contained
 	// in the subtree.
-	uint64 HighestWriteSequenceNumberForKey = 2;
+	uint64 LowestWriteSequenceNumberForKey = 2;
 }
 
 message PartitionTreeEntry {

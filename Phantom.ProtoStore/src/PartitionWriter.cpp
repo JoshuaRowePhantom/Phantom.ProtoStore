@@ -61,6 +61,9 @@ task<WriteMessageResult> PartitionTreeWriter::Write(
     uint32_t level,
     bool createNewLevel)
 {
+    auto treeNode = m_treeNodeStack[level].Message.mutable_partitiontreenode();
+    treeNode->set_level(level);
+
     auto writeMessageResult = co_await m_dataWriter->Write(
         m_treeNodeStack[level].Message,
         FlushBehavior::DontFlush);
@@ -75,15 +78,16 @@ task<WriteMessageResult> PartitionTreeWriter::Write(
         m_treeNodeStack.resize(level + 2);
     }
 
+    auto& lastChild = *(treeNode->mutable_treeentries()->end() - 1);
     auto higherLevelTreeEntry = m_treeNodeStack[level + 1].Message.mutable_partitiontreenode()->add_treeentries();
     higherLevelTreeEntry->set_key(
-        move(*m_treeNodeStack[level].Message.mutable_partitiontreenode()->mutable_treeentries(0)->mutable_key())
+        move(*lastChild.mutable_key())
     );
     higherLevelTreeEntry->mutable_child()->set_treenodeoffset(
         writeMessageResult.DataRange.Beginning
     );
-    higherLevelTreeEntry->mutable_child()->set_highestwritesequencenumberforkey(
-        GetHighestSequenceNumber(m_treeNodeStack[level].Message.mutable_partitiontreenode()->treeentries(0))
+    higherLevelTreeEntry->mutable_child()->set_lowestwritesequencenumberforkey(
+        GetLowestSequenceNumber(lastChild)
     );
     m_treeNodeStack[level + 1].EstimatedSize += higherLevelTreeEntry->ByteSizeLong();
 
@@ -93,15 +97,15 @@ task<WriteMessageResult> PartitionTreeWriter::Write(
     co_return writeMessageResult;
 }
 
-google::protobuf::uint64 PartitionTreeWriter::GetHighestSequenceNumber(
+google::protobuf::uint64 PartitionTreeWriter::GetLowestSequenceNumber(
     const PartitionTreeEntry& treeEntry
 )
 {
     if (treeEntry.has_child())
     {
-        return treeEntry.child().highestwritesequencenumberforkey();
+        return treeEntry.child().lowestwritesequencenumberforkey();
     }
-    return treeEntry.valueset().values(0).writesequencenumber();
+    return (treeEntry.valueset().values().end() - 1)->writesequencenumber();
 }
 
 task<WriteMessageResult> PartitionTreeWriter::WriteRoot()
@@ -109,9 +113,16 @@ task<WriteMessageResult> PartitionTreeWriter::WriteRoot()
     WriteMessageResult result;
     for (auto level = 0; level < m_treeNodeStack.size(); level++)
     {
-        result = co_await Write(
-            level,
-            false);
+        // Only write the node if it is non-empty
+        // or is the highest level.
+        if (m_treeNodeStack[level].Message.partitiontreenode().treeentries_size() > 0
+            ||
+            level == m_treeNodeStack.size() - 1)
+        {
+            result = co_await Write(
+                level,
+                false);
+        }
     }
 
     co_return result;

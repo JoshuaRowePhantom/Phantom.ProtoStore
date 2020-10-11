@@ -399,6 +399,7 @@ protected:
                 auto expectedRow = scenario.GetExpectedRow(
                     key,
                     ToSequenceNumber(readSequenceNumber));
+                auto originalExpectedRow = expectedRow;
 
                 PartitionTestKey keyMessage;
                 keyMessage.set_key(key);
@@ -424,7 +425,7 @@ protected:
                     expectedRow.reset();
                 }
 
-                assert(!expectedRow.has_value());
+                EXPECT_FALSE(expectedRow.has_value());
             }
         }
     }
@@ -561,7 +562,7 @@ TEST_F(PartitionTests, Test_Read_scenario)
     run_async([&]() -> task<>
     {
         co_await DoReadScenarioTest(
-            co_await GenerateScenario(2));
+            co_await GenerateScenario(352));
     });
 }
 

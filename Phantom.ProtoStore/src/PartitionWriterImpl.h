@@ -25,7 +25,7 @@ class PartitionTreeWriter
     
     shared_ptr<ISequentialMessageWriter> m_dataWriter;
 
-    google::protobuf::uint64 GetHighestSequenceNumber(
+    google::protobuf::uint64 GetLowestSequenceNumber(
         const PartitionTreeEntry& treeEntry
     );
 

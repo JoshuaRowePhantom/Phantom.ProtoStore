@@ -184,7 +184,7 @@ PartitionTreeNodeCacheEntry::iterator_type& PartitionTreeNodeCacheEntry::iterato
         m_value = value_type
         {
             &m_treeNode->treeentries(m_index),
-            &m_cacheEntry->m_keys[0],
+            &m_cacheEntry->m_keys[m_index],
         };
     }
     return *this;
