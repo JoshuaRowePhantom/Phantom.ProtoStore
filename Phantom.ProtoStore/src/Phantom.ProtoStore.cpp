@@ -10,12 +10,12 @@ namespace Phantom::ProtoStore
 extern const PlaceholderKey KeyMinMessage;
 extern const PlaceholderKey KeyMaxMessage;
 
-ProtoValue ProtoValue::KeyMax()
+ProtoValue ProtoValue::KeyMin()
 {
     return &KeyMinMessage;
 }
 
-ProtoValue ProtoValue::KeyMin()
+ProtoValue ProtoValue::KeyMax()
 {
     return &KeyMaxMessage;
 }
