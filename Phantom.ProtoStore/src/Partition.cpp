@@ -375,9 +375,9 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
     auto treeNode = co_await cacheEntry->ReadTreeNode();
 
-#ifndef NDEBUG
-    auto treeNodeString = treeNode->DebugString();
-#endif
+//#ifndef NDEBUG
+//    auto treeNodeString = treeNode->DebugString();
+//#endif
 
     int lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
         cacheEntry,

@@ -694,7 +694,7 @@ TEST_F(PartitionTests, Test_Enumerate_scenario_352)
         });
 }
 
-TEST_F(PartitionTests, Test_Enumerate_variations)
+TEST_F(PartitionTests, DISABLED_Test_Enumerate_variations)
 {
     run_async([&]() -> task<>
         {
@@ -727,7 +727,7 @@ TEST_F(PartitionTests, Test_Read_scenario)
     });
 }
 
-TEST_F(PartitionTests, Test_Read_variations)
+TEST_F(PartitionTests, DISABLED_Test_Read_variations)
 {
     run_async([&]() -> task<>
     {
