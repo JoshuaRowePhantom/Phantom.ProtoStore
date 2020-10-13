@@ -624,7 +624,7 @@ TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
         auto keys = MakeRandomStrings(
             rng,
             20,
-            1000);
+            10);
 
         for (auto key : keys)
         {
@@ -653,6 +653,9 @@ TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
         store.reset();
         store = co_await OpenStore(createRequest);
 
+        index = co_await GetTestIndex(
+            store);
+
         for (auto key : keys)
         {
             co_await ExpectGetTestRow(
@@ -662,7 +665,8 @@ TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
                 key + "-value",
                 ToSequenceNumber(5),
                 ToSequenceNumber(5));
-        }    });
+        }    
+    });
 }
 
 TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)

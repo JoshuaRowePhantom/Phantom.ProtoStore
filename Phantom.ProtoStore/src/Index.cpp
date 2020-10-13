@@ -289,6 +289,9 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
         keyHigh.Key = unpackedKeyHigh.get();
     }
 
+    assert(keyLow.Key);
+    assert(keyHigh.Key);
+
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
 

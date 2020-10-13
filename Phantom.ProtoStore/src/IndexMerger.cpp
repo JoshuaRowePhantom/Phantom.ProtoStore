@@ -398,9 +398,9 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
     auto mergesIndex = co_await m_protoStore->GetMergesIndex();
 
     EnumerateRequest enumerateMergesRequest;
-    enumerateMergesRequest.KeyLow = nullptr;
+    enumerateMergesRequest.KeyLow = ProtoValue::KeyMin();
     enumerateMergesRequest.KeyLowInclusivity = Inclusivity::Inclusive;
-    enumerateMergesRequest.KeyHigh = nullptr;
+    enumerateMergesRequest.KeyHigh = ProtoValue::KeyMax();
     enumerateMergesRequest.KeyHighInclusivity = Inclusivity::Exclusive;
     enumerateMergesRequest.SequenceNumber = SequenceNumber::LatestCommitted;
     enumerateMergesRequest.Index = mergesIndex;
@@ -432,12 +432,12 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
         mergeProgressKeyHigh.set_rangediscriminator(1);
 
         EnumerateRequest enumerateMergeProgressRequest;
-        enumerateMergesRequest.KeyLow = &mergeProgressKeyLow;
-        enumerateMergesRequest.KeyLowInclusivity = Inclusivity::Inclusive;
-        enumerateMergesRequest.KeyHigh = &mergeProgressKeyHigh;
-        enumerateMergesRequest.KeyHighInclusivity = Inclusivity::Exclusive;
-        enumerateMergesRequest.SequenceNumber = SequenceNumber::LatestCommitted;
-        enumerateMergesRequest.Index = mergesIndex;
+        enumerateMergeProgressRequest.KeyLow = &mergeProgressKeyLow;
+        enumerateMergeProgressRequest.KeyLowInclusivity = Inclusivity::Inclusive;
+        enumerateMergeProgressRequest.KeyHigh = &mergeProgressKeyHigh;
+        enumerateMergeProgressRequest.KeyHighInclusivity = Inclusivity::Exclusive;
+        enumerateMergeProgressRequest.SequenceNumber = SequenceNumber::LatestCommitted;
+        enumerateMergeProgressRequest.Index = mergesIndex;
 
         auto mergeProgressEnumeration = mergeProgressIndex->Enumerate(
             enumerateMergeProgressRequest);
@@ -472,9 +472,9 @@ task<> IndexMerger::GenerateMerges()
         auto partitionsIndex = co_await m_protoStore->GetPartitionsIndex();
 
         EnumerateRequest enumeratePartitionsRequest;
-        enumeratePartitionsRequest.KeyLow = nullptr;
+        enumeratePartitionsRequest.KeyLow = ProtoValue::KeyMin();
         enumeratePartitionsRequest.KeyLowInclusivity = Inclusivity::Inclusive;
-        enumeratePartitionsRequest.KeyHigh = nullptr;
+        enumeratePartitionsRequest.KeyHigh = ProtoValue::KeyMax();
         enumeratePartitionsRequest.KeyHighInclusivity = Inclusivity::Exclusive;
         enumeratePartitionsRequest.SequenceNumber = SequenceNumber::LatestCommitted;
         enumeratePartitionsRequest.Index = partitionsIndex;
@@ -503,9 +503,9 @@ task<> IndexMerger::GenerateMerges()
 
     {
         EnumerateRequest enumerateMergesRequest;
-        enumerateMergesRequest.KeyLow = nullptr;
+        enumerateMergesRequest.KeyLow = ProtoValue::KeyMin();
         enumerateMergesRequest.KeyLowInclusivity = Inclusivity::Inclusive;
-        enumerateMergesRequest.KeyHigh = nullptr;
+        enumerateMergesRequest.KeyHigh = ProtoValue::KeyMax();
         enumerateMergesRequest.KeyHighInclusivity = Inclusivity::Exclusive;
         enumerateMergesRequest.SequenceNumber = SequenceNumber::LatestCommitted;
         enumerateMergesRequest.Index = mergesIndex;

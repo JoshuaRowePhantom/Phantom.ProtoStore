@@ -175,13 +175,13 @@ cppcoro::async_generator<ResultRow> Partition::Checkpoint(
 
     KeyRangeEnd low =
     {
-        .Key = nullptr,
+        .Key = &KeyMinMessage,
         .Inclusivity = Inclusivity::Inclusive,
     };
 
     KeyRangeEnd high =
     {
-        .Key = nullptr,
+        .Key = &KeyMaxMessage,
         .Inclusivity = Inclusivity::Inclusive,
     };
 
