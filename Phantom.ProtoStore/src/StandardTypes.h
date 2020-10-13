@@ -120,6 +120,7 @@ class MergeProgressKey;
 class MergeProgressValue;
 class MergeParameters;
 class WriteRowsResult;
+class PlaceholderKey;
 
 class ResultRow;
 typedef cppcoro::async_generator<ResultRow> row_generator;

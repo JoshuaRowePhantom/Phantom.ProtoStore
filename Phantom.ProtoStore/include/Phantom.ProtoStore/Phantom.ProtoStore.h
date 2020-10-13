@@ -176,6 +176,9 @@ public:
         }
     }
 
+    static ProtoValue KeyMin();
+    static ProtoValue KeyMax();
+
     explicit operator bool() const
     {
         return has_value();
@@ -328,6 +331,9 @@ public:
 
         return false;
     }
+
+    bool IsKeyMin() const;
+    bool IsKeyMax() const;
 };
 
 struct WriteOperation

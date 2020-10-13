@@ -18,6 +18,9 @@ concept IsOrderedBy = requires (T t)
     { t <=> t } -> std::same_as<O>;
 };
 
+extern const PlaceholderKey KeyMinMessage;
+extern const PlaceholderKey KeyMaxMessage;
+
 class KeyComparer
 {
 public:

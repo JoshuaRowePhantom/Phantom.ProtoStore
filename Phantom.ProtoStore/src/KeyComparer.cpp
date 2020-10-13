@@ -1,6 +1,7 @@
 #include "StandardTypes.h"
 #include "KeyComparer.h"
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
+#include "src/ProtoStoreInternal.pb.h"
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <stack>
 #include <compare>
@@ -10,6 +11,9 @@ namespace Phantom::ProtoStore
 {
 
 using namespace google::protobuf;
+
+const PlaceholderKey KeyMinMessage = [] { PlaceholderKey key; key.set_iskeymin(true); return key; }();
+const PlaceholderKey KeyMaxMessage = [] { PlaceholderKey key; key.set_iskeymax(true); return key; }();
 
 KeyComparer::KeyComparer(
     const Descriptor* messageDescriptor)
@@ -42,6 +46,34 @@ std::weak_ordering KeyComparer::Compare(
     const Message* right
 ) const
 {
+    if (left == &KeyMinMessage)
+    {
+        if (right == &KeyMinMessage)
+        {
+            return std::weak_ordering::equivalent;
+        }
+        return std::weak_ordering::less;
+    }
+
+    if (right == &KeyMinMessage)
+    {
+        return std::weak_ordering::greater;
+    }
+
+    if (left == &KeyMaxMessage)
+    {
+        if (right == &KeyMaxMessage)
+        {
+            return std::weak_ordering::equivalent;
+        }
+        return std::weak_ordering::greater;
+    }
+
+    if (right == &KeyMaxMessage)
+    {
+        return std::weak_ordering::less;
+    }
+
     auto leftDescriptor = left->GetDescriptor();
     auto rightDescriptor = right->GetDescriptor();
 

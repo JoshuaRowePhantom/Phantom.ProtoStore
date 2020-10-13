@@ -187,9 +187,9 @@ public:
         }
 
         EnumerateRequest enumerateRequest;
-        enumerateRequest.KeyLow = keyLow.has_value() ? &keyLowStringKey : nullptr;
+        enumerateRequest.KeyLow = keyLow.has_value() ? ProtoValue(&keyLowStringKey) : ProtoValue::KeyMin();
         enumerateRequest.KeyLowInclusivity = keyLowInclusivity;
-        enumerateRequest.KeyHigh = keyHigh.has_value() ? &keyHighStringKey : nullptr;
+        enumerateRequest.KeyHigh = keyHigh.has_value() ? ProtoValue(&keyHighStringKey) : ProtoValue::KeyMax();
         enumerateRequest.KeyHighInclusivity = keyHighInclusivity;
         enumerateRequest.SequenceNumber = readSequenceNumber;
         enumerateRequest.Index = index;
