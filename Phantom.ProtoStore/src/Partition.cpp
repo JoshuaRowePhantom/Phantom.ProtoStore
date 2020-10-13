@@ -12,6 +12,12 @@
 namespace Phantom::ProtoStore
 {
 
+struct Partition::EnumerateLastReturnedKey
+{
+    shared_ptr<PartitionTreeNodeCacheEntry> CacheEntry;
+    const Message* Key = nullptr;
+};
+
 Partition::Partition(
     shared_ptr<KeyComparer> keyComparer,
     shared_ptr<IMessageFactory> keyFactory,
@@ -138,6 +144,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     ReadValueDisposition readValueDisposition
 )
 {
+    EnumerateLastReturnedKey unusedEnumerateLastReturnedKey;
+
     auto enumeration = Enumerate(
         ExtentLocation 
         { 
@@ -148,7 +156,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         low,
         high,
         readValueDisposition,
-        EnumerateBehavior::PointInTimeRead);
+        EnumerateBehavior::PointInTimeRead,
+        unusedEnumerateLastReturnedKey);
 
     for (auto iterator = co_await enumeration.begin();
         iterator != enumeration.end();
@@ -182,6 +191,8 @@ cppcoro::async_generator<ResultRow> Partition::Checkpoint(
         readSequenceNumber = startKey->WriteSequenceNumber;
     }
 
+    EnumerateLastReturnedKey unusedEnumerateLastReturnedKey;
+
     auto enumeration = Enumerate(
         ExtentLocation
         {
@@ -192,7 +203,8 @@ cppcoro::async_generator<ResultRow> Partition::Checkpoint(
         low,
         high,
         ReadValueDisposition::ReadValue,
-        EnumerateBehavior::Checkpoint);
+        EnumerateBehavior::Checkpoint,
+        unusedEnumerateLastReturnedKey);
 
     for (auto iterator = co_await enumeration.begin();
         iterator != enumeration.end();
@@ -299,7 +311,7 @@ task<int> Partition::FindHighTreeEntryIndex(
         high.Inclusivity == Inclusivity::Inclusive ? Inclusivity::Exclusive : Inclusivity::Inclusive,
     };
 
-    auto lowerBound = co_await async_upper_bound(
+    auto lowerBound = co_await async_lower_bound(
         co_await partitionTreeNodeCacheEntry->begin(),
         co_await partitionTreeNodeCacheEntry->end(),
         key,
@@ -354,7 +366,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     KeyRangeEnd low,
     KeyRangeEnd high,
     ReadValueDisposition readValueDisposition,
-    EnumerateBehavior enumerateBehavior
+    EnumerateBehavior enumerateBehavior,
+    EnumerateLastReturnedKey& lastReturnedKey
 )
 {
     auto cacheEntry = co_await m_partitionTreeNodeCache.GetPartitionTreeNodeCacheEntry(
@@ -362,9 +375,9 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
     auto treeNode = co_await cacheEntry->ReadTreeNode();
 
-//#ifndef NDEBUG
-//    auto treeNodeString = treeNode->DebugString();
-//#endif
+#ifndef NDEBUG
+    auto treeNodeString = treeNode->DebugString();
+#endif
 
     int lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
         cacheEntry,
@@ -378,6 +391,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         readSequenceNumber,
         high);
 
+    const Message* lastReturnedKeyMessage = nullptr;
+
     while (
         (
             treeNode->level() == 0 && lowTreeEntryIndex < highTreeEntryIndex
@@ -389,7 +404,6 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     {
         auto& treeNodeEntry = treeNode->treeentries(lowTreeEntryIndex);
         auto key = co_await cacheEntry->GetKey(lowTreeEntryIndex);
-        const Message* nextKey;
 
         if (treeNodeEntry.has_child())
         {
@@ -399,21 +413,43 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 treeNodeEntry.child().treenodeoffset(),
             };
 
+            EnumerateLastReturnedKey childEnumerateLastReturnedKey;
+
             auto subTreeEnumerator = Enumerate(
                 enumerationLocation,
                 readSequenceNumber,
                 low,
                 high,
                 readValueDisposition,
-                enumerateBehavior);
+                enumerateBehavior,
+                childEnumerateLastReturnedKey);
 
             for (auto iterator = co_await subTreeEnumerator.begin();
                 iterator != subTreeEnumerator.end();
                 co_await ++iterator)
             {
                 co_yield *iterator;
-                nextKey = (*iterator).Key;
             }
+
+            // When we enumerate it, we might
+            // need to skip the last key we returned when we enumerate the next child,
+            // so set low to that key.
+            if (enumerateBehavior == EnumerateBehavior::PointInTimeRead
+                &&
+                childEnumerateLastReturnedKey.Key)
+            {
+                low =
+                {
+                    childEnumerateLastReturnedKey.Key,
+                    Inclusivity::Exclusive,
+                };
+
+                lastReturnedKey = move(
+                    childEnumerateLastReturnedKey);
+            }
+
+            // But always resume at the next tree entry.
+            lowTreeEntryIndex++;
         }
         else
         {
@@ -435,11 +471,15 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 treeEntryValue = nullptr;
             }
 
-            // treeEntryValue is null if the node matched, but the read sequence number was earlier than any
-            // value in the tree node.
-            if (treeEntryValue != nullptr)
+            // The node matched, and we might have a value to return;
+            // except we might have found a tree entry whose values are all newer
+            // than the read sequence number.
+            if (treeEntryValue == nullptr)
             {
-                // The node matched, and we should have a value to return.
+                ++lowTreeEntryIndex;
+            }
+            else
+            {
                 if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
                 {
                     PartitionMessage message;
@@ -478,31 +518,35 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                     .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->writesequencenumber()),
                     .Value = value.get(),
                 };
-            }
 
-            nextKey = key;
-        }
+                if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)
+                {
+                    low =
+                    {
+                        key,
+                        Inclusivity::Exclusive,
+                    };
 
-        if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)
-        {
-            low =
-            {
-                key,
-                Inclusivity::Exclusive,
-            };
+                    lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
+                        cacheEntry,
+                        treeNode,
+                        readSequenceNumber,
+                        low);
 
-            lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
-                cacheEntry,
-                treeNode,
-                readSequenceNumber,
-                low);
-        }
-        else
-        {
-            assert(enumerateBehavior == EnumerateBehavior::Checkpoint);
-            lowTreeEntryIndex++;
-        }
-    }
+                    lastReturnedKey = EnumerateLastReturnedKey
+                    {
+                        cacheEntry,
+                        key,
+                    };
+                }
+                else
+                {
+                    assert(enumerateBehavior == EnumerateBehavior::Checkpoint);
+                    lowTreeEntryIndex++;
+                }
+            } // end if leaf has matching value.
+        } // end if leaf
+    } // end while not at end
 }
 
 SequenceNumber Partition::GetLatestSequenceNumber()

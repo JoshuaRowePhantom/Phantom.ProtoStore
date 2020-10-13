@@ -47,13 +47,16 @@ class Partition
         Checkpoint,
     };
 
+    struct EnumerateLastReturnedKey;
+
     cppcoro::async_generator<ResultRow> Enumerate(
         ExtentLocation treeNodeLocation,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high,
         ReadValueDisposition readValueDisposition,
-        EnumerateBehavior enumerateBehavior
+        EnumerateBehavior enumerateBehavior,
+        EnumerateLastReturnedKey& lastReturnedKey
     );
 
     int FindMatchingValueIndexByWriteSequenceNumber(

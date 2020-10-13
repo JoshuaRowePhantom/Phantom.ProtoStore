@@ -141,7 +141,8 @@ protected:
 
         optional<ScenarioRow> GetExpectedRow(
             int32_t key,
-            SequenceNumber readSequenceNumber)
+            SequenceNumber readSequenceNumber
+        ) const
         {
             optional<ScenarioRow> result;
 
@@ -430,6 +431,124 @@ protected:
         }
     }
 
+    task<> DoEnumerateScenarioTest(
+        const Scenario& scenario,
+        int32_t lowKey,
+        Inclusivity lowKeyInclusivity,
+        int32_t highKey,
+        Inclusivity highKeyInclusivity,
+        SequenceNumber readSequenceNumber
+    )
+    {
+        vector<ScenarioRow> expectedScenarioRows;
+
+        for (auto key = lowKeyInclusivity == Inclusivity::Inclusive ? lowKey : lowKey + 1;
+            key < (highKeyInclusivity == Inclusivity::Inclusive ? highKey + 1 : highKey);
+            key++)
+        {
+            auto expectedRow = scenario.GetExpectedRow(
+                key,
+                readSequenceNumber);
+
+            if (expectedRow)
+            {
+                expectedScenarioRows.push_back(
+                    *expectedRow);
+            }
+        }
+
+        PartitionTestKey lowKeyMessage;
+        lowKeyMessage.set_key(lowKey);
+
+        PartitionTestKey highKeyMessage;
+        highKeyMessage.set_key(highKey);
+        
+        auto enumeration = scenario.Partition->Enumerate(
+            readSequenceNumber,
+            { &lowKeyMessage, lowKeyInclusivity },
+            { &highKeyMessage, highKeyInclusivity },
+            ReadValueDisposition::ReadValue);
+
+        auto expectedScenarioRowsIterator = expectedScenarioRows.begin();
+
+        for (auto actualRowsIterator = co_await enumeration.begin();
+            actualRowsIterator != enumeration.end();
+            co_await ++actualRowsIterator)
+        {
+            auto& actualRow = *actualRowsIterator;
+
+            auto actualKey = static_cast<const PartitionTestKey*>(actualRow.Key);
+            auto actualValue = static_cast<const PartitionTestValue*>(actualRow.Value);
+
+            EXPECT_TRUE(expectedScenarioRowsIterator != expectedScenarioRows.end());
+            auto& expectedRow = *expectedScenarioRowsIterator;
+
+            EXPECT_EQ(actualKey->key(), get<shared_ptr<PartitionTestKey>>(expectedRow)->key());
+            EXPECT_EQ(actualValue->key(), get<shared_ptr<PartitionTestValue>>(expectedRow)->key());
+            EXPECT_EQ(actualValue->sequencenumber(), get<shared_ptr<PartitionTestValue>>(expectedRow)->sequencenumber());
+            EXPECT_EQ(actualRow.WriteSequenceNumber, get<SequenceNumber>(expectedRow));
+
+            ++expectedScenarioRowsIterator;
+        }
+
+        EXPECT_EQ(expectedScenarioRowsIterator, expectedScenarioRows.end());
+    }
+
+    task<> DoEnumerateScenarioTest(
+        Scenario scenario)
+    {
+        for (auto readSequenceNumber = ToUint64(scenario.MinPossibleSequenceNumber);
+            readSequenceNumber <= ToUint64(scenario.MaxPossibleSequenceNumber);
+            readSequenceNumber++)
+        {
+            for (auto lowKey = scenario.MinPossibleKey;
+                lowKey <= scenario.MaxPossibleKey;
+                lowKey++)
+            {
+                for (auto highKey = lowKey;
+                    highKey <= scenario.MaxPossibleKey;
+                    highKey++)
+                {
+                    co_await DoEnumerateScenarioTest(
+                        scenario,
+                        lowKey,
+                        Inclusivity::Inclusive,
+                        highKey,
+                        Inclusivity::Inclusive,
+                        ToSequenceNumber(readSequenceNumber)
+                    );
+
+                    co_await DoEnumerateScenarioTest(
+                        scenario,
+                        lowKey,
+                        Inclusivity::Inclusive,
+                        highKey,
+                        Inclusivity::Exclusive,
+                        ToSequenceNumber(readSequenceNumber)
+                    );
+
+                    co_await DoEnumerateScenarioTest(
+                        scenario,
+                        lowKey,
+                        Inclusivity::Exclusive,
+                        highKey,
+                        Inclusivity::Inclusive,
+                        ToSequenceNumber(readSequenceNumber)
+                    );
+
+                    co_await DoEnumerateScenarioTest(
+                        scenario,
+                        lowKey,
+                        Inclusivity::Exclusive,
+                        highKey,
+                        Inclusivity::Exclusive,
+                        ToSequenceNumber(readSequenceNumber)
+                    );
+                }
+            }
+        }
+    }
+
     typedef optional<SequenceNumber> noWriteConflict;
 
     task<> AssertCheckForWriteConflictResult(
@@ -557,6 +676,48 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     });
 }
 
+TEST_F(PartitionTests, Test_Enumerate_scenario)
+{
+    run_async([&]() -> task<>
+        {
+            co_await DoEnumerateScenarioTest(
+                co_await GenerateScenario(352));
+        });
+}
+
+TEST_F(PartitionTests, Test_Enumerate_scenario_352)
+{
+    run_async([&]() -> task<>
+        {
+            co_await DoEnumerateScenarioTest(
+                co_await GenerateScenario(352));
+        });
+}
+
+TEST_F(PartitionTests, Test_Enumerate_variations)
+{
+    run_async([&]() -> task<>
+        {
+            auto scenarios = GenerateAllScenarios();
+            for (auto scenarioIterator = co_await scenarios.begin();
+                scenarioIterator != scenarios.end();
+                co_await ++scenarioIterator)
+            {
+                co_await DoEnumerateScenarioTest(
+                    *scenarioIterator);
+            }
+        });
+}
+
+TEST_F(PartitionTests, Test_Read_scenario_352)
+{
+    run_async([&]() -> task<>
+        {
+            co_await DoReadScenarioTest(
+                co_await GenerateScenario(352));
+        });
+}
+
 TEST_F(PartitionTests, Test_Read_scenario)
 {
     run_async([&]() -> task<>
@@ -575,7 +736,8 @@ TEST_F(PartitionTests, Test_Read_variations)
             scenarioIterator != scenarios.end();
             co_await ++scenarioIterator)
         {
-            co_await DoReadScenarioTest(*scenarioIterator);
+            co_await DoReadScenarioTest(
+                *scenarioIterator);
         }
     });
 }
