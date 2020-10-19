@@ -14,7 +14,7 @@ class MemoryMappedFileExtentStore
     uint64_t m_writeBlockSize;
 
     std::string GetFilename(
-        ExtentNumber extentNumber);
+        ExtentName extentName);
 
 public:
     MemoryMappedFileExtentStore(
@@ -29,15 +29,15 @@ public:
     );
 
     virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-        ExtentNumber extentNumber
+        ExtentName extentName
     ) override;
 
     virtual task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-        ExtentNumber extentNumber
+        ExtentName extentName
     ) override;
 
     virtual task<> DeleteExtent(
-        ExtentNumber extentNumber
+        ExtentName extentName
     ) override;
 };
 

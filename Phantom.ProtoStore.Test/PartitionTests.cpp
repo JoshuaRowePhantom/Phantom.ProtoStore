@@ -332,7 +332,7 @@ protected:
     }
 
     task<shared_ptr<Partition>> OpenPartition(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
     {
         auto partition = make_shared<Partition>(
             keyComparer,
@@ -340,8 +340,8 @@ protected:
             valueFactory,
             dataHeaderMessageAccessor,
             dataMessageAccessor,
-            ExtentLocation{ extentNumber, 0 },
-            ExtentLocation{ extentNumber, 0 }
+            ExtentLocation{ ExtentName, 0 },
+            ExtentLocation{ ExtentName, 0 }
         );
 
         co_await partition->Open();

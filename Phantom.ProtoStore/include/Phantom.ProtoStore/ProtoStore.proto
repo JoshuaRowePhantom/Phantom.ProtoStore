@@ -50,3 +50,26 @@ message IndexSchemaDescription {
 	KeySchemaDescription Key = 1;
 	ValueSchemaDescription Value = 2;
 }
+
+message HeaderExtentName {
+	uint64 HeaderCopyNumber = 1;
+};
+
+message IndexExtentName {
+	uint64 PartitionNumber = 1;
+	uint64 IndexNumber = 2;
+	string IndexName = 3;
+}
+
+message LogExtentName {
+	uint64 LogExtentSequenceNumber = 1;
+}
+
+message ExtentName {
+	oneof ExtentNameType {
+		IndexExtentName IndexDataExtentName = 1;
+		IndexExtentName IndexHeaderExtentName = 2;
+		HeaderExtentName HeaderExtentName = 3;
+		LogExtentName LogExtentName = 4;
+	}
+}

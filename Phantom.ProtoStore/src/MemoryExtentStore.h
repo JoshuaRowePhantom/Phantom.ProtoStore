@@ -17,18 +17,18 @@ namespace Phantom::ProtoStore
         ~MemoryExtentStore();
 
         virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
             override;
 
         virtual task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
             override;
 
         virtual task<> DeleteExtent(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
             override;
 
         task<bool> ExtentExists(
-            ExtentNumber extentNumber);
+            ExtentName extentName);
     };
 }

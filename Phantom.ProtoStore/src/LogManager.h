@@ -16,7 +16,7 @@ class LogManager
 
     struct LogExtentUsage
     {
-        ExtentNumber LogExtentNumber;
+        LogExtentName LogExtentName;
         IndexNumber IndexNumber;
         CheckpointNumber CheckpointNumber;
 
@@ -29,20 +29,21 @@ class LogManager
     };
 
     async_reader_writer_lock m_logExtentUsageLock;
-    std::set<ExtentNumber> m_existingExtents;
-    std::set<ExtentNumber> m_extentsToRemove;
+    std::vector<ExtentName> m_existingExtents;
+    std::set<ExtentName> m_extentsToRemove;
     std::unordered_set<LogExtentUsage, LogExtentUsageHasher> m_logExtentUsage;
-    std::unordered_map<ExtentNumber, ExtentNumber> m_uncommitedDataExtentNumberToLogExtentNumber;
-    optional<ExtentNumber> m_partitionsDataExtentNumber;
+    std::unordered_map<ExtentName, LogExtentName> m_uncommitedExtentToLogExtent;
+    optional<LogExtentName> m_partitionsDataLogExtentName;
     LoggedPartitionsData m_latestLoggedPartitionsData;
 
     shared_ptr<ISequentialMessageWriter> m_logMessageWriter;
-    ExtentNumber m_currentLogExtentNumber;
+    LogExtentName m_currentLogExtentName;
+    LogExtentSequenceNumber m_currentLogExtentSequenceNumber;
 
-    ExtentNumber m_nextLogExtentNumber;
+    LogExtentSequenceNumber m_nextLogExtentSequenceNumber;
 
     bool NeedToUpdateMaps(
-        ExtentNumber logExtentNumber,
+        ExtentName logExtentName,
         const LogRecord& logRecord
     );
 
@@ -60,7 +61,7 @@ public:
     );
 
     task<> Replay(
-        ExtentNumber logExtentNumber,
+        ExtentName logExtentName,
         const LogRecord& logRecord
     );
 

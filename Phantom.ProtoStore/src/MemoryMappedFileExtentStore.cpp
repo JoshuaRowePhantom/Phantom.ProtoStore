@@ -620,16 +620,43 @@ MemoryMappedFileExtentStore::MemoryMappedFileExtentStore(
 }
 
 std::string MemoryMappedFileExtentStore::GetFilename(
-    ExtentNumber extentNumber)
+    ExtentName extentName)
 {
     std::ostringstream result;
 
     result
-        << m_extentFilenamePrefix
-        << std::setw(8)
-        << std::setfill('0')
-        << extentNumber
-        << m_extentFilenameSuffix;
+        << m_extentFilenamePrefix;
+
+    if (extentName.has_headerextentname())
+    {
+        result
+            << std::setw(8)
+            << std::setfill('0')
+            << extentName.headerextentname().headercopynumber()
+            << ".header";
+    }
+    else if (extentName.has_indexdataextentname())
+    {
+        result
+            << std::setw(8)
+            << std::setfill('0')
+            << extentName.indexdataextentname().indexnumber()
+            << "_"
+            << std::setw(8)
+            << extentName.indexdataextentname().partitionnumber()
+            << ".dat";
+    }
+    else if (extentName.has_indexheaderextentname())
+    {
+        result
+            << std::setw(8)
+            << std::setfill('0')
+            << extentName.indexheaderextentname().indexnumber()
+            << "_"
+            << std::setw(8)
+            << extentName.indexheaderextentname().partitionnumber()
+            << ".header";
+    }
 
     return result.str();
 }
@@ -660,26 +687,29 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
 }
 
 task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
-    ExtentNumber extentNumber)
+    ExtentName extentName)
 {
-    auto filename = GetFilename(extentNumber);
+    auto filename = GetFilename(
+        extentName);
+
     return OpenExtentForRead(
         filename);
 }
 
 task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrite(
-    ExtentNumber extentNumber)
+    ExtentName extentName)
 {
     co_return make_shared<MemoryMappedWritableExtent>(
         m_schedulers,
-        GetFilename(extentNumber),
+        GetFilename(extentName),
         m_writeBlockSize);
 }
 
 task<> MemoryMappedFileExtentStore::DeleteExtent(
-    ExtentNumber extentNumber)
+    ExtentName extentName)
 {
-    auto filename = GetFilename(extentNumber);
+    auto filename = GetFilename(
+        extentName);
 
     if (std::filesystem::exists(
         filename
@@ -691,7 +721,7 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
     }
 
     //std::filesystem::remove(
-    //    GetFilename(extentNumber));
+    //    GetFilename(ExtentName));
     co_return;
 }
 

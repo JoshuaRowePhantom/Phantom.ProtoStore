@@ -106,6 +106,34 @@ task<> HeaderAccessor::WriteHeader(
 }
 
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
+    shared_ptr<IRandomMessageAccessor> messageAccessor)
+{
+    ExtentName headerExtentName1;
+    headerExtentName1.mutable_headerextentname()->set_headercopynumber(0);
+    
+    ExtentLocation headerLocation1 =
+    {
+        headerExtentName1,
+        0,
+    };
+
+    ExtentName headerExtentName2;
+    headerExtentName2.mutable_headerextentname()->set_headercopynumber(1);
+
+    ExtentLocation headerLocation2 =
+    {
+        headerExtentName2,
+        0,
+    };
+
+    return MakeHeaderAccessor(
+        move(messageAccessor),
+        headerLocation1,
+        headerLocation2
+        );
+}
+
+shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
     shared_ptr<IRandomMessageAccessor> messageAccessor,
     ExtentLocation headerLocation1,
     ExtentLocation headerLocation2)

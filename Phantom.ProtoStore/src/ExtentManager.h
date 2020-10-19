@@ -8,18 +8,18 @@ namespace Phantom::ProtoStore
 class IExtentManager
 {
 public:
-    virtual ExtentNumber LogAllocateExtent(
+    virtual ExtentName LogAllocateExtent(
         LogRecord& logRecord
     ) = 0;
 
     virtual void LogDeleteExtent(
         LogRecord& logRecord,
-        ExtentNumber extentNumber
+        ExtentName extentName
     ) = 0;
 
     virtual void LogCommitExtent(
         LogRecord& logRecord,
-        ExtentNumber extentNumber
+        ExtentName extentName
     ) = 0;
 
     virtual Task<> CommitCheckpoint(

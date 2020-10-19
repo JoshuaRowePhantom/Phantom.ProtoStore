@@ -25,7 +25,7 @@ Partition::Partition(
     shared_ptr<IRandomMessageAccessor> dataHeaderMessageAccessor,
     shared_ptr<IRandomMessageAccessor> dataMessageAccessor,
     ExtentLocation headerLocation,
-    ExtentLocation dataLocation
+    ExtentName dataExtentName
 ) :
     m_keyComparer(keyComparer),
     m_keyFactory(keyFactory),
@@ -33,7 +33,7 @@ Partition::Partition(
     m_dataHeaderMessageAccessor(dataHeaderMessageAccessor),
     m_dataMessageAccessor(dataMessageAccessor),
     m_headerLocation(headerLocation),
-    m_dataLocation(dataLocation),
+    m_dataExtentName(dataExtentName),
     m_partitionTreeNodeCache(
         keyFactory,
         m_dataMessageAccessor
@@ -62,7 +62,7 @@ task<> Partition::Open()
     co_await m_dataMessageAccessor->ReadMessage(
         ExtentLocation
         {
-            m_dataLocation.extentNumber,
+            m_dataExtentName,
             m_partitionHeader.partitionrootoffset(),
         },
         message);
@@ -72,7 +72,7 @@ task<> Partition::Open()
     co_await m_dataMessageAccessor->ReadMessage(
         ExtentLocation
         {
-            m_dataLocation.extentNumber,
+            m_dataExtentName,
             m_partitionRoot.bloomfilteroffset(),
         },
         message);
@@ -149,7 +149,7 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     auto enumeration = Enumerate(
         ExtentLocation 
         { 
-            m_dataLocation.extentNumber,
+            m_dataExtentName,
             m_partitionRoot.roottreenodeoffset()
         },
         readSequenceNumber,
@@ -196,7 +196,7 @@ cppcoro::async_generator<ResultRow> Partition::Checkpoint(
     auto enumeration = Enumerate(
         ExtentLocation
         {
-            m_dataLocation.extentNumber,
+            m_dataExtentName,
             m_partitionRoot.roottreenodeoffset()
         },
         readSequenceNumber,
@@ -409,7 +409,7 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         {
             ExtentLocation enumerationLocation =
             {
-                m_dataLocation.extentNumber,
+                m_dataExtentName,
                 treeNodeEntry.child().treenodeoffset(),
             };
 
@@ -485,7 +485,7 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                     PartitionMessage message;
                     co_await m_dataMessageAccessor->ReadMessage(
                         {
-                            .extentNumber = m_dataLocation.extentNumber,
+                            .extentName = m_dataExtentName,
                             .extentOffset = treeEntryValue->valueoffset(),
                         },
                         message);
@@ -800,7 +800,7 @@ task<> Partition::CheckChildTreeEntryIntegrity(
         co_await CheckTreeNodeIntegrity(
             errorList,
             errorPrototype,
-            { m_dataLocation.extentNumber, treeEntry.child().treenodeoffset() },
+            { m_dataExtentName, treeEntry.child().treenodeoffset() },
             minKeyExclusive,
             minKeyExclusiveLowestSequenceNumber,
             currentKey,
@@ -859,7 +859,7 @@ task<IntegrityCheckErrorList> Partition::CheckIntegrity(
     co_await CheckTreeNodeIntegrity(
         errorList,
         errorPrototype,
-        { m_dataLocation.extentNumber,  m_partitionRoot.roottreenodeoffset() },
+        { m_dataExtentName,  m_partitionRoot.roottreenodeoffset() },
         nullptr,
         SequenceNumber::Latest,
         nullptr,

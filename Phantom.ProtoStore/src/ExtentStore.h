@@ -51,14 +51,14 @@ class IExtentStore
 {
 public:
     virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
         = 0;
 
     virtual task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-        ExtentNumber extentNumber) = 0;
+        ExtentName extentName) = 0;
 
     virtual task<> DeleteExtent(
-        ExtentNumber extentNumber) = 0;
+        ExtentName extentName) = 0;
 };
 
 class MemoryExtentStore;

@@ -306,7 +306,7 @@ namespace Phantom::ProtoStore
     }
 
     task<shared_ptr<IReadableExtent>> MessageStore::OpenExtentForRead(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
     {
         shared_ptr<IReadableExtent> readableExtent;
 
@@ -315,22 +315,22 @@ namespace Phantom::ProtoStore
             *m_schedulers.LockScheduler,
             [&](auto hasWriteLock) -> task<bool>
         {
-            readableExtent = m_readableExtents[extentNumber];
+            readableExtent = m_readableExtents[extentName];
             co_return readableExtent != nullptr;
         },
             [&]() -> task<>
         {
-            m_readableExtents[extentNumber] 
+            m_readableExtents[extentName]
                 = readableExtent 
                 = co_await m_extentStore->OpenExtentForRead(
-                    extentNumber);
+                    extentName);
         });
 
         co_return readableExtent;
     }
 
     task<shared_ptr<IWritableExtent>> MessageStore::OpenExtentForWrite(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
     {
         shared_ptr<IWritableExtent> writableExtent;
 
@@ -339,15 +339,15 @@ namespace Phantom::ProtoStore
             *m_schedulers.LockScheduler,
             [&](auto hasWriteLock) -> task<bool>
         {
-            writableExtent = m_writableExtents[extentNumber];
+            writableExtent = m_writableExtents[extentName];
             co_return writableExtent != nullptr;
         },
             [&]() -> task<>
         {
-            m_writableExtents[extentNumber] 
+            m_writableExtents[extentName]
                 = writableExtent 
                 = co_await m_extentStore->OpenExtentForWrite(
-                    extentNumber);
+                    extentName);
         });
 
         co_return writableExtent;
@@ -374,11 +374,11 @@ namespace Phantom::ProtoStore
     }
 
     task<shared_ptr<IRandomMessageReader>> MessageStore::OpenExtentForRandomReadAccess(
-        ExtentNumber extentNumber
+        ExtentName extentName
     )
     {
         auto readableExtent = co_await OpenExtentForRead(
-            extentNumber);
+            extentName);
 
         co_return make_shared<RandomMessageReader>(
             readableExtent,
@@ -386,11 +386,11 @@ namespace Phantom::ProtoStore
     }
 
     task<shared_ptr<IRandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAccess(
-        ExtentNumber extentNumber
+        ExtentName extentName
     )
     {
         auto writableExtent = co_await OpenExtentForWrite(
-            extentNumber);
+            extentName);
 
         co_return make_shared<RandomMessageWriter>(
             writableExtent,
@@ -410,11 +410,11 @@ namespace Phantom::ProtoStore
     }
 
     task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequentialReadAccess(
-        ExtentNumber extentNumber
+        ExtentName extentName
     )
     {
         auto readableExtent = co_await OpenExtentForRead(
-            extentNumber);
+            extentName);
 
         co_return co_await OpenExtentForSequentialReadAccess(
             readableExtent);
@@ -422,11 +422,11 @@ namespace Phantom::ProtoStore
     }
 
     task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialWriteAccess(
-        ExtentNumber extentNumber
+        ExtentName extentName
     ) 
     {
         auto writableExtent = co_await OpenExtentForWrite(
-            extentNumber);
+            extentName);
 
         auto randomMessageWriter = make_shared<RandomMessageWriter>(
             writableExtent,

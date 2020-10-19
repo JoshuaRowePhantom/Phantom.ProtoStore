@@ -15,7 +15,7 @@ task<> RandomMessageAccessor::ReadMessage(
 )
 {
     auto extent = co_await m_messageStore->OpenExtentForRandomReadAccess(
-        location.extentNumber);
+        location.extentName);
 
     co_await extent->Read(
         location.extentOffset,
@@ -29,7 +29,7 @@ task<> RandomMessageAccessor::WriteMessage(
 )
 {
     auto extent = co_await m_messageStore->OpenExtentForRandomWriteAccess(
-        location.extentNumber);
+        location.extentName);
 
     co_await extent->Write(
         location.extentOffset,

@@ -97,15 +97,15 @@ namespace Phantom::ProtoStore
         Schedulers m_schedulers;
         const shared_ptr<IExtentStore> m_extentStore;
         async_reader_writer_lock m_extentsLock;
-        map<ExtentNumber, shared_ptr<IReadableExtent>> m_readableExtents;
-        map<ExtentNumber, shared_ptr<IWritableExtent>> m_writableExtents;
+        map<ExtentName, shared_ptr<IReadableExtent>> m_readableExtents;
+        map<ExtentName, shared_ptr<IWritableExtent>> m_writableExtents;
         shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-            ExtentNumber extentNumber);
+            ExtentName ExtentName);
 
         task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-            ExtentNumber extentNumber);
+            ExtentName ExtentName);
 
     public:
         MessageStore(
@@ -118,11 +118,11 @@ namespace Phantom::ProtoStore
         ) override;
 
         virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) override;
 
         virtual task<shared_ptr<IRandomMessageWriter>> OpenExtentForRandomWriteAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) override;
 
         virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
@@ -130,11 +130,11 @@ namespace Phantom::ProtoStore
         ) override;
 
         virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) override;
 
         virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialWriteAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) override;
     };
 

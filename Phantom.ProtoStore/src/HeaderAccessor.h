@@ -19,21 +19,12 @@ public:
     ) = 0;
 };
 
-constexpr ExtentLocation DefaultHeaderLocation1 =
-{
-    0,
-    0,
-};
-
-constexpr ExtentLocation DefaultHeaderLocation2 =
-{
-    1,
-    0,
-};
-
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
     shared_ptr<IRandomMessageAccessor> messageStore,
-    ExtentLocation headerLocation1 = DefaultHeaderLocation1,
-    ExtentLocation headerLocation2 = DefaultHeaderLocation2);
+    ExtentLocation headerLocation1,
+    ExtentLocation headerLocation2);
+
+shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
+    shared_ptr<IRandomMessageAccessor> messageStore);
 
 }

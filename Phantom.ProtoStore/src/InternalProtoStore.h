@@ -50,7 +50,7 @@ public:
 
     virtual task<> LogCommitDataExtent(
         LogRecord& logRecord,
-        ExtentNumber extentNumber
+        ExtentName extentName
     ) = 0;
 
     virtual task<shared_ptr<IIndex>> GetIndex(
@@ -59,11 +59,11 @@ public:
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentNumber>& dataExtentNumbers
+        const vector<ExtentName>& dataExtentNames
     ) = 0;
 
     virtual task<> OpenPartitionWriter(
-        ExtentNumber& out_dataExtentNumber,
+        ExtentName& out_dataExtentName,
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) = 0;
 

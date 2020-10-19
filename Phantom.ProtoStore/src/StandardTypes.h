@@ -75,6 +75,8 @@ struct ExtentOffsetRange
 typedef string IndexName;
 typedef google::protobuf::uint64 IndexNumber;
 typedef google::protobuf::uint64 LevelNumber;
+typedef google::protobuf::uint64 PartitionNumber;
+typedef google::protobuf::uint64 LogExtentSequenceNumber;
 
 class IExtentStore;
 class IMessageStore;

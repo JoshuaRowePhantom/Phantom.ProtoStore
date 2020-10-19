@@ -239,16 +239,16 @@ namespace Phantom::ProtoStore
             {}
         };
 
-        map<ExtentNumber, shared_ptr<Extent>> m_extents;
+        map<ExtentName, shared_ptr<Extent>> m_extents;
         cppcoro::async_mutex m_extentsMutex;
 
         task<shared_ptr<Extent>> GetExtent(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
         {
             auto lock = co_await m_extentsMutex.scoped_lock_async();
 
             auto existingExtent = m_extents.find(
-                extentNumber);
+                extentName);
 
             if (existingExtent != m_extents.end())
             {
@@ -257,7 +257,7 @@ namespace Phantom::ProtoStore
 
             auto newExtent = make_shared<Extent>(
                 m_schedulers);
-            m_extents[extentNumber] = newExtent;
+            m_extents[extentName] = newExtent;
             co_return newExtent;
         }
         
@@ -276,35 +276,35 @@ namespace Phantom::ProtoStore
         {}
 
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
         {
             co_return co_await GetExtent(
-                extentNumber);
+                extentName);
         }
 
         task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
         {
             co_return co_await GetExtent(
-                extentNumber);
+                extentName);
         }
 
         task<> DeleteExtent(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
         {
             auto lock = co_await m_extentsMutex.scoped_lock_async();
 
             m_extents.erase(
-                extentNumber);
+                extentName);
         }
 
         task<bool> ExtentExists(
-            ExtentNumber extentNumber)
+            ExtentName extentName)
         {
             auto lock = co_await m_extentsMutex.scoped_lock_async();
 
             co_return m_extents.contains(
-                extentNumber);
+                extentName);
         }
     };
 
@@ -324,31 +324,31 @@ namespace Phantom::ProtoStore
     {}
 
     task<shared_ptr<IReadableExtent>> MemoryExtentStore::OpenExtentForRead(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
     {
         return m_impl->OpenExtentForRead(
-            extentNumber);
+            extentName);
     }
 
     task<shared_ptr<IWritableExtent>> MemoryExtentStore::OpenExtentForWrite(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
     {
         return m_impl->OpenExtentForWrite(
-            extentNumber);
+            extentName);
     }
 
     task<> MemoryExtentStore::DeleteExtent(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
     {
         return m_impl->DeleteExtent(
-            extentNumber);
+            extentName);
     }
 
     task<bool> MemoryExtentStore::ExtentExists(
-        ExtentNumber extentNumber)
+        ExtentName extentName)
     {
         return m_impl->ExtentExists(
-            extentNumber);
+            extentName);
     }
 
 }

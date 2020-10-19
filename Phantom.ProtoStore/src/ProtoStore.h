@@ -51,14 +51,14 @@ class ProtoStore
     cppcoro::sequence_barrier<uint64_t> m_writeSequenceNumberBarrier;
     std::atomic<uint64_t> m_nextWriteSequenceNumber;
     std::atomic<IndexNumber> m_nextIndexNumber;
-    std::atomic<ExtentNumber> m_nextDataExtentNumber;
+    std::atomic<PartitionNumber> m_nextPartitionNumber;
 
     cppcoro::async_mutex m_headerMutex;
     async_reader_writer_lock m_indexesByNumberLock;
 
     cppcoro::async_mutex m_updatePartitionsMutex;
-    std::map<ExtentNumber, shared_ptr<IPartition>> m_activePartitions;
-    vector<ExtentNumber> m_replayPartitionsActivePartitions;
+    std::map<ExtentName, shared_ptr<IPartition>> m_activePartitions;
+    vector<ExtentName> m_replayPartitionsActivePartitions;
 
     encompassing_pending_task m_checkpointTask;
     single_pending_task m_mergeTask;
@@ -116,20 +116,20 @@ class ProtoStore
 
     task<IndexNumber> AllocateIndexNumber();
 
-    task<ExtentNumber> AllocateDataExtent();
+    task<ExtentName> AllocateDataExtent();
 
     virtual task<> OpenPartitionWriter(
-        ExtentNumber& out_dataExtentNumber,
+        ExtentName& out_dataExtentNumber,
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
     task<> LogCommitDataExtent(
         LogRecord& logRecord,
-        ExtentNumber extentNumber
+        ExtentName extentName
     );
 
     task<> Replay(
-        ExtentNumber logExtent);
+        ExtentName logExtent);
 
     task<> Replay(
         const LogRecord& logRecord);
@@ -147,13 +147,13 @@ class ProtoStore
         const LoggedCheckpoint& logRecord);
 
     task<> Replay(
-        const LoggedCommitDataExtent& logRecord);
+        const LoggedCommitExtent& logRecord);
 
     task<> Replay(
-        const LoggedCreateDataExtent& logRecord);
+        const LoggedCreateExtent& logRecord);
 
     task<> Replay(
-        const LoggedDeleteDataExtent& logRecord);
+        const LoggedDeleteExtent& logRecord);
 
     task<> Replay(
         const LoggedPartitionsData& logRecord);
@@ -178,8 +178,8 @@ class ProtoStore
 
     task<shared_ptr<IPartition>> OpenPartitionForIndex(
         const shared_ptr<IIndex>& index,
-        ExtentNumber dataExtentNumber,
-        ExtentNumber headerExtentNumber);
+        ExtentName dataExtentNumber,
+        ExtentName headerExtentNumber);
 
     virtual task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
         IndexNumber indexNumber
@@ -187,7 +187,7 @@ class ProtoStore
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentNumber>& dataExtentNumbers
+        const vector<ExtentName>& dataExtentNumbers
     ) override;
 
     shared_task<OperationResult> InternalExecuteOperation(

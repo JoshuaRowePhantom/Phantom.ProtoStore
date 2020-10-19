@@ -17,6 +17,7 @@
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
 #include <Phantom.System/pooled_ptr.h>
+#include "Phantom.ProtoStore/ProtoStore.pb.h"
 
 namespace Phantom::ProtoStore 
 {
@@ -747,11 +748,10 @@ enum class IntegrityCheckErrorCode
     Partition_NoContentInTreeEntry = 14,
 };
 
-typedef std::uint64_t ExtentNumber;
 typedef std::uint64_t ExtentOffset;
 struct ExtentLocation
 {
-    ExtentNumber extentNumber;
+    ExtentName extentName;
     ExtentOffset extentOffset;
 };
 

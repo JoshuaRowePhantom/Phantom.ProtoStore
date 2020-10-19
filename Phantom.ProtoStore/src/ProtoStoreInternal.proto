@@ -9,10 +9,10 @@ package Phantom.ProtoStore;
 message Header {
 	uint32 Version = 1;
 	uint32 LogAlignment = 2;
-	repeated uint64 LogReplayExtentNumbers = 3;
+	repeated ExtentName LogReplayExtentNames = 3;
 	uint64 Epoch = 5;
 	uint64 NextIndexNumber = 6;
-	uint64 NextDataExtentNumber = 7;
+	uint64 NextPartitionNumber = 7;
 }
 
 message LoggedRowWrite {
@@ -27,9 +27,9 @@ message LoggedAction {
 	oneof LoggedActionType {
 		google.protobuf.Any ArbitraryAction = 1;
 		LoggedCheckpoint LoggedCheckpoints = 2;
-		LoggedCreateDataExtent LoggedCreateDataExtents = 3;
-		LoggedDeleteDataExtent LoggedDeleteDataExtents = 4;
-		LoggedCommitDataExtent LoggedCommitDataExtents = 5;
+		LoggedCreateExtent LoggedCreateExtent = 3;
+		LoggedDeleteExtent LoggedDeleteExtent = 4;
+		LoggedCommitExtent LoggedCommitExtent = 5;
 		LoggedCreateIndex LoggedCreateIndex = 6;
 		LoggedUpdatePartitions LoggedUpdatePartitions = 7;
 		LoggedPartitionsData LoggedPartitionsData = 8;
@@ -40,16 +40,16 @@ message LoggedCreateIndex {
 	uint64 IndexNumber = 1;
 }
 
-message LoggedCreateDataExtent {
-	uint64 ExtentNumber = 1;
+message LoggedCreateExtent {
+	ExtentName ExtentName = 1;
 }
 
-message LoggedDeleteDataExtent {
-	uint64 ExtentNumber = 1;
+message LoggedDeleteExtent {
+	ExtentName ExtentName = 1;
 }
 
-message LoggedCommitDataExtent {
-	uint64 ExtentNumber = 1;
+message LoggedCommitExtent {
+	ExtentName ExtentName = 1;
 }
 
 message LoggedCheckpoint {
@@ -62,7 +62,7 @@ message LoggedUpdatePartitions {
 }
 
 message LoggedPartitionsData {
-	repeated uint64 DataExtentNumbers = 1;
+	repeated ExtentName DataExtentNames = 1;
 }
 
 message LogRecordExtras {
@@ -120,11 +120,11 @@ message IndexesByNumberValue {
 
 message PartitionsKey {
 	uint64 IndexNumber = 1;
-	uint64 DataExtentNumber = 2;
+	ExtentName HeaderExtentName = 2;
 }
 
 message PartitionsValue {
-	uint64 HeaderExtentNumber = 1;
+	ExtentName HeaderExtentName = 1;
 	uint64 Level = 2;
 	uint64 Size = 3;
 	// The merge that generated the partition.
@@ -133,8 +133,8 @@ message PartitionsValue {
 
 message MergesKey {
 	uint64 IndexNumber = 1;
-	// This will be the id of the lowest extent in the merge.
-	uint64 MergesUniqueId = 2;
+	// This will be the name of an extent in the merge.
+	ExtentName MergesUniqueId = 2;
 }
 
 message MergeResumeKey {
@@ -143,7 +143,7 @@ message MergeResumeKey {
 }
 
 message MergesValue {
-	repeated uint64 SourceDataExtentNumbers = 1;
+	repeated ExtentName SourceHeaderExtentNames = 1;
 	uint64 SourceLevelNumber = 2;
 	uint64 DestinationLevelNumber = 3;
 
@@ -159,9 +159,9 @@ message MergeProgressKey {
 	MergesKey MergesKey = 1;
 	// This field is used only for query purposes.
 	// All rows have a value of 0.  One can query for a value of 1 at the high end of a range
-	// to get all the rows with the same MergesKey but different DataExtentNumber values.
+	// to get all the rows with the same MergesKey but different HeaderExtentName values.
 	uint32 RangeDiscriminator = 2;
-	uint64 DataExtentNumber = 3;
+	ExtentName HeaderExtentName = 3;
 }
 
 message MergeProgressValue {

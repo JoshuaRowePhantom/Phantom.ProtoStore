@@ -25,7 +25,7 @@ class Partition
     shared_ptr<IRandomMessageAccessor> m_dataHeaderMessageAccessor;
     shared_ptr<IRandomMessageAccessor> m_dataMessageAccessor;
     ExtentLocation m_headerLocation;
-    ExtentLocation m_dataLocation;
+    ExtentName m_dataExtentName;
 
     PartitionHeader m_partitionHeader;
     PartitionBloomFilter m_partitionBloomFilter;
@@ -117,7 +117,7 @@ public:
         shared_ptr<IRandomMessageAccessor> dataHeaderMessageAccessor,
         shared_ptr<IRandomMessageAccessor> dataMessageAccessor,
         ExtentLocation headerLocation,
-        ExtentLocation dataLocation
+        ExtentName dataLocation
     );
 
     ~Partition();

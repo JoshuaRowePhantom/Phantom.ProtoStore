@@ -53,13 +53,13 @@ task<> IndexMerger::RestartIncompleteMerge(
     auto index = co_await m_protoStore->GetIndex(
         incompleteMerge.Merge.Key.indexnumber());
 
-    vector<ExtentNumber> dataExtentNumbers(
-        incompleteMerge.Merge.Value.sourcedataextentnumbers().begin(),
-        incompleteMerge.Merge.Value.sourcedataextentnumbers().end());
+    vector<ExtentName> dataExtents(
+        incompleteMerge.Merge.Value.sourcedataextentnames().begin(),
+        incompleteMerge.Merge.Value.sourcedataextentnames().end());
 
     auto partitions = co_await m_protoStore->OpenPartitionsForIndex(
         index,
-        dataExtentNumbers);
+        dataExtents);
 
     optional<PartitionCheckpointStartKey> partitionCheckpointStartKey;
     unique_ptr<Message> startKeyMessage;
@@ -106,11 +106,11 @@ task<> IndexMerger::RestartIncompleteMerge(
         auto rowGenerator = rowMerger.Merge(
             rowGenerators());
 
-        ExtentNumber dataExtentNumber;
+        ExtentName dataExtentName;
         shared_ptr<IPartitionWriter> partitionWriter;
 
         co_await m_protoStore->OpenPartitionWriter(
-            dataExtentNumber,
+            dataExtentName,
             partitionWriter);
 
         WriteRowsRequest writeRowsRequest =
@@ -170,7 +170,7 @@ task<> IndexMerger::RestartIncompleteMerge(
 
 task<> IndexMerger::WriteMergeProgress(
     IInternalOperation* operation,
-    ExtentNumber dataExtentNumber,
+    ExtentName dataExtentName,
     IncompleteMerge& incompleteMerge,
     const WriteRowsResult& writeRowsResult
 )
@@ -186,7 +186,7 @@ task<> IndexMerger::WriteMergeProgress(
     completeMergeProgressKey.mutable_mergeskey()->CopyFrom(
         incompleteMerge.Merge.Key
     );
-    completeMergeProgressKey.set_dataextentnumber(dataExtentNumber);
+    *completeMergeProgressKey.mutable_dataextentname() = move(dataExtentName);
 
     MergeProgressValue completeMergeProgressValue;
     completeMergeProgressValue.set_datasize(
@@ -232,7 +232,7 @@ task<> IndexMerger::WriteMergeProgress(
 
 task<> IndexMerger::WriteMergeCompletion(
     IInternalOperation* operation,
-    ExtentNumber dataExtentNumber,
+    ExtentName dataExtentName,
     const IncompleteMerge& incompleteMerge,
     const WriteRowsResult& writeRowsResult)
 {
@@ -253,7 +253,7 @@ task<> IndexMerger::WriteMergeCompletion(
     {
         co_await WriteMergedPartitionsTableDataExtentNumbers(
             operation,
-            dataExtentNumber,
+            dataExtentName,
             incompleteMerge);
     }
 
@@ -281,13 +281,12 @@ task<> IndexMerger::WriteMergeCompletion(
         nullptr);
 
     // Delete the Partitions rows for the source partitions.
-    for (auto sourceDataExtentNumber : incompleteMerge.Merge.Value.sourcedataextentnumbers())
+    for (auto sourceDataExtentName : incompleteMerge.Merge.Value.sourcedataextentnames())
     {
         PartitionsKey sourcePartitionsKey;
         sourcePartitionsKey.set_indexnumber(
             indexNumber);
-        sourcePartitionsKey.set_dataextentnumber(
-            sourceDataExtentNumber);
+        *sourcePartitionsKey.mutable_dataextentname() = move(sourceDataExtentName);
 
         co_await operation->AddRow(
             WriteOperationMetadata{},
@@ -302,12 +301,13 @@ task<> IndexMerger::WriteMergeCompletion(
         PartitionsKey completePartitionsKey;
         completePartitionsKey.set_indexnumber(
             indexNumber);
-        completePartitionsKey.set_dataextentnumber(
-            completeProgress.Key.dataextentnumber());
+        *completePartitionsKey.mutable_dataextentname() = completeProgress.Key.dataextentname();
 
         PartitionsValue completePartitionsValue;
-        completePartitionsValue.set_headerextentnumber(
-            completeProgress.Key.dataextentnumber());
+        ExtentName headerExtentName;
+        *headerExtentName.mutable_indexheaderextentname() = completeProgress.Key.dataextentname().indexdataextentname();
+        *completePartitionsValue.mutable_headerextentname() = move(headerExtentName);
+
         completePartitionsValue.set_level(
             incompleteMerge.Merge.Value.destinationlevelnumber());
         completePartitionsValue.set_mergeuniqueid(
@@ -328,8 +328,7 @@ task<> IndexMerger::WriteMergeCompletion(
         PartitionsKey completePartitionsKey;
         completePartitionsKey.set_indexnumber(
             indexNumber);
-        completePartitionsKey.set_dataextentnumber(
-            dataExtentNumber);
+        *completePartitionsKey.mutable_dataextentname() = dataExtentName;
 
         PartitionsValue completePartitionsValue;
         completePartitionsValue.set_headerextentnumber(
@@ -356,12 +355,12 @@ task<> IndexMerger::WriteMergeCompletion(
 
 task<> IndexMerger::WriteMergedPartitionsTableDataExtentNumbers(
     IInternalOperation* operation,
-    ExtentNumber dataExtentNumber,
+    ExtentName dataExtentNumber,
     const IncompleteMerge& incompleteMerge)
 {
     auto loggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
 
-    std::set<ExtentNumber> partitions;
+    std::set<ExtentName> partitions;
     auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
         incompleteMerge.Merge.Key.indexnumber());
 

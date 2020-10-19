@@ -66,11 +66,11 @@ namespace Phantom::ProtoStore
         ) = 0;
 
         virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) = 0;
 
         virtual task<shared_ptr<IRandomMessageWriter>> OpenExtentForRandomWriteAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) = 0;
 
         virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
@@ -78,11 +78,11 @@ namespace Phantom::ProtoStore
         ) = 0;
 
         virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) = 0;
 
         virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialWriteAccess(
-            ExtentNumber extentNumber
+            ExtentName extentName
         ) = 0;
     };
 
