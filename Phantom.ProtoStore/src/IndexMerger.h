@@ -49,9 +49,9 @@ class IndexMerger
         const WriteRowsResult& writeRowsResult
     );
 
-    task<> WriteMergedPartitionsTableDataExtentNumbers(
+    task<> WriteMergedPartitionsTableHeaderExtentNumbers(
         IInternalOperation* operation,
-        ExtentName dataExtentName,
+        ExtentName headerExtentName,
         const IncompleteMerge& incompleteMerge);
 
 public:

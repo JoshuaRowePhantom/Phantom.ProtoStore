@@ -627,13 +627,13 @@ std::string MemoryMappedFileExtentStore::GetFilename(
     result
         << m_extentFilenamePrefix;
 
-    if (extentName.has_headerextentname())
+    if (extentName.has_databaseheaderextentname())
     {
         result
             << std::setw(8)
             << std::setfill('0')
-            << extentName.headerextentname().headercopynumber()
-            << ".header";
+            << extentName.databaseheaderextentname().headercopynumber()
+            << ".db";
     }
     else if (extentName.has_indexdataextentname())
     {
@@ -655,7 +655,19 @@ std::string MemoryMappedFileExtentStore::GetFilename(
             << "_"
             << std::setw(8)
             << extentName.indexheaderextentname().partitionnumber()
-            << ".header";
+            << ".part";
+    }
+    else if (extentName.has_logextentname())
+    {
+        result
+            << std::setw(8)
+            << std::setfill('0')
+            << extentName.logextentname().logextentsequencenumber()
+            << ".log";
+    }
+    else
+    {
+        assert(false);
     }
 
     return result.str();

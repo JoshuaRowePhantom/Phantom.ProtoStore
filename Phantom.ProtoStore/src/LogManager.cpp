@@ -14,8 +14,8 @@ size_t LogManager::LogExtentUsageHasher::operator() (
         ^ (logExtentUsage.IndexNumber >> 25)
         + (logExtentUsage.CheckpointNumber << 3)
         ^ (logExtentUsage.CheckpointNumber >> 29)
-        + (logExtentUsage.LogExtentName.logextentsequencenumber() << 17)
-        ^ (logExtentUsage.LogExtentName.logextentsequencenumber() >> 15);
+        + (logExtentUsage.LogExtentSequenceNumber << 17)
+        ^ (logExtentUsage.LogExtentSequenceNumber >> 15);
 }
 
 LogManager::LogManager(
@@ -28,15 +28,19 @@ LogManager::LogManager(
     m_schedulers(schedulers),
     m_logExtentStore(logExtentStore),
     m_logMessageStore(logMessageStore),
-    m_existingExtents(
-        header.logreplayextentnames().cbegin(),
-        header.logreplayextentnames().cend())
+    m_nextLogExtentSequenceNumber(0),
+    m_currentLogExtentSequenceNumber(0)
 {
-    for (auto existingExtent : m_existingExtents)
+    for (auto& logReplayExtentName : header.logreplayextentnames())
     {
+        auto logExtentSequenceNumber = logReplayExtentName.logextentname().logextentsequencenumber();
+
+        m_existingLogExtentSequenceNumbers.insert(
+            logExtentSequenceNumber);
+
         m_nextLogExtentSequenceNumber = std::max(
             m_nextLogExtentSequenceNumber,
-            existingExtent.logextentname().logextentsequencenumber() + 1);
+            logExtentSequenceNumber + 1);
     }
 }
 
@@ -45,13 +49,13 @@ task<> LogManager::Replay(
     const LogRecord& logRecord
 )
 {
-    LogExtentName logExtentName = extentName.logextentname();
+    auto logExtentSequenceNumber = extentName.logextentname().logextentsequencenumber();
 
     for (const auto& rowRecord : logRecord.rows())
     {
         LogExtentUsage logExtentUsage =
         {
-            .LogExtentName = logExtentName,
+            .LogExtentSequenceNumber = logExtentSequenceNumber,
             .IndexNumber = rowRecord.indexnumber(),
             .CheckpointNumber = rowRecord.checkpointnumber(),
         };
@@ -64,15 +68,15 @@ task<> LogManager::Replay(
     {
         if (loggedAction.has_loggedcreateextent())
         {
-            m_uncommitedExtentToLogExtent[loggedAction.loggedcreateextent().extentname()] = logExtentName;
+            m_uncommitedExtentToLogExtentSequenceNumber[loggedAction.loggedcreateextent().extentname()] = logExtentSequenceNumber;
         }
         if (loggedAction.has_loggeddeleteextent())
         {
-            m_uncommitedExtentToLogExtent.erase(loggedAction.loggeddeleteextent().extentname());
+            m_uncommitedExtentToLogExtentSequenceNumber.erase(loggedAction.loggeddeleteextent().extentname());
         }
         if (loggedAction.has_loggedcommitextent())
         {
-            m_uncommitedExtentToLogExtent.erase(loggedAction.loggedcommitextent().extentname());
+            m_uncommitedExtentToLogExtentSequenceNumber.erase(loggedAction.loggedcommitextent().extentname());
         }
         if (loggedAction.has_loggedcheckpoints())
         {
@@ -94,7 +98,7 @@ task<> LogManager::Replay(
         }
         if (loggedAction.has_loggedpartitionsdata())
         {
-            m_partitionsDataLogExtentName = logExtentName;
+            m_partitionsDataLogExtentSequenceNumber = logExtentSequenceNumber;
             m_latestLoggedPartitionsData = loggedAction.loggedpartitionsdata();
         }
     }
@@ -111,7 +115,7 @@ task<task<>> LogManager::FinishReplay(
 }
 
 bool LogManager::NeedToUpdateMaps(
-    ExtentName logExtentName,
+    LogExtentSequenceNumber logExtentSequenceNumber,
     const LogRecord& logRecord
 )
 {
@@ -119,7 +123,7 @@ bool LogManager::NeedToUpdateMaps(
     {
         LogExtentUsage logExtentUsage =
         {
-            .LogExtentName = logExtentName,
+            .LogExtentSequenceNumber = logExtentSequenceNumber,
             .IndexNumber = rowRecord.indexnumber(),
             .CheckpointNumber = rowRecord.checkpointnumber(),
         };
@@ -168,7 +172,7 @@ task<WriteMessageResult> LogManager::WriteLogRecord(
             }
 
             if (!NeedToUpdateMaps(
-                m_currentLogExtentNumber,
+                m_currentLogExtentSequenceNumber,
                 logRecord))
             {
                 auto writeResult = co_await m_logMessageWriter->Write(
@@ -187,10 +191,13 @@ task<WriteMessageResult> LogManager::WriteLogRecord(
             !m_logExtentUsageLock.writer().has_waiter()
             )
         {
-            auto writeLock = m_logExtentUsageLock.writer().scoped_try_lock();
+            auto writeLock = m_logExtentUsageLock.writer().scoped_lock_async();
+
+            ExtentName extentName;
+            extentName.mutable_logextentname()->set_logextentsequencenumber(m_currentLogExtentSequenceNumber);
 
             co_await Replay(
-                m_currentLogExtentNumber,
+                extentName,
                 logRecord);
 
             auto writeResult = co_await m_logMessageWriter->Write(
@@ -206,15 +213,15 @@ task<task<>> LogManager::Checkpoint(
     Header& header
 )
 {
-    std::unordered_set<ExtentName> extentNamesToDelete;
+    std::unordered_set<LogExtentSequenceNumber> logExtentSequenceNumbersToDelete;
 
     {
         auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
 
-        for (auto extent : m_existingExtents)
+        for (auto existingLogExtentSequenceNumber : m_existingLogExtentSequenceNumbers)
         {
-            extentNamesToDelete.insert(
-                extent);
+            logExtentSequenceNumbersToDelete.insert(
+                existingLogExtentSequenceNumber);
         }
 
         LogExtentSequenceNumber lowestLogExtentSequenceNumberInUse = std::numeric_limits<LogExtentSequenceNumber>::max();
@@ -223,23 +230,23 @@ task<task<>> LogManager::Checkpoint(
         {
             lowestLogExtentSequenceNumberInUse = std::min(
                 lowestLogExtentSequenceNumberInUse,
-                extentUsage.LogExtentName.logextentname().logextentsequencenumber()
+                extentUsage.LogExtentSequenceNumber
             );
         }
 
-        for (auto& uncommittedDataExtent : m_uncommitedExtentToLogExtent)
+        for (auto& uncommittedExtentToLogExtentSequenceNumber : m_uncommitedExtentToLogExtentSequenceNumber)
         {
             lowestLogExtentSequenceNumberInUse = std::min(
                 lowestLogExtentSequenceNumberInUse,
-                uncommittedDataExtent.second.logextentsequencenumber()
+                uncommittedExtentToLogExtentSequenceNumber.second
             );
         }
 
-        if (m_partitionsData.has_value())
+        if (m_partitionsDataLogExtentSequenceNumber.has_value())
         {
             lowestLogExtentSequenceNumberInUse = std::min(
                 lowestLogExtentSequenceNumberInUse,
-                m_partitionsData->partitionsDataLogExtentName.logextentsequencenumber()
+                *m_partitionsDataLogExtentSequenceNumber
             );
         }
 
@@ -249,17 +256,17 @@ task<task<>> LogManager::Checkpoint(
         );
 
         erase_if(
-            extentsToDelete,
+            logExtentSequenceNumbersToDelete,
             [lowestLogExtentSequenceNumberInUse](auto extent)
         {
             return extent >= lowestLogExtentSequenceNumberInUse;
         });
 
-        for (auto removedExtent : extentsToDelete)
+        for (auto removedExtent : logExtentSequenceNumbersToDelete)
         {
-            m_existingExtents.erase(
+            m_existingLogExtentSequenceNumbers.erase(
                 removedExtent);
-            m_extentsToRemove.insert(
+            m_logExtentSequenceNumbersToRemove.insert(
                 removedExtent);
         }
 
@@ -276,14 +283,17 @@ task<task<>> LogManager::DelayedOpenNewLogWriter(
     newExtentName.mutable_logextentname()->set_logextentsequencenumber(
         m_nextLogExtentSequenceNumber);
 
-    m_existingExtents.push_back(
-        newExtentName);
+    m_existingLogExtentSequenceNumbers.insert(
+        m_nextLogExtentSequenceNumber);
 
     header.mutable_logreplayextentnames()->Clear();
 
-    for (auto existingExtent : m_existingExtents)
+    for (auto existingExtentSequenceNumber : m_existingLogExtentSequenceNumbers)
     {
-        *header.add_logreplayextentnames() = existingExtent;
+        ExtentName extentName;
+        extentName.mutable_logextentname()->set_logextentsequencenumber(
+            existingExtentSequenceNumber);
+        *header.add_logreplayextentnames() = move(extentName);
     }
 
     co_return OpenNewLogWriter();
@@ -293,13 +303,17 @@ task<> LogManager::OpenNewLogWriter()
 {
     auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
 
-    for (auto removedExtent : m_extentsToRemove)
+    for (auto logExtentSequenceNumberToRemove : m_logExtentSequenceNumbersToRemove)
     {
+        ExtentName extentName;
+        extentName.mutable_logextentname()->set_logextentsequencenumber(
+            logExtentSequenceNumberToRemove);
+
         co_await m_logExtentStore->DeleteExtent(
-            removedExtent);
+            move(extentName));
     }
 
-    m_extentsToRemove.clear();
+    m_logExtentSequenceNumbersToRemove.clear();
 
     m_currentLogExtentSequenceNumber = m_nextLogExtentSequenceNumber++;
     

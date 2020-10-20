@@ -109,7 +109,7 @@ shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
     shared_ptr<IRandomMessageAccessor> messageAccessor)
 {
     ExtentName headerExtentName1;
-    headerExtentName1.mutable_headerextentname()->set_headercopynumber(0);
+    headerExtentName1.mutable_databaseheaderextentname()->set_headercopynumber(0);
     
     ExtentLocation headerLocation1 =
     {
@@ -118,7 +118,7 @@ shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
     };
 
     ExtentName headerExtentName2;
-    headerExtentName2.mutable_headerextentname()->set_headercopynumber(1);
+    headerExtentName2.mutable_databaseheaderextentname()->set_headercopynumber(1);
 
     ExtentLocation headerLocation2 =
     {

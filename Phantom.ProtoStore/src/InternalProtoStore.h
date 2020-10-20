@@ -59,10 +59,13 @@ public:
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentName>& dataExtentNames
+        const vector<ExtentName>& headerExtentNames
     ) = 0;
 
     virtual task<> OpenPartitionWriter(
+        IndexNumber indexNumber,
+        IndexName indexName,
+        ExtentName& out_headerExtentName,
         ExtentName& out_dataExtentName,
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) = 0;

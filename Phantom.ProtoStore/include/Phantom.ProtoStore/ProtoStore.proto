@@ -51,7 +51,7 @@ message IndexSchemaDescription {
 	ValueSchemaDescription Value = 2;
 }
 
-message HeaderExtentName {
+message DatabaseHeaderExtentName {
 	uint64 HeaderCopyNumber = 1;
 };
 
@@ -69,7 +69,7 @@ message ExtentName {
 	oneof ExtentNameType {
 		IndexExtentName IndexDataExtentName = 1;
 		IndexExtentName IndexHeaderExtentName = 2;
-		HeaderExtentName HeaderExtentName = 3;
+		DatabaseHeaderExtentName DatabaseHeaderExtentName = 3;
 		LogExtentName LogExtentName = 4;
 	}
 }

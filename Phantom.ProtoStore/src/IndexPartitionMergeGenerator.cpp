@@ -17,17 +17,17 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
 
     for (auto& ongoingMerge : ongoingMerges)
     {
-        for (auto dataExtentNumber : ongoingMerge.Value.sourcedataextentnames())
+        for (auto headerExtentNumber : ongoingMerge.Value.sourceheaderextentnames())
         {
             mergingPartitions.insert(
-                dataExtentNumber);
+                headerExtentNumber);
         }
     }
 
     for (auto& partition : partitions)
     {
         // See if the partition has already been acquired as a merge candidate.
-        if (mergingPartitions.contains(partition.Key.dataextentname()))
+        if (mergingPartitions.contains(partition.Key.headerextentname()))
         {
             continue;
         }
@@ -62,7 +62,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             MergesKey mergesKey;
             mergesKey.set_indexnumber(indexNumber);
             *mergesKey.mutable_mergesuniqueid() = 
-                partitionsAtSourceLevel.second[0].Key.dataextentname();
+                partitionsAtSourceLevel.second[0].Key.headerextentname();
 
             MergesValue mergesValue;
             mergesValue.set_sourcelevelnumber(
@@ -72,8 +72,8 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
 
             for (auto& partition : partitionsAtSourceLevel.second)
             {
-                *mergesValue.add_sourcedataextentnames() = 
-                    partition.Key.dataextentname();
+                *mergesValue.add_sourceheaderextentnames() = 
+                    partition.Key.headerextentname();
             }
 
             merges_row_type merge =

@@ -62,7 +62,7 @@ message LoggedUpdatePartitions {
 }
 
 message LoggedPartitionsData {
-	repeated ExtentName DataExtentNames = 1;
+	repeated ExtentName HeaderExtentNames = 1;
 }
 
 message LogRecordExtras {
@@ -124,7 +124,7 @@ message PartitionsKey {
 }
 
 message PartitionsValue {
-	ExtentName HeaderExtentName = 1;
+	ExtentName DataExtentName = 1;
 	uint64 Level = 2;
 	uint64 Size = 3;
 	// The merge that generated the partition.

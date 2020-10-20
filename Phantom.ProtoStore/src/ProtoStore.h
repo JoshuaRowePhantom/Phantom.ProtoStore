@@ -116,14 +116,21 @@ class ProtoStore
 
     task<IndexNumber> AllocateIndexNumber();
 
-    task<ExtentName> AllocateDataExtent();
+    task<> AllocatePartitionExtents(
+        IndexNumber indexNumber,
+        IndexName indexName,
+        ExtentName& out_partitionHeaderExtentName,
+        ExtentName& out_partitionDataExtentName);
 
     virtual task<> OpenPartitionWriter(
-        ExtentName& out_dataExtentNumber,
+        IndexNumber indexNumber,
+        IndexName indexName,
+        ExtentName& out_headerExtentName,
+        ExtentName& out_dataExtentName,
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
-    task<> LogCommitDataExtent(
+    task<> LogCommitExtent(
         LogRecord& logRecord,
         ExtentName extentName
     );
@@ -178,8 +185,7 @@ class ProtoStore
 
     task<shared_ptr<IPartition>> OpenPartitionForIndex(
         const shared_ptr<IIndex>& index,
-        ExtentName dataExtentNumber,
-        ExtentName headerExtentNumber);
+        ExtentName headerExtentName);
 
     virtual task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
         IndexNumber indexNumber
@@ -187,7 +193,7 @@ class ProtoStore
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentName>& dataExtentNumbers
+        const vector<ExtentName>& headerExtentNumbers
     ) override;
 
     shared_task<OperationResult> InternalExecuteOperation(
