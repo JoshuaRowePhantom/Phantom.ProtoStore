@@ -64,7 +64,6 @@ using google::protobuf::io::ZeroCopyInputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
 
 typedef google::protobuf::uint64 CheckpointNumber;
-typedef google::protobuf::uint64 MergeId;
 
 struct ExtentOffsetRange
 {
@@ -123,6 +122,8 @@ class MergeProgressValue;
 class MergeParameters;
 class WriteRowsResult;
 class PlaceholderKey;
+
+typedef ExtentName MergeId;
 
 class ResultRow;
 typedef cppcoro::async_generator<ResultRow> row_generator;

@@ -128,7 +128,7 @@ message PartitionsValue {
 	uint64 Level = 2;
 	uint64 Size = 3;
 	// The merge that generated the partition.
-	uint64 MergeUniqueId = 4;
+	ExtentName MergeUniqueId = 4;
 }
 
 message MergesKey {

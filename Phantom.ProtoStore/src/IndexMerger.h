@@ -44,6 +44,7 @@ class IndexMerger
 
     task<> WriteMergeCompletion(
         IInternalOperation* operation,
+        ExtentName headerExtentName,
         ExtentName dataExtentName,
         const IncompleteMerge& incompleteMerge,
         const WriteRowsResult& writeRowsResult

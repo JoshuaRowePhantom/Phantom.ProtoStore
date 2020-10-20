@@ -7,6 +7,7 @@
 #include "Schema.h"
 #include "RowMerger.h"
 #include "InternalProtoStore.h"
+#include "ExtentName.h"
 #include <cppcoro/when_all.hpp>
 
 namespace Phantom::ProtoStore
@@ -111,6 +112,8 @@ task<> IndexMerger::RestartIncompleteMerge(
         shared_ptr<IPartitionWriter> partitionWriter;
 
         co_await m_protoStore->OpenPartitionWriter(
+            index->GetIndexNumber(),
+            index->GetIndexName(),
             headerExtentName,
             dataExtentName,
             partitionWriter);
@@ -136,9 +139,13 @@ task<> IndexMerger::RestartIncompleteMerge(
             BeginTransactionRequest{},
             [&](auto operation) -> task<>
         {
-            co_await m_protoStore->LogCommitDataExtent(
+            co_await m_protoStore->LogCommitExtent(
                 operation->LogRecord(),
-                dataExtentNumber);
+                headerExtentName);
+
+            co_await m_protoStore->LogCommitExtent(
+                operation->LogRecord(),
+                dataExtentName);
 
             if (!isCompleteMerge)
             {
@@ -155,6 +162,7 @@ task<> IndexMerger::RestartIncompleteMerge(
                 co_await WriteMergeCompletion(
                     operation,
                     headerExtentName,
+                    dataExtentName,
                     incompleteMerge,
                     writeRowsResult);
 
@@ -235,6 +243,7 @@ task<> IndexMerger::WriteMergeProgress(
 task<> IndexMerger::WriteMergeCompletion(
     IInternalOperation* operation,
     ExtentName headerExtentName,
+    ExtentName dataExtentName,
     const IncompleteMerge& incompleteMerge,
     const WriteRowsResult& writeRowsResult)
 {
@@ -306,14 +315,12 @@ task<> IndexMerger::WriteMergeCompletion(
         *completePartitionsKey.mutable_headerextentname() = completeProgress.Key.headerextentname();
 
         PartitionsValue completePartitionsValue;
-        ExtentName headerExtentName;
-        *headerExtentName.mutable_indexheaderextentname() = completeProgress.Key.headerextentname().indexdataextentname();
-        *completePartitionsValue.mutable_dataextentname() = headerExtentName;
+        *completePartitionsValue.mutable_dataextentname() = dataExtentName;
 
         completePartitionsValue.set_level(
             incompleteMerge.Merge.Value.destinationlevelnumber());
-        completePartitionsValue.set_mergeuniqueid(
-            incompleteMerge.Merge.Key.mergesuniqueid());
+        *completePartitionsValue.mutable_mergeuniqueid() = 
+            incompleteMerge.Merge.Key.mergesuniqueid();
         completePartitionsValue.set_size(
             0
         );
@@ -333,11 +340,10 @@ task<> IndexMerger::WriteMergeCompletion(
         *completePartitionsKey.mutable_headerextentname() = headerExtentName;
 
         PartitionsValue completePartitionsValue;
-        *completePartitionsValue.mutable_dataextentname() = dataExtentNumber;
+        *completePartitionsValue.mutable_dataextentname() = dataExtentName;
         completePartitionsValue.set_level(
             incompleteMerge.Merge.Value.destinationlevelnumber());
-        completePartitionsValue.set_mergeuniqueid(
-            incompleteMerge.Merge.Key.mergesuniqueid());
+        *completePartitionsValue.mutable_mergeuniqueid() = incompleteMerge.Merge.Key.mergesuniqueid();
         completePartitionsValue.set_size(
             writeRowsResult.writtenDataSize
         );
@@ -356,40 +362,39 @@ task<> IndexMerger::WriteMergeCompletion(
 
 task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
     IInternalOperation* operation,
-    ExtentName headerExtentNumber,
+    ExtentName headerExtentName,
     const IncompleteMerge& incompleteMerge)
 {
     auto loggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
 
-    std::set<ExtentName> partitions;
+    std::set<ExtentName> partitionHeaderExtentNames;
     auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
         incompleteMerge.Merge.Key.indexnumber());
 
     for (auto& existingPartition : existingPartitions)
     {
-        partitions.insert(
-            get<0>(existingPartition).dataextentnumber());
+        partitionHeaderExtentNames.insert(
+            get<0>(existingPartition).headerextentname());
     }
 
-    for (auto sourcePartition : incompleteMerge.Merge.Value.sourcedataextentnumbers())
+    for (auto sourcePartition : incompleteMerge.Merge.Value.sourceheaderextentnames())
     {
-        partitions.erase(
+        partitionHeaderExtentNames.erase(
             sourcePartition);
     }
 
     for (auto& completeMergeProgress : incompleteMerge.CompleteProgress)
     {
-        partitions.insert(
-            completeMergeProgress.Key.dataextentnumber());
+        partitionHeaderExtentNames.insert(
+            completeMergeProgress.Key.headerextentname());
     }
 
-    partitions.insert(
-        dataExtentNumber);
+    partitionHeaderExtentNames.insert(
+        headerExtentName);
 
-    for (auto partition : partitions)
+    for (auto partitionHeaderExtentName : partitionHeaderExtentNames)
     {
-        loggedPartitionsData->add_headerextentnames(
-            partition);
+        *loggedPartitionsData->add_headerextentnames() = move(partitionHeaderExtentName);
     }
 }
 

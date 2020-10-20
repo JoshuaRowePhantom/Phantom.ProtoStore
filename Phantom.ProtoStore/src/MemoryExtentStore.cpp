@@ -1,5 +1,6 @@
 #include "StandardTypes.h"
 #include "MemoryExtentStore.h"
+#include "ExtentName.h"
 #include <assert.h>
 #include <functional>
 #include <list>

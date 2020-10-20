@@ -3,6 +3,7 @@
 #include "MessageStoreImpl.h"
 #include "ExtentStore.h"
 #include <cppcoro/async_mutex.hpp>
+#include "ExtentName.h"
 
 namespace Phantom::ProtoStore
 {

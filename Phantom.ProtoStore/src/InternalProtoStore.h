@@ -48,7 +48,7 @@ public:
         InternalOperationVisitor visitor
     ) = 0;
 
-    virtual task<> LogCommitDataExtent(
+    virtual task<> LogCommitExtent(
         LogRecord& logRecord,
         ExtentName extentName
     ) = 0;

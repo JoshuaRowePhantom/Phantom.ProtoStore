@@ -25,6 +25,8 @@ add_library (
     "src/Checksum.cpp"
     "src/Checksum.h"
     "src/ExtentManager.h"
+    "src/ExtentName.cpp"
+    "src/ExtentName.h"
     "src/ExtentStore.h"
     "src/HeaderAccessor.cpp"
     "src/HeaderAccessor.h"

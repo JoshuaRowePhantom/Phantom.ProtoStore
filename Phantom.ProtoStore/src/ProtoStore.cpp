@@ -1,5 +1,6 @@
-#include "ProtoStore.h"
+#include "ExtentName.h"
 #include "StandardTypes.h"
+#include "ProtoStore.h"
 #include "MessageStore.h"
 #include "RandomMessageAccessor.h"
 #include "HeaderAccessor.h"
@@ -1141,9 +1142,14 @@ task<> ProtoStore::Checkpoint(
         BeginTransactionRequest{},
         [&](auto operation) -> task<>
     {
-        co_await LogCommitDataExtent(
+        co_await LogCommitExtent(
             operation->LogRecord(),
-            dataExtentNumber
+            headerExtentName
+        );
+
+        co_await LogCommitExtent(
+            operation->LogRecord(),
+            dataExtentName
         );
 
         auto addedLoggedCheckpoint = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
@@ -1159,7 +1165,7 @@ task<> ProtoStore::Checkpoint(
         partitionsKey.set_indexnumber(indexEntry.IndexNumber);
         *partitionsKey.mutable_headerextentname() = headerExtentName;
         PartitionsValue partitionsValue;
-        partitionsValue.mutable_dataextentname() = dataExtentName;
+        *partitionsValue.mutable_dataextentname() = dataExtentName;
         partitionsValue.set_size(writeRowsResult.writtenDataSize);
         partitionsValue.set_level(0);
 
@@ -1172,20 +1178,20 @@ task<> ProtoStore::Checkpoint(
                 partitionsKey,
                 partitionsValue));
 
-            vector<ExtentName> dataExtentNumbers;
+            vector<ExtentName> headerExtentNames;
 
             for (auto& partitionKeyValue : partitionKeyValues)
             {
-                auto existingDataExtentNumber = get<PartitionsKey>(partitionKeyValue).dataextentnumber();
-
-                dataExtentNumbers.push_back(
-                    existingDataExtentNumber);
+                auto existingHeaderExtentName = get<PartitionsKey>(partitionKeyValue).headerextentname();
 
                 if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
                 {
-                    addedLoggedPartitionsData->add_dataextentnumbers(
-                        existingDataExtentNumber);
+                    *addedLoggedPartitionsData->add_headerextentnames() =
+                        existingHeaderExtentName;
                 }
+
+                headerExtentNames.push_back(
+                    move(existingHeaderExtentName));
             }
 
             addedLoggedCheckpoint->CopyFrom(
@@ -1203,7 +1209,7 @@ task<> ProtoStore::Checkpoint(
 
             auto partitions = co_await OpenPartitionsForIndex(
                 indexEntry.Index,
-                dataExtentNumbers);
+                headerExtentNames);
 
             co_await indexEntry.DataSources->UpdatePartitions(
                 loggedCheckpoint,

@@ -1,3 +1,4 @@
+#include "ExtentName.h"
 #include "ProtoStoreFactory.h"
 #include "ProtoStore.h"
 

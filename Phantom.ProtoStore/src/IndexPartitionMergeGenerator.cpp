@@ -1,6 +1,7 @@
 #include "IndexPartitionMergeGenerator.h"
 #include <algorithm>
 #include "src/ProtoStoreInternal.pb.h"
+#include "ExtentName.h"
 
 namespace Phantom::ProtoStore
 {
@@ -48,9 +49,8 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
 
         for (auto& partition : partitionsAtSourceLevel.second)
         {
-            auto mergeUniqueId = partition.Value.mergeuniqueid();
-            if (mergeUniqueId
-                || mergeIds.insert(mergeUniqueId).second)
+            if (!partition.Value.has_mergeuniqueid()
+                || mergeIds.insert(partition.Value.mergeuniqueid()).second)
             {
                 ++mergeCount;
             }

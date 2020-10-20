@@ -16,6 +16,7 @@
 #include "Phantom.System/single_pending_task.h"
 #include "Phantom.System/encompassing_pending_task.h"
 #include "IndexMerger.h"
+#include "ExtentName.h"
 
 namespace Phantom::ProtoStore
 {
@@ -57,7 +58,7 @@ class ProtoStore
     async_reader_writer_lock m_indexesByNumberLock;
 
     cppcoro::async_mutex m_updatePartitionsMutex;
-    std::map<ExtentName, shared_ptr<IPartition>> m_activePartitions;
+    std::unordered_map<ExtentName, shared_ptr<IPartition>> m_activePartitions;
     vector<ExtentName> m_replayPartitionsActivePartitions;
 
     encompassing_pending_task m_checkpointTask;

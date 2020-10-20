@@ -1,3 +1,4 @@
+#include "ExtentName.h"
 #include "LogManager.h"
 #include "ExtentStore.h"
 #include "MessageStore.h"
