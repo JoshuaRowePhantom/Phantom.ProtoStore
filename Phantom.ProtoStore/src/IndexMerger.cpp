@@ -9,6 +9,7 @@
 #include "InternalProtoStore.h"
 #include "ExtentName.h"
 #include <cppcoro/when_all.hpp>
+#include <unordered_set>
 
 namespace Phantom::ProtoStore
 {
@@ -367,7 +368,7 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
 {
     auto loggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
 
-    std::set<ExtentName> partitionHeaderExtentNames;
+    std::unordered_set<ExtentName> partitionHeaderExtentNames;
     auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
         incompleteMerge.Merge.Key.indexnumber());
 

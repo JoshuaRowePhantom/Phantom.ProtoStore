@@ -8,6 +8,7 @@
 #include <google/protobuf/util/message_differencer.h>
 #include <random>
 #include <filesystem>
+#include "Phantom.ProtoStore/src/ExtentName.h"
 
 namespace Phantom::ProtoStore
 {
@@ -37,6 +38,9 @@ std::function<task<shared_ptr<IExtentStore>>()> UseFilesystemStore(
     string testName,
     string prefix,
     size_t blockSize);
+
+ExtentName MakeExtentName(
+    uint64_t number);
 
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandardTypes.h"
+#include "ExtentName.h"
 #include <cppcoro/async_mutex.hpp>
 #include "MessageStore.h"
 #include "Checksum.h"
@@ -97,8 +98,8 @@ namespace Phantom::ProtoStore
         Schedulers m_schedulers;
         const shared_ptr<IExtentStore> m_extentStore;
         async_reader_writer_lock m_extentsLock;
-        map<ExtentName, shared_ptr<IReadableExtent>> m_readableExtents;
-        map<ExtentName, shared_ptr<IWritableExtent>> m_writableExtents;
+        std::unordered_map<ExtentName, shared_ptr<IReadableExtent>> m_readableExtents;
+        std::unordered_map<ExtentName, shared_ptr<IWritableExtent>> m_writableExtents;
         shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(

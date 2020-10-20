@@ -240,7 +240,7 @@ namespace Phantom::ProtoStore
             {}
         };
 
-        map<ExtentName, shared_ptr<Extent>> m_extents;
+        unordered_map<ExtentName, shared_ptr<Extent>> m_extents;
         cppcoro::async_mutex m_extentsMutex;
 
         task<shared_ptr<Extent>> GetExtent(

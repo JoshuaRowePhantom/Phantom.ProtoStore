@@ -98,4 +98,12 @@ std::function<task<shared_ptr<IExtentStore>>()> UseFilesystemStore(
         co_return store;
     };
 }
+
+ExtentName MakeExtentName(
+    uint64_t number)
+{
+    ExtentName extentName;
+    extentName.mutable_logextentname()->set_logextentsequencenumber(number);
+    return extentName;
+}
 }

@@ -13,7 +13,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForRead_succeeds_on_NonExistentExtent)
     run_async([]() -> task<>
     {
         MemoryExtentStore store(Schedulers::Default());
-        auto extent = co_await store.OpenExtentForRead(0);
+        auto extent = co_await store.OpenExtentForRead(MakeExtentName(0));
     }
     );
 }
@@ -23,7 +23,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForRead_cannot_read_past_end_of_zero_leng
     run_async([]() -> task<>
     {
         MemoryExtentStore store(Schedulers::Default());
-        auto extent = co_await store.OpenExtentForRead(0);
+        auto extent = co_await store.OpenExtentForRead(MakeExtentName(0));
         auto buffer = co_await extent->CreateReadBuffer();
         EXPECT_THROW(
             (co_await buffer->Read(
@@ -41,7 +41,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForRead_can_read_data_written_by_OpenExte
     {
         MemoryExtentStore store(Schedulers::Default());
         vector<uint8_t> expectedData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        auto writeExtent = co_await store.OpenExtentForWrite(0);
+        auto writeExtent = co_await store.OpenExtentForWrite(MakeExtentName(0));
         auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
         co_await writeBuffer->Write(0, expectedData.size());
 
@@ -53,7 +53,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForRead_can_read_data_written_by_OpenExte
         }
         co_await writeBuffer->Flush();
 
-        auto readExtent = co_await store.OpenExtentForRead(0);
+        auto readExtent = co_await store.OpenExtentForRead(MakeExtentName(0));
         auto readBuffer = co_await readExtent->CreateReadBuffer();
         co_await readBuffer->Read(0, expectedData.size());
         CodedInputStream readStream(readBuffer->Stream());
@@ -77,7 +77,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_grow)
         std::basic_string<uint8_t> writeData1(50, '1');
         std::basic_string<uint8_t> writeData2(500, '2');
 
-        auto writeExtent = co_await store.OpenExtentForWrite(0);
+        auto writeExtent = co_await store.OpenExtentForWrite(MakeExtentName(0));
         auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
         co_await writeBuffer1->Write(0, writeData1.size());
 
@@ -103,7 +103,7 @@ TEST(MemoryExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_grow)
 
         auto expectedData = writeData1 + writeData2;
 
-        auto readExtent = co_await store.OpenExtentForRead(0);
+        auto readExtent = co_await store.OpenExtentForRead(MakeExtentName(0));
         auto readBuffer = co_await readExtent->CreateReadBuffer();
         co_await readBuffer->Read(0, expectedData.size());
         CodedInputStream readStream(readBuffer->Stream());
@@ -127,7 +127,7 @@ TEST(MemoryExtentStoreTests, DeleteExtent_erases_the_content)
         vector<uint8_t> writeData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
         {
-            auto writeExtent = co_await store.OpenExtentForWrite(0);
+            auto writeExtent = co_await store.OpenExtentForWrite(MakeExtentName(0));
             auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
             co_await writeBuffer->Write(0, writeData.size());
 
@@ -140,9 +140,9 @@ TEST(MemoryExtentStoreTests, DeleteExtent_erases_the_content)
             co_await writeBuffer->Flush();
         }
 
-        co_await store.DeleteExtent(0);
+        co_await store.DeleteExtent(MakeExtentName(0));
 
-        auto extent = co_await store.OpenExtentForRead(0);
+        auto extent = co_await store.OpenExtentForRead(MakeExtentName(0));
         auto readBuffer = co_await extent->CreateReadBuffer();
 
         EXPECT_THROW(

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "src/ProtoStoreInternal.pb.h"
 #include "ExtentName.h"
+#include <unordered_set>
 
 namespace Phantom::ProtoStore
 {
@@ -14,7 +15,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
 )
 {
     map<LevelNumber, partition_row_list_type> partitionsBySourceLevel;
-    std::set<ExtentName> mergingPartitions;
+    std::unordered_set<ExtentName> mergingPartitions;
 
     for (auto& ongoingMerge : ongoingMerges)
     {
@@ -45,7 +46,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
     {
         // Count the distinct merge operations that generated these partitions.
         size_t mergeCount = 0;
-        std::set<MergeId> mergeIds;
+        std::unordered_set<MergeId> mergeIds;
 
         for (auto& partition : partitionsAtSourceLevel.second)
         {
