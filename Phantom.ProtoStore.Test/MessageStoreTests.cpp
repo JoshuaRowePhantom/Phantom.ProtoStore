@@ -18,14 +18,14 @@ namespace Phantom::ProtoStore
             auto messageStore = make_shared<MessageStore>(
                 Schedulers::Default(),
                 extentStore);
-            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeExtentName(0));
+            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
 
             co_await randomMessageWriter->Write(
                 0,
                 expectedMessage,
                 FlushBehavior::Flush);
 
-            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeExtentName(0));
+            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
 
             MessageStoreTestMessage actualMessage;
 
@@ -53,7 +53,7 @@ namespace Phantom::ProtoStore
             auto messageStore = make_shared<MessageStore>(
                 Schedulers::Default(),
                 extentStore);
-            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeExtentName(0));
+            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
 
             auto writeResult1 = co_await randomMessageWriter->Write(
                 0,
@@ -65,7 +65,7 @@ namespace Phantom::ProtoStore
                 expectedMessage2,
                 FlushBehavior::Flush);
 
-            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeExtentName(0));
+            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
 
             MessageStoreTestMessage actualMessage1;
             MessageStoreTestMessage actualMessage2;
@@ -111,7 +111,7 @@ namespace Phantom::ProtoStore
             auto messageStore = make_shared<MessageStore>(
                 Schedulers::Default(),
                 extentStore);
-            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeExtentName(0));
+            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
 
             auto writeResult = co_await randomMessageWriter->Write(
                 offset,
@@ -120,7 +120,7 @@ namespace Phantom::ProtoStore
 
             EXPECT_EQ(expectedEndOfMessage, writeResult.DataRange.End);
 
-            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeExtentName(0));
+            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
 
             MessageStoreTestMessage actualMessage;
 
@@ -159,7 +159,7 @@ namespace Phantom::ProtoStore
             auto messageStore = make_shared<MessageStore>(
                 Schedulers::Default(),
                 extentStore);
-            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeExtentName(0));
+            auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
 
             auto writeResult = co_await randomMessageWriter->Write(
                 offset,
@@ -172,7 +172,7 @@ namespace Phantom::ProtoStore
 
             uint8_t lastChecksumByte;
             {
-                auto readableExtent = co_await extentStore->OpenExtentForRead(MakeExtentName(0));
+                auto readableExtent = co_await extentStore->OpenExtentForRead(MakeLogExtentName(0));
                 auto readBuffer = co_await readableExtent->CreateReadBuffer();
                 co_await readBuffer->Read(expectedEndOfMessage - 1, 1);
 
@@ -186,7 +186,7 @@ namespace Phantom::ProtoStore
             uint8_t corruptedLastChecksumByte = lastChecksumByte ^ 1;
 
             {
-                auto writableExtent = co_await extentStore->OpenExtentForWrite(MakeExtentName(0));
+                auto writableExtent = co_await extentStore->OpenExtentForWrite(MakeLogExtentName(0));
                 auto writeBuffer = co_await writableExtent->CreateWriteBuffer();
                 co_await writeBuffer->Write(expectedEndOfMessage - 1, 1);
             
@@ -199,7 +199,7 @@ namespace Phantom::ProtoStore
                 co_await writeBuffer->Flush();
             }
 
-            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeExtentName(0));
+            auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
 
             MessageStoreTestMessage actualMessage;
 

@@ -2,9 +2,22 @@
 #include "RandomMessageAccessor.h"
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include "src/ProtoStoreInternal.pb.h"
+#include "ExtentName.h"
 
 namespace Phantom::ProtoStore
 {
+
+static ExtentLocation MakeDefaultHeaderLocation(
+    google::protobuf::uint64 copyNumber)
+{
+    ExtentLocation extentLocation;
+    extentLocation.extentOffset = 0;
+    extentLocation.extentName = MakeDatabaseHeaderExtentName(copyNumber);
+    return extentLocation;
+}
+
+const ExtentLocation DefaultHeaderLocation1 = MakeDefaultHeaderLocation(0);
+const ExtentLocation DefaultHeaderLocation2 = MakeDefaultHeaderLocation(1);
 
 HeaderAccessor::HeaderAccessor(
     shared_ptr<IRandomMessageAccessor> messageAccessor,
@@ -108,28 +121,10 @@ task<> HeaderAccessor::WriteHeader(
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
     shared_ptr<IRandomMessageAccessor> messageAccessor)
 {
-    ExtentName headerExtentName1;
-    headerExtentName1.mutable_databaseheaderextentname()->set_headercopynumber(0);
-    
-    ExtentLocation headerLocation1 =
-    {
-        headerExtentName1,
-        0,
-    };
-
-    ExtentName headerExtentName2;
-    headerExtentName2.mutable_databaseheaderextentname()->set_headercopynumber(1);
-
-    ExtentLocation headerLocation2 =
-    {
-        headerExtentName2,
-        0,
-    };
-
     return MakeHeaderAccessor(
         move(messageAccessor),
-        headerLocation1,
-        headerLocation2
+        MakeDefaultHeaderLocation(0),
+        MakeDefaultHeaderLocation(1)
         );
 }
 

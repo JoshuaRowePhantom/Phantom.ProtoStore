@@ -19,6 +19,9 @@ public:
     ) = 0;
 };
 
+extern const ExtentLocation DefaultHeaderLocation1;
+extern const ExtentLocation DefaultHeaderLocation2;
+
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
     shared_ptr<IRandomMessageAccessor> messageStore,
     ExtentLocation headerLocation1,

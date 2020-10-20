@@ -39,9 +39,6 @@ std::function<task<shared_ptr<IExtentStore>>()> UseFilesystemStore(
     string prefix,
     size_t blockSize);
 
-ExtentName MakeExtentName(
-    uint64_t number);
-
 }
 
 

@@ -1296,13 +1296,14 @@ task<> ProtoStore::AllocatePartitionExtents(
 {
     auto partitionNumber = m_nextPartitionNumber.fetch_add(1);
 
-    IndexExtentName indexExtentName;
-    indexExtentName.set_indexnumber(indexNumber);
-    indexExtentName.set_indexname(indexName);
-    indexExtentName.set_partitionnumber(partitionNumber);
-
-    *out_partitionDataExtentName.mutable_indexheaderextentname() = indexExtentName;
-    *out_partitionDataExtentName.mutable_indexdataextentname() = move(indexExtentName);
+    out_partitionHeaderExtentName = MakePartitionHeaderExtentName(
+        indexNumber,
+        partitionNumber,
+        indexName);
+    out_partitionDataExtentName = MakePartitionDataExtentName(
+        indexNumber,
+        partitionNumber,
+        indexName);
 
     LogRecord logRecord;
     *logRecord.mutable_extras()

@@ -951,11 +951,11 @@ TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
 
         // Checkpoint twice to ensure old log is delete.
         co_await store->Checkpoint();
-        EXPECT_EQ(true, co_await logMemoryStore->ExtentExists(0));
+        EXPECT_EQ(true, co_await logMemoryStore->ExtentExists(MakeLogExtentName(0)));
 
         co_await store->Checkpoint();
 
-        EXPECT_EQ(false, co_await logMemoryStore->ExtentExists(0));
+        EXPECT_EQ(false, co_await logMemoryStore->ExtentExists(MakeLogExtentName(0)));
     });
 }
 

@@ -227,8 +227,12 @@ protected:
         scenario.MinPossibleSequenceNumber = SequenceNumber::Earliest;
         scenario.MaxPossibleSequenceNumber = ToSequenceNumber(4);
 
-        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
-        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto headerExtentName = MakeLogExtentName(0);
+        auto dataExtentName = MakeLogExtentName(1);
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(
+            headerExtentName);
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(
+            dataExtentName);
         PartitionTreeWriter partitionTreeWriter(dataWriter);
 
         vector<ScenarioRow> possibleRows =
@@ -322,7 +326,10 @@ protected:
             dataWriter,
             headerWriter);
 
-        auto partition = co_await OpenPartition(0);
+        auto partition = co_await OpenPartition(
+            headerExtentName,
+            dataExtentName);
+
         auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
         assert(0 == errorList.size());
 
@@ -332,7 +339,8 @@ protected:
     }
 
     task<shared_ptr<Partition>> OpenPartition(
-        ExtentName extentName)
+        ExtentName headerExtentName,
+        ExtentName dataExtentName)
     {
         auto partition = make_shared<Partition>(
             keyComparer,
@@ -340,8 +348,8 @@ protected:
             valueFactory,
             dataHeaderMessageAccessor,
             dataMessageAccessor,
-            ExtentLocation{ ExtentName, 0 },
-            ExtentLocation{ ExtentName, 0 }
+            ExtentLocation{ headerExtentName, 0 },
+            dataExtentName
         );
 
         co_await partition->Open();
@@ -589,8 +597,8 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
         // This test writes a valid tree structure that _should_ find the message,
         // but a bloom filter that never hits.  Read() should therefore not find the message.
 
-        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(0);
-        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(0);
+        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(0));
+        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(1));
 
         PartitionMessage treeMessage;
         auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
@@ -645,7 +653,10 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
             partitionHeaderMessage,
             FlushBehavior::Flush);
 
-        auto partition = co_await OpenPartition(0);
+        auto partition = co_await OpenPartition(
+            MakeLogExtentName(0),
+            MakeLogExtentName(1));
+
         // The partition should fail an integrity check because
         // there is a key not present in the bloom filter.
         auto integrityCheckResults = co_await partition->CheckIntegrity(
