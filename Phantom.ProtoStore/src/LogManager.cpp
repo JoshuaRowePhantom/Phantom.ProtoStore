@@ -69,15 +69,15 @@ task<> LogManager::Replay(
     {
         if (loggedAction.has_loggedcreateextent())
         {
-            m_uncommitedExtentToLogExtentSequenceNumber[loggedAction.loggedcreateextent().extentname()] = logExtentSequenceNumber;
+            m_uncommittedExtentToLogExtentSequenceNumber[loggedAction.loggedcreateextent().extentname()] = logExtentSequenceNumber;
         }
         if (loggedAction.has_loggeddeleteextent())
         {
-            m_uncommitedExtentToLogExtentSequenceNumber.erase(loggedAction.loggeddeleteextent().extentname());
+            m_uncommittedExtentToLogExtentSequenceNumber.erase(loggedAction.loggeddeleteextent().extentname());
         }
         if (loggedAction.has_loggedcommitextent())
         {
-            m_uncommitedExtentToLogExtentSequenceNumber.erase(loggedAction.loggedcommitextent().extentname());
+            m_uncommittedExtentToLogExtentSequenceNumber.erase(loggedAction.loggedcommitextent().extentname());
         }
         if (loggedAction.has_loggedcheckpoints())
         {
@@ -235,7 +235,7 @@ task<task<>> LogManager::Checkpoint(
             );
         }
 
-        for (auto& uncommittedExtentToLogExtentSequenceNumber : m_uncommitedExtentToLogExtentSequenceNumber)
+        for (auto& uncommittedExtentToLogExtentSequenceNumber : m_uncommittedExtentToLogExtentSequenceNumber)
         {
             lowestLogExtentSequenceNumberInUse = std::min(
                 lowestLogExtentSequenceNumberInUse,

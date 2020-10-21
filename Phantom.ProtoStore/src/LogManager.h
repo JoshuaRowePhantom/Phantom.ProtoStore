@@ -32,7 +32,7 @@ class LogManager
     std::set<LogExtentSequenceNumber> m_existingLogExtentSequenceNumbers;
     std::set<LogExtentSequenceNumber> m_logExtentSequenceNumbersToRemove;
     std::unordered_set<LogExtentUsage, LogExtentUsageHasher> m_logExtentUsage;
-    std::unordered_map<ExtentName, LogExtentSequenceNumber> m_uncommitedExtentToLogExtentSequenceNumber;
+    std::unordered_map<ExtentName, LogExtentSequenceNumber> m_uncommittedExtentToLogExtentSequenceNumber;
     optional<LogExtentSequenceNumber> m_partitionsDataLogExtentSequenceNumber;
     LoggedPartitionsData m_latestLoggedPartitionsData;
 
