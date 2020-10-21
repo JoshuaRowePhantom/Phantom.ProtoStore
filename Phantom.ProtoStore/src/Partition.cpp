@@ -22,21 +22,19 @@ Partition::Partition(
     shared_ptr<KeyComparer> keyComparer,
     shared_ptr<IMessageFactory> keyFactory,
     shared_ptr<IMessageFactory> valueFactory,
-    shared_ptr<IRandomMessageAccessor> dataHeaderMessageAccessor,
-    shared_ptr<IRandomMessageAccessor> dataMessageAccessor,
+    shared_ptr<IRandomMessageAccessor> messageAccessor,
     ExtentLocation headerLocation,
     ExtentName dataExtentName
 ) :
     m_keyComparer(keyComparer),
     m_keyFactory(keyFactory),
     m_valueFactory(valueFactory),
-    m_dataHeaderMessageAccessor(dataHeaderMessageAccessor),
-    m_dataMessageAccessor(dataMessageAccessor),
+    m_messageAccessor(messageAccessor),
     m_headerLocation(headerLocation),
     m_dataExtentName(dataExtentName),
     m_partitionTreeNodeCache(
         keyFactory,
-        m_dataMessageAccessor
+        m_messageAccessor
     )
 {
 }
@@ -51,7 +49,7 @@ task<> Partition::Open()
     PartitionMessage message;
 
     message.Clear();
-    co_await m_dataHeaderMessageAccessor->ReadMessage(
+    co_await m_messageAccessor->ReadMessage(
         m_headerLocation,
         message
     );
@@ -59,7 +57,7 @@ task<> Partition::Open()
     m_partitionHeader = move(*message.mutable_partitionheader());
 
     message.Clear();
-    co_await m_dataMessageAccessor->ReadMessage(
+    co_await m_messageAccessor->ReadMessage(
         ExtentLocation
         {
             m_dataExtentName,
@@ -69,7 +67,7 @@ task<> Partition::Open()
     assert(message.has_partitionroot());
     m_partitionRoot = move(*message.mutable_partitionroot());
 
-    co_await m_dataMessageAccessor->ReadMessage(
+    co_await m_messageAccessor->ReadMessage(
         ExtentLocation
         {
             m_dataExtentName,
@@ -483,7 +481,7 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
                 {
                     PartitionMessage message;
-                    co_await m_dataMessageAccessor->ReadMessage(
+                    co_await m_messageAccessor->ReadMessage(
                         {
                             .extentName = m_dataExtentName,
                             .extentOffset = treeEntryValue->valueoffset(),
@@ -593,7 +591,7 @@ task<> Partition::CheckTreeNodeIntegrity(
     SequenceNumber maxKeyInclusiveLowestSequenceNumber)
 {
     PartitionMessage treeNodeMessage;
-    co_await m_dataMessageAccessor->ReadMessage(
+    co_await m_messageAccessor->ReadMessage(
         treeNodeLocation,
         treeNodeMessage
     );

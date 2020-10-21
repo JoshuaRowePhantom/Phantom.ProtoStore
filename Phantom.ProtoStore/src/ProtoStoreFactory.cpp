@@ -7,17 +7,11 @@ namespace Phantom::ProtoStore
 task<shared_ptr<IProtoStore>> ProtoStoreFactory::Open(
     const OpenProtoStoreRequest& openRequest)
 {
-    auto headerExtentStore = co_await openRequest.HeaderExtentStore();
-    auto logExtentStore = co_await openRequest.LogExtentStore();
-    auto dataExtentStore = co_await openRequest.DataExtentStore();
-    auto dataHeaderExtentStore = co_await openRequest.DataHeaderExtentStore();
+    auto extentStore = co_await openRequest.ExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
         openRequest.Schedulers,
-        headerExtentStore,
-        logExtentStore,
-        dataExtentStore,
-        dataHeaderExtentStore);
+        extentStore);
 
     co_await protoStore->Open(
         openRequest);
@@ -28,17 +22,11 @@ task<shared_ptr<IProtoStore>> ProtoStoreFactory::Open(
 task<shared_ptr<IProtoStore>> ProtoStoreFactory::Create(
     const CreateProtoStoreRequest& createRequest)
 {
-    auto headerExtentStore = co_await createRequest.HeaderExtentStore();
-    auto logExtentStore = co_await createRequest.LogExtentStore();
-    auto dataExtentStore = co_await createRequest.DataExtentStore();
-    auto dataHeaderExtentStore = co_await createRequest.DataHeaderExtentStore();
+    auto extentStore = co_await createRequest.ExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
         createRequest.Schedulers,
-        headerExtentStore,
-        logExtentStore,
-        dataExtentStore,
-        dataHeaderExtentStore);
+        extentStore);
 
     co_await protoStore->Create(
         createRequest);

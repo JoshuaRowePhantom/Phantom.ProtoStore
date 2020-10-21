@@ -709,10 +709,7 @@ enum class IntegrityCheck
 
 struct OpenProtoStoreRequest
 {
-    std::function<task<shared_ptr<IExtentStore>>()> HeaderExtentStore;
-    std::function<task<shared_ptr<IExtentStore>>()> LogExtentStore;
-    std::function<task<shared_ptr<IExtentStore>>()> DataExtentStore;
-    std::function<task<shared_ptr<IExtentStore>>()> DataHeaderExtentStore;
+    std::function<task<shared_ptr<IExtentStore>>()> ExtentStore;
     std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
     Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;

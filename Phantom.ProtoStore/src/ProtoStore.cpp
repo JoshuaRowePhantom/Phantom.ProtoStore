@@ -23,25 +23,14 @@ namespace Phantom::ProtoStore
 
 ProtoStore::ProtoStore(
     Schedulers schedulers,
-    shared_ptr<IExtentStore> headerExtentStore,
-    shared_ptr<IExtentStore> logExtentStore,
-    shared_ptr<IExtentStore> dataExtentStore,
-    shared_ptr<IExtentStore> dataHeaderExtentStore
+    shared_ptr<IExtentStore> extentStore
 )
     :
     m_schedulers(schedulers),
-    m_headerExtentStore(move(headerExtentStore)),
-    m_logExtentStore(move(logExtentStore)),
-    m_dataExtentStore(move(dataExtentStore)),
-    m_dataHeaderExtentStore(move(dataHeaderExtentStore)),
-    m_headerMessageStore(MakeMessageStore(m_schedulers, m_headerExtentStore)),
-    m_logMessageStore(MakeMessageStore(m_schedulers, m_logExtentStore)),
-    m_dataMessageStore(MakeMessageStore(m_schedulers, m_dataExtentStore)),
-    m_dataHeaderMessageStore(MakeMessageStore(m_schedulers, m_dataHeaderExtentStore)),
-    m_headerMessageAccessor(MakeRandomMessageAccessor(m_headerMessageStore)),
-    m_dataMessageAccessor(MakeRandomMessageAccessor(m_dataMessageStore)),
-    m_dataHeaderMessageAccessor(MakeRandomMessageAccessor(m_dataHeaderMessageStore)),
-    m_headerAccessor(MakeHeaderAccessor(m_headerMessageAccessor)),
+    m_extentStore(move(extentStore)),
+    m_messageStore(MakeMessageStore(m_schedulers, m_extentStore)),
+    m_messageAccessor(MakeRandomMessageAccessor(m_messageStore)),
+    m_headerAccessor(MakeHeaderAccessor(m_messageAccessor)),
     m_checkpointTask([=] { return InternalCheckpoint(); }),
     m_mergeTask([=] { return InternalMerge(); })
 {
@@ -193,8 +182,8 @@ task<> ProtoStore::Open(
 
     m_logManager.emplace(
         m_schedulers,
-        m_logExtentStore,
-        m_logMessageStore,
+        m_extentStore,
+        m_messageStore,
         m_header);
 
     // The first log record for the partitions index will be the actual
@@ -306,7 +295,7 @@ task<> ProtoStore::Replay(
     ExtentName extentName
 )
 {
-    auto logReader = co_await m_logMessageStore->OpenExtentForSequentialReadAccess(
+    auto logReader = co_await m_messageStore->OpenExtentForSequentialReadAccess(
         extentName
     );
 
@@ -1026,8 +1015,7 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
         index->GetKeyComparer(),
         index->GetKeyFactory(),
         index->GetValueFactory(),
-        m_dataHeaderMessageAccessor,
-        m_dataMessageAccessor,
+        m_messageAccessor,
         ExtentLocation
         {
             .extentName = headerExtentName,
@@ -1333,9 +1321,9 @@ task<> ProtoStore::OpenPartitionWriter(
         out_headerExtentName,
         out_dataExtentName);
 
-    auto dataWriter = co_await m_dataMessageStore->OpenExtentForSequentialWriteAccess(
+    auto dataWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
         out_dataExtentName);
-    auto headerWriter = co_await m_dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(
+    auto headerWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
         out_dataExtentName);
 
     out_partitionWriter = make_shared<PartitionWriter>(

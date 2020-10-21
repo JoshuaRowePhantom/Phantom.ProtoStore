@@ -38,22 +38,15 @@ protected:
         valueFactory = Schema::MakeMessageFactory(
             valueMessageDescription);
 
-        dataMemoryExtentStore = make_shared<MemoryExtentStore>(
-            Schedulers::Inline());
-        dataHeaderMemoryExtentStore = make_shared<MemoryExtentStore>(
+        extentStore = make_shared<MemoryExtentStore>(
             Schedulers::Inline());
 
-        dataMessageStore = make_shared<MessageStore>(
+        messageStore = make_shared<MessageStore>(
             Schedulers::Inline(),
-            dataMemoryExtentStore);
-        dataHeaderMessageStore = make_shared<MessageStore>(
-            Schedulers::Inline(),
-            dataHeaderMemoryExtentStore);
+            extentStore);
 
-        dataMessageAccessor = make_shared<RandomMessageAccessor>(
-            dataMessageStore);
-        dataHeaderMessageAccessor = make_shared<RandomMessageAccessor>(
-            dataHeaderMessageStore);
+        messageAccessor = make_shared<RandomMessageAccessor>(
+            messageStore);
     }
 
     string ToSerializedKey(
@@ -229,9 +222,9 @@ protected:
 
         auto headerExtentName = MakeLogExtentName(0);
         auto dataExtentName = MakeLogExtentName(1);
-        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(
+        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
             headerExtentName);
-        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(
+        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
             dataExtentName);
         PartitionTreeWriter partitionTreeWriter(dataWriter);
 
@@ -346,8 +339,7 @@ protected:
             keyComparer,
             keyFactory,
             valueFactory,
-            dataHeaderMessageAccessor,
-            dataMessageAccessor,
+            messageAccessor,
             ExtentLocation{ headerExtentName, 0 },
             dataExtentName
         );
@@ -579,12 +571,9 @@ protected:
     }
 
     shared_ptr<KeyComparer> keyComparer;
-    shared_ptr<MemoryExtentStore> dataMemoryExtentStore;
-    shared_ptr<MessageStore> dataMessageStore;
-    shared_ptr<MemoryExtentStore> dataHeaderMemoryExtentStore;
-    shared_ptr<MessageStore> dataHeaderMessageStore;
-    shared_ptr<IRandomMessageAccessor> dataMessageAccessor;
-    shared_ptr<IRandomMessageAccessor> dataHeaderMessageAccessor;
+    shared_ptr<MemoryExtentStore> extentStore;
+    shared_ptr<MessageStore> messageStore;
+    shared_ptr<IRandomMessageAccessor> messageAccessor;
 
     shared_ptr<IMessageFactory> keyFactory;
     shared_ptr<IMessageFactory> valueFactory;
@@ -597,8 +586,8 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
         // This test writes a valid tree structure that _should_ find the message,
         // but a bloom filter that never hits.  Read() should therefore not find the message.
 
-        auto dataWriter = co_await dataMessageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(0));
-        auto headerWriter = co_await dataHeaderMessageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(1));
+        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(0));
+        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(1));
 
         PartitionMessage treeMessage;
         auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();

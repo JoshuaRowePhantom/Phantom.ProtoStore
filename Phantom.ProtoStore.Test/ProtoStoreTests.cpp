@@ -22,10 +22,7 @@ public:
     {
         CreateProtoStoreRequest createRequest;
         
-        createRequest.HeaderExtentStore = UseMemoryExtentStore();
-        createRequest.LogExtentStore = UseMemoryExtentStore();
-        createRequest.DataExtentStore = UseMemoryExtentStore();
-        createRequest.DataHeaderExtentStore = UseMemoryExtentStore();
+        createRequest.ExtentStore = UseMemoryExtentStore();
 
         return createRequest;
     }
@@ -34,10 +31,7 @@ public:
         string testName)
     {
         CreateProtoStoreRequest createRequest;
-        createRequest.HeaderExtentStore = UseFilesystemStore(testName, "header", 4096);
-        createRequest.LogExtentStore = UseFilesystemStore(testName, "log", 4096);
-        createRequest.DataExtentStore = UseFilesystemStore(testName, "data", 4096);
-        createRequest.DataHeaderExtentStore = UseFilesystemStore(testName, "dataheader", 4096);
+        createRequest.ExtentStore = UseFilesystemStore(testName, "header", 4096);
         createRequest.Schedulers = Schedulers::Inline();
 
         return createRequest;
@@ -263,10 +257,7 @@ TEST_F(ProtoStoreTests, CanOpen_memory_backed_store)
         auto storeFactory = MakeProtoStoreFactory();
         CreateProtoStoreRequest createRequest;
 
-        createRequest.HeaderExtentStore = UseMemoryExtentStore();
-        createRequest.LogExtentStore = UseMemoryExtentStore();
-        createRequest.DataExtentStore = UseMemoryExtentStore();
-        createRequest.DataHeaderExtentStore = UseMemoryExtentStore();
+        createRequest.ExtentStore = UseMemoryExtentStore();
 
         auto store = co_await storeFactory->Create(
             createRequest);
@@ -284,10 +275,7 @@ TEST_F(ProtoStoreTests, Open_fails_on_uncreated_store)
         auto storeFactory = MakeProtoStoreFactory();
         OpenProtoStoreRequest openRequest;
 
-        openRequest.HeaderExtentStore = UseMemoryExtentStore();
-        openRequest.LogExtentStore = UseMemoryExtentStore();
-        openRequest.DataExtentStore = UseMemoryExtentStore();
-        openRequest.DataHeaderExtentStore = UseMemoryExtentStore();
+        openRequest.ExtentStore = UseMemoryExtentStore();
 
         EXPECT_THROW(
             co_await storeFactory->Open(
@@ -936,8 +924,8 @@ TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
 
         auto store = co_await CreateStore(createRequest);
 
-        auto logMemoryStore = std::static_pointer_cast<MemoryExtentStore>(
-            co_await createRequest.LogExtentStore());
+        auto memoryStore = std::static_pointer_cast<MemoryExtentStore>(
+            co_await createRequest.ExtentStore());
 
         auto index = co_await CreateTestIndex(
             store);
@@ -951,11 +939,11 @@ TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
 
         // Checkpoint twice to ensure old log is delete.
         co_await store->Checkpoint();
-        EXPECT_EQ(true, co_await logMemoryStore->ExtentExists(MakeLogExtentName(0)));
+        EXPECT_EQ(true, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
 
         co_await store->Checkpoint();
 
-        EXPECT_EQ(false, co_await logMemoryStore->ExtentExists(MakeLogExtentName(0)));
+        EXPECT_EQ(false, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
     });
 }
 
@@ -1305,10 +1293,7 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
     run_async([&]() -> task<>
     {
         CreateProtoStoreRequest createRequest;
-        createRequest.HeaderExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "header", 4096);
-        createRequest.LogExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "log", 4096);
-        createRequest.DataExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "data", 4096);
-        createRequest.DataHeaderExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "dataheader", 4096);
+        createRequest.ExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "Perf2", 4096);
         createRequest.Schedulers = Schedulers::Default();
 
 #ifdef NDEBUG
