@@ -1387,6 +1387,20 @@ task<> ProtoStore::LogCommitExtent(
     co_return;
 }
 
+task<> ProtoStore::LogDeleteExtent(
+    LogRecord& logRecord,
+    ExtentName extentName
+)
+{
+    *logRecord
+        .mutable_extras()
+        ->add_loggedactions()
+        ->mutable_loggeddeleteextent()
+        ->mutable_extentname() = move(extentName);
+
+    co_return;
+}
+
 Schedulers Schedulers::Default()
 {
     static shared_ptr<IScheduler> scheduler = std::make_shared<DefaultScheduler<cppcoro::static_thread_pool>>();

@@ -123,10 +123,15 @@ class ProtoStore
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
-    task<> LogCommitExtent(
+    virtual task<> LogCommitExtent(
         LogRecord& logRecord,
         ExtentName extentName
-    );
+    ) override;
+
+    virtual task<> ProtoStore::LogDeleteExtent(
+        LogRecord& logRecord,
+        ExtentName extentName
+    ) override;
 
     task<> Replay(
         ExtentName logExtent);

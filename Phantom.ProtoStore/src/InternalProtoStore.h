@@ -53,6 +53,11 @@ public:
         ExtentName extentName
     ) = 0;
 
+    virtual task<> LogDeleteExtent(
+        LogRecord& logRecord,
+        ExtentName extentName
+    ) = 0;
+
     virtual task<shared_ptr<IIndex>> GetIndex(
         google::protobuf::uint64 indexNumber
     ) = 0;

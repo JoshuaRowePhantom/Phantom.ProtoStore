@@ -73,7 +73,9 @@ task<> LogManager::Replay(
         }
         if (loggedAction.has_loggeddeleteextent())
         {
-            m_uncommittedExtentToLogExtentSequenceNumber.erase(loggedAction.loggeddeleteextent().extentname());
+            m_pendingDeleteExtents.emplace(
+                logExtentSequenceNumber,
+                loggedAction.loggeddeleteextent().extentname());
         }
         if (loggedAction.has_loggedcommitextent())
         {
@@ -299,10 +301,8 @@ task<task<>> LogManager::DelayedOpenNewLogWriter(
     co_return OpenNewLogWriter();
 }
 
-task<> LogManager::OpenNewLogWriter()
+task<> LogManager::DeleteExtents()
 {
-    auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
-
     for (auto logExtentSequenceNumberToRemove : m_logExtentSequenceNumbersToRemove)
     {
         auto extentNameToRemove = MakeLogExtentName(
@@ -313,6 +313,13 @@ task<> LogManager::OpenNewLogWriter()
     }
 
     m_logExtentSequenceNumbersToRemove.clear();
+}
+
+task<> LogManager::OpenNewLogWriter()
+{
+    auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
+
+    co_await DeleteExtents();
 
     m_currentLogExtentSequenceNumber = m_nextLogExtentSequenceNumber++;
     
