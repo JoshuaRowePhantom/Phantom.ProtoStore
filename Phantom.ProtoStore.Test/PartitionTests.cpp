@@ -222,9 +222,9 @@ protected:
 
         auto headerExtentName = MakeLogExtentName(0);
         auto dataExtentName = MakeLogExtentName(1);
-        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
-            headerExtentName);
         auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
+            headerExtentName);
+        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
             dataExtentName);
         PartitionTreeWriter partitionTreeWriter(dataWriter);
 
@@ -586,8 +586,8 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
         // This test writes a valid tree structure that _should_ find the message,
         // but a bloom filter that never hits.  Read() should therefore not find the message.
 
-        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(0));
-        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(1));
+        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(0));
+        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(1));
 
         PartitionMessage treeMessage;
         auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();

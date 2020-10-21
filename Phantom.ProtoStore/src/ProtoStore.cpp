@@ -1321,9 +1321,9 @@ task<> ProtoStore::OpenPartitionWriter(
         out_headerExtentName,
         out_dataExtentName);
 
-    auto dataWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
-        out_dataExtentName);
     auto headerWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
+        out_headerExtentName);
+    auto dataWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
         out_dataExtentName);
 
     out_partitionWriter = make_shared<PartitionWriter>(
