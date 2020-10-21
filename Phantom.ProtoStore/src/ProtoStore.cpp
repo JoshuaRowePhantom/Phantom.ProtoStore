@@ -56,6 +56,11 @@ task<> ProtoStore::Create(
     header.set_nextpartitionnumber(1);
     header.set_nextindexnumber(1000);
 
+    // Write both copies of the header,
+    // so that ordinary open operations don't get a range_error exception
+    // when reopening.
+    co_await m_headerAccessor->WriteHeader(
+        header);
     co_await m_headerAccessor->WriteHeader(
         header);
 
@@ -1008,8 +1013,8 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
         co_return m_activePartitions[headerExtentName];
     }
 
-    ExtentName dataExtentName;
-    *dataExtentName.mutable_indexdataextentname() = headerExtentName.indexheaderextentname();
+    auto dataExtentName = MakePartitionDataExtentName(
+        headerExtentName);
 
     auto partition = make_shared<Partition>(
         index->GetKeyComparer(),
@@ -1289,9 +1294,7 @@ task<> ProtoStore::AllocatePartitionExtents(
         partitionNumber,
         indexName);
     out_partitionDataExtentName = MakePartitionDataExtentName(
-        indexNumber,
-        partitionNumber,
-        indexName);
+        out_partitionHeaderExtentName);
 
     LogRecord logRecord;
     *logRecord.mutable_extras()
