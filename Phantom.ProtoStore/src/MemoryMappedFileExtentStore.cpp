@@ -642,6 +642,8 @@ std::string MemoryMappedFileExtentStore::GetFilename(
             << std::setfill('0')
             << extentName.indexdataextentname().indexnumber()
             << "_"
+            << GetSanitizedIndexName(extentName.indexdataextentname().indexname())
+            << "_"
             << std::setw(8)
             << extentName.indexdataextentname().partitionnumber()
             << ".dat";
@@ -652,6 +654,8 @@ std::string MemoryMappedFileExtentStore::GetFilename(
             << std::setw(8)
             << std::setfill('0')
             << extentName.indexheaderextentname().indexnumber()
+            << "_"
+            << GetSanitizedIndexName(extentName.indexheaderextentname().indexname())
             << "_"
             << std::setw(8)
             << extentName.indexheaderextentname().partitionnumber()
@@ -673,6 +677,27 @@ std::string MemoryMappedFileExtentStore::GetFilename(
     return result.str();
 }
 
+std::string MemoryMappedFileExtentStore::GetSanitizedIndexName(
+    const string& indexName)
+{
+    string result;
+    for (auto character : indexName)
+    {
+        if (character == ' '
+            || character == '_')
+        {
+            result.push_back('_');
+        }
+        else if (
+            character >= '0' && character <= '9'
+            || character >= 'a' && character <= 'z'
+            || character >= 'A' && character <= 'Z')
+        {
+            result.push_back(character);
+        }
+    }
+    return result;
+}
 
 task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
     std::filesystem::path path)

@@ -13,6 +13,9 @@ class MemoryMappedFileExtentStore
     std::string m_extentFilenameSuffix;
     uint64_t m_writeBlockSize;
 
+    std::string GetSanitizedIndexName(
+        const string& indexName);
+
     std::string GetFilename(
         ExtentName extentName);
 
