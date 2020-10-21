@@ -42,23 +42,25 @@ bool operator==(
 {
     return
         left.ExtentNameType_case() == right.ExtentNameType_case()
-        && left.has_databaseheaderextentname() ? (
-            left.databaseheaderextentname().headercopynumber() == right.databaseheaderextentname().headercopynumber()
-            )
-        : left.has_indexdataextentname() ? (
-            left.indexdataextentname().indexnumber() == right.indexdataextentname().indexnumber()
-            && left.indexdataextentname().partitionnumber() == right.indexdataextentname().partitionnumber()
-            && left.indexdataextentname().indexname() == right.indexdataextentname().indexname()
-            )
-        : left.has_indexheaderextentname() ? (
-            left.indexheaderextentname().indexnumber() == right.indexheaderextentname().indexnumber()
-            && left.indexheaderextentname().partitionnumber() == right.indexheaderextentname().partitionnumber()
-            && left.indexheaderextentname().indexname() == right.indexheaderextentname().indexname()
-            )
-        : left.has_logextentname() ? (
-            left.logextentname().logextentsequencenumber() == right.logextentname().logextentsequencenumber()
-            )
-        : true;
+        && (
+            left.has_databaseheaderextentname() ? (
+                left.databaseheaderextentname().headercopynumber() == right.databaseheaderextentname().headercopynumber()
+                )
+            : left.has_indexdataextentname() ? (
+                left.indexdataextentname().indexnumber() == right.indexdataextentname().indexnumber()
+                && left.indexdataextentname().partitionnumber() == right.indexdataextentname().partitionnumber()
+                && left.indexdataextentname().indexname() == right.indexdataextentname().indexname()
+                )
+            : left.has_indexheaderextentname() ? (
+                left.indexheaderextentname().indexnumber() == right.indexheaderextentname().indexnumber()
+                && left.indexheaderextentname().partitionnumber() == right.indexheaderextentname().partitionnumber()
+                && left.indexheaderextentname().indexname() == right.indexheaderextentname().indexname()
+                )
+            : left.has_logextentname() ? (
+                left.logextentname().logextentsequencenumber() == right.logextentname().logextentsequencenumber()
+                )
+            : true
+            );
 }
 
 ExtentName MakeDatabaseHeaderExtentName(

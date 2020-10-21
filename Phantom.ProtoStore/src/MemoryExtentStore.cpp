@@ -27,6 +27,9 @@ namespace Phantom::ProtoStore
             std::list<WriteOperation> m_pendingWriteOperations;
             Schedulers m_schedulers;
 
+            // This is here for debugging purposes.
+            ExtentName m_extentName;
+
             class ReadBuffer
                 :
                 public IReadBuffer
@@ -233,8 +236,10 @@ namespace Phantom::ProtoStore
 
         public:
             Extent(
+                ExtentName extentName,
                 Schedulers schedulers)
                 :
+                m_extentName(extentName),
                 m_schedulers(schedulers),
                 m_bytes(make_shared<vector<uint8_t>>())
             {}
@@ -257,6 +262,7 @@ namespace Phantom::ProtoStore
             }
 
             auto newExtent = make_shared<Extent>(
+                extentName,
                 m_schedulers);
             m_extents[extentName] = newExtent;
             co_return newExtent;

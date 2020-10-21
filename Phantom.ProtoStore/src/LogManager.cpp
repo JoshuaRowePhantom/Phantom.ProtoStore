@@ -194,8 +194,8 @@ task<WriteMessageResult> LogManager::WriteLogRecord(
         {
             auto writeLock = m_logExtentUsageLock.writer().scoped_lock_async();
 
-            ExtentName extentName;
-            extentName.mutable_logextentname()->set_logextentsequencenumber(m_currentLogExtentSequenceNumber);
+            auto extentName = MakeLogExtentName(
+                m_currentLogExtentSequenceNumber);
 
             co_await Replay(
                 extentName,
@@ -280,8 +280,7 @@ task<task<>> LogManager::DelayedOpenNewLogWriter(
     Header& header
 )
 {
-    ExtentName newExtentName;
-    newExtentName.mutable_logextentname()->set_logextentsequencenumber(
+    auto newExtentName = MakeLogExtentName(
         m_nextLogExtentSequenceNumber);
 
     m_existingLogExtentSequenceNumbers.insert(
@@ -306,21 +305,20 @@ task<> LogManager::OpenNewLogWriter()
 
     for (auto logExtentSequenceNumberToRemove : m_logExtentSequenceNumbersToRemove)
     {
-        ExtentName extentName;
-        extentName.mutable_logextentname()->set_logextentsequencenumber(
+        auto extentNameToRemove = MakeLogExtentName(
             logExtentSequenceNumberToRemove);
 
         co_await m_logExtentStore->DeleteExtent(
-            move(extentName));
+            move(extentNameToRemove));
     }
 
     m_logExtentSequenceNumbersToRemove.clear();
 
     m_currentLogExtentSequenceNumber = m_nextLogExtentSequenceNumber++;
     
-    ExtentName logExtentName;
-    logExtentName.mutable_logextentname()->set_logextentsequencenumber(
+    auto logExtentName = MakeLogExtentName(
         m_currentLogExtentSequenceNumber);
+
     m_logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
         logExtentName);
 
