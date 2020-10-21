@@ -31,7 +31,7 @@ public:
         string testName)
     {
         CreateProtoStoreRequest createRequest;
-        createRequest.ExtentStore = UseFilesystemStore(testName, "header", 4096);
+        createRequest.ExtentStore = UseFilesystemStore(testName, "test", 4096);
         createRequest.Schedulers = Schedulers::Inline();
 
         return createRequest;
