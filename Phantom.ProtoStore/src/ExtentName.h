@@ -18,15 +18,13 @@ ExtentName MakeDatabaseHeaderExtentName(
 ExtentName MakeLogExtentName(
     uint64_t logExtentSequenceNumber);
 
-ExtentName MakePartitionDataExtentName(
-    IndexNumber indexNumber,
-    PartitionNumber partitionNumber,
-    std::string indexName);
-
 ExtentName MakePartitionHeaderExtentName(
     IndexNumber indexNumber,
     PartitionNumber partitionNumber,
     std::string indexName);
+
+ExtentName MakePartitionDataExtentName(
+    ExtentName partitionHeaderExtentName);
 }
 
 namespace std

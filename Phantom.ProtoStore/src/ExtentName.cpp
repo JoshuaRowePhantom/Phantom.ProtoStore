@@ -80,15 +80,11 @@ ExtentName MakeLogExtentName(
 }
 
 ExtentName MakePartitionDataExtentName(
-    IndexNumber indexNumber,
-    PartitionNumber partitionNumber,
-    std::string indexName)
+    ExtentName partitionHeaderExtentName)
 {
-    ExtentName extentName;
-    extentName.mutable_indexdataextentname()->set_indexnumber(indexNumber);
-    extentName.mutable_indexdataextentname()->set_partitionnumber(partitionNumber);
-    extentName.mutable_indexdataextentname()->set_indexname(move(indexName));
-    return extentName;
+    auto indexExtentName = move(*partitionHeaderExtentName.mutable_indexheaderextentname());
+    *partitionHeaderExtentName.mutable_indexdataextentname() = move(indexExtentName);
+    return partitionHeaderExtentName;
 }
 
 ExtentName MakePartitionHeaderExtentName(

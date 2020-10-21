@@ -132,10 +132,6 @@ task<> IndexMerger::RestartIncompleteMerge(
 
         isCompleteMerge = writeRowsResult.resumptionRow == rowGenerator.end();
 
-        if (isCompleteMerge)
-        {
-        }
-
         co_await m_protoStore->InternalExecuteOperation(
             BeginTransactionRequest{},
             [&](auto operation) -> task<>
@@ -172,8 +168,6 @@ task<> IndexMerger::RestartIncompleteMerge(
                 co_await m_protoStore->UpdatePartitionsForIndex(
                     incompleteMerge.Merge.Key.indexnumber(),
                     updatePartitionsLock);
-
-                co_await operation->Commit();
             }
         });
     } while (!isCompleteMerge);
@@ -359,6 +353,21 @@ task<> IndexMerger::WriteMergeCompletion(
     // Mark the table as needing reload of its partitions.
     operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions()->set_indexnumber(
         incompleteMerge.Merge.Key.indexnumber());
+
+    // Mark all the old partitions' extents as deleted.
+    for (auto& headerExtentName : incompleteMerge.Merge.Value.sourceheaderextentnames())
+    {
+        co_await m_protoStore->LogDeleteExtent(
+            operation->LogRecord(),
+            headerExtentName);
+
+        auto dataExtentName = MakePartitionDataExtentName(
+            headerExtentName);
+
+        co_await m_protoStore->LogDeleteExtent(
+            operation->LogRecord(),
+            dataExtentName);
+    }
 }
 
 task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(

@@ -305,6 +305,14 @@ task<> LogManager::DeleteExtents()
 {
     for (auto logExtentSequenceNumberToRemove : m_logExtentSequenceNumbersToRemove)
     {
+        // Delete all the logged delete extents that go with that log.
+        while (auto pendingDelete = m_pendingDeleteExtents.extract(
+            logExtentSequenceNumberToRemove))
+        {
+            co_await m_logExtentStore->DeleteExtent(
+                pendingDelete.mapped());
+        }
+
         auto extentNameToRemove = MakeLogExtentName(
             logExtentSequenceNumberToRemove);
 
