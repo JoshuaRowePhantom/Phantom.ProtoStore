@@ -664,6 +664,9 @@ std::string MemoryMappedFileExtentStore::GetFilename(
             << "_"
             << std::setw(8)
             << extentName.indexheaderextentname().partitionnumber()
+            << "_"
+            << std::setw(8)
+            << extentName.indexheaderextentname().level()
             << ".part";
     }
     else if (extentName.has_logextentname())
@@ -764,11 +767,6 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
 {
     auto filename = GetFilename(
         extentName);
-
-    if (filename.find("test00000001___SystemIndexesByNumber_00000085.part") != string::npos)
-    {
-        ::__debugbreak();
-    }
 
     if (std::filesystem::exists(
         filename

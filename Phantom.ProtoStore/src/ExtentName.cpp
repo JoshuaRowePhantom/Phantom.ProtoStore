@@ -90,11 +90,13 @@ ExtentName MakePartitionDataExtentName(
 ExtentName MakePartitionHeaderExtentName(
     IndexNumber indexNumber,
     PartitionNumber partitionNumber,
+    LevelNumber levelNumber,
     std::string indexName)
 {
     ExtentName extentName;
     extentName.mutable_indexheaderextentname()->set_indexnumber(indexNumber);
     extentName.mutable_indexheaderextentname()->set_partitionnumber(partitionNumber);
+    extentName.mutable_indexheaderextentname()->set_level(levelNumber);
     extentName.mutable_indexheaderextentname()->set_indexname(move(indexName));
     return extentName;
 }

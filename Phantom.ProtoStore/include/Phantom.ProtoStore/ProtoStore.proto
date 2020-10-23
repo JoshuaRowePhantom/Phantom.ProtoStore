@@ -58,7 +58,8 @@ message DatabaseHeaderExtentName {
 message IndexExtentName {
 	uint64 PartitionNumber = 1;
 	uint64 IndexNumber = 2;
-	string IndexName = 3;
+	uint64 Level = 3;
+	string IndexName = 4;
 }
 
 message LogExtentName {

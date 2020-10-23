@@ -71,6 +71,7 @@ public:
     virtual task<> OpenPartitionWriter(
         IndexNumber indexNumber,
         IndexName indexName,
+        LevelNumber levelNumber,
         ExtentName& out_headerExtentName,
         ExtentName& out_dataExtentName,
         shared_ptr<IPartitionWriter>& out_partitionWriter

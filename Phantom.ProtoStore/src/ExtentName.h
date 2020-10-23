@@ -21,6 +21,7 @@ ExtentName MakeLogExtentName(
 ExtentName MakePartitionHeaderExtentName(
     IndexNumber indexNumber,
     PartitionNumber partitionNumber,
+    LevelNumber levelNumber,
     std::string indexName);
 
 ExtentName MakePartitionDataExtentName(

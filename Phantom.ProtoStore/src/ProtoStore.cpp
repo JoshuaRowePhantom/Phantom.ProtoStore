@@ -1072,6 +1072,7 @@ task<> ProtoStore::Checkpoint(
     co_await OpenPartitionWriter(
         indexEntry.IndexNumber,
         indexEntry.Index->GetIndexName(),
+        0,
         headerExtentName,
         dataExtentName,
         partitionWriter);
@@ -1252,6 +1253,7 @@ task<> ProtoStore::Join()
 task<> ProtoStore::AllocatePartitionExtents(
     IndexNumber indexNumber,
     IndexName indexName,
+    LevelNumber levelNumber,
     ExtentName& out_partitionHeaderExtentName,
     ExtentName& out_partitionDataExtentName)
 {
@@ -1260,6 +1262,7 @@ task<> ProtoStore::AllocatePartitionExtents(
     out_partitionHeaderExtentName = MakePartitionHeaderExtentName(
         indexNumber,
         partitionNumber,
+        levelNumber,
         indexName);
     out_partitionDataExtentName = MakePartitionDataExtentName(
         out_partitionHeaderExtentName);
@@ -1285,6 +1288,7 @@ task<> ProtoStore::AllocatePartitionExtents(
 task<> ProtoStore::OpenPartitionWriter(
     IndexNumber indexNumber,
     IndexName indexName,
+    LevelNumber levelNumber,
     ExtentName& out_headerExtentName,
     ExtentName& out_dataExtentName,
     shared_ptr<IPartitionWriter>& out_partitionWriter
@@ -1293,6 +1297,7 @@ task<> ProtoStore::OpenPartitionWriter(
     co_await AllocatePartitionExtents(
         indexNumber,
         indexName,
+        levelNumber,
         out_headerExtentName,
         out_dataExtentName);
 

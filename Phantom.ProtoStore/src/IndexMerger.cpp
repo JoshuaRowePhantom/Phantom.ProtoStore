@@ -116,6 +116,7 @@ task<> IndexMerger::RestartIncompleteMerge(
         co_await m_protoStore->OpenPartitionWriter(
             index->GetIndexNumber(),
             index->GetIndexName(),
+            incompleteMerge.Merge.Value.destinationlevelnumber(),
             headerExtentName,
             dataExtentName,
             partitionWriter);
