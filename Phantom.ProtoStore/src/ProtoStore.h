@@ -31,7 +31,8 @@ class ProtoStore
     const shared_ptr<IMessageStore> m_messageStore;
     const shared_ptr<IRandomMessageAccessor> m_messageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
-    
+    const MergeParameters m_defaultMergeParameters;
+
     std::set<IntegrityCheck> m_integrityChecks;
 
     std::optional<LogManager> m_logManager;
@@ -248,8 +249,8 @@ public:
         ) = delete;
 
     ProtoStore(
-        Schedulers schedulers,
-        shared_ptr<IExtentStore> headerStore);
+        const OpenProtoStoreRequest& openRequest,
+        shared_ptr<IExtentStore> extentStore);
 
     ~ProtoStore();
 

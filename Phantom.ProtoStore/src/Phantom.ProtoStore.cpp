@@ -30,5 +30,11 @@ bool ProtoValue::IsKeyMax() const
     return as_message_if() == &KeyMaxMessage;
 }
 
-
+OpenProtoStoreRequest::OpenProtoStoreRequest()
+{
+    DefaultMergeParameters.set_mergesperlevel(
+        10);
+    DefaultMergeParameters.set_maxlevel(
+        10);
+}
 }

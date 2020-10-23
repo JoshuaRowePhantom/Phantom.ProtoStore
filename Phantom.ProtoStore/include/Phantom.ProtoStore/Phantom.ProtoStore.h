@@ -713,6 +713,7 @@ struct OpenProtoStoreRequest
     std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
     Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;
+    MergeParameters DefaultMergeParameters;
 
     std::set<IntegrityCheck> IntegrityChecks = 
     {
@@ -720,6 +721,8 @@ struct OpenProtoStoreRequest
         IntegrityCheck::CheckPartitionOnOpen,
 #endif
     };
+
+    OpenProtoStoreRequest();
 };
 
 struct CreateProtoStoreRequest

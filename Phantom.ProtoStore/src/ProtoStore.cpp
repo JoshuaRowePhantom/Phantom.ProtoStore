@@ -23,12 +23,13 @@ namespace Phantom::ProtoStore
 {
 
 ProtoStore::ProtoStore(
-    Schedulers schedulers,
+    const OpenProtoStoreRequest& openRequest,
     shared_ptr<IExtentStore> extentStore
 )
     :
-    m_schedulers(schedulers),
+    m_schedulers(openRequest.Schedulers),
     m_extentStore(move(extentStore)),
+    m_defaultMergeParameters(openRequest.DefaultMergeParameters),
     m_messageStore(MakeMessageStore(m_schedulers, m_extentStore)),
     m_messageAccessor(MakeRandomMessageAccessor(m_messageStore)),
     m_headerAccessor(MakeHeaderAccessor(m_messageAccessor)),
@@ -1037,7 +1038,8 @@ task<> ProtoStore::InternalMerge()
         this,
         &mergeGenerator);
 
-    co_await merger.Merge();
+    co_await merger.Merge(
+        m_defaultMergeParameters);
     co_await merger.Join();
 }
 

@@ -180,10 +180,6 @@ message MergeProgressValue {
 	uint64 DataSize = 1;
 }
 
-message MergeParameters {
-	uint64 MergesPerLevel = 1;
-}
-
 message PartitionTreeEntryValue {
 	oneof PartitionTreeEntryValue {
 		// Set if this entry is an inline small value.

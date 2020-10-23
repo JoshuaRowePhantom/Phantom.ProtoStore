@@ -10,7 +10,7 @@ task<shared_ptr<IProtoStore>> ProtoStoreFactory::Open(
     auto extentStore = co_await openRequest.ExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
-        openRequest.Schedulers,
+        openRequest,
         extentStore);
 
     co_await protoStore->Open(
@@ -25,7 +25,7 @@ task<shared_ptr<IProtoStore>> ProtoStoreFactory::Create(
     auto extentStore = co_await createRequest.ExtentStore();
 
     auto protoStore = make_shared<ProtoStore>(
-        createRequest.Schedulers,
+        createRequest,
         extentStore);
 
     co_await protoStore->Create(

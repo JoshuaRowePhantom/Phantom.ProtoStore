@@ -29,9 +29,11 @@ IndexMerger::~IndexMerger()
     SyncDestroy();
 }
 
-task<> IndexMerger::Merge()
+task<> IndexMerger::Merge(
+    const MergeParameters& mergeParameters)
 {
-    co_await GenerateMerges();
+    co_await GenerateMerges(
+        mergeParameters);
 
     auto incompleteMerges = FindIncompleteMerges();
     vector<task<>> mergeTasks;
@@ -501,7 +503,8 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
     }
 }
 
-task<> IndexMerger::GenerateMerges()
+task<> IndexMerger::GenerateMerges(
+    const MergeParameters& mergeParameters)
 {
     map<IndexNumber, partition_row_list_type> partitionRowsByIndexNumber;
     map<IndexNumber, merges_row_list_type> mergesRowsByIndexNumber;
@@ -579,7 +582,7 @@ task<> IndexMerger::GenerateMerges()
         auto indexNumber = indexNumberAndPartitions.first;
         auto newMerges = m_mergeGenerator->GetMergeCandidates(
             indexNumber,
-            MergeParameters{},
+            mergeParameters,
             indexNumberAndPartitions.second,
             mergesRowsByIndexNumber[indexNumber]);
 

@@ -18,10 +18,8 @@ class IndexMerger
     IInternalProtoStore* const m_protoStore;
     IndexPartitionMergeGenerator* const m_mergeGenerator;
 
-    task<> GenerateMerges();
-
-    task<merges_row_list_type> AcquireMergeCandidates(
-        IOperation* operation);
+    task<> GenerateMerges(
+        const MergeParameters& mergeParameters);
 
     struct IncompleteMerge
     {
@@ -63,6 +61,7 @@ public:
 
     ~IndexMerger();
 
-    task<> Merge();
+    task<> Merge(
+        const MergeParameters& mergeParameters);
 };
 }

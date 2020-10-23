@@ -1,5 +1,6 @@
 #include "IndexPartitionMergeGenerator.h"
 #include <algorithm>
+#include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include "src/ProtoStoreInternal.pb.h"
 #include "ExtentName.h"
 #include <unordered_set>
@@ -35,11 +36,16 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
         }
 
         auto sourceLevel = partition.Value.level();
+        // Adjust the source level to be within the merge parameters max level
+        sourceLevel = std::min(
+            sourceLevel,
+            mergeParameters.maxlevel()
+        );
+
         auto& partitionsAtSourceLevel = partitionsBySourceLevel[sourceLevel];
         partitionsAtSourceLevel.push_back(
             partition);
     }
-
 
     merges_row_list_type merges;
     for (auto& partitionsAtSourceLevel : partitionsBySourceLevel)
@@ -68,8 +74,11 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             MergesValue mergesValue;
             mergesValue.set_sourcelevelnumber(
                 partitionsAtSourceLevel.first);
+
             mergesValue.set_destinationlevelnumber(
-                partitionsAtSourceLevel.first + 1);
+                std::min(
+                    mergeParameters.maxlevel(),
+                    partitionsAtSourceLevel.first + 1));
 
             optional<CheckpointNumber> checkpointNumber;
 

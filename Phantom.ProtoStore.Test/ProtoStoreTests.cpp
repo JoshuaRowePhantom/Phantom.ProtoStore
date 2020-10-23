@@ -602,6 +602,8 @@ TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
     run_async([&]() -> task<>
     {
         auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
+        createRequest.DefaultMergeParameters.set_mergesperlevel(2);
+        createRequest.DefaultMergeParameters.set_maxlevel(4);
         //auto createRequest = GetCreateMemoryStoreRequest();
         auto store = co_await CreateStore(createRequest);
 
@@ -612,7 +614,7 @@ TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
         auto keys = MakeRandomStrings(
             rng,
             20,
-            10);
+            100);
 
         for (auto key : keys)
         {
