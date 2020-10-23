@@ -53,9 +53,10 @@ public:
         ExtentName extentName
     ) = 0;
 
-    virtual task<> LogDeleteExtent(
+    virtual task<> LogDeleteExtentPendingPartitionsUpdated(
         LogRecord& logRecord,
-        ExtentName extentName
+        ExtentName extentName,
+        CheckpointNumber partitionsTableCheckpointNumber
     ) = 0;
 
     virtual task<shared_ptr<IIndex>> GetIndex(

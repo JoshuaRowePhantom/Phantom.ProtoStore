@@ -31,6 +31,11 @@ public:
         std::filesystem::path path
     );
 
+    task<shared_ptr<IReadableExtent>> OpenExtentForRead(
+        std::filesystem::path path,
+        ExtentName extentName
+    );
+
     virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(
         ExtentName extentName
     ) override;

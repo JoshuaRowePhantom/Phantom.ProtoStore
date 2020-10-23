@@ -333,25 +333,8 @@ namespace Phantom::ProtoStore
     task<shared_ptr<IWritableExtent>> MessageStore::OpenExtentForWrite(
         ExtentName extentName)
     {
-        shared_ptr<IWritableExtent> writableExtent;
-
-        co_await execute_conditional_read_unlikely_write_operation(
-            m_extentsLock,
-            *m_schedulers.LockScheduler,
-            [&](auto hasWriteLock) -> task<bool>
-        {
-            writableExtent = m_writableExtents[extentName];
-            co_return writableExtent != nullptr;
-        },
-            [&]() -> task<>
-        {
-            m_writableExtents[extentName]
-                = writableExtent 
-                = co_await m_extentStore->OpenExtentForWrite(
-                    extentName);
-        });
-
-        co_return writableExtent;
+        co_return co_await m_extentStore->OpenExtentForWrite(
+            extentName);
     }
 
     MessageStore::MessageStore(

@@ -33,7 +33,12 @@ class LogManager
     std::set<LogExtentSequenceNumber> m_logExtentSequenceNumbersToRemove;
     std::unordered_set<LogExtentUsage, LogExtentUsageHasher> m_logExtentUsage;
     std::unordered_map<ExtentName, LogExtentSequenceNumber> m_uncommittedExtentToLogExtentSequenceNumber;
-    std::multimap<LogExtentSequenceNumber, ExtentName> m_pendingDeleteExtents;
+    // For each log extent, maps the log extent sequence number to the lowest partitions data checkpoint number
+    // referenced by the log extent.
+    std::unordered_map<LogExtentSequenceNumber, CheckpointNumber> m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber;
+    // For each partitions table checkpoint number, records the extents to delete when
+    // that checkpoint number becomes the lowest available.
+    std::multimap<CheckpointNumber, ExtentName> m_partitionsCheckpointNumberToExtentsToDelete;
     optional<LogExtentSequenceNumber> m_partitionsDataLogExtentSequenceNumber;
     LoggedPartitionsData m_latestLoggedPartitionsData;
 

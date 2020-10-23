@@ -10,6 +10,7 @@
 #include "ExtentName.h"
 #include <cppcoro/when_all.hpp>
 #include <unordered_set>
+#include <algorithm>
 
 namespace Phantom::ProtoStore
 {
@@ -163,6 +164,8 @@ task<> IndexMerger::RestartIncompleteMerge(
                     incompleteMerge,
                     writeRowsResult);
 
+                // We have to commit the updated partitions rows before
+                // we can read them with UpdatePartitionsForIndex.
                 co_await operation->Commit();
 
                 co_await m_protoStore->UpdatePartitionsForIndex(
@@ -327,6 +330,8 @@ task<> IndexMerger::WriteMergeCompletion(
             &completePartitionsValue);
     }
 
+    CheckpointNumber partitionsTableCheckpointNumber;
+    
     // Add a Partitions row for the newly completed Partition.
     {
         PartitionsKey completePartitionsKey;
@@ -342,14 +347,21 @@ task<> IndexMerger::WriteMergeCompletion(
         completePartitionsValue.set_size(
             writeRowsResult.writtenDataSize
         );
+        completePartitionsValue.set_checkpointnumber(
+            incompleteMerge.Merge.Value.checkpointnumber());
 
         co_await operation->AddRow(
             WriteOperationMetadata{},
             partitionsIndex,
             &completePartitionsKey,
             &completePartitionsValue);
-    }
 
+        // This is magic.
+        // AddRow doesn't return anything, but we know it adds a row to the log record with a checkpoint number.
+        // We grab that value here so we can specify it as the time when the extents can be deleted.
+        partitionsTableCheckpointNumber = (operation->LogRecord().rows().end() - 1)->checkpointnumber();
+    }
+    
     // Mark the table as needing reload of its partitions.
     operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions()->set_indexnumber(
         incompleteMerge.Merge.Key.indexnumber());
@@ -357,16 +369,18 @@ task<> IndexMerger::WriteMergeCompletion(
     // Mark all the old partitions' extents as deleted.
     for (auto& headerExtentName : incompleteMerge.Merge.Value.sourceheaderextentnames())
     {
-        co_await m_protoStore->LogDeleteExtent(
+        co_await m_protoStore->LogDeleteExtentPendingPartitionsUpdated(
             operation->LogRecord(),
-            headerExtentName);
+            headerExtentName,
+            partitionsTableCheckpointNumber);
 
         auto dataExtentName = MakePartitionDataExtentName(
             headerExtentName);
 
-        co_await m_protoStore->LogDeleteExtent(
+        co_await m_protoStore->LogDeleteExtentPendingPartitionsUpdated(
             operation->LogRecord(),
-            dataExtentName);
+            dataExtentName,
+            partitionsTableCheckpointNumber);
     }
 }
 
@@ -377,6 +391,9 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
 {
     auto loggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
 
+    loggedPartitionsData->set_partitionstablecheckpointnumber(
+        std::numeric_limits<CheckpointNumber>::max());
+
     std::unordered_set<ExtentName> partitionHeaderExtentNames;
     auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
         incompleteMerge.Merge.Key.indexnumber());
@@ -385,6 +402,12 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
     {
         partitionHeaderExtentNames.insert(
             get<0>(existingPartition).headerextentname());
+
+        loggedPartitionsData->set_partitionstablecheckpointnumber(
+            std::max(
+                loggedPartitionsData->partitionstablecheckpointnumber(),
+                get<PartitionsValue>(existingPartition).checkpointnumber()
+            ));
     }
 
     for (auto sourcePartition : incompleteMerge.Merge.Value.sourceheaderextentnames())
@@ -513,6 +536,7 @@ task<> IndexMerger::GenerateMerges()
 
             partitionRowsByIndexNumber[indexNumber].push_back(
                 move(partitionRow));
+
         }
     }
 

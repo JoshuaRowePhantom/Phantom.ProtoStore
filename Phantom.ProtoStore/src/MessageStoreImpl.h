@@ -99,7 +99,6 @@ namespace Phantom::ProtoStore
         const shared_ptr<IExtentStore> m_extentStore;
         async_reader_writer_lock m_extentsLock;
         std::unordered_map<ExtentName, shared_ptr<IReadableExtent>> m_readableExtents;
-        std::unordered_map<ExtentName, shared_ptr<IWritableExtent>> m_writableExtents;
         shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(

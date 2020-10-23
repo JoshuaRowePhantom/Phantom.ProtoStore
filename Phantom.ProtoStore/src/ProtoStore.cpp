@@ -17,6 +17,7 @@
 #include <cppcoro/on_scope_exit.hpp>
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
+#include <algorithm>
 
 namespace Phantom::ProtoStore
 {
@@ -92,7 +93,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.IndexesByNumber",
-            0,
+            1,
             SequenceNumber::Earliest,
             IndexesByNumberKey::descriptor(),
             IndexesByNumberValue::descriptor());
@@ -111,7 +112,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.IndexesByName",
-            1,
+            2,
             SequenceNumber::Earliest,
             IndexesByNameKey::descriptor(),
             IndexesByNameValue::descriptor());
@@ -130,7 +131,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.Partitions",
-            2,
+            3,
             SequenceNumber::Earliest,
             PartitionsKey::descriptor(),
             PartitionsValue::descriptor());
@@ -149,7 +150,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.Merges",
-            3,
+            4,
             SequenceNumber::Earliest,
             MergesKey::descriptor(),
             MergesValue::descriptor());
@@ -168,7 +169,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.MergeProgress",
-            4,
+            5,
             SequenceNumber::Earliest,
             MergeProgressKey::descriptor(),
             MergeProgressValue::descriptor());
@@ -408,62 +409,13 @@ task<> ProtoStore::Replay(
 }
 
 task<> ProtoStore::Replay(
-    const LoggedCreateExtent& logRecord)
+    const LoggedCreatePartition& logRecord)
 {
-    if (logRecord.extentname().has_indexdataextentname()
-        && m_nextPartitionNumber.load() <= logRecord.extentname().indexdataextentname().partitionnumber())
+    if (m_nextPartitionNumber.load() <= logRecord.partitionnumber())
     {
         m_nextPartitionNumber.store(
-            logRecord.extentname().indexdataextentname().partitionnumber() + 1);
+            logRecord.partitionnumber() + 1);
     }
-
-    if (logRecord.extentname().has_indexdataextentname()
-        && m_nextPartitionNumber.load() <= logRecord.extentname().indexheaderextentname().partitionnumber())
-    {
-        m_nextPartitionNumber.store(
-            logRecord.extentname().indexheaderextentname().partitionnumber() + 1);
-    }
-
-    co_return;
-}
-
-task<> ProtoStore::Replay(
-    const LoggedCommitExtent& logRecord)
-{
-    if (logRecord.extentname().has_indexdataextentname()
-        && m_nextPartitionNumber.load() <= logRecord.extentname().indexdataextentname().partitionnumber())
-    {
-        m_nextPartitionNumber.store(
-            logRecord.extentname().indexdataextentname().partitionnumber() + 1);
-    }
-
-    if (logRecord.extentname().has_indexdataextentname()
-        && m_nextPartitionNumber.load() <= logRecord.extentname().indexheaderextentname().partitionnumber())
-    {
-        m_nextPartitionNumber.store(
-            logRecord.extentname().indexheaderextentname().partitionnumber() + 1);
-    }
-
-    co_return;
-}
-
-task<> ProtoStore::Replay(
-    const LoggedDeleteExtent& logRecord)
-{
-    if (logRecord.extentname().has_indexdataextentname()
-        && m_nextPartitionNumber.load() <= logRecord.extentname().indexdataextentname().partitionnumber())
-    {
-        m_nextPartitionNumber.store(
-            logRecord.extentname().indexdataextentname().partitionnumber() + 1);
-    }
-
-    if (logRecord.extentname().has_indexdataextentname()
-        && m_nextPartitionNumber.load() <= logRecord.extentname().indexheaderextentname().partitionnumber())
-    {
-        m_nextPartitionNumber.store(
-            logRecord.extentname().indexheaderextentname().partitionnumber() + 1);
-    }
-
     co_return;
 }
 
@@ -1148,10 +1100,25 @@ task<> ProtoStore::Checkpoint(
         auto addedLoggedCheckpoint = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
         auto addedLoggedUpdatePartitions = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();
 
+        auto highestCheckpointNumber = loggedCheckpoint.checkpointnumber(0);
+        for (auto checkpointIndex = 1; checkpointIndex < loggedCheckpoint.checkpointnumber_size(); checkpointIndex++)
+        {
+            highestCheckpointNumber =
+                std::max(
+                    highestCheckpointNumber,
+                    loggedCheckpoint.checkpointnumber(checkpointIndex)
+                );
+        }
+
         LoggedPartitionsData* addedLoggedPartitionsData = nullptr;
         if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
         {
             addedLoggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
+
+            // Set the checkpoint number of the added logged partitions data to be the greatest
+            // checkpoint number being written.
+            addedLoggedPartitionsData->set_partitionstablecheckpointnumber(
+                highestCheckpointNumber);
         }
 
         PartitionsKey partitionsKey;
@@ -1161,6 +1128,7 @@ task<> ProtoStore::Checkpoint(
         *partitionsValue.mutable_dataextentname() = dataExtentName;
         partitionsValue.set_size(writeRowsResult.writtenDataSize);
         partitionsValue.set_level(0);
+        partitionsValue.set_checkpointnumber(highestCheckpointNumber);
 
         {
             auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
@@ -1305,6 +1273,10 @@ task<> ProtoStore::AllocatePartitionExtents(
         ->add_loggedactions()
         ->mutable_loggedcreateextent()
         ->mutable_extentname() = out_partitionDataExtentName;
+    logRecord.mutable_extras()
+        ->add_loggedactions()
+        ->mutable_loggedcreatepartition()
+        ->set_partitionnumber(partitionNumber);
 
     co_await WriteLogRecord(
         logRecord);
@@ -1390,16 +1362,21 @@ task<> ProtoStore::LogCommitExtent(
     co_return;
 }
 
-task<> ProtoStore::LogDeleteExtent(
+task<> ProtoStore::LogDeleteExtentPendingPartitionsUpdated(
     LogRecord& logRecord,
-    ExtentName extentName
+    ExtentName extentName,
+    CheckpointNumber partitionsTableCheckpointNumber
 )
 {
-    *logRecord
+    auto loggedDeleteExtentPendingPartitionsUpdated = logRecord
         .mutable_extras()
         ->add_loggedactions()
-        ->mutable_loggeddeleteextent()
+        ->mutable_loggeddeleteextentpendingpartitionsupdated();
+
+    *loggedDeleteExtentPendingPartitionsUpdated
         ->mutable_extentname() = move(extentName);
+    loggedDeleteExtentPendingPartitionsUpdated->set_partitionstablecheckpointnumber(
+        partitionsTableCheckpointNumber);
 
     co_return;
 }

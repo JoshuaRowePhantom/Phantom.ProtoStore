@@ -71,11 +71,28 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             mergesValue.set_destinationlevelnumber(
                 partitionsAtSourceLevel.first + 1);
 
+            optional<CheckpointNumber> checkpointNumber;
+
             for (auto& partition : partitionsAtSourceLevel.second)
             {
                 *mergesValue.add_sourceheaderextentnames() = 
                     partition.Key.headerextentname();
+
+                if (!checkpointNumber)
+                {
+                    checkpointNumber = partition.Value.checkpointnumber();
+                }
+                else
+                {
+                    checkpointNumber = std::max(
+                        *checkpointNumber,
+                        partition.Value.checkpointnumber()
+                    );
+                }
             }
+
+            mergesValue.set_checkpointnumber(
+                *checkpointNumber);
 
             merges_row_type merge =
             {

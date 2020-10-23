@@ -21,12 +21,15 @@ class MemoryMappedReadableExtent
     public IReadableExtent
 {
     mapped_region m_mappedRegion;
-    
+    // This is here for debugging purposes.
+    ExtentName m_extentName;
+
     friend class MemoryMappedReadBuffer;
 
 public:
     MemoryMappedReadableExtent(
-        mapped_region mappedRegion
+        mapped_region mappedRegion,
+        ExtentName extentName
     );
 
     virtual task<pooled_ptr<IReadBuffer>> CreateReadBuffer(
@@ -199,9 +202,11 @@ public:
 };
 
 MemoryMappedReadableExtent::MemoryMappedReadableExtent(
-    mapped_region mappedRegion
+    mapped_region mappedRegion,
+    ExtentName extentName
 ) :
-    m_mappedRegion(move(mappedRegion))
+    m_mappedRegion(move(mappedRegion)),
+    m_extentName(move(extentName))
 {
 }
 
@@ -702,6 +707,15 @@ std::string MemoryMappedFileExtentStore::GetSanitizedIndexName(
 task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
     std::filesystem::path path)
 {
+    co_return co_await OpenExtentForRead(
+        path,
+        ExtentName());
+}
+
+task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
+    std::filesystem::path path,
+    ExtentName extentName)
+{
     if (std::filesystem::exists(path))
     {
         file_mapping fileMapping(
@@ -715,12 +729,14 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
         );
 
         co_return make_shared<MemoryMappedReadableExtent>(
-            move(mappedRegion)
+            move(mappedRegion),
+            move(extentName)
             );
     }
 
     co_return make_shared<MemoryMappedReadableExtent>(
-        mapped_region());
+        mapped_region(),
+        move(extentName));
 }
 
 task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
@@ -730,7 +746,8 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
         extentName);
 
     return OpenExtentForRead(
-        filename);
+        filename,
+        extentName);
 }
 
 task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrite(
@@ -748,13 +765,18 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
     auto filename = GetFilename(
         extentName);
 
+    if (filename.find("test00000001___SystemIndexesByNumber_00000085.part") != string::npos)
+    {
+        ::__debugbreak();
+    }
+
     if (std::filesystem::exists(
         filename
     ))
     {
         std::filesystem::rename(
             filename,
-            filename + ".deleted.dat");
+            filename + ".deleted");
     }
 
     //std::filesystem::remove(

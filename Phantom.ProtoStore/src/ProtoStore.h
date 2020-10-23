@@ -128,9 +128,10 @@ class ProtoStore
         ExtentName extentName
     ) override;
 
-    virtual task<> ProtoStore::LogDeleteExtent(
+    virtual task<> LogDeleteExtentPendingPartitionsUpdated(
         LogRecord& logRecord,
-        ExtentName extentName
+        ExtentName extentName,
+        CheckpointNumber partitionsTableCheckpointNumber
     ) override;
 
     task<> Replay(
@@ -152,13 +153,7 @@ class ProtoStore
         const LoggedCheckpoint& logRecord);
 
     task<> Replay(
-        const LoggedCommitExtent& logRecord);
-
-    task<> Replay(
-        const LoggedCreateExtent& logRecord);
-
-    task<> Replay(
-        const LoggedDeleteExtent& logRecord);
+        const LoggedCreatePartition& logRecord);
 
     task<> Replay(
         const LoggedPartitionsData& logRecord);
