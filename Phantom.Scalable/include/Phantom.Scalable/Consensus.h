@@ -84,6 +84,26 @@ public:
 };
 
 template<
+    typename TBallotNumber
+> class NumericBallotNumberFactory
+{
+public:
+    typedef TBallotNumber ballot_number_type;
+
+    ballot_number_type operator()() const 
+    {
+        return 0; 
+    }
+
+    ballot_number_type operator()(
+        ballot_number_type value
+        ) const
+    {
+        return value + 1;
+    }
+};
+
+template<
     typename TValue
 >
 concept AsyncProposer =

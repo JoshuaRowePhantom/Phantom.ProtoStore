@@ -30,4 +30,16 @@ TEST(VectorQuorumCheckerTests, Becomes_complete_at_required_number_of_distinct_a
     ASSERT_TRUE(vectorQuorumChecker);
 }
 
+TEST(NumericBallotNumberFactoryTests, DefaultIsZero)
+{
+    NumericBallotNumberFactory<int> factory;
+    ASSERT_EQ(0, factory());
+}
+
+TEST(NumericBallotNumberFactoryTests, Returns_next_higher_value)
+{
+    NumericBallotNumberFactory<int> factory;
+    ASSERT_EQ(1, factory(0));
+    ASSERT_EQ(2, factory(1));
+}
 }

@@ -23,10 +23,11 @@ get_target_property(
 add_executable(
 	Phantom.Scalable.Test
 	ConsensusTests.cpp
+	"PaxosTests.cpp"
 	"StandardIncludes.cpp"
 	"StandardIncludes.h"
 	${PROTOC_CPP}
-    ${PROTOC_H} "PaxosTests.cpp")
+    ${PROTOC_H})
 
 target_compile_definitions(
 	Phantom.Scalable.Test
