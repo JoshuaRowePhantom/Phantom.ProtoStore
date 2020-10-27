@@ -26,7 +26,7 @@ add_executable(
 	"StandardIncludes.cpp"
 	"StandardIncludes.h"
 	${PROTOC_CPP}
-    ${PROTOC_H})
+    ${PROTOC_H} "PaxosTests.cpp")
 
 target_compile_definitions(
 	Phantom.Scalable.Test

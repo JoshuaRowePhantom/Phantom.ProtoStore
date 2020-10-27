@@ -27,6 +27,31 @@ concept BallotNumber = requires (
     )
 {
     { b1 <=> b2 } -> std::convertible_to<std::strong_ordering>;
+    { b1 == b2 } -> std::convertible_to<bool>;
+    { b1 != b2 } -> std::convertible_to<bool>;
+    { b1 < b2 } -> std::convertible_to<bool>;
+    { b1 > b2 } -> std::convertible_to<bool>;
+    { b1 <= b2 } -> std::convertible_to<bool>;
+    { b1 >= b2 } -> std::convertible_to<bool>;
+};
+
+template<
+    typename TQuorumCheckerFactory,
+    typename TBallotNumber,
+    typename TQuorumChecker,
+    typename TMember
+>
+concept AsyncQuorumCheckerFactory =
+QuorumChecker<TQuorumChecker, TMember>
+&&
+BallotNumber<TBallotNumber>
+&&
+requires (
+    TQuorumCheckerFactory quorumCheckerFactory,
+    TBallotNumber ballotNumber
+    )
+{
+    { quorumCheckerFactory(ballotNumber) };
 };
 
 template<
@@ -58,6 +83,26 @@ public:
     operator bool() const;
 };
 
+template<
+    typename TValue
+>
+concept AsyncProposer =
+requires (TValue value)
+{
+    { Propose(value) };
+};
 
+template<
+    typename TValue,
+    template<typename> typename TFuture
+>
+class IAsyncProposer
+{
+public:
+    virtual TFuture<TValue> Propose(
+        TValue value
+    ) = 0;
 
+    virtual ~IAsyncProposer();
+};
 }
