@@ -74,6 +74,49 @@ TEST_F(PaxosTests, Learner_returns_already_learned_value)
     });
 }
 
+TEST_F(PaxosTests, Learner_returns_Nak_for_old_ballot)
+{
+    run_async([=]() -> cppcoro::task<>
+    {
+        paxos_type::LearnerState state;
+
+        paxos_type::StaticLearner learner(
+            CreateQuorumCheckerFactory(5, 3));
+
+        {
+            auto learnResult = co_await learner.Learn(
+                state,
+                0,
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world", 
+                }
+            );
+
+            EXPECT_EQ(std::monostate(), get<std::monostate>(learnResult.LearnedValue));
+        }
+
+        {
+            auto learnResult = co_await learner.Learn(
+                state,
+                0,
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                NakMessage
+                {
+                    .BallotNumber = 1,
+                    .MaxBallotNumber = 2,
+                }), 
+                get<NakMessage>(learnResult.LearnedValue));
+        }
+    });
+}
+
 TEST_F(PaxosTests, Learner_learns_when_quorum_commits_at_same_ballot_number)
 {
     run_async([=]() -> cppcoro::task<>

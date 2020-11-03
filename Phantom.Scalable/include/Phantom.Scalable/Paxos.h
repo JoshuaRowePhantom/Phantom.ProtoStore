@@ -53,6 +53,8 @@ public:
     {
         ballot_number_type BallotNumber;
         ballot_number_type MaxBallotNumber;
+
+        bool operator==(const NakMessage&) const = default;
     };
 };
 
