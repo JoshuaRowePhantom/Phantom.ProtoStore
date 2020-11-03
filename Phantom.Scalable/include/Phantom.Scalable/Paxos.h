@@ -58,32 +58,33 @@ public:
 
 template
 <
-    typename TBallotNumber,
-    typename TValue,
-    typename TQuorumChecker,
     typename TMember,
+    BallotNumber TBallotNumber,
+    typename TValue,
+    QuorumChecker<TMember> TQuorumChecker,
     template <typename> typename TFuture
 >
 class PaxosInterfaces
     : 
     public PaxosMessages<TBallotNumber, TValue>
 {
+public:
     typedef PaxosMessages<TBallotNumber, TValue> messages_type;
-    using messages_type::ballot_number_type;
-    using messages_type::value_type;
-    using messages_type::Phase1aMessage;
-    using messages_type::Phase1bMessage;
-    using messages_type::Phase1bVote;
-    using messages_type::Phase2aMessage;
-    using messages_type::Phase2bMessage;
-    using messages_type::NakMessage;
+    using typename messages_type::ballot_number_type;
+    using typename messages_type::value_type;
+    using typename messages_type::Phase1aMessage;
+    using typename messages_type::Phase1bMessage;
+    using typename messages_type::Phase1bVote;
+    using typename messages_type::Phase2aMessage;
+    using typename messages_type::Phase2bMessage;
+    using typename messages_type::NakMessage;
 
     typedef TQuorumChecker quorum_checker_type;
     typedef TMember member_type;
 
     struct LeaderState
     {
-        TValue Proposal;
+        value_type Proposal;
         std::optional<ballot_number_type> CurrentBallot;
         std::optional<ballot_number_type> MaxVotedBallotNumber;
         std::optional<quorum_checker_type> Phase1bQuorum;
@@ -173,22 +174,36 @@ class PaxosInterfaces
     {
         std::optional<value_type> Value;
         std::optional<ballot_number_type> MaxBallotNumber;
-        quorum_checker_type Quorum;
+        std::optional<quorum_checker_type> Quorum;
     };
 
     struct LearnedValue
     {
-        std::optional<value_type> Value;
+        value_type Value;
         bool IsNewlyLearned;
     };
 
     struct LearnResult
     {
         std::variant<
+            std::monostate,
             LearnedValue,
             NakMessage
         > LearnedValue;
+
+        bool has_value() const
+        {
+            return LearnedValue.index() == 1;
+        }
+
+        std::optional<value_type> value()
+        {
+            return has_value()
+                ? std::make_optional(get<1>(LearnedValue).Value)
+                : std::optional<value_type>();
+        }
     };
+
     class IAsyncLearner
     {
     public:
@@ -202,31 +217,33 @@ class PaxosInterfaces
 
 template
 <
+    typename TMember,
     typename TQuorumChecker,
     typename TQuorumCheckerFactory,
-    typename TMember,
-    typename TBallotNumber,
+    BallotNumber TBallotNumber,
     typename TBallotNumberFactory,
     typename TValue,
     template<typename> typename TFuture
 >
+requires
+QuorumCheckerFactory<TQuorumCheckerFactory, TBallotNumber, TQuorumChecker, TMember>
 class Paxos
     :
     public PaxosInterfaces
     <
+        TMember,
         TBallotNumber,
         TValue,
         TQuorumChecker,
-        TMember,
         TFuture
     >
 {
 public:
     typedef PaxosInterfaces<
+        TMember,
         TBallotNumber,
         TValue,
         TQuorumChecker,
-        TMember,
         TFuture
     > paxos_interfaces_type;
     typedef TQuorumCheckerFactory quorum_checker_factory_type;
@@ -455,7 +472,7 @@ public:
                 {
                     LearnedValue
                     {
-                        .Value = learnerState.Value,
+                        .Value = *learnerState.Value,
                         .IsNewlyLearned = false,
                     },
                 };
@@ -465,11 +482,11 @@ public:
             {
                 co_return LearnResult
                 {
-                    NakMessage
+                    .LearnedValue = NakMessage
                     {
                         .BallotNumber = phase2bMessage.BallotNumber,
-                        .MaxBallotNumber = learnerState.MaxBallotNumber,
-                    },
+                        .MaxBallotNumber = *learnerState.MaxBallotNumber
+                    }
                 };
             }
 
@@ -480,17 +497,18 @@ public:
                 learnerState.MaxBallotNumber = phase2bMessage.BallotNumber;
             }
 
+            assert(learnerState.Quorum);
             assert(!learnerState.Value);
             assert(phase2bMessage.BallotNumber == learnerState.MaxBallotNumber);
 
-            if (co_await as_awaitable(learnerState.Quorum += acceptor))
+            if (co_await as_awaitable(*learnerState.Quorum += acceptor))
             {
                 learnerState.Value = phase2bMessage.Value;
                 co_return LearnResult
                 {
                     LearnedValue
                     {
-                        .Value = learnerState.Value,
+                        .Value = *learnerState.Value,
                         .IsNewlyLearned = true,
                     },
                 };
@@ -498,11 +516,6 @@ public:
 
             co_return LearnResult
             {
-                LearnedValue
-                {
-                    .Value = learnerState.Value,
-                    .IsNewlyLearned = false,
-                },
             };
         }
     };

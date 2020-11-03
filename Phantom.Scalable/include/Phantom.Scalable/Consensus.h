@@ -41,7 +41,7 @@ template<
     typename TQuorumChecker,
     typename TMember
 >
-concept AsyncQuorumCheckerFactory =
+concept QuorumCheckerFactory =
 QuorumChecker<TQuorumChecker, TMember>
 &&
 BallotNumber<TBallotNumber>
