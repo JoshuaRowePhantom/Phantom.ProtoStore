@@ -32,6 +32,7 @@ class PaxosTests
 {
 public:
     using PaxosTestsBase::ballot_number_type;
+    using PaxosTestsBase::ballot_number_factory_type;
     using PaxosTestsBase::quorum_checker_type;
     using PaxosTestsBase::quorum_checker_factory_type;
     using PaxosTestsBase::value_type;
@@ -50,6 +51,11 @@ public:
         };
 
         return factory;
+    }
+
+    ballot_number_factory_type CreateBallotNumberFactory()
+    {
+        return ballot_number_factory_type();
     }
 };
 
@@ -797,6 +803,32 @@ TEST_F(PaxosTests, Acceptor_Phase2b_rejects_smaller_ballot_from_Phase2b)
                 }),
                 get<NakMessage>(phase2bResult.Phase2bResponseMessage));
 
+        }
+    });
+}
+
+TEST_F(PaxosTests, Leader_InitialPhase1a_sends_Phase1aMessage)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        LeaderState state;
+        StaticLeader leader(
+            CreateQuorumCheckerFactory(5, 3),
+            CreateBallotNumberFactory());
+
+        {
+            auto phase1aResult = co_await leader.Phase1a(
+                state,
+                "hello world");
+
+            //EXPECT_EQ((Phase1aResult
+            //    {
+            //        .Phase1aMessage = Phase1aMessage
+            //        {
+            //            .BallotNumber = 0,
+            //        }
+            //    }),
+            //    phase1aResult);
         }
     });
 }

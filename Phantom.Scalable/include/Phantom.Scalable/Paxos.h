@@ -23,6 +23,8 @@ public:
     struct Phase1aMessage
     {
         ballot_number_type BallotNumber;
+
+        bool operator==(const Phase1aMessage&) const = default;
     };
 
     struct Phase1bVote
@@ -101,6 +103,8 @@ public:
     struct Phase1aResult
     {
         Phase1aMessage Phase1aMessage;
+
+        bool operator==(const Phase1aResult&) const = default;
     };
 
     enum class Phase2aResultAction
@@ -278,18 +282,17 @@ public:
 
     typedef TQuorumCheckerFactory quorum_checker_factory_type;
 
-    class StaticAsyncLeader
+    class StaticLeader
     {
         quorum_checker_factory_type m_quorumCheckerFactory;
-        quorum_checker_factory_type m_ballotNumberFactory;
+        ballot_number_factory_type m_ballotNumberFactory;
 
     public:
-        StaticAsyncLeader(
+        StaticLeader(
             quorum_checker_factory_type quorumCheckerFactory,
             ballot_number_factory_type ballotNumberFactory
-        ) : m_quorumCheckerFactory(
-            quorumCheckerFactory
-        )
+        ) : m_quorumCheckerFactory(quorumCheckerFactory),
+            m_ballotNumberFactory(ballotNumberFactory)
         {}
 
         TFuture<Phase1aResult> Phase1a(
@@ -312,10 +315,20 @@ public:
             TValue value
         )
         {
-            leaderState.CurrentBallot = move(ballotNumber);
-            leaderState.Proposal = move(value);
-            leaderState.Phase1bQuorum = move(co_await as_awaitable(m_quorumFactory(
-                ballotNumber)));
+            leaderState.CurrentBallot = std::move(ballotNumber);
+            leaderState.Proposal = std::move(value);
+            leaderState.Phase1bQuorum = co_await as_awaitable(m_quorumCheckerFactory(
+                ballotNumber));
+
+            Phase1aResult result = 
+            {
+                .Phase1aMessage = Phase1aMessage
+                {
+                    .BallotNumber = *leaderState.CurrentBallot
+                }
+            };
+
+            co_return result;
         }
 
         TFuture<Phase2aResult> Phase2a(
