@@ -164,7 +164,9 @@ TEST_F(PaxosTests, Learner_learns_when_quorum_commits_at_same_ballot_number)
             );
 
             value_type learnedValue("hello world");
+            EXPECT_EQ(true, get<LearnedValue>(learnResult.LearnedValue).IsNewlyLearned);
             EXPECT_EQ(learnedValue, *learnResult.value());
+            EXPECT_EQ(learnedValue, state.Value);
         }
     });
 }
