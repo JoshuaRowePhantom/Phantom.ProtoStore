@@ -249,4 +249,555 @@ TEST_F(PaxosTests, Learner_resets_quorum_when_new_ballot_received)
         }
     });
 }
+
+TEST_F(PaxosTests, Acceptor_Phase1b_accepts_increasing_ballots_from_Phase1b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 1,
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 2
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 2,
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase1b_rejects_same_ballot_from_Phase1b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 1,
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                NakMessage
+                {
+                    .BallotNumber = 1,
+                    .MaxBallotNumber = 1,
+                }),
+                get<NakMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase1b_rejects_smaller_ballot_from_Phase1b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 2
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 2,
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                NakMessage
+                {
+                    .BallotNumber = 1,
+                    .MaxBallotNumber = 2,
+                }),
+                get<NakMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase1b_accepts_increasing_ballots_from_Phase2b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 2
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 2,
+                    .Phase1bVote = Phase1bVote
+                    {
+                        .VotedBallotNumber = 1,
+                        .VotedValue = "hello world",
+                    },
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase1b_rejects_same_ballot_from_Phase2b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                NakMessage
+                {
+                    .BallotNumber = 1,
+                    .MaxBallotNumber = 1,
+                }),
+                get<NakMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase1b_rejects_smaller_ballot_from_Phase2b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                NakMessage
+                {
+                    .BallotNumber = 1,
+                    .MaxBallotNumber = 2,
+                }),
+                get<NakMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+    });
+}
+
+
+TEST_F(PaxosTests, Acceptor_Phase2b_accepts_increasing_ballots_from_Phase1b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 1,
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase2b_accepts_same_ballot_from_Phase1b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 1
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 1,
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase2b_rejects_smaller_ballot_from_Phase1b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase1bResult = co_await acceptor.Phase1b(
+                state,
+                Phase1aMessage
+                {
+                    .BallotNumber = 2
+                }
+            );
+
+            EXPECT_EQ((
+                Phase1bMessage
+                {
+                    .BallotNumber = 2,
+                }),
+                get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+        }
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                NakMessage
+                {
+                    .BallotNumber = 1,
+                    .MaxBallotNumber = 2,
+                }),
+                get<NakMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase2b_accepts_increasing_ballots_from_Phase2b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase2b_accepts_same_ballot_from_Phase2b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+    });
+}
+
+TEST_F(PaxosTests, Acceptor_Phase2b_rejects_smaller_ballot_from_Phase2b)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        AcceptorState state;
+        StaticAcceptor acceptor;
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                Phase2bMessage
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }),
+                get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+        }
+
+        {
+            auto phase2bResult = co_await acceptor.Phase2b(
+                state,
+                Phase2aMessage
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ((
+                NakMessage
+                {
+                    .BallotNumber = 1,
+                    .MaxBallotNumber = 2,
+                }),
+                get<NakMessage>(phase2bResult.Phase2bResponseMessage));
+
+        }
+    });
+}
 }

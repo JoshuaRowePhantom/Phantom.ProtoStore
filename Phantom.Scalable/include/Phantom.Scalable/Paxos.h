@@ -29,12 +29,16 @@ public:
     {
         ballot_number_type VotedBallotNumber;
         value_type VotedValue;
+
+        bool operator==(const Phase1bVote&) const = default;
     };
 
     struct Phase1bMessage
     {
         ballot_number_type BallotNumber;
         std::optional<Phase1bVote> Phase1bVote;
+
+        bool operator==(const Phase1bMessage&) const = default;
     };
 
     struct Phase2aMessage
@@ -47,6 +51,8 @@ public:
     {
         ballot_number_type BallotNumber;
         value_type Value;
+
+        bool operator==(const Phase2bMessage&) const = default;
     };
 
     struct NakMessage
@@ -421,7 +427,7 @@ public:
             const Phase2aMessage& phase2aMessage
         )
         {
-            if (phase2aMessage.BallotNumber <= acceptorState.MaxBallotNumber)
+            if (phase2aMessage.BallotNumber < acceptorState.MaxBallotNumber)
             {
                 co_return Phase2bResult
                 {
@@ -433,6 +439,7 @@ public:
                 };
             }
 
+            acceptorState.MaxBallotNumber = phase2aMessage.BallotNumber;
             acceptorState.Vote = Phase1bVote
             {
                 .VotedBallotNumber = phase2aMessage.BallotNumber,
