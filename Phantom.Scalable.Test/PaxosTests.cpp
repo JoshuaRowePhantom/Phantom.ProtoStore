@@ -168,4 +168,83 @@ TEST_F(PaxosTests, Learner_learns_when_quorum_commits_at_same_ballot_number)
         }
     });
 }
+
+TEST_F(PaxosTests, Learner_resets_quorum_when_new_ballot_received)
+{
+    run_async([=]() -> cppcoro::task<>
+    {
+        paxos_type::LearnerState state;
+
+        paxos_type::StaticLearner learner(
+            CreateQuorumCheckerFactory(5, 3)
+        );
+
+        {
+            auto learnResult = co_await learner.Learn(
+                state,
+                0,
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ(std::nullopt, learnResult.value());
+        }
+
+        {
+            auto learnResult = co_await learner.Learn(
+                state,
+                1,
+                {
+                    .BallotNumber = 1,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ(std::nullopt, learnResult.value());
+        }
+
+        // This is a newer ballot, so should reset the quorum.
+        {
+            auto learnResult = co_await learner.Learn(
+                state,
+                2,
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ(std::nullopt, learnResult.value());
+        }
+
+        {
+            auto learnResult = co_await learner.Learn(
+                state,
+                0,
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }
+            );
+
+            EXPECT_EQ(std::nullopt, learnResult.value());
+        }
+
+        {
+            auto learnResult = co_await learner.Learn(
+                state,
+                1,
+                {
+                    .BallotNumber = 2,
+                    .Value = "hello world",
+                }
+            );
+
+            value_type learnedValue("hello world");
+            EXPECT_EQ(learnedValue, *learnResult.value());
+        }
+    });
+}
 }
