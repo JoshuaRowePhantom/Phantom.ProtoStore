@@ -821,15 +821,67 @@ TEST_F(PaxosTests, Leader_InitialPhase1a_sends_Phase1aMessage)
                 state,
                 "hello world");
 
-            //EXPECT_EQ((Phase1aResult
-            //    {
-            //        .Phase1aMessage = Phase1aMessage
-            //        {
-            //            .BallotNumber = 0,
-            //        }
-            //    }),
-            //    phase1aResult);
+            Phase1aResult expectedResult =
+            {
+                .Phase1aMessage = Phase1aMessage
+                {
+                    .BallotNumber = 0,
+                }
+            };
+
+            EXPECT_EQ(
+                expectedResult,
+                phase1aResult);
         }
     });
 }
+
+TEST_F(PaxosTests, Leader_NextPhase1a_sends_Phase1aMessage)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        LeaderState state;
+        StaticLeader leader(
+            CreateQuorumCheckerFactory(5, 3),
+            CreateBallotNumberFactory());
+
+        {
+            auto phase1aResult = co_await leader.Phase1a(
+                state,
+                "hello world");
+
+            Phase1aResult expectedResult =
+            {
+                .Phase1aMessage = Phase1aMessage
+                {
+                    .BallotNumber = 0,
+                }
+            };
+
+            EXPECT_EQ(
+                expectedResult,
+                phase1aResult);
+        }
+
+        {
+            auto phase1aResult = co_await leader.Phase1a(
+                state,
+                "hello world");
+
+            Phase1aResult expectedResult =
+            {
+                .Phase1aMessage = Phase1aMessage
+                {
+                    .BallotNumber = 1,
+                }
+            };
+
+            EXPECT_EQ(
+                expectedResult,
+                phase1aResult);
+        }    
+    });
+}
+
+
 }
