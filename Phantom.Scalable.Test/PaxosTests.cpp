@@ -883,5 +883,31 @@ TEST_F(PaxosTests, Leader_NextPhase1a_sends_Phase1aMessage)
     });
 }
 
+TEST_F(PaxosTests, Leader_Phase2a_ignores_wrong_BallotNumber)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        LeaderState state;
+        StaticLeader leader(
+            CreateQuorumCheckerFactory(1, 1),
+            CreateBallotNumberFactory());
 
+        auto phase1aResult = co_await leader.Phase1a(
+            state,
+            2,
+            "hello world"
+            );
+
+        auto phase2aResult = co_await leader.Phase2a(
+            state,
+            0,
+            Phase1bMessage
+            {
+                .BallotNumber = 1,
+            });
+
+        EXPECT_EQ(Phase2aResultAction::MismatchedBallot, phase2aResult.Action);
+        EXPECT_EQ(std::nullopt, phase2aResult.Phase2aMessage);
+    });
+}
 }

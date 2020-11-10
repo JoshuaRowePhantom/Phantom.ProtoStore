@@ -95,7 +95,7 @@ public:
     struct LeaderState
     {
         value_type Proposal;
-        std::optional<ballot_number_type> CurrentBallot;
+        std::optional<ballot_number_type> CurrentBallotNumber;
         std::optional<ballot_number_type> MaxVotedBallotNumber;
         std::optional<quorum_checker_type> Phase1bQuorum;
     };
@@ -112,6 +112,7 @@ public:
         MismatchedBallot,
         QuorumOverreached,
         QuorumNotReached,
+        QuorumReached,
     };
 
     struct Phase2aResult
@@ -302,8 +303,8 @@ public:
         {
             co_return co_await Phase1a(
                 leaderState,
-                leaderState.CurrentBallot 
-                    ? co_await as_awaitable(m_ballotNumberFactory(*leaderState.CurrentBallot))
+                leaderState.CurrentBallotNumber
+                    ? co_await as_awaitable(m_ballotNumberFactory(*leaderState.CurrentBallotNumber))
                     : co_await as_awaitable(m_ballotNumberFactory()),
                 move(value)
             );
@@ -315,7 +316,7 @@ public:
             TValue value
         )
         {
-            leaderState.CurrentBallot = std::move(ballotNumber);
+            leaderState.CurrentBallotNumber = std::move(ballotNumber);
             leaderState.Proposal = std::move(value);
             leaderState.Phase1bQuorum = co_await as_awaitable(m_quorumCheckerFactory(
                 ballotNumber));
@@ -324,7 +325,7 @@ public:
             {
                 .Phase1aMessage = Phase1aMessage
                 {
-                    .BallotNumber = *leaderState.CurrentBallot
+                    .BallotNumber = *leaderState.CurrentBallotNumber
                 }
             };
 
@@ -337,7 +338,7 @@ public:
             const Phase1bMessage& phase1bMessage
         )
         {
-            if (leaderState.BallotNumber != phase1bMessage.BallotNumber)
+            if (leaderState.CurrentBallotNumber != phase1bMessage.BallotNumber)
             {
                 co_return Phase2aResult
                 {
@@ -353,14 +354,14 @@ public:
                 };
             }
 
-            leaderState.Phase1bQuorum += member;
+            *leaderState.Phase1bQuorum += member;
 
-            if (phase1bMessage.Vote
+            if (phase1bMessage.Phase1bVote
                 &&
-                phase1bMessage.Vote->VotedBallotNumber > leaderState.MaxVotedBallotNumber)
+                phase1bMessage.Phase1bVote->VotedBallotNumber > leaderState.MaxVotedBallotNumber)
             {
-                leaderState.MaxVotedBallotNumber = phase1bMessage.Vote->VotedBallotNumber;
-                leaderState.Proposal = phase1bMessage.Vote->VotedValue;
+                leaderState.MaxVotedBallotNumber = phase1bMessage.Phase1bVote->VotedBallotNumber;
+                leaderState.Proposal = phase1bMessage.Phase1bVote->VotedValue;
             }
 
             if (!leaderState.Phase1bQuorum)
@@ -373,11 +374,11 @@ public:
 
             co_return Phase2aResult
             {
-                Phase2aResultAction::QuorumReached,
-                Phase2aMessage
+                .Action = Phase2aResultAction::QuorumReached,
+                .Phase2aMessage = Phase2aMessage
                 {
-                    .BallotNumber = leaderState.BallotNumber,
-                    .Value = leaderState.Value,
+                    .BallotNumber = *leaderState.CurrentBallotNumber,
+                    .Value = leaderState.Proposal
                 },
             };
         }
