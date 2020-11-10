@@ -883,7 +883,7 @@ TEST_F(PaxosTests, Leader_NextPhase1a_sends_Phase1aMessage)
     });
 }
 
-TEST_F(PaxosTests, Leader_Phase2a_ignores_wrong_BallotNumber)
+TEST_F(PaxosTests, Leader_Phase2a_ignores_smaller_BallotNumber)
 {
     run_async([=]()->cppcoro::task<>
     {
@@ -910,4 +910,198 @@ TEST_F(PaxosTests, Leader_Phase2a_ignores_wrong_BallotNumber)
         EXPECT_EQ(std::nullopt, phase2aResult.Phase2aMessage);
     });
 }
+
+TEST_F(PaxosTests, Leader_Phase2a_ignores_larger_BallotNumber)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        LeaderState state;
+        StaticLeader leader(
+            CreateQuorumCheckerFactory(1, 1),
+            CreateBallotNumberFactory());
+
+        auto phase1aResult = co_await leader.Phase1a(
+            state,
+            2,
+            "hello world"
+        );
+
+        auto phase2aResult = co_await leader.Phase2a(
+            state,
+            0,
+            Phase1bMessage
+            {
+                .BallotNumber = 3,
+            });
+
+        EXPECT_EQ(Phase2aResultAction::MismatchedBallot, phase2aResult.Action);
+        EXPECT_EQ(std::nullopt, phase2aResult.Phase2aMessage);
+    });
+}
+
+TEST_F(PaxosTests, Leader_Phase2a_ignores_Phase1b_after_quorum_reached)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        LeaderState state;
+        StaticLeader leader(
+            CreateQuorumCheckerFactory(2, 1),
+            CreateBallotNumberFactory());
+
+        auto phase1aResult = co_await leader.Phase1a(
+            state,
+            2,
+            "hello world"
+        );
+
+        {
+            auto phase2aResult = co_await leader.Phase2a(
+                state,
+                0,
+                Phase1bMessage
+                {
+                    .BallotNumber = 2,
+                });
+
+            EXPECT_EQ(Phase2aResultAction::QuorumReached, phase2aResult.Action);
+        }
+
+        {
+            auto phase2aResult = co_await leader.Phase2a(
+                state,
+                1,
+                Phase1bMessage
+                {
+                    .BallotNumber = 2,
+                });
+
+            EXPECT_EQ(Phase2aResultAction::QuorumOverreached, phase2aResult.Action);
+            EXPECT_EQ(std::nullopt, phase2aResult.Phase2aMessage);
+        }
+    });
+}
+
+TEST_F(PaxosTests, Leader_Phase2a_uses_original_proposal_if_no_votes)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        LeaderState state;
+        StaticLeader leader(
+            CreateQuorumCheckerFactory(2, 1),
+            CreateBallotNumberFactory());
+
+        auto phase1aResult = co_await leader.Phase1a(
+            state,
+            2,
+            "hello world"
+        );
+
+        {
+            auto phase2aResult = co_await leader.Phase2a(
+                state,
+                0,
+                Phase1bMessage
+                {
+                    .BallotNumber = 2,
+                });
+
+            EXPECT_EQ(Phase2aResultAction::QuorumReached, phase2aResult.Action);
+            EXPECT_EQ(
+                (Phase2aMessage
+                    {
+                        .BallotNumber = 2,
+                        .Value = "hello world",
+                    }),
+                    phase2aResult.Phase2aMessage);
+        }
+    });
+}
+
+TEST_F(PaxosTests, Leader_Phase2a_uses_latest_vote)
+{
+    run_async([=]()->cppcoro::task<>
+    {
+        LeaderState state;
+        StaticLeader leader(
+            CreateQuorumCheckerFactory(5, 4),
+            CreateBallotNumberFactory());
+
+        auto phase1aResult = co_await leader.Phase1a(
+            state,
+            5,
+            "hello world"
+        );
+
+        {
+            auto phase2aResult = co_await leader.Phase2a(
+                state,
+                0,
+                Phase1bMessage
+                {
+                    .BallotNumber = 5,
+                    .Phase1bVote = Phase1bVote
+                    {
+                        .VotedBallotNumber = 1,
+                        .VotedValue = "v1",
+                    }
+                    });
+
+            EXPECT_EQ(Phase2aResultAction::QuorumNotReached, phase2aResult.Action);
+        }
+
+        {
+            auto phase2aResult = co_await leader.Phase2a(
+                state,
+                1,
+                Phase1bMessage
+                {
+                    .BallotNumber = 5,
+                    .Phase1bVote = Phase1bVote
+                    {
+                        .VotedBallotNumber = 4,
+                        .VotedValue = "v4",
+                    }
+                });
+
+            EXPECT_EQ(Phase2aResultAction::QuorumNotReached, phase2aResult.Action);
+        }
+
+        {
+            auto phase2aResult = co_await leader.Phase2a(
+                state,
+                2,
+                Phase1bMessage
+                {
+                    .BallotNumber = 5,
+                    .Phase1bVote = Phase1bVote
+                    {
+                        .VotedBallotNumber = 3,
+                        .VotedValue = "v3",
+                    }
+                });
+
+            EXPECT_EQ(Phase2aResultAction::QuorumNotReached, phase2aResult.Action);
+        }
+
+        {
+            auto phase2aResult = co_await leader.Phase2a(
+                state,
+                3,
+                Phase1bMessage
+                {
+                    .BallotNumber = 5,
+                });
+
+            EXPECT_EQ(Phase2aResultAction::QuorumReached, phase2aResult.Action);
+            EXPECT_EQ(
+                (Phase2aMessage
+                    {
+                        .BallotNumber = 5,
+                        .Value = "v4",
+                    }),
+                    phase2aResult.Phase2aMessage);
+        }
+    });
+}
+
 }

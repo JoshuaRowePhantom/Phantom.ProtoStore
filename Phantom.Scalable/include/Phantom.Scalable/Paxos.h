@@ -47,6 +47,8 @@ public:
     {
         ballot_number_type BallotNumber;
         value_type Value;
+
+        bool operator==(const Phase2aMessage&) const = default;
     };
 
     struct Phase2bMessage
@@ -346,7 +348,7 @@ public:
                 };
             }
 
-            if (leaderState.Phase1bQuorum)
+            if (*leaderState.Phase1bQuorum)
             {
                 co_return Phase2aResult
                 {
@@ -364,7 +366,7 @@ public:
                 leaderState.Proposal = phase1bMessage.Phase1bVote->VotedValue;
             }
 
-            if (!leaderState.Phase1bQuorum)
+            if (!*leaderState.Phase1bQuorum)
             {
                 co_return Phase2aResult
                 {
