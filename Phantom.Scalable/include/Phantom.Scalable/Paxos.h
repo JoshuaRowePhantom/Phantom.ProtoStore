@@ -246,11 +246,11 @@ class Paxos
     :
     public PaxosInterfaces
     <
-        TMember,
-        TBallotNumber,
-        TValue,
-        TQuorumChecker,
-        TFuture
+    TMember,
+    TBallotNumber,
+    TValue,
+    TQuorumChecker,
+    TFuture
     >
 {
 public:
@@ -306,8 +306,8 @@ public:
             co_return co_await Phase1a(
                 leaderState,
                 leaderState.CurrentBallotNumber
-                    ? co_await as_awaitable(m_ballotNumberFactory(*leaderState.CurrentBallotNumber))
-                    : co_await as_awaitable(m_ballotNumberFactory()),
+                ? co_await as_awaitable(m_ballotNumberFactory(*leaderState.CurrentBallotNumber))
+                : co_await as_awaitable(m_ballotNumberFactory()),
                 move(value)
             );
         }
@@ -323,7 +323,7 @@ public:
             leaderState.Phase1bQuorum = co_await as_awaitable(m_quorumCheckerFactory(
                 ballotNumber));
 
-            Phase1aResult result = 
+            Phase1aResult result =
             {
                 .Phase1aMessage = Phase1aMessage
                 {
@@ -544,25 +544,158 @@ public:
             };
         }
     };
+};
 
-    class StaticProposer
+template<
+    typename TPaxos,
+    typename TMessageSender,
+    template <typename> typename TFuture
+> class StaticProposer
+        : public TPaxos
+{
+public:
+    typedef TPaxos paxos_type;
+    typedef TMessageSender message_sender_type;
+    using typename paxos_type::quorum_checker_factory_type;
+    using typename paxos_type::ballot_number_factory_type;
+    using typename paxos_type::member_type;
+    using typename paxos_type::value_type;
+    using typename paxos_type::NakMessage;
+    using typename paxos_type::Phase1aResult;
+    using typename paxos_type::Phase1bMessage;
+    using typename paxos_type::Phase2aResult;
+    using typename paxos_type::Phase2bMessage;
+private:
+    typename paxos_type::StaticLeader m_leader;
+    typename paxos_type::StaticLearner m_learner;
+    message_sender_type m_messageSender;
+
+public:
+
+    StaticProposer(
+        quorum_checker_factory_type quorumCheckerFactory,
+        ballot_number_factory_type ballotNumberFactory,
+        message_sender_type messageSender)
+        : m_leader(
+            quorumCheckerFactory,
+            ballotNumberFactory
+        ),
+        m_learner(
+            quorumCheckerFactory
+        ),
+        m_messageSender(
+            std::move(messageSender))
     {
-    public:
-        StaticProposer()
-        {}
+    }
 
-        TFuture<TValue> Propose(
-            TValue value)
+    TFuture<value_type> Propose(
+        value_type value)
+    {
+        typename paxos_type::LeaderState leaderState;
+        typename paxos_type::LearnerState learnerState;
+
+    StartPhase1a:
+        auto phase1aResult = co_await m_leader.Phase1a(
+            leaderState,
+            value);
+
+    SendPhase1a:
+        auto phase1bEnumeration = m_messageSender.SendPhase1a(
+            phase1aResult.Phase1aMessage
+        );
+
+        typename paxos_type::Phase2aMessage phase2aMessage;
+
+        for (
+            auto phase1bIterator = co_await as_awaitable(phase1bEnumeration.begin());
+            phase1bIterator != phase1bEnumeration.end();
+            co_await as_awaitable(++phase1bIterator))
         {
-        }
-    };
+            member_type member;
+            typename paxos_type::Phase1bResult phase1bResult;
 
-    //class Proposer
-    //    :
-    //    public virtual IAsyncProposer<TValue>,
-    //    public StaticProposer
-    //{
-    //};
+            tie(member, phase1bResult) = *phase1bIterator;
+
+            if (has<NakMessage>(phase1bResult.Phase1bResponseMessage))
+            {
+                auto nakResult = co_await m_leader.Nak(
+                    leaderState,
+                    get<NakMessage>(phase1bResult.Phase1bResponseMessage));
+
+                if (has<Phase1aResult>(nakResult.Phase1aResult))
+                {
+                    phase1aResult = get<Phase1aResult>(
+                        nakResult.Phase1aResult);
+                    goto SendPhase1a;
+                }
+            }
+
+            if (has<Phase1bMessage>(phase1bResult.Phase1bResponseMessage))
+            {
+                auto phase2aResult = co_await m_leader.Phase2a(
+                    leaderState,
+                    member,
+                    get<Phase1bMessage>(phase1bResult.Phase1bResponseMessage));
+
+                if (phase2aResult.Phase2aMessage)
+                {
+                    phase2aMessage = std::move(
+                        *phase2aResult.Phase2aMessage);
+
+                    goto SendPhase2a;
+                }
+            }
+        }
+        // If we reached here,
+        // no more messages are forthcoming, so start a new round of Paxos.
+        goto StartPhase1a;
+
+    SendPhase2a:
+        auto phase2bEnumeration = m_messageSender.SendPhase2a(
+            phase2aMessage);
+
+        for (
+            auto phase2bIterator = co_await as_awaitable(phase2bEnumeration.begin());
+            phase2bIterator != phase2bEnumeration.end();
+            co_await as_awaitable(++phase2bIterator)
+            )
+        {
+            member_type member;
+            typename paxos_type::Phase2bResult phase2bResult;
+
+            tie(member, phase2bResult) = *phase2bIterator;
+
+            if (has<NakMessage>(phase2bResult.Phase2bResponseMessage))
+            {
+                auto nakResult = co_await m_leader.Nak(
+                    leaderState,
+                    get<NakMessage>(phase2bResult.Phase2bResponseMessage));
+
+                if (has<Phase1aResult>(nakResult.Phase1aResult))
+                {
+                    phase1aResult = get<Phase1aResult>(
+                        nakResult.Phase1aResult);
+                    goto SendPhase1a;
+                }
+            }
+
+            if (has<Phase2bMessage>(phase2bResult.Phase2bResponseMessage))
+            {
+                auto learnResult = co_await m_learner.Learn(
+                    learnerState,
+                    member,
+                    get<Phase2bMessage>(phase2bResult.Phase2bResponseMessage));
+
+                if (learnResult.has_value())
+                {
+                    co_return *learnResult.value;
+                }
+            }
+        }
+        // If we reach here, no more Phase2b messages are forthcoming,
+        // so we have to start another round of Paxos.
+        goto StartPhase1a;
+    }
 };
 
 }
