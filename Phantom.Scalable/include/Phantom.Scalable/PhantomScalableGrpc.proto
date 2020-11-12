@@ -1,0 +1,105 @@
+syntax = "proto3";
+package Phantom.Scalable.Grpc;
+import "google/protobuf/any.proto";
+
+enum LockManagerSetOperationAction {
+    SetExisting = 0;
+    Create = 1;
+    Delete = 2;
+    DeleteExisting = 3;
+    CreateEphemeral = 4;
+};
+
+message LockManagerSetOperation {
+
+    string LockName = 1;
+    LockManagerSetOperationAction Action = 2;
+    bytes Content = 3;
+    uint64 Version = 4;
+}
+
+message LockManagerGetOperation {
+    string LockName = 1;
+}
+
+message LockManagerOperation {
+    oneof OperationType {
+        LockManagerSetOperation Set = 1;
+        LockManagerGetOperation Get = 2;
+    }
+}
+
+message LockManagerSetResult {
+    uint64 Version = 1;
+}
+
+message LockManagerContent {
+    uint64 Version = 1;
+    bytes Data = 2;
+}
+
+message LockManagerGetResult {
+    LockManagerContent Content = 1;
+}
+
+message LockManagerResult {
+    oneof OperationType {
+        LockManagerSetResult Set = 1;
+        LockManagerGetResult Get = 2;
+    }
+}
+
+message TransactionIdentifier {
+    string UniqueTransactionIdentifier = 1;
+}
+
+message ResourceManager {
+    string ResourceManagerName = 1;
+}
+
+message ScalablePerformOperation {
+    ResourceManager ResourceManager = 1;
+    oneof PayloadType {
+        google.protobuf.Any Payload = 2;
+        LockManagerOperation LockManagerPayload = 3;
+    }
+}
+
+message ScalablePerformRequest {
+    TransactionIdentifier TransactionIdentifier = 1;
+    repeated ScalablePerformOperation Operation = 2;
+}
+
+enum TransactionOutcome {
+    Succeeded = 0;
+    Failed = 1;
+}
+
+message ScalablePerformResult {
+    oneof PerformResultType {
+        google.protobuf.Any Payload = 1;
+        LockManagerResult LockManagerPayload = 2;
+    }
+}
+
+message ScalablePerformOutcome {
+    TransactionOutcome TransactionOutcome = 1;
+    repeated ScalablePerformResult Results = 2;
+}
+
+message ScalablePerformResponse {
+    oneof MessageType {
+        FaultMessage Fault = 1;
+        ScalablePerformOutcome Outcome = 2;
+    }
+}
+
+message FaultMessage {
+}
+
+service ScalableService {
+    rpc Perform(
+        ScalablePerformRequest)
+    returns (
+        ScalablePerformResponse);
+}

@@ -1,0 +1,82 @@
+syntax = "proto3";
+package Phantom.Scalable.Grpc.Internal;
+import "google/protobuf/any.proto";
+
+message PaxosBallotNumber {
+    uint64 EpochNumber = 1;
+    uint64 BallotNumber = 2;
+}
+
+message Phase1aMessage {
+    PaxosBallotNumber BallotNumber = 1;
+}
+
+message Phase2aMessage {
+}
+
+message LearnMessage {
+}
+
+message Phase1bMessage {
+}
+
+message Phase2bMessage {
+}
+
+message NakMessage {
+}
+
+message InternalOperation {
+    oneof PayloadType {
+        google.protobuf.Any Payload = 1;
+    }
+}
+
+message InternalOperationInformation {
+}
+
+message InternalResourceManager {
+    string ResourceManagerName = 1;
+}
+
+message InternalResource {
+    string ResourceName = 1;
+}
+
+message Participant {
+    InternalResourceManager ResourceManager = 1;
+    InternalResource Resource = 2;
+}
+
+message InternalOperationIdentifier {
+    string UniqueIdentifier = 1;
+    Participant Participant = 2;
+}
+
+message ScalablePaxosRequestMessage {
+    oneof MessageType {
+        Phase1aMessage Phase1a = 1;
+        Phase2aMessage Phase2a = 2;
+        LearnMessage Learn = 3;
+    }
+}
+
+message InternalFaultMessage {
+}
+
+message ScalablePaxosResponseMessage {
+    oneof MessageType {
+        InternalFaultMessage Fault = 1;
+        Phase1bMessage Phase1b = 2;
+        Phase2bMessage Phase2b = 3;
+        NakMessage Nak = 4;
+    }
+}
+
+service ScalablePeerToPeerService {
+    rpc ProcessPaxosMessage(
+        ScalablePaxosRequestMessage)
+    returns (
+        ScalablePaxosResponseMessage);
+}
+

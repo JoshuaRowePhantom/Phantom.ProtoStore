@@ -6,17 +6,17 @@ get_target_property(
     INCLUDE_DIRECTORIES
 )
 
-#phantom_protobuf_generate_cpp(
-#    PROTOC_CPP
-#    PROTOC_H
-#    IMPORTDIRECTORY
-#    include
-#    ${protobuf_INCLUDE_DIRECTORIES}
-#    ${CMAKE_CURRENT_SOURCE_DIR}
-#    PROTO
-##    Phantom.ProtoStore/ProtoStore.proto
-##    src/ProtoStoreInternal.proto
-#)
+phantom_protobuf_generate_cpp(
+    PROTOC_CPP
+    PROTOC_H
+    IMPORTDIRECTORY
+    include
+    ${protobuf_INCLUDE_DIRECTORIES}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    PROTO
+    Phantom.Scalable/PhantomScalableGrpc.proto
+    src/PhantomScalableGrpcInternal.proto
+)
 
 add_library (
     Phantom.Scalable 
