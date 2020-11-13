@@ -6,9 +6,9 @@ get_target_property(
     INCLUDE_DIRECTORIES
 )
 
-phantom_protobuf_generate_cpp(
-    PROTOC_CPP
-    PROTOC_H
+phantom_grpc_generate_cpp(
+    GRPC_CPP
+    GRPC_H
     IMPORTDIRECTORY
     include
     ${protobuf_INCLUDE_DIRECTORIES}
@@ -27,8 +27,9 @@ add_library (
     include/Phantom.Scalable/Paxos.h
     src/StandardIncludes.cpp
     src/StandardIncludes.h
-    ${PROTOC_CPP}
-    ${PROTOC_H} )
+    ${GRPC_CPP}
+    ${GRPC_H} 
+    )
     
     
 target_include_directories(
@@ -56,4 +57,5 @@ target_link_libraries(
     boost_crc
     boost_filesystem
     boost_interprocess
+    grpc
 )
