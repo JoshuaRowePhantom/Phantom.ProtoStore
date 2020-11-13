@@ -23,10 +23,4 @@ target_link_libraries(
 	cppcoro
 )
 
-target_include_directories(
-	Phantom.System.Test
-	PRIVATE
-	gtest
-)
-
 gtest_discover_tests(Phantom.System.Test)
