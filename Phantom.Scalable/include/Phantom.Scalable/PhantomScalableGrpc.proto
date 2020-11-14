@@ -77,8 +77,9 @@ enum TransactionOutcome {
 
 message ScalablePerformResult {
     oneof PerformResultType {
-        google.protobuf.Any Payload = 1;
-        LockManagerResult LockManagerPayload = 2;
+        Fault Fault = 1;
+        google.protobuf.Any Payload = 2;
+        LockManagerResult LockManagerPayload = 3;
     }
 }
 
@@ -89,12 +90,12 @@ message ScalablePerformOutcome {
 
 message ScalablePerformResponse {
     oneof MessageType {
-        FaultMessage Fault = 1;
+        Fault Fault = 1;
         ScalablePerformOutcome Outcome = 2;
     }
 }
 
-message FaultMessage {
+message Fault {
 }
 
 service ScalableService {

@@ -21,10 +21,19 @@ phantom_grpc_generate_cpp(
 add_library (
     Phantom.Scalable 
     STATIC
-    src/Consensus.cpp
     include/Phantom.Scalable/Consensus.h
-    src/Paxos.cpp
+    include/Phantom.Scalable/InternalLockResourceManager.h
+    include/Phantom.Scalable/InternalResourceManager.h
+    include/Phantom.Scalable/LockResourceManager.h
     include/Phantom.Scalable/Paxos.h
+    include/Phantom.Scalable/ResourceManager.h
+    include/Phantom.Scalable/StandardIncludes.h
+    src/Consensus.cpp
+    src/InternalLockResourceManager.cpp
+    src/InternalResourceManager.cpp
+    src/LockResourceManager.cpp
+    src/Paxos.cpp
+    src/ResourceManager.cpp
     src/StandardIncludes.cpp
     src/StandardIncludes.h
     ${GRPC_CPP}

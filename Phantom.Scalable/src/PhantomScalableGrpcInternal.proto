@@ -32,20 +32,27 @@ message InternalOperation {
     }
 }
 
+message InternalOperationResult {
+    oneof PayloadType {
+        google.protobuf.Any Payload = 1;
+        InternalFault Fault = 2;
+    }
+}
+
 message InternalOperationInformation {
 }
 
 message InternalResourceManager {
-    string ResourceManagerName = 1;
+    string InternalResourceManagerName = 1;
 }
 
 message InternalResource {
-    string ResourceName = 1;
+    string InternalResourceName = 1;
 }
 
 message Participant {
-    InternalResourceManager ResourceManager = 1;
-    InternalResource Resource = 2;
+    InternalResourceManager InternalResourceManager = 1;
+    InternalResource InternalResource = 2;
 }
 
 message InternalOperationIdentifier {
@@ -61,12 +68,12 @@ message ScalablePaxosRequestMessage {
     }
 }
 
-message InternalFaultMessage {
+message InternalFault {
 }
 
 message ScalablePaxosResponseMessage {
     oneof MessageType {
-        InternalFaultMessage Fault = 1;
+        InternalFault Fault = 1;
         Phase1bMessage Phase1b = 2;
         Phase2bMessage Phase2b = 3;
         NakMessage Nak = 4;
