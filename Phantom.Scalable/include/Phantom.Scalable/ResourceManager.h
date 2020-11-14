@@ -12,8 +12,6 @@ using namespace Phantom::Scalable::Grpc::Internal;
 class IResourceManagerPerformContext
 {
 public:
-    virtual ~IResourceManagerPerformContext();
-
     virtual shared_task<InternalOperationResult> AddOperation(
         const Grpc::Internal::InternalOperationIdentifier& internalOperationIdentifier,
         const Grpc::Internal::InternalOperation& internalOperation
