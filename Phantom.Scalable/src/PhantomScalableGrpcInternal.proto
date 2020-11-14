@@ -1,6 +1,7 @@
 syntax = "proto3";
 package Phantom.Scalable.Grpc.Internal;
 import "google/protobuf/any.proto";
+import "Phantom.Scalable/PhantomScalableGrpc.proto";
 
 message PaxosBallotNumber {
     uint64 EpochNumber = 1;
@@ -26,16 +27,30 @@ message Phase2bMessage {
 message NakMessage {
 }
 
+message InternalLockManagerOperation{
+    oneof PayloadType {
+        LockManagerOperation LockManagerOperation = 1;
+    }
+}
+
+message InternalLockManagerResult {
+    oneof PayloadType {
+        LockManagerResult LockManagerResult = 1;
+    }
+}
+
 message InternalOperation {
     oneof PayloadType {
         google.protobuf.Any Payload = 1;
+        InternalLockManagerOperation LockManagerPayload = 3;
     }
 }
 
 message InternalOperationResult {
     oneof PayloadType {
         google.protobuf.Any Payload = 1;
-        InternalFault Fault = 2;
+        Fault Fault = 2;
+        InternalLockManagerResult LockManagerPayload = 3;
     }
 }
 
@@ -68,12 +83,9 @@ message ScalablePaxosRequestMessage {
     }
 }
 
-message InternalFault {
-}
-
 message ScalablePaxosResponseMessage {
     oneof MessageType {
-        InternalFault Fault = 1;
+        Fault Fault = 1;
         Phase1bMessage Phase1b = 2;
         Phase2bMessage Phase2b = 3;
         NakMessage Nak = 4;

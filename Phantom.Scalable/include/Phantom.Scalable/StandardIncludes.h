@@ -10,6 +10,7 @@ namespace Phantom::Scalable
 {
 using cppcoro::task;
 using cppcoro::shared_task;
+using std::move;
 using std::shared_ptr;
 using std::unique_ptr;
 using google::protobuf::Any;
