@@ -47,10 +47,11 @@ message InternalOperation {
 }
 
 message InternalOperationResult {
+    TransactionOutcome TransactionOutcome = 1;
     oneof PayloadType {
-        google.protobuf.Any Payload = 1;
-        Fault Fault = 2;
-        InternalLockManagerResult LockManagerPayload = 3;
+        google.protobuf.Any Payload = 2;
+        Fault Fault = 3;
+        InternalLockManagerResult LockManagerPayload = 4;
     }
 }
 
@@ -99,3 +100,47 @@ service ScalablePeerToPeerService {
         ScalablePaxosResponseMessage);
 }
 
+message DataComponent {
+    oneof DataType {
+        string String = 1;
+        bytes Bytes = 2;
+        google.protobuf.Any Any = 3;
+        int64 Int64 = 4;
+    }
+}
+
+message DataComponentString {
+    repeated DataComponent Component = 1;
+}
+
+enum RelationshipType {
+    Transitive = 0;
+}
+
+message InternalOperationInterferenceRelationship {
+    RelationshipType RelationshipType = 1;
+    DataComponentString Relationship = 2;
+}
+
+message LockContentKey {
+    uint64 LockNumber = 1;
+    uint64 Version = 2;
+}
+
+message LockContentValue {
+    bytes Data = 1;
+}
+
+message LockMetadataKey {
+    string LockName = 1;
+}
+
+message MutableLockMetadata {
+    uint64 Version = 1;
+}
+
+message LockMetadataValue {
+    uint64 LockNumber = 1;
+    MutableLockMetadata Prepared = 2;
+    MutableLockMetadata Committed = 3;
+}
