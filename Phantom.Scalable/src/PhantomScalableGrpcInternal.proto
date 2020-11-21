@@ -41,7 +41,8 @@ message InternalLockManagerResult {
 
 message InternalOperation {
     oneof PayloadType {
-        google.protobuf.Any Payload = 1;
+        bool Unavailable = 1;
+        google.protobuf.Any Payload = 2;
         InternalLockManagerOperation LockManagerPayload = 3;
     }
 }
@@ -56,6 +57,16 @@ message InternalOperationResult {
 }
 
 message InternalOperationInformation {
+    InternalOperationIdentifier InternalOperationIdentifier = 1;
+    InternalOperation InternalOperation = 2;
+}
+
+message InternalTransactionIdentifier {
+    string UniqueIdentifier = 1;
+}
+
+message InternalTransactionInformation {
+    repeated InternalOperationIdentifier OperationIdentifiers = 1;
 }
 
 message InternalResourceManager {
@@ -63,7 +74,7 @@ message InternalResourceManager {
 }
 
 message InternalResource {
-    string InternalResourceName = 1;
+    DataComponentString InternalResourceName = 1;
 }
 
 message Participant {
