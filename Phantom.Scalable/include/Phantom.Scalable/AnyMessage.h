@@ -25,9 +25,12 @@ public:
 
     AnyMessage(
         const Any* any
-    )
+    ) : holder(new TMessage()),
+        value_(holder.get())
     {
-
+        auto unpackResult = any->UnpackTo(
+            holder.get());
+        assert(unpackResult);
     }
 
     const TMessage* value(
