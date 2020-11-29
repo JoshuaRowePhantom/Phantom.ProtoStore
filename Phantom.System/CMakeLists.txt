@@ -14,6 +14,7 @@ add_library (
 	"merge.h"
 	"pooled_ptr.h" 
 	"put_back.h"
+	"service_provider.h"
 	"single_pending_task.h"
 	"stable_random.h"
 	"ThreadingProvider.cpp"

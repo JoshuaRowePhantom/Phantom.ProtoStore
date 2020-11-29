@@ -10,6 +10,7 @@ add_executable(
 	"invoke_as_awaitable_tests.cpp"
 	"merge_tests.cpp"
 	"pooled_ptr_tests.cpp" 
+	"service_provider_tests.cpp" 
 	"single_pending_task_tests.cpp" 
 	"StandardIncludes.h"
 	"ThreadingTests.cpp"
