@@ -71,8 +71,6 @@ public:
 class IInternalResourceManager
 {
 public:
-    virtual ~IInternalResourceManager() = 0;
-
     /// <summary>
     /// An operation has been proposed.  The resource manager should describe
     /// any operation dependencies the new operation has.
@@ -104,4 +102,11 @@ public:
     ) = 0;
 };
 
+class IInternalResourceManagerSelector
+{
+public:
+    virtual task<shared_ptr<IInternalResourceManager>> GetInternalResourceManager(
+        Grpc::Internal::Participant participant
+    );
+};
 }

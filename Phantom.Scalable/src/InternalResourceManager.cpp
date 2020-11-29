@@ -3,7 +3,5 @@
 namespace Phantom::Scalable
 {
 
-IInternalResourceManager::~IInternalResourceManager()
-{}
 
 }

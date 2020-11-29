@@ -28,6 +28,7 @@ add_library (
     include/Phantom.Scalable/InternalLockResourceManagerDatabase.h
     include/Phantom.Scalable/InternalResourceManager.h
     include/Phantom.Scalable/InternalTransaction.h
+    include/Phantom.Scalable/InternalTransactionImpl.h
     include/Phantom.Scalable/LockResourceManager.h
     include/Phantom.Scalable/Paxos.h
     include/Phantom.Scalable/PeerToPeerService.h

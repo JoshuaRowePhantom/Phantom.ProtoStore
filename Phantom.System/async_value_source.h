@@ -21,7 +21,6 @@ class async_value_source
 {
     std::variant<std::exception_ptr, T> m_value;
     cppcoro::async_manual_reset_event m_complete;
-    cppcoro::shared_task<T&> m_task;
 
 public:
     async_value_source()
