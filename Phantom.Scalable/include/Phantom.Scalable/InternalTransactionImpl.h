@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Phantom.System/async_value_source.h"
+#include "Phantom.System/service_provider.h"
 #include "InternalTransaction.h"
 
 namespace Phantom::Scalable
@@ -8,12 +9,15 @@ namespace Phantom::Scalable
 
 class InternalTransactionOperation
 {
+    const InternalTransactionServiceProvider m_serviceProvider;
+    
     shared_task<const Grpc::Internal::InternalTransactionInformation&> m_internalTransactionInformation;
     shared_task<const Grpc::TransactionOutcome> m_internalTransactionOutcome;
     Grpc::Internal::InternalOperationInformation m_internalOperationInformation;
 
 public:
     InternalTransactionOperation(
+        InternalTransactionServiceProvider serviceProvider,
         shared_task<const Grpc::Internal::InternalTransactionInformation&> internalTransactionInformation,
         shared_task<Grpc::TransactionOutcome> internalTransactionOutcome,
         Grpc::Internal::InternalOperationInformation internalOperationInformation
@@ -29,6 +33,8 @@ class InternalTransaction
     :
     public IInternalTransactionBuilder
 {
+    const InternalTransactionServiceProvider m_serviceProvider;
+
     Grpc::Internal::InternalTransactionInformation m_internalTransactionInformation;
     cppcoro::async_manual_reset_event m_internalTransactionInformationComplete;
     shared_task<const Grpc::Internal::InternalTransactionInformation&> m_internalTransactionInformationTask;
@@ -48,6 +54,7 @@ class InternalTransaction
 
 public:
     InternalTransaction(
+        InternalTransactionServiceProvider serviceProvider,
         Grpc::Internal::InternalTransactionIdentifier internalTransactionIdentifier
     );
 

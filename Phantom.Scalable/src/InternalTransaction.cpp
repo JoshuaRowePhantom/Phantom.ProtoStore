@@ -12,6 +12,7 @@ shared_ptr<IInternalTransactionBuilder> TransactionFactory::CreateTransactionBui
 )
 {
     return make_shared<InternalTransaction>(
+        m_serviceProvider,
         internalTransactionIdentifier);
 }
 
@@ -39,8 +40,11 @@ shared_task<Grpc::TransactionOutcome> TransactionFactory::ResolveTransaction(
 };
 
 InternalTransaction::InternalTransaction(
+    InternalTransactionServiceProvider serviceProvider,
     Grpc::Internal::InternalTransactionIdentifier internalTransactionIdentifier
-) : m_internalTransactionInformationTask(
+) : m_serviceProvider(
+        serviceProvider),
+    m_internalTransactionInformationTask(
         WaitForInternalTransactionInformation()),
     m_internalTransactionOutcomeTask(
         WaitForTransactionOutcome())
@@ -85,6 +89,7 @@ InternalTransactionAddOperationResult InternalTransaction::AddOperation(
 )
 {
     auto& internalTransactionOperation = m_internalTransactionOperations.emplace_back(
+        m_serviceProvider,
         m_internalTransactionInformationTask,
         m_internalTransactionOutcomeTask,
         operationInformation);

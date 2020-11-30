@@ -6,6 +6,12 @@
 namespace Phantom::Scalable
 {
 
+class IInternalResourceManagerSelector;
+
+typedef service_provider<
+    IInternalResourceManagerSelector*
+> InternalTransactionServiceProvider;
+
 struct InternalTransactionAddOperationResult
 {
     shared_task<Grpc::Internal::InternalOperationResult> InternalOperationResult;
@@ -38,7 +44,12 @@ class TransactionFactory
     :
     public ITransactionFactory
 {
+    InternalTransactionServiceProvider m_serviceProvider;
 public:
+    TransactionFactory(
+        InternalTransactionServiceProvider serviceProvider
+    );
+
     virtual shared_ptr<IInternalTransactionBuilder> CreateTransactionBuilder(
         Grpc::Internal::InternalTransactionIdentifier internalTransactionIdentifier
     ) override;
