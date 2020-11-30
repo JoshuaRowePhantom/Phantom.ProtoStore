@@ -6,6 +6,11 @@
 namespace Phantom::Scalable
 {
 
+TransactionFactory::TransactionFactory(
+    InternalTransactionServiceProvider serviceProvider
+)
+    : m_serviceProvider(serviceProvider)
+{}
 
 shared_ptr<IInternalTransactionBuilder> TransactionFactory::CreateTransactionBuilder(
     Grpc::Internal::InternalTransactionIdentifier internalTransactionIdentifier
@@ -128,5 +133,6 @@ shared_task<Grpc::TransactionOutcome> InternalTransaction::Commit()
 
     co_return transactionOutcome;
 }
+
 
 }
