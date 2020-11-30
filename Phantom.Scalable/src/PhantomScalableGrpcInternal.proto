@@ -3,8 +3,12 @@ package Phantom.Scalable.Grpc.Internal;
 import "google/protobuf/any.proto";
 import "Phantom.Scalable/PhantomScalableGrpc.proto";
 
+message EpochNumber {
+    uint64 Value = 1;
+}
+
 message PaxosBallotNumber {
-    uint64 EpochNumber = 1;
+    EpochNumber EpochNumber = 1;
     uint64 BallotNumber = 2;
 }
 
@@ -58,6 +62,7 @@ message InternalOperationResult {
 message InternalOperationInformation {
     InternalOperationIdentifier InternalOperationIdentifier = 1;
     InternalOperation InternalOperation = 2;
+    InternalTransactionInformation InternalTransactionInformation = 3;
 }
 
 message InternalTransactionIdentifier {
@@ -66,7 +71,7 @@ message InternalTransactionIdentifier {
 
 message InternalTransactionInformation {
     InternalTransactionIdentifier InternalTransactionIdentifier = 1;
-    repeated InternalOperationIdentifier OperationIdentifiers = 2;
+    repeated InternalOperationTransactionParticipant Participants = 2;
 }
 
 message InternalResourceManager {
@@ -85,6 +90,19 @@ message Participant {
 message InternalOperationIdentifier {
     string UniqueIdentifier = 1;
     Participant Participant = 2;
+}
+
+message InternalOperationTransactionParticipant {
+    InternalOperationIdentifier OperationIdentifier = 1;
+    Participant Participant = 2;
+}
+
+message GetOperationInformationRequestMessage {
+    InternalOperationIdentifier InternalOperationIdentifier = 1;
+}
+
+message GetOperationInformationResponseMessage {
+    InternalOperationInformation InternalOperationInformation = 1;
 }
 
 message ScalablePaxosRequestMessage {
@@ -109,6 +127,11 @@ service ScalablePeerToPeerService {
         ScalablePaxosRequestMessage)
     returns (
         ScalablePaxosResponseMessage);
+
+    rpc GetOperationInformation(
+        GetOperationInformationRequestMessage)
+    returns (
+        GetOperationInformationResponseMessage);
 }
 
 message DataComponent {
@@ -154,4 +177,8 @@ message LockMetadataValue {
     uint64 LockNumber = 1;
     MutableLockMetadata Prepared = 2;
     MutableLockMetadata Committed = 3;
+}
+
+// This fault is sent when the recipient needs the full operation information.
+message NeedOperationInformationFault {
 }

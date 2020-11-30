@@ -114,3 +114,5 @@ service ScalableService {
         ScalablePerformResponse);
 }
 
+message Address {
+}

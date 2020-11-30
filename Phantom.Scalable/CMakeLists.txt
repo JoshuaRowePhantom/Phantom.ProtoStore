@@ -31,6 +31,7 @@ add_library (
     include/Phantom.Scalable/InternalTransactionImpl.h
     include/Phantom.Scalable/LockResourceManager.h
     include/Phantom.Scalable/Paxos.h
+    include/Phantom.Scalable/PeerToPeerClient.h
     include/Phantom.Scalable/PeerToPeerService.h
     include/Phantom.Scalable/ResourceManager.h
     include/Phantom.Scalable/StandardIncludes.h
@@ -41,6 +42,7 @@ add_library (
     src/InternalTransaction.cpp
     src/LockResourceManager.cpp
     src/Paxos.cpp
+    src/PeerToPeerClient.cpp
     src/PeerToPeerService.cpp
     src/ResourceManager.cpp
     src/StandardIncludes.cpp

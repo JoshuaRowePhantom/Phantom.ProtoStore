@@ -11,9 +11,21 @@ class InternalTransactionOperation
 {
     const InternalTransactionServiceProvider m_serviceProvider;
     
-    shared_task<const Grpc::Internal::InternalTransactionInformation&> m_internalTransactionInformation;
-    shared_task<const Grpc::TransactionOutcome> m_internalTransactionOutcome;
-    Grpc::Internal::InternalOperationInformation m_internalOperationInformation;
+    const shared_task<const Grpc::Internal::InternalTransactionInformation&> m_internalTransactionInformation;
+    const shared_task<Grpc::TransactionOutcome> m_internalTransactionOutcome;
+    
+    const Grpc::Internal::InternalOperationInformation m_partialInternalOperationInformation;
+    const shared_task<const Grpc::Internal::InternalOperationInformation*> m_fullInternalOperationInformation;
+    unique_ptr<Grpc::Internal::InternalOperationInformation> m_fullInternalOperationInformationHolder;
+
+    shared_task<Grpc::Internal::InternalOperationResult> Prepare();
+    shared_task<> NotifyCommitAbortDecision();
+
+    Grpc::Internal::InternalOperationInformation MakePartialInternalOperationInformation(
+        const Grpc::Internal::InternalOperationInformation& internalOperationInformation
+    );
+
+    shared_task<const Grpc::Internal::InternalOperationInformation*> GetFullInternalOperationInformation();
 
 public:
     InternalTransactionOperation(

@@ -28,10 +28,10 @@ shared_task<Grpc::TransactionOutcome> TransactionFactory::ResolveTransaction(
     auto transaction = CreateTransactionBuilder(
         move(*transactionInformation.mutable_internaltransactionidentifier()));
 
-    for (auto& operationIdentifier : *transactionInformation.mutable_operationidentifiers())
+    for (auto& participant : *transactionInformation.mutable_participants())
     {
         Grpc::Internal::InternalOperationInformation operationInformation;
-        *operationInformation.mutable_internaloperationidentifier() = move(operationIdentifier);
+        *operationInformation.mutable_internaloperationidentifier() = move(*participant.mutable_operationidentifier());
 
         // Note that we leave the internaloperation field clear.
 
@@ -134,5 +134,71 @@ shared_task<Grpc::TransactionOutcome> InternalTransaction::Commit()
     co_return transactionOutcome;
 }
 
+InternalTransactionOperation::InternalTransactionOperation(
+    InternalTransactionServiceProvider serviceProvider,
+    shared_task<const Grpc::Internal::InternalTransactionInformation&> internalTransactionInformation,
+    shared_task<Grpc::TransactionOutcome> internalTransactionOutcome,
+    Grpc::Internal::InternalOperationInformation internalOperationInformation
+)
+    : 
+    m_serviceProvider(
+        move(serviceProvider)),
+    m_internalTransactionInformation(
+        move(internalTransactionInformation)),
+    m_internalTransactionOutcome(
+        move(internalTransactionOutcome)),
+    m_partialInternalOperationInformation(
+        MakePartialInternalOperationInformation(
+            internalOperationInformation)),
+    m_fullInternalOperationInformation(
+        GetFullInternalOperationInformation())
+{
+    if (internalOperationInformation.has_internaloperation())
+    {
+        m_fullInternalOperationInformationHolder = std::make_unique<Grpc::Internal::InternalOperationInformation>(
+            move(internalOperationInformation));
+    }
+}
+
+Grpc::Internal::InternalOperationInformation InternalTransactionOperation::MakePartialInternalOperationInformation(
+    const Grpc::Internal::InternalOperationInformation& internalOperationInformation
+)
+{
+    Grpc::Internal::InternalOperationInformation partialInternalOperationInformation;
+    *partialInternalOperationInformation.mutable_internaloperationidentifier() = internalOperationInformation.internaloperationidentifier();
+    return partialInternalOperationInformation;
+}
+
+shared_task<const Grpc::Internal::InternalOperationInformation*> InternalTransactionOperation::GetFullInternalOperationInformation()
+{
+    while (!m_fullInternalOperationInformationHolder)
+    {
+        throw 0;
+    }
+
+    co_return m_fullInternalOperationInformationHolder.get();
+}
+
+void InternalTransactionOperation::Start(
+    shared_task<Grpc::Internal::InternalOperationResult>& operationPrepareResultTask,
+    shared_task<>& operationCompletionTask
+)
+{
+    operationPrepareResultTask = Prepare();
+    operationCompletionTask = NotifyCommitAbortDecision();
+}
+
+shared_task<Grpc::Internal::InternalOperationResult> InternalTransactionOperation::Prepare()
+{
+    throw 0;
+    //auto& transactionInformation = co_await m_internalTransactionInformation;
+
+    //throw 0;
+}
+
+shared_task<> InternalTransactionOperation::NotifyCommitAbortDecision()
+{
+    auto transactionOutcome = co_await m_internalTransactionOutcome;
+}
 
 }
