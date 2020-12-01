@@ -22,6 +22,7 @@ add_library (
     Phantom.Scalable 
     STATIC
     include/Phantom.Scalable/AnyMessage.h
+    include/Phantom.Scalable/BackgroundWorker.h
     include/Phantom.Scalable/Consensus.h
     include/Phantom.Scalable/DataComponentString.h
     include/Phantom.Scalable/InternalLockResourceManager.h
@@ -35,6 +36,7 @@ add_library (
     include/Phantom.Scalable/PeerToPeerService.h
     include/Phantom.Scalable/ResourceManager.h
     include/Phantom.Scalable/StandardIncludes.h
+    src/BackgroundWorker.cpp
     src/Consensus.cpp
     src/InternalLockResourceManager.cpp
     src/InternalLockResourceManagerDatabase.cpp
