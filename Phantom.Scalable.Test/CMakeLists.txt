@@ -23,9 +23,9 @@ get_target_property(
 add_executable(
 	Phantom.Scalable.Test
 	AnyMessageTests.cpp
-	BackgroundWorkerTests.cpp
 	ConsensusTests.cpp
 	"PaxosTests.cpp"
+	"SchedulingTests.cpp"
 	"StandardIncludes.cpp"
 	"StandardIncludes.h"
 	${PROTOC_CPP}

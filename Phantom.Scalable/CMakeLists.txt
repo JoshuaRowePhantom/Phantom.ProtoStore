@@ -22,7 +22,6 @@ add_library (
     Phantom.Scalable 
     STATIC
     include/Phantom.Scalable/AnyMessage.h
-    include/Phantom.Scalable/BackgroundWorker.h
     include/Phantom.Scalable/Consensus.h
     include/Phantom.Scalable/DataComponentString.h
     include/Phantom.Scalable/InternalLockResourceManager.h
@@ -31,12 +30,13 @@ add_library (
     include/Phantom.Scalable/InternalTransaction.h
     include/Phantom.Scalable/InternalTransactionImpl.h
     include/Phantom.Scalable/LockResourceManager.h
+    include/Phantom.Scalable/Memory.h
     include/Phantom.Scalable/Paxos.h
     include/Phantom.Scalable/PeerToPeerClient.h
     include/Phantom.Scalable/PeerToPeerService.h
     include/Phantom.Scalable/ResourceManager.h
+    include/Phantom.Scalable/Scheduling.h
     include/Phantom.Scalable/StandardIncludes.h
-    src/BackgroundWorker.cpp
     src/Consensus.cpp
     src/InternalLockResourceManager.cpp
     src/InternalLockResourceManagerDatabase.cpp
@@ -47,6 +47,7 @@ add_library (
     src/PeerToPeerClient.cpp
     src/PeerToPeerService.cpp
     src/ResourceManager.cpp
+    src/Scheduling.cpp
     src/StandardIncludes.cpp
     src/StandardIncludes.h
     ${GRPC_CPP}
