@@ -285,6 +285,8 @@ protected:
     {
         BackgroundWorkerImpl::spawn_no_holders(
             std::forward<TAwaitable>(awaitable),
+            // The shared_from_this implicitly keeps alive the m_joiner,
+            // which implicitly keeps alive m_joiner->m_worker
             static_cast<const TDerived*>(this)->shared_from_this(),
             std::forward<THolderVariables>(holderVariables)...);
     }
