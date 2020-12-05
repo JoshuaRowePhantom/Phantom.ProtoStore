@@ -16,9 +16,13 @@ shared_ptr<IInternalTransactionBuilder> TransactionFactory::CreateTransactionBui
     Grpc::Internal::InternalTransactionIdentifier internalTransactionIdentifier
 )
 {
-    return make_shared<InternalTransaction>(
+    auto result = make_shared<InternalTransaction>(
         m_serviceProvider,
         internalTransactionIdentifier);
+
+    spawn(result->join());
+
+    return result;
 }
 
 shared_task<Grpc::TransactionOutcome> TransactionFactory::ResolveTransaction(
@@ -93,25 +97,17 @@ InternalTransactionAddOperationResult InternalTransaction::AddOperation(
     Grpc::Internal::InternalOperationInformation operationInformation
 )
 {
-    auto& internalTransactionOperation = m_internalTransactionOperations.emplace_back(
+    auto& internalTransactionOperation = m_internalTransactionOperations.emplace_back(std::make_shared<InternalTransactionOperation>(
         m_serviceProvider,
         m_internalTransactionInformationTask,
         m_internalTransactionOutcomeTask,
-        operationInformation);
+        operationInformation));
 
-    shared_task<Grpc::Internal::InternalOperationResult> operationPrepareResultTask;
-    shared_task<> operationCompletionTask;
-
-    internalTransactionOperation.Start(
-        operationPrepareResultTask,
-        operationCompletionTask);
+    auto operationPrepareResultTask = internalTransactionOperation->Prepare();
 
     m_internalOperationPrepareOutcomeTasks.emplace_back(
         ToPrepareOutcome(
             operationPrepareResultTask));
-
-    m_internalOperationCompletionTasks.emplace_back(
-        std::move(operationCompletionTask));
 
     return
     {
@@ -125,13 +121,7 @@ shared_task<Grpc::TransactionOutcome> InternalTransaction::Commit()
     m_internalTransactionInformationComplete.set();
 
     // This causes all the prepare actions to complete and gives us the result of the transaction.
-    auto transactionOutcome = co_await m_internalTransactionOutcomeTask;
-
-    // This causes the commit / abort notifications to happen.
-    co_await cppcoro::when_all(
-        move(m_internalOperationCompletionTasks));
-
-    co_return transactionOutcome;
+    co_return co_await m_internalTransactionOutcomeTask;
 }
 
 InternalTransactionOperation::InternalTransactionOperation(
@@ -158,6 +148,8 @@ InternalTransactionOperation::InternalTransactionOperation(
         m_fullInternalOperationInformationHolder = std::make_unique<Grpc::Internal::InternalOperationInformation>(
             move(internalOperationInformation));
     }
+
+    m_prepareTask = DelayedPrepare();
 }
 
 Grpc::Internal::InternalOperationInformation InternalTransactionOperation::MakePartialInternalOperationInformation(
@@ -179,24 +171,21 @@ shared_task<const Grpc::Internal::InternalOperationInformation*> InternalTransac
     co_return m_fullInternalOperationInformationHolder.get();
 }
 
-void InternalTransactionOperation::Start(
-    shared_task<Grpc::Internal::InternalOperationResult>& operationPrepareResultTask,
-    shared_task<>& operationCompletionTask
-)
+shared_task<Grpc::Internal::InternalOperationResult> InternalTransactionOperation::DelayedPrepare()
 {
-    operationPrepareResultTask = Prepare();
-    operationCompletionTask = NotifyCommitAbortDecision();
+    spawn(
+        NotifyCommitAbortDecision());
+
+    throw 0;
+    co_return Grpc::Internal::InternalOperationResult{};
 }
 
 shared_task<Grpc::Internal::InternalOperationResult> InternalTransactionOperation::Prepare()
 {
-    throw 0;
-    //auto& transactionInformation = co_await m_internalTransactionInformation;
-
-    //throw 0;
+    return m_prepareTask;
 }
 
-shared_task<> InternalTransactionOperation::NotifyCommitAbortDecision()
+task<> InternalTransactionOperation::NotifyCommitAbortDecision()
 {
     auto transactionOutcome = co_await m_internalTransactionOutcome;
 }

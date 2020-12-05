@@ -8,6 +8,9 @@ namespace Phantom::Scalable
 {
 
 class InternalTransactionOperation
+    :
+    public BaseBackgoundWorker<InternalTransactionOperation>,
+    public std::enable_shared_from_this<InternalTransactionOperation>
 {
     const InternalTransactionServiceProvider m_serviceProvider;
     
@@ -17,15 +20,16 @@ class InternalTransactionOperation
     const Grpc::Internal::InternalOperationInformation m_partialInternalOperationInformation;
     const shared_task<const Grpc::Internal::InternalOperationInformation*> m_fullInternalOperationInformation;
     unique_ptr<Grpc::Internal::InternalOperationInformation> m_fullInternalOperationInformationHolder;
+    shared_task<Grpc::Internal::InternalOperationResult> m_prepareTask;
 
-    shared_task<Grpc::Internal::InternalOperationResult> Prepare();
-    shared_task<> NotifyCommitAbortDecision();
+    task<> NotifyCommitAbortDecision();
 
     Grpc::Internal::InternalOperationInformation MakePartialInternalOperationInformation(
         const Grpc::Internal::InternalOperationInformation& internalOperationInformation
     );
 
     shared_task<const Grpc::Internal::InternalOperationInformation*> GetFullInternalOperationInformation();
+    shared_task<Grpc::Internal::InternalOperationResult> DelayedPrepare();
 
 public:
     InternalTransactionOperation(
@@ -35,15 +39,14 @@ public:
         Grpc::Internal::InternalOperationInformation internalOperationInformation
     );
 
-    void Start(
-        shared_task<Grpc::Internal::InternalOperationResult>& operationPrepareResultTask,
-        shared_task<>& operationCompletionTask
-    );
+    shared_task<Grpc::Internal::InternalOperationResult> Prepare();
 };
 
 class InternalTransaction
     :
-    public IInternalTransactionBuilder
+    public IInternalTransactionBuilder,
+    public BaseBackgoundWorker<InternalTransaction>,
+    public std::enable_shared_from_this<InternalTransaction>
 {
     const InternalTransactionServiceProvider m_serviceProvider;
 
@@ -55,10 +58,8 @@ class InternalTransaction
     shared_task<Grpc::TransactionOutcome> m_internalTransactionOutcomeTask;
     shared_task<Grpc::TransactionOutcome> WaitForTransactionOutcome();
 
+    std::vector<shared_ptr<InternalTransactionOperation>> m_internalTransactionOperations;
     std::vector<task<Grpc::TransactionOutcome>> m_internalOperationPrepareOutcomeTasks;
-    std::vector<shared_task<>> m_internalOperationCompletionTasks;
-
-    std::vector<InternalTransactionOperation> m_internalTransactionOperations;
 
     task<Grpc::TransactionOutcome> ToPrepareOutcome(
         shared_task<Grpc::Internal::InternalOperationResult> operationResultTask

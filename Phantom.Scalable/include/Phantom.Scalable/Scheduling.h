@@ -4,6 +4,7 @@
 #include <any>
 #include <coroutine>
 #include <cppcoro/async_scope.hpp>
+#include <cppcoro/async_manual_reset_event.hpp>
 #include <cppcoro/shared_task.hpp>
 #include <cppcoro/sync_wait.hpp>
 
@@ -45,7 +46,6 @@ public:
             return m_scheduler->await_resume(
                 &m_value);
         }
-
     };
 
     virtual std::any create_schedule_operation_value(
@@ -125,13 +125,29 @@ public:
     }
 };
 
-class BackgroundWorker
+class IJoinable
 {
-    class WorkerImplementation
+public:
+    virtual cppcoro::shared_task<> join() = 0;
+};
+
+// A BackgroundWorker allows scheduling eager tasks while keeping alive
+// any objects needed to execute the task, including the BackgroundWorker
+// itself, while also providing a facility to wait for all tasks to complete.
+class BackgroundWorker
+    :
+    virtual public IJoinable
+{
+    template<
+        typename T
+    > friend class WorkerPromise;
+
+    class Worker
         :
-        public std::enable_shared_from_this<WorkerImplementation>
+        public std::enable_shared_from_this<Worker>
     {
-        cppcoro::async_scope m_asyncScope;
+        cppcoro::async_manual_reset_event m_completed;
+        cppcoro::async_scope m_workerAsyncScope;
         cppcoro::shared_task<> m_joinTask;
 
         template<
@@ -145,15 +161,25 @@ class BackgroundWorker
             co_await awaitable;
         }
 
-    public:
-        WorkerImplementation()
+        cppcoro::shared_task<> waitForCompleteAndJoin()
         {
-            m_joinTask = cppcoro::make_shared_task(
-                m_asyncScope.join());
+            co_await m_completed;
+            co_await m_workerAsyncScope.join();
         }
 
-        ~WorkerImplementation()
+    public:
+        Worker()
         {
+            m_joinTask = waitForCompleteAndJoin();
+        }
+
+        ~Worker()
+        {
+            complete();
+
+            // This will never wait.
+            // Unfortunately, we can't quite assert() it, because
+            // we don't eagerly start it anywhere else.
             cppcoro::sync_wait(
                 m_joinTask);
         }
@@ -166,13 +192,18 @@ class BackgroundWorker
             THolderVariables&&... holderVariables
         )
         {
-            m_asyncScope.spawn(
-                Run<TAwaitable>(
-                    shared_from_this(),
+            m_workerAsyncScope.spawn(
+                Run<TAwaitable, std::shared_ptr<Worker>, THolderVariables...>(
                     std::forward<TAwaitable>(awaitable),
+                    shared_from_this(),
                     std::forward<THolderVariables>(holderVariables)...
                     )
             );
+        }
+
+        void complete()
+        {
+            m_completed.set();
         }
 
         auto join()
@@ -181,13 +212,35 @@ class BackgroundWorker
         }
     };
 
-    std::shared_ptr<WorkerImplementation> m_workerImplementation;
+    class Joiner
+    {
+        std::shared_ptr<Worker> m_worker;
+    public:
+        Joiner(
+            std::shared_ptr<Worker> worker
+        ) : m_worker(
+            worker)
+        {}
+
+        ~Joiner()
+        {
+            m_worker->complete();
+        }
+
+        const std::shared_ptr<Worker>& worker()
+        {
+            return m_worker;
+        }
+    };
+
+    std::shared_ptr<Joiner> m_joiner;
 
 public:
     BackgroundWorker()
         :
-        m_workerImplementation(
-            std::make_shared<WorkerImplementation>())
+        m_joiner(
+            std::make_shared<Joiner>(
+                std::make_shared<Worker>()))
     {}
 
     template<
@@ -198,10 +251,40 @@ public:
         THolderVariables&&... holderVariables
     )
     {
-        m_workerImplementation->m_asyncScope.spawn(
+        m_joiner->worker()->spawn(
             std::forward<TAwaitable>(awaitable),
             std::forward<THolderVariables>(holderVariables)...);
     }
+
+    cppcoro::shared_task<> join() override
+    {
+        return m_joiner->worker()->join();
+    }
 };
 
+template<
+    typename TDerived
+> class BaseBackgoundWorker
+    :
+    private BackgroundWorker,
+    virtual public IJoinable
+{
+protected:
+    template<
+        typename TAwaitable,
+        typename... THolderVariables
+    > void spawn(
+        TAwaitable&& awaitable,
+        THolderVariables&&... holderVariables
+    )
+    {
+        BackgroundWorker::spawn(
+            std::forward<TAwaitable>(awaitable),
+            static_cast<const TDerived*>(this)->shared_from_this(),
+            std::forward<THolderVariables>(holderVariables)...);
+    }
+
+public:
+    using BackgroundWorker::join;
+};
 }

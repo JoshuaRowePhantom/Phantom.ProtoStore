@@ -11,7 +11,7 @@ template<
 {
 public:
     template<
-        typename TTarget
+        typename TTarget = T
     > std::shared_ptr<TTarget> shared_cast()
     {
         return std::shared_ptr<TTarget>(
@@ -19,7 +19,7 @@ public:
     }
 
     template<
-        typename TTarget
+        typename TTarget = T
     > std::shared_ptr<const TTarget> shared_cast() const
     {
         return std::shared_ptr<TTarget>(

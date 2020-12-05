@@ -2,6 +2,7 @@
 
 #include "StandardIncludes.h"
 #include "src/PhantomScalableGrpcInternal.grpc.pb.h"
+#include "Scheduling.h"
 
 namespace Phantom::Scalable
 {
@@ -18,6 +19,8 @@ struct InternalTransactionAddOperationResult
 };
 
 class IInternalTransactionBuilder
+    :
+    virtual public IJoinable
 {
 public:
     virtual InternalTransactionAddOperationResult AddOperation(
@@ -29,6 +32,8 @@ public:
 };
 
 class ITransactionFactory
+    :
+    virtual public IJoinable
 {
 public:
     virtual shared_ptr<IInternalTransactionBuilder> CreateTransactionBuilder(
@@ -42,7 +47,9 @@ public:
 
 class TransactionFactory
     :
-    public ITransactionFactory
+    public ITransactionFactory,
+    public BackgroundWorker,
+    public std::enable_shared_from_this<TransactionFactory>
 {
     InternalTransactionServiceProvider m_serviceProvider;
 public:
