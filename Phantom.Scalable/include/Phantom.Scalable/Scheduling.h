@@ -131,25 +131,27 @@ public:
     virtual cppcoro::shared_task<> join() = 0;
 };
 
-// A BackgroundWorker allows scheduling eager tasks while keeping alive
-// any objects needed to execute the task, including the BackgroundWorker
-// itself, while also providing a facility to wait for all tasks to complete.
-class BackgroundWorker
+class BackgroundWorkerImpl
     :
     virtual public IJoinable
 {
+    friend class BackgroundWorker;
     template<
         typename T
-    > friend class WorkerPromise;
+    > friend class BaseBackgoundWorker;
+
+    class Joiner;
 
     class Worker
         :
         public std::enable_shared_from_this<Worker>
     {
+        friend class Joiner;
+
         cppcoro::async_manual_reset_event m_completed;
         cppcoro::async_scope m_workerAsyncScope;
         cppcoro::shared_task<> m_joinTask;
-
+        
         template<
             typename TAwaitable,
             typename... THolderVariables
@@ -193,19 +195,20 @@ class BackgroundWorker
         )
         {
             m_workerAsyncScope.spawn(
-                Run<TAwaitable, std::shared_ptr<Worker>, THolderVariables...>(
+                Run<TAwaitable, THolderVariables...>(
                     std::forward<TAwaitable>(awaitable),
-                    shared_from_this(),
                     std::forward<THolderVariables>(holderVariables)...
                     )
             );
         }
 
+    protected:
         void complete()
         {
             m_completed.set();
         }
 
+    public:
         auto join()
         {
             return m_joinTask;
@@ -235,18 +238,10 @@ class BackgroundWorker
 
     std::shared_ptr<Joiner> m_joiner;
 
-public:
-    BackgroundWorker()
-        :
-        m_joiner(
-            std::make_shared<Joiner>(
-                std::make_shared<Worker>()))
-    {}
-
     template<
         typename TAwaitable,
         typename... THolderVariables
-    > void spawn(
+    > void spawn_no_holders(
         TAwaitable&& awaitable,
         THolderVariables&&... holderVariables
     )
@@ -256,18 +251,28 @@ public:
             std::forward<THolderVariables>(holderVariables)...);
     }
 
+public:
+    BackgroundWorkerImpl()
+        :
+        m_joiner(
+            std::make_shared<Joiner>(
+                std::make_shared<Worker>()))
+    {}
+
     cppcoro::shared_task<> join() override
     {
         return m_joiner->worker()->join();
     }
 };
 
+// A BackgroundWorker allows scheduling eager tasks while keeping alive
+// any objects needed to execute the task, including the dervied class of BaseBackgroundWorker
+// itself, while also providing a facility to wait for all tasks to complete.
 template<
     typename TDerived
 > class BaseBackgoundWorker
     :
-    private BackgroundWorker,
-    virtual public IJoinable
+    public BackgroundWorkerImpl
 {
 protected:
     template<
@@ -278,13 +283,34 @@ protected:
         THolderVariables&&... holderVariables
     )
     {
-        BackgroundWorker::spawn(
+        BackgroundWorkerImpl::spawn_no_holders(
             std::forward<TAwaitable>(awaitable),
             static_cast<const TDerived*>(this)->shared_from_this(),
             std::forward<THolderVariables>(holderVariables)...);
     }
+};
 
+// A BackgroundWorker allows scheduling eager tasks while keeping alive
+// any objects needed to execute the task, including the BackgroundWorker
+// itself, while also providing a facility to wait for all tasks to complete.
+class BackgroundWorker
+    :
+    public BackgroundWorkerImpl
+{
 public:
-    using BackgroundWorker::join;
+
+    template<
+        typename TAwaitable,
+        typename... THolderVariables
+    > void spawn(
+        TAwaitable&& awaitable,
+        THolderVariables&&... holderVariables
+    )
+    {
+        BackgroundWorkerImpl::spawn_no_holders(
+            std::forward<TAwaitable>(awaitable),
+            m_joiner->worker(),
+            std::forward<THolderVariables>(holderVariables)...);
+    }
 };
 }
