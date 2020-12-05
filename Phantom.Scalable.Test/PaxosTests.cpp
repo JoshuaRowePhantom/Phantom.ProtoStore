@@ -2,7 +2,7 @@
 #include "Phantom.Scalable/Paxos.h"
 #include <cppcoro/task.hpp>
 
-namespace Phantom::Consensus
+namespace Phantom::Consensus::Paxos
 {
 class PaxosTestsBase
 {
@@ -14,7 +14,7 @@ public:
     typedef NumericBallotNumberFactory<ballot_number_type> ballot_number_factory_type;
     typedef std::string value_type;
 
-    typedef Paxos<
+    typedef Paxos::StateMachines<
         member_type,
         quorum_checker_type,
         quorum_checker_factory_type,

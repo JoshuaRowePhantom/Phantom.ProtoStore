@@ -6,7 +6,7 @@
 #include <vector>
 #include "Phantom.Scalable/Consensus.h"
 
-namespace Phantom::Consensus
+namespace Phantom::Consensus::Paxos
 {
 
 template
@@ -14,7 +14,7 @@ template
     typename TBallotNumber,
     typename TValue
 >
-class PaxosMessages
+class Messages
 {
 public:
     typedef TBallotNumber ballot_number_type;
@@ -76,12 +76,12 @@ template
     QuorumChecker<TMember> TQuorumChecker,
     template <typename> typename TFuture
 >
-class PaxosInterfaces
+class StateMachineInterfaces
     : 
-    public PaxosMessages<TBallotNumber, TValue>
+    public Messages<TBallotNumber, TValue>
 {
 public:
-    typedef PaxosMessages<TBallotNumber, TValue> messages_type;
+    typedef Messages<TBallotNumber, TValue> messages_type;
     using typename messages_type::ballot_number_type;
     using typename messages_type::value_type;
     using typename messages_type::Phase1aMessage;
@@ -242,9 +242,9 @@ template
 >
 requires
 QuorumCheckerFactory<TQuorumCheckerFactory, TBallotNumber, TQuorumChecker, TMember>
-class Paxos
+class StateMachines
     :
-    public PaxosInterfaces
+    public StateMachineInterfaces
     <
     TMember,
     TBallotNumber,
@@ -254,7 +254,7 @@ class Paxos
     >
 {
 public:
-    typedef PaxosInterfaces<
+    typedef StateMachineInterfaces<
         TMember,
         TBallotNumber,
         TValue,
@@ -547,14 +547,14 @@ public:
 };
 
 template<
-    typename TPaxos,
+    typename TStateMachines,
     typename TMessageSender,
     template <typename> typename TFuture
 > class StaticProposer
-        : public TPaxos
+        : public TStateMachines
 {
 public:
-    typedef TPaxos paxos_type;
+    typedef TStateMachines paxos_type;
     typedef TMessageSender message_sender_type;
     using typename paxos_type::quorum_checker_factory_type;
     using typename paxos_type::ballot_number_factory_type;
