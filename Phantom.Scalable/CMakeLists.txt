@@ -24,6 +24,7 @@ add_library (
     include/Phantom.Scalable/AnyMessage.h
     include/Phantom.Scalable/Consensus.h
     include/Phantom.Scalable/DataComponentString.h
+    include/Phantom.Scalable/EgalitarianPaxos.h
     include/Phantom.Scalable/InternalLockResourceManager.h
     include/Phantom.Scalable/InternalLockResourceManagerDatabase.h
     include/Phantom.Scalable/InternalResourceManager.h
@@ -38,6 +39,7 @@ add_library (
     include/Phantom.Scalable/Scheduling.h
     include/Phantom.Scalable/StandardIncludes.h
     src/Consensus.cpp
+    src/EgalitarianPaxos.cpp
     src/InternalLockResourceManager.cpp
     src/InternalLockResourceManagerDatabase.cpp
     src/InternalResourceManager.cpp
