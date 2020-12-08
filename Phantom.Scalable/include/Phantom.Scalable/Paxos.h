@@ -68,14 +68,87 @@ public:
     };
 };
 
+// An AsyncMutator accepts a value and returns a possibly awaitable value of the same type.
+template<
+    typename TMutator,
+    typename TValue
+> concept AsyncMutator =
+requires (
+    TMutator mutator,
+    TValue value
+    )
+{
+    { mutator(value) };
+};
+
+// PaxosMutator implements the original Paxos mutation
+// function described in CASPaxos, using first
+// the operator bool() on the underlying value type
+// and falling back to using operator != against the default
+// value.
+template<
+    typename TValue
+>
+class PaxosMutator
+{
+    TValue m_value;
+
+    template<
+        typename T
+    > typename std::enable_if<
+        std::is_convertible_v<T, bool>, 
+    bool>::type has_value(
+        const T& value) const
+    {
+        return value;
+    }
+
+    template<
+        typename T
+    > typename std::enable_if<
+        std::is_default_constructible_v<T>
+        && !std::is_convertible_v<T, bool>, 
+    bool>::type has_value(
+        const T& value) const
+    {
+        return value != T();
+    }
+
+public:
+    PaxosMutator() = default;
+
+    template<
+        typename T
+    > PaxosMutator(
+        T&& value)
+    : m_value(std::forward<T>(value))
+    {}
+
+    TValue operator()(
+        const TValue& original
+        )
+    {
+        if (has_value(original))
+        {
+            return original;
+        }
+        else
+        {
+            return m_value;
+        }
+    }
+};
+
 template
 <
     typename TMember,
     BallotNumber TBallotNumber,
     typename TValue,
+    typename TMutator,
     QuorumChecker<TMember> TQuorumChecker,
     template <typename> typename TFuture
 >
+requires AsyncMutator<TMutator, TValue>
 class StateMachineInterfaces
     : 
     public Messages<TBallotNumber, TValue>
@@ -91,11 +164,13 @@ public:
     using typename messages_type::Phase2bMessage;
     using typename messages_type::NakMessage;
 
+    typedef TMutator mutator_type;
     typedef TQuorumChecker quorum_checker_type;
     typedef TMember member_type;
 
     struct LeaderState
     {
+        mutator_type Mutator;
         value_type Proposal;
         std::optional<ballot_number_type> CurrentBallotNumber;
         std::optional<ballot_number_type> MaxVotedBallotNumber;
@@ -134,7 +209,7 @@ public:
         virtual TFuture<Phase1aResult> Phase1a(
             LeaderState& leaderState,
             ballot_number_type ballotNumber,
-            value_type value
+            mutator_type mutator
         ) = 0;
 
         virtual TFuture<Phase2aResult> Phase2a(
@@ -238,10 +313,12 @@ template
     BallotNumber TBallotNumber,
     typename TBallotNumberFactory,
     typename TValue,
+    typename TMutator,
     template<typename> typename TFuture
 >
 requires
 QuorumCheckerFactory<TQuorumCheckerFactory, TBallotNumber, TQuorumChecker, TMember>
+&& AsyncMutator<TMutator, TValue>
 class StateMachines
     :
     public StateMachineInterfaces
@@ -249,6 +326,7 @@ class StateMachines
     TMember,
     TBallotNumber,
     TValue,
+    TMutator,
     TQuorumChecker,
     TFuture
     >
@@ -258,6 +336,7 @@ public:
         TMember,
         TBallotNumber,
         TValue,
+        TMutator,
         TQuorumChecker,
         TFuture
     > paxos_interfaces_type;
@@ -265,6 +344,8 @@ public:
     using typename paxos_interfaces_type::ballot_number_type;
     typedef TBallotNumberFactory ballot_number_factory_type;
     using typename paxos_interfaces_type::member_type;
+    using typename paxos_interfaces_type::mutator_type;
+    using typename paxos_interfaces_type::value_type;
     using typename paxos_interfaces_type::LeaderState;
     using typename paxos_interfaces_type::AcceptorState;
     using typename paxos_interfaces_type::Phase1aResult;
@@ -300,7 +381,7 @@ public:
 
         TFuture<Phase1aResult> Phase1a(
             LeaderState& leaderState,
-            TValue value
+            mutator_type mutator
         )
         {
             co_return co_await Phase1a(
@@ -308,18 +389,19 @@ public:
                 leaderState.CurrentBallotNumber
                 ? co_await as_awaitable(m_ballotNumberFactory(*leaderState.CurrentBallotNumber))
                 : co_await as_awaitable(m_ballotNumberFactory()),
-                move(value)
+                move(mutator)
             );
         }
 
         TFuture<Phase1aResult> Phase1a(
             LeaderState& leaderState,
             ballot_number_type ballotNumber,
-            TValue value
+            mutator_type mutator
         )
         {
+            leaderState.Mutator = std::move(mutator);
             leaderState.CurrentBallotNumber = std::move(ballotNumber);
-            leaderState.Proposal = std::move(value);
+            leaderState.Proposal = value_type();
             leaderState.Phase1bQuorum = co_await as_awaitable(m_quorumCheckerFactory(
                 ballotNumber));
 
@@ -380,7 +462,9 @@ public:
                 .Phase2aMessage = Phase2aMessage
                 {
                     .BallotNumber = *leaderState.CurrentBallotNumber,
-                    .Value = leaderState.Proposal
+                    .Value = co_await as_awaitable(
+                        leaderState.Mutator(
+                            leaderState.Proposal)),
                 },
             };
         }
@@ -560,6 +644,7 @@ public:
     using typename paxos_type::ballot_number_factory_type;
     using typename paxos_type::member_type;
     using typename paxos_type::value_type;
+    using typename paxos_type::mutator_type;
     using typename paxos_type::NakMessage;
     using typename paxos_type::Phase1aResult;
     using typename paxos_type::Phase1bMessage;

@@ -21,6 +21,7 @@ public:
         ballot_number_type,
         ballot_number_factory_type,
         value_type,
+        std::function<std::string(std::string)>,
         cppcoro::task
     > paxos_type;
 };
@@ -819,7 +820,7 @@ TEST_F(PaxosTests, Leader_InitialPhase1a_sends_Phase1aMessage)
         {
             auto phase1aResult = co_await leader.Phase1a(
                 state,
-                "hello world");
+                PaxosMutator<std::string>("hello world"));
 
             Phase1aResult expectedResult =
             {
@@ -848,7 +849,7 @@ TEST_F(PaxosTests, Leader_NextPhase1a_sends_Phase1aMessage)
         {
             auto phase1aResult = co_await leader.Phase1a(
                 state,
-                "hello world");
+                PaxosMutator<std::string>("hello world"));
 
             Phase1aResult expectedResult =
             {
@@ -866,7 +867,7 @@ TEST_F(PaxosTests, Leader_NextPhase1a_sends_Phase1aMessage)
         {
             auto phase1aResult = co_await leader.Phase1a(
                 state,
-                "hello world");
+                PaxosMutator<std::string>("hello world"));
 
             Phase1aResult expectedResult =
             {
@@ -895,7 +896,7 @@ TEST_F(PaxosTests, Leader_Phase2a_ignores_smaller_BallotNumber)
         auto phase1aResult = co_await leader.Phase1a(
             state,
             2,
-            "hello world"
+            PaxosMutator<std::string>("hello world")
             );
 
         auto phase2aResult = co_await leader.Phase2a(
@@ -923,7 +924,7 @@ TEST_F(PaxosTests, Leader_Phase2a_ignores_larger_BallotNumber)
         auto phase1aResult = co_await leader.Phase1a(
             state,
             2,
-            "hello world"
+            PaxosMutator<std::string>("hello world")
         );
 
         auto phase2aResult = co_await leader.Phase2a(
@@ -951,7 +952,7 @@ TEST_F(PaxosTests, Leader_Phase2a_ignores_Phase1b_after_quorum_reached)
         auto phase1aResult = co_await leader.Phase1a(
             state,
             2,
-            "hello world"
+            PaxosMutator<std::string>("hello world")
         );
 
         {
@@ -993,7 +994,7 @@ TEST_F(PaxosTests, Leader_Phase2a_uses_original_proposal_if_no_votes)
         auto phase1aResult = co_await leader.Phase1a(
             state,
             2,
-            "hello world"
+            PaxosMutator<std::string>("hello world")
         );
 
         {
@@ -1029,7 +1030,7 @@ TEST_F(PaxosTests, Leader_Phase2a_uses_latest_vote)
         auto phase1aResult = co_await leader.Phase1a(
             state,
             5,
-            "hello world"
+            PaxosMutator<std::string>("hello world")
         );
 
         {
