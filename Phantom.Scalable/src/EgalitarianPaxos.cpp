@@ -1,7 +1,7 @@
 #include "StandardIncludes.h"
 #include "Phantom.Scalable/EgalitarianPaxos.h"
 
-namespace Phantom::Consensus
+namespace Phantom::Consensus::EgalitarianPaxos
 {
 
 }
