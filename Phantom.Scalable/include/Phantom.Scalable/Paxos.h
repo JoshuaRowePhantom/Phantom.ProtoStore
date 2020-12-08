@@ -631,10 +631,26 @@ public:
 };
 
 template<
+    typename TMessageSender,
+    typename TStateMachines
+> concept MessageSender = requires (
+    TMessageSender messageSender,
+    typename TStateMachines::Phase1aMessage phase1aMessage,
+    typename TStateMachines::Phase1aMessage phase2aMessage
+    )
+{
+    { messageSender.SendPhase1a(phase1aMessage) };
+    { messageSender.SendPhase2a(phase2aMessage) };
+};
+
+template<
     typename TStateMachines,
     typename TMessageSender,
     template <typename> typename TFuture
-> class StaticProposer
+>
+requires
+MessageSender<TMessageSender, TStateMachines>
+class StaticProposer
         : public TStateMachines
 {
 public:
