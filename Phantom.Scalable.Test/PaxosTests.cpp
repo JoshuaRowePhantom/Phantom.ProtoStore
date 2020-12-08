@@ -21,7 +21,7 @@ public:
         ballot_number_type,
         ballot_number_factory_type,
         value_type,
-        std::function<std::string(std::string)>,
+        std::function<std::string(std::optional<std::string>)>,
         cppcoro::task
     > paxos_type;
 };

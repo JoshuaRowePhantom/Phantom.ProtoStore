@@ -75,16 +75,14 @@ template<
 > concept AsyncMutator =
 requires (
     TMutator mutator,
-    TValue value
+    std::optional<TValue> value
     )
 {
     { mutator(value) };
 };
 
 // PaxosMutator implements the original Paxos mutation
-// function described in CASPaxos, using first
-// the operator bool() on the underlying value type
-// and falling back to using operator != against the default
+// function described in CASPaxos.
 // value.
 template<
     typename TValue
@@ -92,27 +90,6 @@ template<
 class PaxosMutator
 {
     TValue m_value;
-
-    template<
-        typename T
-    > typename std::enable_if<
-        std::is_convertible_v<T, bool>, 
-    bool>::type has_value(
-        const T& value) const
-    {
-        return value;
-    }
-
-    template<
-        typename T
-    > typename std::enable_if<
-        std::is_default_constructible_v<T>
-        && !std::is_convertible_v<T, bool>, 
-    bool>::type has_value(
-        const T& value) const
-    {
-        return value != T();
-    }
 
 public:
     PaxosMutator() = default;
@@ -125,17 +102,11 @@ public:
     {}
 
     TValue operator()(
-        const TValue& original
+        const std::optional<TValue>& original
         )
     {
-        if (has_value(original))
-        {
-            return original;
-        }
-        else
-        {
-            return m_value;
-        }
+        return original.value_or(
+            m_value);
     }
 };
 
@@ -171,7 +142,7 @@ public:
     struct LeaderState
     {
         mutator_type Mutator;
-        value_type Proposal;
+        std::optional<value_type> Proposal;
         std::optional<ballot_number_type> CurrentBallotNumber;
         std::optional<ballot_number_type> MaxVotedBallotNumber;
         std::optional<quorum_checker_type> Phase1bQuorum;
@@ -401,7 +372,7 @@ public:
         {
             leaderState.Mutator = std::move(mutator);
             leaderState.CurrentBallotNumber = std::move(ballotNumber);
-            leaderState.Proposal = value_type();
+            leaderState.Proposal.reset();
             leaderState.Phase1bQuorum = co_await as_awaitable(m_quorumCheckerFactory(
                 ballotNumber));
 
