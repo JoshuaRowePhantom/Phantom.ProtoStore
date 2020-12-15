@@ -14,19 +14,22 @@ namespace Phantom
 // The intent is that each call to spawn starts some process
 // that should only be reported as long as it and all previous
 // calls have completed, but can otherwise proceed independently.
+template<
+    typename TSequenceNumber = std::uint_fast64_t
+>
 class encompassing_pending_task
 {
 private:
-    cppcoro::sequence_barrier<size_t> m_sequenceBarrier;
-    std::atomic<size_t> m_nextSequenceNumber;
+    cppcoro::sequence_barrier<TSequenceNumber> m_sequenceBarrier;
+    std::atomic<TSequenceNumber> m_nextSequenceNumber;
     cppcoro::inline_scheduler m_scheduler;
 
     template<
         typename TAwaitable
     > cppcoro::task<> run(
         TAwaitable awaitable,
-        size_t sequenceNumberToWaitFor,
-        size_t sequenceNumberOfThisOperation
+        TSequenceNumber sequenceNumberToWaitFor,
+        TSequenceNumber sequenceNumberOfThisOperation
     )
     {
         auto task = cppcoro::make_task(
