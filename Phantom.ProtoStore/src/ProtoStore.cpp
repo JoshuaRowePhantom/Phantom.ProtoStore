@@ -33,7 +33,7 @@ ProtoStore::ProtoStore(
     m_messageStore(MakeMessageStore(m_schedulers, m_extentStore)),
     m_messageAccessor(MakeRandomMessageAccessor(m_messageStore)),
     m_headerAccessor(MakeHeaderAccessor(m_messageAccessor)),
-    m_checkpointTask([=] { return InternalCheckpoint(); }),
+    m_encompassingCheckpointTask(),
     m_mergeTask([=] { return InternalMerge(); })
 {
     m_writeSequenceNumberBarrier.publish(0);
@@ -1000,7 +1000,8 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
 
 task<> ProtoStore::Checkpoint()
 {
-    co_await m_checkpointTask.spawn();
+    co_await m_encompassingCheckpointTask.spawn(
+        InternalCheckpoint());
 }
 
 task<> ProtoStore::InternalCheckpoint()

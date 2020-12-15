@@ -54,7 +54,7 @@ class ProtoStore
     std::unordered_map<ExtentName, shared_ptr<IPartition>> m_activePartitions;
     vector<ExtentName> m_replayPartitionsActivePartitions;
 
-    encompassing_pending_task m_checkpointTask;
+    encompassing_pending_task m_encompassingCheckpointTask;
     single_pending_task m_mergeTask;
 
     std::atomic<ExtentOffset> m_nextCheckpointLogOffset;

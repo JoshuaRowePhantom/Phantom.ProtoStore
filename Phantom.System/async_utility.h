@@ -96,6 +96,11 @@ auto run_async(
         functor());
 }
 
+inline cppcoro::task<> make_completed_task()
+{
+    co_return;
+}
+
 inline cppcoro::shared_task<> make_completed_shared_task()
 {
     co_return;

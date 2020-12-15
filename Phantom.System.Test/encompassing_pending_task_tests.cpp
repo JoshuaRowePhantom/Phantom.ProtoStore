@@ -10,15 +10,9 @@ TEST(encompassing_pending_task_tests, join_on_not_spawned_returns_right_away)
 {
     run_async([]() -> cppcoro::task<>
     {
-        int taskGeneratorCalledCount = 0;
-        encompassing_pending_task task([&]() -> cppcoro::task<>
-        {
-            ++taskGeneratorCalledCount;
-            co_return;
-        });
+        encompassing_pending_task task;
 
         co_await task.join();
-        EXPECT_EQ(0, taskGeneratorCalledCount);
     });
 }
 
@@ -38,28 +32,33 @@ TEST(encompassing_pending_task_tests, spawn_immediately_starts_new_tasks_that_do
             co_await proceedEvent;
         };
 
-        encompassing_pending_task task([&]() -> cppcoro::task<>
+        auto makeEncompassedTask = [&]() -> cppcoro::task<>
         {
             ++taskGeneratorCalledCount;
             return taskRunner();
-        });
+        };
+
+        encompassing_pending_task task;
 
         EXPECT_EQ(0, taskGeneratorCalledCount);
 
         auto task1 = cppcoro::make_shared_task(
-            task.spawn());
+            task.spawn(
+                makeEncompassedTask()));
         asyncScope.spawn(task1);
 
         EXPECT_EQ(1, taskGeneratorCalledCount);
         EXPECT_EQ(1, taskExecutionCalledCount);
 
         auto task2 = cppcoro::make_shared_task(
-            task.spawn());
+            task.spawn(
+                makeEncompassedTask()));
 
         asyncScope.spawn(task2);
 
         auto task3 = cppcoro::make_shared_task(
-            task.spawn());
+            task.spawn(
+                makeEncompassedTask()));
 
         asyncScope.spawn(task3);
 

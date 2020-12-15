@@ -1,9 +1,8 @@
 #pragma once
 
-#include <functional>
-#include <cppcoro/async_mutex.hpp>
-#include <cppcoro/task.hpp>
-#include <cppcoro/shared_task.hpp>
+#include <atomic>
+#include <cppcoro/inline_scheduler.hpp>
+#include <cppcoro/sequence_barrier.hpp>
 #include "utility.h"
 
 namespace Phantom
@@ -17,57 +16,70 @@ namespace Phantom
 // calls have completed, but can otherwise proceed independently.
 class encompassing_pending_task
 {
-public:
-    typedef std::function<cppcoro::task<>()> task_generator_type;
-
 private:
-    task_generator_type m_taskGenerator;
+    cppcoro::sequence_barrier<size_t> m_sequenceBarrier;
+    std::atomic<size_t> m_nextSequenceNumber;
+    cppcoro::inline_scheduler m_scheduler;
 
-    cppcoro::async_mutex m_mutex;
-    cppcoro::shared_task<> m_lastTask;
-    cppcoro::shared_task<> m_nextTask;
-
-    cppcoro::shared_task<> delayed_run_next_task()
+    template<
+        typename TAwaitable
+    > cppcoro::task<> run(
+        TAwaitable awaitable,
+        size_t sequenceNumberToWaitFor,
+        size_t sequenceNumberOfThisOperation
+    )
     {
-        {
-            auto lock = co_await m_mutex.scoped_lock_async();
-            m_lastTask = m_nextTask;
-            m_nextTask = delayed_run_next_task();
-        }
+        auto task = cppcoro::make_task(
+            std::forward<TAwaitable>(
+                awaitable));
 
-        co_await m_taskGenerator();
+        co_await task.when_ready();
+        
+        co_await m_sequenceBarrier.wait_until_published(
+            sequenceNumberToWaitFor,
+            m_scheduler
+            );
+
+        m_sequenceBarrier.publish(
+            sequenceNumberOfThisOperation);
+
+        co_await task;
     }
 
 public:
 
-    encompassing_pending_task(
-        task_generator_type taskGenerator
-    ) :
-        m_taskGenerator(taskGenerator),
-        m_lastTask(make_completed_shared_task()),
-        m_nextTask(delayed_run_next_task())
+    encompassing_pending_task()
+        :
+        m_nextSequenceNumber(0),
+        m_sequenceBarrier(0)
     {
     }
 
-    cppcoro::task<> spawn()
+    template<
+        typename TAwaitable
+    >
+    cppcoro::task<> spawn(
+        TAwaitable awaitable)
     {
-        cppcoro::shared_task<> lastTask;
-        cppcoro::shared_task<> nextTask;
+        auto sequenceNumberToWaitFor = m_nextSequenceNumber.fetch_add(
+            1,
+            std::memory_order_acq_rel
+        );
 
-        {
-            auto lock = co_await m_mutex.scoped_lock_async();
-            lastTask = m_lastTask;
-            nextTask = m_nextTask;
-        }
+        auto sequenceNumberOfThisOperation = sequenceNumberToWaitFor + 1;
 
-        co_await nextTask;
-        co_await lastTask.when_ready();
+        return run(
+            std::forward<TAwaitable>(awaitable),
+            sequenceNumberToWaitFor,
+            sequenceNumberOfThisOperation
+        );
     }
 
     cppcoro::task<> join()
     {
-        auto lock = co_await m_mutex.scoped_lock_async();
-        co_await m_lastTask;
+        co_await m_sequenceBarrier.wait_until_published(
+            m_nextSequenceNumber.load(std::memory_order_acquire),
+            m_scheduler);
     }
 };
 
