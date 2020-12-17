@@ -22,7 +22,8 @@ class InternalTransactionOperation
     unique_ptr<Grpc::Internal::InternalOperationInformation> m_fullInternalOperationInformationHolder;
     shared_task<Grpc::Internal::InternalOperationResult> m_prepareTask;
 
-    task<> NotifyCommitAbortDecision();
+    task<> NotifyCommitAbortDecision(
+        Grpc::Internal::EpochNumber epochNumber);
 
     Grpc::Internal::InternalOperationInformation MakePartialInternalOperationInformation(
         const Grpc::Internal::InternalOperationInformation& internalOperationInformation

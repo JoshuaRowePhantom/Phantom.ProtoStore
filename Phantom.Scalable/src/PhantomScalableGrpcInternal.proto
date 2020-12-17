@@ -122,16 +122,29 @@ message ScalablePaxosResponseMessage {
     }
 }
 
-service ScalablePeerToPeerService {
-    rpc ProcessPaxosMessage(
-        ScalablePaxosRequestMessage)
-    returns (
-        ScalablePaxosResponseMessage);
+message CommitTransactionOutcome {
+    TransactionOutcome TransactionOutcome = 1;
+}
 
-    rpc GetOperationInformation(
-        GetOperationInformationRequestMessage)
-    returns (
-        GetOperationInformationResponseMessage);
+message ProcessOperationRequest {
+    InternalOperationInformation InternalOperationInformation = 1;
+    ScalablePaxosRequestMessage PaxosMessage = 2;
+    CommitTransactionOutcome CommitTransactionOutcome = 3;
+}
+
+message ProcessOperationResponse {
+    ScalablePaxosResponseMessage  ScalablePaxosResponseMessage = 1;
+    NeedOperationInformationFault NeedOperationInformationFault = 2;
+    Fault Fault = 3;
+    InternalOperationResult InternalOperationResult = 4;
+}
+
+service ScalablePeerToPeerService {
+    rpc ProcessOperation(
+        stream ProcessOperationRequest
+    ) returns (
+        stream ProcessOperationResponse
+    );
 }
 
 message DataComponent {

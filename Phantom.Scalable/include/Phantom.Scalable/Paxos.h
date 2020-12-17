@@ -242,6 +242,7 @@ public:
     {
         value_type Value;
         bool IsNewlyLearned;
+        ballot_number_type LearnedBallotNumber;
     };
 
     struct LearnResult
@@ -554,6 +555,7 @@ public:
                     {
                         .Value = *learnerState.Value,
                         .IsNewlyLearned = false,
+                        .LearnedBallotNumber = *learnerState.MaxBallotNumber,
                     },
                 };
             }
@@ -590,6 +592,7 @@ public:
                     {
                         .Value = *learnerState.Value,
                         .IsNewlyLearned = true,
+                        .LearnedBallotNumber = *learnerState.MaxBallotNumber,
                     },
                 };
             }
@@ -637,6 +640,7 @@ public:
     using typename paxos_type::Phase1bMessage;
     using typename paxos_type::Phase2aResult;
     using typename paxos_type::Phase2bMessage;
+    using typename paxos_type::LearnedValue;
 private:
     typename paxos_type::StaticLeader m_leader;
     typename paxos_type::StaticLearner m_learner;
@@ -660,7 +664,7 @@ public:
     {
     }
 
-    TFuture<value_type> Propose(
+    TFuture<LearnedValue> Propose(
         value_type value)
     {
         typename paxos_type::LeaderState leaderState;
@@ -760,7 +764,8 @@ public:
 
                 if (learnResult.has_value())
                 {
-                    co_return *learnResult.value;
+                    co_return get<LearnedValue>(
+                        learnResult.LearnedValue);
                 }
             }
         }

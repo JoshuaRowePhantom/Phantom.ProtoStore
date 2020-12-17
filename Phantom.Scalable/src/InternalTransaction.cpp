@@ -173,8 +173,11 @@ shared_task<const Grpc::Internal::InternalOperationInformation*> InternalTransac
 
 shared_task<Grpc::Internal::InternalOperationResult> InternalTransactionOperation::DelayedPrepare()
 {
+    // Spawn a task that waits for the outcome of the distributed transaction to be known,
+    // then notifies this operation's participants of the distributed outcome.
     spawn(
-        NotifyCommitAbortDecision());
+        NotifyCommitAbortDecision(
+            Grpc::Internal::EpochNumber{}));
 
     throw 0;
     co_return Grpc::Internal::InternalOperationResult{};
@@ -185,7 +188,8 @@ shared_task<Grpc::Internal::InternalOperationResult> InternalTransactionOperatio
     return m_prepareTask;
 }
 
-task<> InternalTransactionOperation::NotifyCommitAbortDecision()
+task<> InternalTransactionOperation::NotifyCommitAbortDecision(
+    Grpc::Internal::EpochNumber epochNumber)
 {
     auto transactionOutcome = co_await m_internalTransactionOutcome;
 }
