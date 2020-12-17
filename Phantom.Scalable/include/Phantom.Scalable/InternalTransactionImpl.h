@@ -3,6 +3,8 @@
 #include "Phantom.System/async_value_source.h"
 #include "Phantom.System/service_provider.h"
 #include "InternalTransaction.h"
+#include <optional>
+#include <cppcoro/async_generator.hpp>
 
 namespace Phantom::Scalable
 {
@@ -31,6 +33,24 @@ class InternalTransactionOperation
 
     shared_task<const Grpc::Internal::InternalOperationInformation*> GetFullInternalOperationInformation();
     shared_task<Grpc::Internal::InternalOperationResult> DelayedPrepare();
+    
+    cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> SendProcessOperationRequest(
+        Grpc::Address destination,
+        const Grpc::Internal::ProcessOperationRequest& request
+    );
+
+    cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> SendProcessOperationRequestWithNeedOperationInformationFaultHandling(
+        Grpc::Address destination,
+        const Grpc::Internal::ProcessOperationRequest& requestWithoutOperationInformation,
+        shared_task<Grpc::Internal::ProcessOperationRequest>& requestWithOperationInformation
+    );
+
+    //cppcoro::async_generator<
+    //    std::tuple<
+    //        Grpc::>> SendProcessOperationRequest(
+    //    Grpc::Internal::EpochNumber epochNumber,
+    //    Grpc::Internal::ProcessOperationRequest requestWithoutOperationInformation
+    //);
 
 public:
     InternalTransactionOperation(

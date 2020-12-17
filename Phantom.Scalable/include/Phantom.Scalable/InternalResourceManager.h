@@ -106,7 +106,7 @@ class IInternalResourceManagerSelector
 {
 public:
     virtual task<shared_ptr<IInternalResourceManager>> GetInternalResourceManager(
-        Grpc::Internal::Participant participant
+        Grpc::Internal::ParticipantResource participant
     );
 };
 }

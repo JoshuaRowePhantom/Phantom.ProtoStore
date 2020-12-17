@@ -6,12 +6,20 @@
 namespace Phantom::Scalable
 {
 
+class INodeResolver
+{
+public:
+    virtual task<shared_ptr<Grpc::Node>> ResolveNode(
+        const Grpc::NodeIdentifier& nodeIdentifier
+    ) = 0;
+};
+
 class INodeSelector
 {
 public:
-    virtual task<std::vector<Grpc::Address>> GetAddresses(
+    virtual task<std::vector<Grpc::Internal::ParticipantNode>> GetParticipantNodes(
         Grpc::Internal::EpochNumber epochNumber,
-        Grpc::Internal::Participant participant
+        Grpc::Internal::ParticipantResource participantResource
     ) = 0;
 };
 

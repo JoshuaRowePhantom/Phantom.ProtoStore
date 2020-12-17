@@ -115,4 +115,14 @@ service ScalableService {
 }
 
 message Address {
+    string Uri = 1;
+}
+
+message NodeIdentifier {
+    string UniqueNodeIdentifier = 1;
+}
+
+message Node {
+    NodeIdentifier NodeIdentifier = 1;
+    repeated Address Addresses = 2;
 }

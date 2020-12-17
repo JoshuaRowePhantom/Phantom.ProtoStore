@@ -32,10 +32,10 @@ shared_task<Grpc::TransactionOutcome> TransactionFactory::ResolveTransaction(
     auto transaction = CreateTransactionBuilder(
         move(*transactionInformation.mutable_internaltransactionidentifier()));
 
-    for (auto& participant : *transactionInformation.mutable_participants())
+    for (auto& participantResource : *transactionInformation.mutable_participantresources())
     {
         Grpc::Internal::InternalOperationInformation operationInformation;
-        *operationInformation.mutable_internaloperationidentifier() = move(*participant.mutable_operationidentifier());
+        *operationInformation.mutable_internaloperationidentifier() = move(*participantResource.mutable_operationidentifier());
 
         // Note that we leave the internaloperation field clear.
 
@@ -192,6 +192,15 @@ task<> InternalTransactionOperation::NotifyCommitAbortDecision(
     Grpc::Internal::EpochNumber epochNumber)
 {
     auto transactionOutcome = co_await m_internalTransactionOutcome;
+}
+
+cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> SendProcessOperationRequestWithNeedOperationInformationFaultHandling(
+    Grpc::Address destination,
+    shared_task<Grpc::Internal::ProcessOperationRequest>& requestWithoutOperationInformation,
+    shared_task<Grpc::Internal::ProcessOperationRequest>& requestWithOperationInformation
+)
+{
+    throw 0;
 }
 
 }

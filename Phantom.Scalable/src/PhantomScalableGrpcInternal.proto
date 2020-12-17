@@ -71,7 +71,7 @@ message InternalTransactionIdentifier {
 
 message InternalTransactionInformation {
     InternalTransactionIdentifier InternalTransactionIdentifier = 1;
-    repeated InternalOperationTransactionParticipant Participants = 2;
+    repeated InternalOperationTransactionParticipantResource ParticipantResources = 2;
 }
 
 message InternalResourceManager {
@@ -82,19 +82,23 @@ message InternalResource {
     DataComponentString InternalResourceName = 1;
 }
 
-message Participant {
+message ParticipantResource {
     InternalResourceManager InternalResourceManager = 1;
     InternalResource InternalResource = 2;
 }
 
-message InternalOperationIdentifier {
-    string UniqueIdentifier = 1;
-    Participant Participant = 2;
+message ParticipantNode {
+    NodeIdentifier NodeIdentifier = 1;
 }
 
-message InternalOperationTransactionParticipant {
+message InternalOperationIdentifier {
+    string UniqueIdentifier = 1;
+    ParticipantResource ParticipantResource = 2;
+}
+
+message InternalOperationTransactionParticipantResource {
     InternalOperationIdentifier OperationIdentifier = 1;
-    Participant Participant = 2;
+    ParticipantResource ParticipantResource = 2;
 }
 
 message GetOperationInformationRequestMessage {
@@ -126,10 +130,29 @@ message CommitTransactionOutcome {
     TransactionOutcome TransactionOutcome = 1;
 }
 
+message GetOperationResult {
+}
+
 message ProcessOperationRequest {
+    // Either the identified for the operation
+    // or the full operation data.
+    // If the recipient doesn't have the full operation data and only an identifier
+    // is provided, the recipient will return a ProcessOperationResponse with the NeedOperationInformationFault
+    // field set.
     InternalOperationInformation InternalOperationInformation = 1;
+
+    // Used to negotiate the paxos phase of processing.
+    // This field may be absent if no paxos operations are required.
     ScalablePaxosRequestMessage PaxosMessage = 2;
-    CommitTransactionOutcome CommitTransactionOutcome = 3;
+    
+    // If this field is present, the ProcessOperation request should
+    // return the a ProcessOperationResponse with InternalOperationResult set before closing the stream.
+    GetOperationResult GetOperationResult = 3;
+
+    // If this field is present, the operation should be committed IF successful.
+    // This field may be present even when the transaction outcome is not known
+    // when a single participant transaction is in effect.
+    CommitTransactionOutcome CommitTransactionOutcome = 4;
 }
 
 message ProcessOperationResponse {
@@ -141,7 +164,7 @@ message ProcessOperationResponse {
 
 service ScalablePeerToPeerService {
     rpc ProcessOperation(
-        stream ProcessOperationRequest
+        ProcessOperationRequest
     ) returns (
         stream ProcessOperationResponse
     );
