@@ -23,7 +23,7 @@ template<
 
 public:
     async_ring_buffer(
-        size_t bufferSize
+        size_t bufferSize = 1
     ) : 
         m_values(
             bufferSize),
