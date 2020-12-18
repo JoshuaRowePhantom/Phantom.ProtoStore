@@ -17,9 +17,8 @@ TEST(async_ring_buffer_tests, CanCompleteEmptyBuffer)
 
         co_await buffer.complete();
 
-        auto enumeration = buffer.enumerate();
-        auto iterator = co_await enumeration.begin();
-        EXPECT_EQ(iterator, enumeration.end());
+        auto iterator = co_await buffer.begin();
+        EXPECT_EQ(iterator, buffer.end());
     });
 }
 
@@ -57,8 +56,7 @@ TEST(async_ring_buffer_tests, CanPublishUntilBufferIsFull_Then_Can_Enumerate)
         EXPECT_EQ(true, task_3.is_ready());
         EXPECT_EQ(false, task_4.is_ready());
 
-        auto enumeration = buffer.enumerate();
-        auto iterator = co_await enumeration.begin();
+        auto iterator = co_await buffer.begin();
         EXPECT_EQ(0, *iterator);
 
         EXPECT_EQ(true, task_0.is_ready());
@@ -87,11 +85,61 @@ TEST(async_ring_buffer_tests, CanPublishUntilBufferIsFull_Then_Can_Enumerate)
 
         co_await buffer.complete();
         co_await ++iterator;
-        EXPECT_EQ(enumeration.end(), iterator);
+        EXPECT_EQ(buffer.end(), iterator);
 
         co_await asyncScope.join();
     });
 }
 
+TEST(async_ring_buffer_tests, CanRestartEnumeration_by_calling_begin_multiple_times)
+{
+    run_async([]()->cppcoro::task<>
+    {
+        async_ring_buffer<int> buffer(1);
+
+        cppcoro::async_scope scope;
+        scope.spawn(buffer.push(0));
+        scope.spawn(buffer.push(1));
+        scope.spawn(buffer.push(2));
+        scope.spawn(buffer.push(3));
+
+        {
+            auto iterator = co_await buffer.begin();
+            EXPECT_EQ(0, *iterator);
+
+            co_await ++iterator;
+            EXPECT_EQ(1, *iterator);
+        }
+        {
+            auto iterator = co_await buffer.begin();
+            EXPECT_EQ(2, *iterator);
+        }
+        {
+            auto iterator = co_await buffer.begin();
+            EXPECT_EQ(3, *iterator);
+        }
+
+        co_await scope.join();
+    });
+}
+
+//
+//TEST(async_ring_buffer_tests, Can_enumerate_object_in_place)
+//{
+//    run_async([]()->cppcoro::task<>
+//    {
+//        async_ring_buffer<value> buffer(1);
+//
+//        co_await buffer.push(
+//            value{}
+//        );
+//
+//        co_await buffer.complete();
+//
+//        auto enumeration = buffer.enumerate();
+//        auto iterator = co_await enumeration.begin();
+//
+//    });
+//}
 
 }

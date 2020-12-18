@@ -6,6 +6,7 @@
 #include <cppcoro/inline_scheduler.hpp>
 #include <cppcoro/multi_producer_sequencer.hpp>
 #include <cppcoro/sequence_barrier.hpp>
+#include "scope.h"
 
 namespace Phantom
 {
@@ -21,52 +22,12 @@ template<
     cppcoro::inline_scheduler m_scheduler;
     std::atomic<TSequenceNumber> m_lastSequenceNumber;
 
-public:
-    async_ring_buffer(
-        size_t bufferSize = 1
-    ) : 
-        m_values(
-            bufferSize),
-        m_consumerSequenceBarrier(
-            0),
-        m_producerSequencer(
-            m_consumerSequenceBarrier,
-            bufferSize,
-            0),
-        m_lastSequenceNumber(
-            static_cast<TSequenceNumber>(0))
-    {
-        m_producerSequencer.publish(
-            0);
-    }
+    typedef cppcoro::async_generator<TValue> async_generator_type;
+    async_generator_type m_generator;
 
-    cppcoro::task<> complete()
+    async_generator_type enumerate()
     {
-        auto sequenceNumber = co_await m_producerSequencer.claim_one(
-            m_scheduler);
-        m_lastSequenceNumber.store(
-            sequenceNumber,
-            std::memory_order_release);
-        m_producerSequencer.publish(
-            sequenceNumber);
-    }
-
-    template<
-        typename T
-    > cppcoro::task<> push(
-        T&& value)
-    {
-        auto sequenceNumber = co_await m_producerSequencer.claim_one(
-            m_scheduler);
-        m_values[sequenceNumber % m_values.size()] = std::forward<T>(
-            value);
-        m_producerSequencer.publish(
-            sequenceNumber);
-    }
-
-    cppcoro::async_generator<TValue> enumerate()
-    {
-        auto sequenceNumber = 0;
+        auto sequenceNumber = m_consumerSequenceBarrier.last_published();
 
         while (true)
         {
@@ -95,6 +56,59 @@ public:
 
             } while (sequenceNumber < highestPublishedSequenceNumber);
         }
+    }
+
+public:
+    async_ring_buffer(
+        size_t bufferSize = 1
+    ) : 
+        m_values(
+            bufferSize),
+        m_consumerSequenceBarrier(
+            0),
+        m_producerSequencer(
+            m_consumerSequenceBarrier,
+            bufferSize,
+            0),
+        m_lastSequenceNumber(
+            static_cast<TSequenceNumber>(0)),
+        m_generator(
+            enumerate())
+    {
+    }
+
+    cppcoro::task<> complete()
+    {
+        auto sequenceNumber = co_await m_producerSequencer.claim_one(
+            m_scheduler);
+        m_lastSequenceNumber.store(
+            sequenceNumber,
+            std::memory_order_release);
+        m_producerSequencer.publish(
+            sequenceNumber);
+    }
+
+    template<
+        typename T
+    > cppcoro::task<> push(
+        T&& value)
+    {
+        auto sequenceNumber = co_await m_producerSequencer.claim_one(
+            m_scheduler);
+        m_values[sequenceNumber % m_values.size()] = std::forward<T>(
+            value);
+        m_producerSequencer.publish(
+            sequenceNumber);
+    }
+
+    auto begin()
+    {
+        return m_generator.begin();
+    }
+
+    auto end()
+    {
+        return m_generator.end();
     }
 };
 }
