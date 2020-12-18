@@ -89,6 +89,7 @@ message ParticipantResource {
 
 message ParticipantNode {
     NodeIdentifier NodeIdentifier = 1;
+    uint64 QuorumMemberNumber = 2;
 }
 
 message InternalOperationIdentifier {

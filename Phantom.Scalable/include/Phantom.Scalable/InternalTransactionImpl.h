@@ -39,10 +39,25 @@ class InternalTransactionOperation
         const Grpc::Internal::ProcessOperationRequest& request
     );
 
+    shared_task<Grpc::Internal::ProcessOperationRequest> AddOperationInformationToRequest(
+        const Grpc::Internal::ProcessOperationRequest& originalRequest
+    );
+
     cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> SendProcessOperationRequestWithNeedOperationInformationFaultHandling(
         Grpc::Address destination,
         const Grpc::Internal::ProcessOperationRequest& requestWithoutOperationInformation,
         shared_task<Grpc::Internal::ProcessOperationRequest>& requestWithOperationInformation
+    );
+
+    cppcoro::async_generator<
+        std::tuple
+        <
+            Grpc::Internal::ParticipantNode,
+            Grpc::Internal::ProcessOperationResponse
+        >
+    > SendProcessOperationRequestToParticipants(
+        const std::vector<Grpc::Internal::ParticipantNode> nodes,
+        const Grpc::Internal::ProcessOperationRequest& request
     );
 
     //cppcoro::async_generator<

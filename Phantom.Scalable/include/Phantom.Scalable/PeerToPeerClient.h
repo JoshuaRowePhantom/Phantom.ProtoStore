@@ -2,6 +2,7 @@
 
 #include "StandardIncludes.h"
 #include "src/PhantomScalableGrpcInternal.grpc.pb.h"
+#include <cppcoro/async_generator.hpp>
 
 namespace Phantom::Scalable
 {
@@ -14,21 +15,12 @@ public:
     ) = 0;
 };
 
-class INodeSelector
-{
-public:
-    virtual task<std::vector<Grpc::Internal::ParticipantNode>> GetParticipantNodes(
-        Grpc::Internal::EpochNumber epochNumber,
-        Grpc::Internal::ParticipantResource participantResource
-    ) = 0;
-};
-
 class IPeerToPeerClient
 {
 public:
-    virtual task<Grpc::Internal::GetOperationInformationResponseMessage> GetOperationInformation(
-        const Grpc::Internal::GetOperationInformationRequestMessage& request
-    ) = 0;
+    virtual cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> ProcessOperation(
+        const Grpc::Internal::ProcessOperationRequest& request
+    );
 };
 
 class IPeerToPeerClientFactory

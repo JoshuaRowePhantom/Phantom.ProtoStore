@@ -210,4 +210,13 @@ template <
     co_return first;
 }
 
+template<
+    typename TCollection
+> struct as_awaitable_async_enumerable_traits
+{
+    typedef decltype(as_awaitable(std::declval<TCollection>().begin())) begin_awaitable_type;
+    typedef typename cppcoro::awaitable_traits<begin_awaitable_type>::await_result_type iterator_type;
+    typedef decltype((*declval<iterator_type>())) value_type;
+};
+
 }

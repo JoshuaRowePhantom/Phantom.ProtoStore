@@ -102,11 +102,25 @@ public:
     ) = 0;
 };
 
+class INodeSelector
+{
+public:
+    virtual task<std::vector<Grpc::Internal::ParticipantNode>> GetParticipantNodes(
+        Grpc::Internal::EpochNumber epochNumber,
+        Grpc::Internal::ParticipantResource participantResource
+    ) = 0;
+};
+
 class IInternalResourceManagerSelector
 {
 public:
     virtual task<shared_ptr<IInternalResourceManager>> GetInternalResourceManager(
-        Grpc::Internal::ParticipantResource participant
+        Grpc::Internal::ParticipantResource participantResource
+    );
+
+    virtual task<INodeSelector*> GetNodeSelector(
+        Grpc::Internal::ParticipantResource participantResource
     );
 };
+
 }

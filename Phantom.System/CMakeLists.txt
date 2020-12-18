@@ -3,6 +3,7 @@ cmake_minimum_required (VERSION 3.17)
 add_library (
 	Phantom.System
 	STATIC
+	"async_ring_buffer.h"
 	"async_reader_writer_lock.cpp"
 	"async_reader_writer_lock.h"
 	"async_scoped_lock.h"

@@ -8,9 +8,13 @@ namespace Phantom::Scalable
 {
 
 class IInternalResourceManagerSelector;
+class INodeResolver;
+class INodeSelector;
+class IPeerToPeerClientFactory;
 
 typedef service_provider<
-    IInternalResourceManagerSelector*
+    IInternalResourceManagerSelector*,
+    IPeerToPeerClientFactory*
 > InternalTransactionServiceProvider;
 
 struct InternalTransactionAddOperationResult
