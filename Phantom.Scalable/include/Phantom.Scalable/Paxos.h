@@ -61,7 +61,8 @@ public:
     };
 };
 
-// Partial specialization of Messages that adds equality operators to the message classes.
+// Partial specialization of Messages that adds equality operators to the message classes
+// when value_type has an equality operator.
 template
 <
     typename TBallotNumber,
@@ -671,8 +672,8 @@ template<
     typename TStateMachines::Phase2aMessage phase2aMessage
     )
 {
-    { messageSender.SendPhase1a(phase1aMessage) } -> as_awaitable_async_enumerable; //_of<typename TStateMachines::Phase1bResponse>;
-    { messageSender.SendPhase2a(phase2aMessage) } -> as_awaitable_async_enumerable; //_of<typename TStateMachines::Phase2bResponse>;
+    { messageSender.SendPhase1a(phase1aMessage) } -> as_awaitable_async_enumerable_of<typename TStateMachines::Phase1bResponse>;
+    { messageSender.SendPhase2a(phase2aMessage) } -> as_awaitable_async_enumerable_of<typename TStateMachines::Phase2bResponse>;
 };
 
 template<
