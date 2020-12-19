@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Phantom.System/async_utility.h"
+#include <concepts>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -15,6 +16,60 @@ template
     typename TValue
 >
 class Messages
+{
+public:
+    typedef TBallotNumber ballot_number_type;
+    typedef TValue value_type;
+
+    struct Phase1aMessage
+    {
+        ballot_number_type BallotNumber;
+
+        bool operator==(const Phase1aMessage&) const = default;
+    };
+
+    struct Phase1bVote
+    {
+        ballot_number_type VotedBallotNumber;
+        value_type VotedValue;
+    };
+
+    struct Phase1bMessage
+    {
+        ballot_number_type BallotNumber;
+        std::optional<Phase1bVote> Phase1bVote;
+    };
+
+    struct Phase2aMessage
+    {
+        ballot_number_type BallotNumber;
+        value_type Value;
+    };
+
+    struct Phase2bMessage
+    {
+        ballot_number_type BallotNumber;
+        value_type Value;
+    };
+
+    struct NakMessage
+    {
+        ballot_number_type BallotNumber;
+        ballot_number_type MaxBallotNumber;
+
+        bool operator==(const NakMessage&) const = default;
+    };
+};
+
+// Partial specialization of Messages that adds equality operators to the message classes.
+template
+<
+    typename TBallotNumber,
+    std::equality_comparable TValue
+> class Messages<
+    TBallotNumber,
+    TValue
+>
 {
 public:
     typedef TBallotNumber ballot_number_type;
