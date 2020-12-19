@@ -7,6 +7,9 @@ message EpochNumber {
     uint64 Value = 1;
 }
 
+message ResourceState {
+}
+
 message PaxosBallotNumber {
     EpochNumber EpochNumber = 1;
     uint64 BallotNumber = 2;
@@ -85,11 +88,6 @@ message InternalResource {
 message ParticipantResource {
     InternalResourceManager InternalResourceManager = 1;
     InternalResource InternalResource = 2;
-}
-
-message ParticipantNode {
-    NodeIdentifier NodeIdentifier = 1;
-    uint64 QuorumMemberNumber = 2;
 }
 
 message InternalOperationIdentifier {

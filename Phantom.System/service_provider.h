@@ -198,6 +198,17 @@ public:
             m_tuple);
     }
 
+    template<
+        typename TService,
+        typename Enabled = std::enable_if_t<
+            std::is_pointer_v<TService>
+            && detail::has_exact_service<std::shared_ptr<std::remove_pointer_t<TService>>, TServices...>>
+    > const TService get() const
+    {
+        return std::get<std::shared_ptr<TService>>(
+            m_tuple).get();
+    }
+
     // Get a new service provider with all the specified additional services. 
     // Produces a compiler error if there are duplicates.
     // this = lvalue

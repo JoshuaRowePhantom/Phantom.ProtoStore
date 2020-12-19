@@ -3,6 +3,7 @@
 #include <coroutine>
 #include <functional>
 #include <type_traits>
+#include <cppcoro/is_awaitable.hpp>
 #include <cppcoro/shared_task.hpp>
 #include <cppcoro/sync_wait.hpp>
 #include <cppcoro/task.hpp>
@@ -11,10 +12,7 @@ namespace Phantom
 {
 
 template<typename T>
-concept can_co_await = requires(T t)
-{
-    { t.operator co_await() };
-};
+concept can_co_await = cppcoro::is_awaitable_v<T>;
 
 template<typename T>
 inline constexpr bool can_co_await_v = false;
@@ -29,7 +27,7 @@ template<
 
 template<
     can_co_await T
-> T&& as_awaitable(
+> auto as_awaitable(
     T&& t
 )
 {
@@ -70,6 +68,15 @@ template<
 {
     return simple_awaitable<typename std::remove_reference<T>::type>(std::forward<T>(t));
 }
+
+template<
+    typename From,
+    typename To
+> concept as_awaitable_convertible_to
+= requires(From value)
+{
+    { cppcoro::sync_wait(as_awaitable(value)) } -> std::convertible_to<To>;
+};
 
 template<
     typename TCallable,
@@ -210,6 +217,20 @@ template <
     co_return first;
 }
 
+// This method exists mostly to be able to access the return type of
+// awaiting a potentially-awaitable value in concept definitions, but in theory
+// it could be used to access the result of a potentially-awaitable type
+// by awaiting it on the current thread.
+template<
+    typename TAwaitable
+> auto as_sync_awaitable(
+    TAwaitable&& awaitable
+)
+{
+    return cppcoro::sync_wait(as_awaitable(
+        std::forward<TAwaitable>(awaitable)));
+}
+
 template<
     typename TCollection
 > struct as_awaitable_async_enumerable_traits
@@ -218,5 +239,71 @@ template<
     typedef typename cppcoro::awaitable_traits<begin_awaitable_type>::await_result_type iterator_type;
     typedef decltype((*declval<iterator_type>())) value_type;
 };
+
+template<
+    typename TAsyncIterator
+> concept as_awaitable_iterator
+= requires(
+    TAsyncIterator iterator
+    )
+{
+    { cppcoro::sync_wait(as_awaitable(++iterator)) };
+    { iterator == iterator } -> std::convertible_to<bool>;
+    { iterator != iterator } -> std::convertible_to<bool>;
+};
+
+template<
+    typename TCollection
+> concept as_awaitable_async_enumerable =
+requires(
+    TCollection collection
+    )
+{
+    { as_sync_awaitable(collection.begin()) } -> as_awaitable_iterator;
+    { collection.end() };
+    //{ as_sync_awaitable(collection.begin()) != collection.end() } -> std::convertible_to<bool>;
+    //{ as_sync_awaitable(collection.begin()) == collection.end() } -> std::convertible_to<bool>;
+};
+
+template<
+    typename TAsyncIterator,
+    typename TValue
+> concept as_awaitable_iterator_of
+=
+as_awaitable_iterator<TAsyncIterator>
+&&
+requires(
+    TAsyncIterator iterator)
+{
+    { *iterator } -> std::convertible_to<TValue>;
+};
+
+
+template<
+    typename TCollection,
+    typename TValue
+> concept as_awaitable_async_enumerable_of
+=
+as_awaitable_async_enumerable<TCollection>
+&&
+requires(
+    TCollection collection
+    )
+{
+    { as_sync_awaitable(collection.begin()) } -> as_awaitable_iterator_of<TValue>;
+};
+
+template<
+    as_awaitable_iterator TIterator
+> cppcoro::task<> async_skip(
+    TIterator begin,
+    TIterator end
+)
+{
+    while (begin != end)
+    {
+        co_await as_awaitable(++begin);
+    }
+}
 
 }

@@ -6,6 +6,7 @@ add_executable(
 	"async_bound_tests.cpp"
 	"async_ring_buffer_tests.cpp"
 	"async_reader_writer_lock_tests.cpp"
+	"async_utility_concept_tests.cpp"
 	"async_value_source_tests.cpp"
 	"encompassing_pending_task_tests.cpp"
 	"invoke_as_awaitable_tests.cpp"

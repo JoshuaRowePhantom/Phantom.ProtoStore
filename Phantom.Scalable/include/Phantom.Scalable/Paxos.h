@@ -78,7 +78,7 @@ requires (
     std::optional<TValue> value
     )
 {
-    { mutator(value) };
+    { mutator(value) } -> as_awaitable_convertible_to<TValue>;
 };
 
 // PaxosMutator implements the original Paxos mutation
@@ -138,6 +138,9 @@ public:
     typedef TMutator mutator_type;
     typedef TQuorumChecker quorum_checker_type;
     typedef TMember member_type;
+
+    typedef std::tuple<member_type, Phase1bMessage> Phase1bResponse;
+    typedef std::tuple<member_type, Phase2bMessage> Phase2bResponse;
 
     struct LeaderState
     {
@@ -610,11 +613,11 @@ template<
 > concept MessageSender = requires (
     TMessageSender messageSender,
     typename TStateMachines::Phase1aMessage phase1aMessage,
-    typename TStateMachines::Phase1aMessage phase2aMessage
+    typename TStateMachines::Phase2aMessage phase2aMessage
     )
 {
-    { messageSender.SendPhase1a(phase1aMessage) };
-    { messageSender.SendPhase2a(phase2aMessage) };
+    { messageSender.SendPhase1a(phase1aMessage) } -> as_awaitable_async_enumerable; //_of<typename TStateMachines::Phase1bResponse>;
+    { messageSender.SendPhase2a(phase2aMessage) } -> as_awaitable_async_enumerable; //_of<typename TStateMachines::Phase2bResponse>;
 };
 
 template<
@@ -625,7 +628,7 @@ template<
 requires
 MessageSender<TMessageSender, TStateMachines>
 class StaticProposer
-        : public TStateMachines
+    : public TStateMachines
 {
 public:
     typedef TStateMachines paxos_type;

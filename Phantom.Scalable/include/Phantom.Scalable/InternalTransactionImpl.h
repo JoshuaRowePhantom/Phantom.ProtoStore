@@ -18,7 +18,8 @@ class InternalTransactionOperation
     
     const shared_task<const Grpc::Internal::InternalTransactionInformation&> m_internalTransactionInformation;
     const shared_task<Grpc::TransactionOutcome> m_internalTransactionOutcome;
-    
+    const shared_task<shared_ptr<INodeSelector>> m_nodeSelectorTask;
+
     const Grpc::Internal::InternalOperationInformation m_partialInternalOperationInformation;
     const shared_task<const Grpc::Internal::InternalOperationInformation*> m_fullInternalOperationInformation;
     unique_ptr<Grpc::Internal::InternalOperationInformation> m_fullInternalOperationInformationHolder;
@@ -35,7 +36,8 @@ class InternalTransactionOperation
     shared_task<Grpc::Internal::InternalOperationResult> DelayedPrepare();
     
     cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> SendProcessOperationRequest(
-        Grpc::Address destination,
+        const NodeSelection& nodes,
+        ParticipantNode participantNode,
         const Grpc::Internal::ProcessOperationRequest& request
     );
 
@@ -44,28 +46,31 @@ class InternalTransactionOperation
     );
 
     cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> SendProcessOperationRequestWithNeedOperationInformationFaultHandling(
-        Grpc::Address destination,
+        const NodeSelection& nodes,
+        ParticipantNode participantNode,
         const Grpc::Internal::ProcessOperationRequest& requestWithoutOperationInformation,
         shared_task<Grpc::Internal::ProcessOperationRequest>& requestWithOperationInformation
     );
 
+    struct ParticipantResponse
+    {
+        ParticipantNode ParticipantNode;
+        Grpc::Internal::ProcessOperationResponse ProcessOperationResponse;
+    };
+
     cppcoro::async_generator<
-        std::tuple
-        <
-            Grpc::Internal::ParticipantNode,
-            Grpc::Internal::ProcessOperationResponse
-        >
+        ParticipantResponse
     > SendProcessOperationRequestToParticipants(
-        const std::vector<Grpc::Internal::ParticipantNode> nodes,
-        const Grpc::Internal::ProcessOperationRequest& request
+        const NodeSelection& nodes,
+        const Grpc::Internal::ProcessOperationRequest& requestWithoutOperationInformation
     );
 
-    //cppcoro::async_generator<
-    //    std::tuple<
-    //        Grpc::>> SendProcessOperationRequest(
-    //    Grpc::Internal::EpochNumber epochNumber,
-    //    Grpc::Internal::ProcessOperationRequest requestWithoutOperationInformation
-    //);
+    cppcoro::async_generator<
+        ParticipantResponse
+    > SendProcessOperationRequestToParticipants(
+        const Grpc::Internal::EpochNumber& epochNumber,
+        const Grpc::Internal::ProcessOperationRequest& requestWithoutOperationInformation
+    );
 
 public:
     InternalTransactionOperation(

@@ -3,6 +3,7 @@
 #include "StandardIncludes.h"
 #include "src/PhantomScalableGrpcInternal.pb.h"
 #include "Phantom.ProtoStore/Phantom.ProtoStore.h"
+#include <cppcoro/generator.hpp>
 
 namespace Phantom::Scalable
 {
@@ -102,24 +103,58 @@ public:
     ) = 0;
 };
 
+struct ParticipantNode
+{
+    size_t MemberNumber;
+};
+
+struct NodeSelection
+{
+    // The epoch number the node selection was generated at.
+    Grpc::Internal::EpochNumber EpochNumber;
+
+    // A list of nodes in the node selection,
+    // sorted by the unique identifier string.
+    std::vector<
+        Grpc::NodeIdentifier
+    > Members;
+
+    cppcoro::generator<ParticipantNode> Participants() const;
+
+    // A rectangular array of size Members * QuorumCount.
+    std::vector<bool> QuorumMemberships;
+
+    // The number of quorums represented in this node selection.
+    size_t QuorumCount;
+    
+    bool IsMemberOfQuorum(
+        size_t memberNumber,
+        size_t quorumNumber
+    ) const;
+
+    const Grpc::NodeIdentifier& operator[](
+        ParticipantNode participantNode
+        ) const;
+};
+
 class INodeSelector
 {
 public:
-    virtual task<std::vector<Grpc::Internal::ParticipantNode>> GetParticipantNodes(
-        Grpc::Internal::EpochNumber epochNumber,
-        Grpc::Internal::ParticipantResource participantResource
-    ) = 0;
+    virtual shared_task<const NodeSelection> GetNodeSelection(
+        const Grpc::Internal::EpochNumber& epochNumber,
+        const Grpc::Internal::ParticipantResource& participantResource
+    ) const = 0;
 };
 
 class IInternalResourceManagerSelector
 {
 public:
-    virtual task<shared_ptr<IInternalResourceManager>> GetInternalResourceManager(
-        Grpc::Internal::ParticipantResource participantResource
+    virtual shared_task<shared_ptr<IInternalResourceManager>> GetInternalResourceManager(
+        const Grpc::Internal::ParticipantResource& participantResource
     );
 
-    virtual task<INodeSelector*> GetNodeSelector(
-        Grpc::Internal::ParticipantResource participantResource
+    virtual shared_task<shared_ptr<INodeSelector>> GetNodeSelector(
+        const Grpc::Internal::ParticipantResource& participantResource
     );
 };
 

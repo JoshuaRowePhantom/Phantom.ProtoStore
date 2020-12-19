@@ -10,7 +10,8 @@ namespace Phantom::Scalable
 class INodeResolver
 {
 public:
-    virtual task<shared_ptr<Grpc::Node>> ResolveNode(
+    virtual shared_task<const Grpc::Node> ResolveNode(
+        const Grpc::Internal::EpochNumber epochNumber,
         const Grpc::NodeIdentifier& nodeIdentifier
     ) = 0;
 };

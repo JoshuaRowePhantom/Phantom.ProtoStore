@@ -36,6 +36,7 @@ add_library (
     include/Phantom.Scalable/PeerToPeerClient.h
     include/Phantom.Scalable/PeerToPeerService.h
     include/Phantom.Scalable/ResourceManager.h
+    include/Phantom.Scalable/ScalablePaxos.h
     include/Phantom.Scalable/Scheduling.h
     include/Phantom.Scalable/StandardIncludes.h
     src/Consensus.cpp
@@ -49,6 +50,7 @@ add_library (
     src/PeerToPeerClient.cpp
     src/PeerToPeerService.cpp
     src/ResourceManager.cpp
+    src/ScalablePaxos.cpp
     src/Scheduling.cpp
     src/StandardIncludes.cpp
     src/StandardIncludes.h

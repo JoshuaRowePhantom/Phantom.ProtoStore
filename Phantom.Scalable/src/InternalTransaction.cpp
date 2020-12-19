@@ -1,8 +1,13 @@
-#include "Phantom.Scalable/InternalTransactionImpl.h"
-#include <cppcoro/async_scope.hpp>
+#include <cppcoro/async_latch.hpp>
 #include <cppcoro/async_manual_reset_event.hpp>
+#include <cppcoro/async_scope.hpp>
 #include <cppcoro/when_all.hpp>
+#include "Phantom.Scalable/InternalResourceManager.h"
+#include "Phantom.Scalable/InternalTransactionImpl.h"
 #include "Phantom.Scalable/PeerToPeerClient.h"
+#include "Phantom.Scalable/ScalablePaxos.h"
+#include "Phantom.System/async_ring_buffer.h"
+#include "Phantom.System/async_utility.h"
 
 namespace Phantom::Scalable
 {
@@ -142,7 +147,11 @@ InternalTransactionOperation::InternalTransactionOperation(
         MakePartialInternalOperationInformation(
             internalOperationInformation)),
     m_fullInternalOperationInformation(
-        GetFullInternalOperationInformation())
+        GetFullInternalOperationInformation()),
+    m_nodeSelectorTask(
+        m_serviceProvider
+            .get<IInternalResourceManagerSelector*>()
+            ->GetNodeSelector(internalOperationInformation.internaloperationidentifier().participantresource()))
 {
     if (internalOperationInformation.has_internaloperation())
     {
@@ -174,6 +183,7 @@ shared_task<const Grpc::Internal::InternalOperationInformation*> InternalTransac
 
 shared_task<Grpc::Internal::InternalOperationResult> InternalTransactionOperation::DelayedPrepare()
 {
+
     // Spawn a task that waits for the outcome of the distributed transaction to be known,
     // then notifies this operation's participants of the distributed outcome.
     spawn(
@@ -195,20 +205,37 @@ task<> InternalTransactionOperation::NotifyCommitAbortDecision(
     auto transactionOutcome = co_await m_internalTransactionOutcome;
 
     Grpc::Internal::ProcessOperationRequest processOperationRequest;
+    
     processOperationRequest.mutable_committransactionoutcome()->set_transactionoutcome(
         transactionOutcome);
 
+    auto enumeration = SendProcessOperationRequestToParticipants(
+        epochNumber,
+        processOperationRequest);
+
+    co_await async_skip(
+        co_await enumeration.begin(),
+        enumeration.end());
 }
 
-
 cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> InternalTransactionOperation::SendProcessOperationRequest(
-    Grpc::Address destination,
+    const NodeSelection& nodes,
+    ParticipantNode participantNode,
     const Grpc::Internal::ProcessOperationRequest& request
 )
 {
+    auto nodeResolver = m_serviceProvider.get<INodeResolver*>();
+    auto nodeTask = nodeResolver->ResolveNode(
+        nodes.EpochNumber,
+        nodes[participantNode]
+    );
+    auto& node = co_await nodeTask;
+
+    auto& address = node.addresses(0);
+
     auto clientFactory = m_serviceProvider.get<IPeerToPeerClientFactory*>();
     auto client = co_await clientFactory->Open(
-        destination);
+        address);
 
     auto enumeration = client->ProcessOperation(
         request);
@@ -222,33 +249,41 @@ cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> InternalTrans
 }
 
 cppcoro::async_generator<Grpc::Internal::ProcessOperationResponse> InternalTransactionOperation::SendProcessOperationRequestWithNeedOperationInformationFaultHandling(
-    Grpc::Address destination,
+    const NodeSelection& nodes,
+    ParticipantNode participantNode,
     const Grpc::Internal::ProcessOperationRequest& requestWithoutOperationInformation,
     shared_task<Grpc::Internal::ProcessOperationRequest>& requestWithOperationInformation
 )
 {
     const Grpc::Internal::ProcessOperationRequest* requestToSend = &requestWithoutOperationInformation;
 
-    Resend:
-    auto enumeration = SendProcessOperationRequest(
-        destination,
-        *requestToSend);
+    bool needResend;
 
-    for (auto iterator = co_await enumeration.begin();
-        iterator != enumeration.end();
-        co_await ++iterator)
+    do
     {
-        auto& response = *iterator;
-        
-        if (response.has_needoperationinformationfault())
-        {
-            const auto& materializedRequestWithOperationInformation = co_await requestWithOperationInformation;
-            requestToSend = &materializedRequestWithOperationInformation;
-            goto Resend;
-        }
+        needResend = false;
 
-        co_yield move(response);
-    }
+        auto enumeration = SendProcessOperationRequest(
+            nodes,
+            participantNode,
+            *requestToSend);
+
+        for (auto iterator = co_await enumeration.begin();
+            iterator != enumeration.end();
+            co_await ++iterator)
+        {
+            auto& response = *iterator;
+
+            if (response.has_needoperationinformationfault())
+            {
+                const auto& materializedRequestWithOperationInformation = co_await requestWithOperationInformation;
+                requestToSend = &materializedRequestWithOperationInformation;
+                needResend = true;
+            }
+
+            co_yield move(response);
+        }
+    } while (needResend);
 }
 
 shared_task<Grpc::Internal::ProcessOperationRequest> 
@@ -267,17 +302,96 @@ InternalTransactionOperation::AddOperationInformationToRequest(
 }
 
 cppcoro::async_generator<
-    std::tuple
-    <
-    Grpc::Internal::ParticipantNode,
-    Grpc::Internal::ProcessOperationResponse
-    >
+    InternalTransactionOperation::ParticipantResponse
 > InternalTransactionOperation::SendProcessOperationRequestToParticipants(
-    const std::vector<Grpc::Internal::ParticipantNode> nodes,
+    const NodeSelection& nodes,
     const Grpc::Internal::ProcessOperationRequest& request
 )
 {
-    throw 0;
+    async_ring_buffer<ParticipantResponse> buffer(nodes.Members.size());
+    cppcoro::async_latch latch(nodes.Members.size() + 1);
+    cppcoro::async_scope asyncScope;
+
+    auto addOperationInformationToRequestTask = AddOperationInformationToRequest(
+        request);
+
+    auto sendProcessOperationLambda = [&](
+        ParticipantNode node
+        ) -> task<>
+    {
+        auto enumeration = SendProcessOperationRequestWithNeedOperationInformationFaultHandling(
+            nodes,
+            node,
+            request,
+            addOperationInformationToRequestTask
+        );
+
+        for (auto iterator = co_await enumeration.begin();
+            iterator != enumeration.end();
+            co_await ++iterator)
+        {
+            co_await buffer.push(
+                ParticipantResponse
+                {
+                    node,
+                    std::move(*iterator)
+                }
+            );
+        }
+
+        latch.count_down();
+    };
+
+    for (auto& participantNode : nodes.Participants())
+    {
+        asyncScope.spawn(
+            sendProcessOperationLambda(
+                participantNode));
+    }
+
+    asyncScope.spawn([&]() -> task<>
+    {
+        co_await latch;
+        co_await buffer.complete();
+    }());
+
+    latch.count_down();
+
+    for (auto iterator = co_await buffer.begin();
+        iterator != buffer.end();
+        co_await ++iterator)
+    {
+        co_yield move(*iterator);
+    }
+    
+    co_await asyncScope.join();
 }
 
+
+cppcoro::async_generator<
+    InternalTransactionOperation::ParticipantResponse
+> InternalTransactionOperation::SendProcessOperationRequestToParticipants(
+    const Grpc::Internal::EpochNumber& epochNumber,
+    const Grpc::Internal::ProcessOperationRequest& request
+)
+{
+    auto nodeSelectionTask = (co_await m_nodeSelectorTask)->GetNodeSelection(
+        epochNumber,
+        m_partialInternalOperationInformation.internaloperationidentifier().participantresource()
+    );
+
+    auto& nodeSelection = co_await nodeSelectionTask;
+
+    auto enumeration = SendProcessOperationRequestToParticipants(
+        nodeSelection,
+        request
+    );
+
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
+    {
+        co_yield move(*iterator);
+    }
+}
 }

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Phantom.System/async_utility.h"
+#include <optional>
 #include <vector>
+#include <type_traits>
 
 namespace Phantom::Consensus
 {
@@ -14,26 +16,13 @@ concept QuorumChecker = requires (
     TMember m)
 {
     { q += m };
-}
-&&
-std::convertible_to<TQuorumChecker, bool>;
+    { static_cast<bool>(q) };
+};
 
 template<
     typename TBallotNumber
 >
-concept BallotNumber = requires (
-    TBallotNumber b1,
-    TBallotNumber b2
-    )
-{
-    { b1 <=> b2 } -> std::convertible_to<std::strong_ordering>;
-    { b1 == b2 } -> std::convertible_to<bool>;
-    { b1 != b2 } -> std::convertible_to<bool>;
-    { b1 < b2 } -> std::convertible_to<bool>;
-    { b1 > b2 } -> std::convertible_to<bool>;
-    { b1 <= b2 } -> std::convertible_to<bool>;
-    { b1 >= b2 } -> std::convertible_to<bool>;
-};
+concept BallotNumber = std::totally_ordered<TBallotNumber>;
 
 template<
     typename TQuorumCheckerFactory,
@@ -51,7 +40,7 @@ requires (
     TBallotNumber ballotNumber
     )
 {
-    { quorumCheckerFactory(ballotNumber) };
+    { quorumCheckerFactory(ballotNumber) } -> as_awaitable_convertible_to<TQuorumChecker>;
 };
 
 template<
@@ -62,8 +51,8 @@ template<
     TBallotNumber ballotNumber
     )
 {
-    { co_await as_awaitable(ballotNumberFactory()) } -> std::convertible_to<TBallotNumber>;
-    { co_await as_awaitable(ballotNumberFactory(ballotNumber)) } -> std::convertible_to<TBallotNumber>;
+    { ballotNumberFactory() } -> as_awaitable_convertible_to<TBallotNumber>;
+    { ballotNumberFactory(ballotNumber) } -> as_awaitable_convertible_to<TBallotNumber>;
 };
 
 class VectorQuorumChecker
@@ -80,7 +69,126 @@ public:
     VectorQuorumChecker& operator +=(
         size_t member);
 
-    operator bool() const;
+    explicit operator bool() const;
+};
+
+template<
+    typename TUnderlyingQuorum
+>
+class ValidatingQuorumChecker
+{
+    TUnderlyingQuorum m_quorum;
+public:
+    template<
+        typename TUnderlyingQuorum
+    >
+        ValidatingQuorumChecker(
+            TUnderlyingQuorum&& quorum
+        ) :
+        m_quorum(
+            std::forward<TUnderlyingQuorum>(quorum))
+    {}
+
+    template<
+        typename TMember
+    > ValidatingQuorumChecker& operator +=(
+        TMember member
+        )
+    {
+        if (member)
+        {
+            m_quorum += *member;
+        }
+
+        return *this;
+    }
+
+    explicit operator bool() const
+    {
+        return m_quorum;
+    }
+};
+
+template<
+    typename TMapFunction,
+    typename TUnderlyingQuorum
+>
+class MappingQuorumChecker
+{
+    TMapFunction m_mapFunction;
+    TUnderlyingQuorum m_quorum;
+public:
+    template<
+        typename TMapFunction,
+        typename TUnderlyingQuorum
+    > MappingQuorumChecker(
+        TMapFunction&& mapFunction,
+        TUnderlyingQuorum&& quorum
+    ) : 
+        m_mapFunction(
+            std::forward<TMapFunction>(mapFunction)),
+        m_quorum(
+            std::forward<TUnderlyingQuorum>(quorum))
+    {}
+
+    template<
+        typename TMember
+    > MappingQuorumChecker& operator +=(
+        TMember&& member
+        )
+    {
+        m_quorum += m_mapFunction(
+            std::forward<TMember>(
+                member));
+
+        return *this;
+    }
+
+    explicit operator bool() const
+    {
+        return m_quorum;
+    }
+};
+
+template<
+    typename TUnderlyingQuorum
+>
+class UnionQuorumChecker
+{
+    std::vector<TUnderlyingQuorum> m_quorums;
+public:
+    UnionQuorumChecker(
+        std::vector<TUnderlyingQuorum> quorums
+    ) : m_quorums(
+        std::move(quorums))
+    {}
+
+    template<
+        typename TMember
+    > UnionQuorumChecker& operator +=(
+        TMember&& member)
+    {
+        for (auto& quorum : m_quorums)
+        {
+            quorum += std::forward<TMember>(
+                member);
+        }
+
+        return *this;
+    }
+
+    explicit operator bool() const
+    {
+        for (auto& quorum : m_quorums)
+        {
+            if (!quorum)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 };
 
 template<
@@ -109,7 +217,7 @@ template<
 concept AsyncProposer =
 requires (TValue value)
 {
-    { Propose(value) };
+    { Propose(value) } -> as_awaitable_convertible_to<TValue>;
 };
 
 template<

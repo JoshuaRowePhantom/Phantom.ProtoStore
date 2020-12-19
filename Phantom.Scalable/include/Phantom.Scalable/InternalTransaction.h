@@ -14,7 +14,8 @@ class IPeerToPeerClientFactory;
 
 typedef service_provider<
     IInternalResourceManagerSelector*,
-    IPeerToPeerClientFactory*
+    IPeerToPeerClientFactory*,
+    INodeResolver*
 > InternalTransactionServiceProvider;
 
 struct InternalTransactionAddOperationResult

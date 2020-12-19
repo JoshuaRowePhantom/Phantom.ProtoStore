@@ -1,8 +1,11 @@
 #include <functional>
 #include <queue>
 #include <utility>
-#include <cppcoro/generator.hpp>
 #include <cppcoro/async_generator.hpp>
+#include <cppcoro/async_scope.hpp>
+#include <cppcoro/task.hpp>
+#include "async_ring_buffer.h"
+#include "async_utility.h"
 
 namespace Phantom
 {
