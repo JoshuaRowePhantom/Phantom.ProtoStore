@@ -12,17 +12,17 @@ template<
 public:
     template<
         typename TTarget = T
-    > std::shared_ptr<TTarget> shared_cast()
+    > std::shared_ptr<TTarget> shared_cast_this()
     {
-        return std::shared_ptr<TTarget>(
+        return std::static_pointer_cast<TTarget>(
             static_cast<T*>(this)->shared_from_this());
     }
 
     template<
         typename TTarget = T
-    > std::shared_ptr<const TTarget> shared_cast() const
+    > std::shared_ptr<const TTarget> shared_cast_this() const
     {
-        return std::shared_ptr<TTarget>(
+        return std::static_pointer_cast<TTarget>(
             static_cast<const T*>(this)->shared_from_this());
     }
 };

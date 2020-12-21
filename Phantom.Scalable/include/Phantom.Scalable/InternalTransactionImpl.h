@@ -5,6 +5,8 @@
 #include "InternalTransaction.h"
 #include <optional>
 #include <cppcoro/async_generator.hpp>
+#include "Memory.h"
+#include "ScalablePaxos.h"
 
 namespace Phantom::Scalable
 {
@@ -12,10 +14,11 @@ namespace Phantom::Scalable
 class InternalTransactionOperation
     :
     public BaseBackgoundWorker<InternalTransactionOperation>,
-    public std::enable_shared_from_this<InternalTransactionOperation>
+    public downcasting_enable_shared_from_this<InternalTransactionOperation>,
+    private IScalablePaxosMessageSender
 {
     const InternalTransactionServiceProvider m_serviceProvider;
-    
+
     const shared_task<const Grpc::Internal::InternalTransactionInformation&> m_internalTransactionInformation;
     const shared_task<Grpc::TransactionOutcome> m_internalTransactionOutcome;
     const shared_task<shared_ptr<INodeSelector>> m_nodeSelectorTask;
@@ -71,6 +74,14 @@ class InternalTransactionOperation
         const Grpc::Internal::EpochNumber& epochNumber,
         const Grpc::Internal::ProcessOperationRequest& requestWithoutOperationInformation
     );
+
+    virtual cppcoro::async_generator<Phase1bResponse> SendPhase1a(
+        Phase1aMessage phase1aMessage
+    ) override;
+
+    virtual cppcoro::async_generator<Phase2bResponse> SendPhase2a(
+        Phase2aMessage phase2aMessage
+    ) override;
 
 public:
     InternalTransactionOperation(

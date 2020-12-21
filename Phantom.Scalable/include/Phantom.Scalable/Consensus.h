@@ -105,7 +105,7 @@ public:
 
     explicit operator bool() const
     {
-        return m_quorum;
+        return static_cast<bool>(m_quorum);
     }
 };
 
@@ -146,7 +146,7 @@ public:
 
     explicit operator bool() const
     {
-        return m_quorum;
+        return static_cast<bool>(m_quorum);
     }
 };
 

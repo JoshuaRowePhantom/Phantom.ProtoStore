@@ -183,6 +183,24 @@ shared_task<const Grpc::Internal::InternalOperationInformation*> InternalTransac
 
 shared_task<Grpc::Internal::InternalOperationResult> InternalTransactionOperation::DelayedPrepare()
 {
+    ScalableQuorumCheckerFactory quorumCheckerFactory(
+        *co_await m_nodeSelectorTask,
+        m_partialInternalOperationInformation.internaloperationidentifier().participantresource()
+    );
+
+    ScalablePaxosBallotNumberFactory ballotNumberFactory;
+
+    ScalablePaxosProposer proposer(
+        quorumCheckerFactory,
+        ballotNumberFactory,
+        *this
+    );
+
+    ScalableResourceStateMutator mutator;
+
+    auto learnedValue = co_await proposer.Propose(
+        mutator
+    );
 
     // Spawn a task that waits for the outcome of the distributed transaction to be known,
     // then notifies this operation's participants of the distributed outcome.

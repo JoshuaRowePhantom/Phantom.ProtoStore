@@ -96,13 +96,10 @@ static_assert(Consensus::QuorumCheckerFactory<
     ParticipantNode
 >);
 
-class ScalableResourceStateMutator
-{
-public:
-    task<Grpc::Internal::ResourceState> operator()(
-        const std::optional<Grpc::Internal::ResourceState>& oldResourceState
-        );
-};
+typedef std::function<
+    task<Grpc::Internal::ResourceState>(
+        const std::optional<Grpc::Internal::ResourceState>&)>
+    ScalableResourceStateMutator;
 
 static_assert(Consensus::Paxos::AsyncMutator<
     ScalableResourceStateMutator, 
@@ -134,25 +131,27 @@ typedef Consensus::Paxos::StateMachines<
     cppcoro::task
 > ScalablePaxosStateMachines;
 
-class ScalablePaxosMessageSender
+class IScalablePaxosMessageSender
     : public ScalablePaxosStateMachines
 {
 public:
-    cppcoro::async_generator<Phase1bResponse> SendPhase1a(
-        Phase1aMessage phase1aMessage);
+    virtual cppcoro::async_generator<Phase1bResponse> SendPhase1a(
+        Phase1aMessage phase1aMessage
+    ) = 0;
 
-    cppcoro::async_generator<Phase2bResponse> SendPhase2a(
-        Phase2aMessage phase2aMessage);
+    virtual cppcoro::async_generator<Phase2bResponse> SendPhase2a(
+        Phase2aMessage phase2aMessage
+    ) = 0;
 };
 
 static_assert(Consensus::Paxos::MessageSender<
-    ScalablePaxosMessageSender,
+    IScalablePaxosMessageSender,
     ScalablePaxosStateMachines
 >);
 
 typedef Consensus::Paxos::StaticProposer<
     ScalablePaxosStateMachines,
-    ScalablePaxosMessageSender,
+    IScalablePaxosMessageSender&,
     cppcoro::task
 > ScalablePaxosProposer;
 

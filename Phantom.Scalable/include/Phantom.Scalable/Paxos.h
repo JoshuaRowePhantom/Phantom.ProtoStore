@@ -3,6 +3,7 @@
 #include "Phantom.System/async_utility.h"
 #include <concepts>
 #include <optional>
+#include <tuple>
 #include <variant>
 #include <vector>
 #include "Phantom.Scalable/Consensus.h"
@@ -195,9 +196,6 @@ public:
     typedef TQuorumChecker quorum_checker_type;
     typedef TMember member_type;
 
-    typedef std::tuple<member_type, Phase1bMessage> Phase1bResponse;
-    typedef std::tuple<member_type, Phase2bMessage> Phase2bResponse;
-
     struct LeaderState
     {
         mutator_type Mutator;
@@ -269,6 +267,9 @@ public:
             NakMessage
         > Phase2bResponseMessage;
     };
+
+    typedef std::tuple<member_type, Phase1bResult> Phase1bResponse;
+    typedef std::tuple<member_type, Phase2bResult> Phase2bResponse;
 
     struct AcceptorState
     {
@@ -505,7 +506,7 @@ public:
             const NakMessage& nakMessage
         )
         {
-            if (leaderState.BallotNumber > nakMessage.MaxBallotNumber)
+            if (leaderState.CurrentBallotNumber > nakMessage.MaxBallotNumber)
             {
                 co_return NakResult{};
             }
@@ -515,8 +516,8 @@ public:
                 .Phase1aResult = co_await Phase1a(
                     leaderState,
                     co_await as_awaitable(m_ballotNumberFactory(
-                        nakMessage.MaxBallotNumber),
-                    leaderState.Proposal)),
+                        nakMessage.MaxBallotNumber)),
+                    leaderState.Mutator),
             };
         }
     };
@@ -719,12 +720,12 @@ public:
             quorumCheckerFactory
         ),
         m_messageSender(
-            std::move(messageSender))
+            std::forward<message_sender_type>(messageSender))
     {
     }
 
     TFuture<LearnedValue> Propose(
-        value_type value)
+        mutator_type value)
     {
         typename paxos_type::LeaderState leaderState;
         typename paxos_type::LearnerState learnerState;
@@ -739,33 +740,30 @@ public:
             phase1aResult.Phase1aMessage
         );
 
-        typename paxos_type::Phase2aMessage phase2aMessage;
+        std::optional<typename paxos_type::Phase2aMessage> phase2aMessage;
 
         for (
             auto phase1bIterator = co_await as_awaitable(phase1bEnumeration.begin());
             phase1bIterator != phase1bEnumeration.end();
             co_await as_awaitable(++phase1bIterator))
         {
-            member_type member;
-            typename paxos_type::Phase1bResult phase1bResult;
+            const auto& member = get<member_type>(*phase1bIterator);
+            const auto& phase1bResult = get<typename paxos_type::Phase1bResult>(*phase1bIterator);
 
-            tie(member, phase1bResult) = *phase1bIterator;
-
-            if (has<NakMessage>(phase1bResult.Phase1bResponseMessage))
+            if (holds_alternative<NakMessage>(phase1bResult.Phase1bResponseMessage))
             {
                 auto nakResult = co_await m_leader.Nak(
                     leaderState,
                     get<NakMessage>(phase1bResult.Phase1bResponseMessage));
 
-                if (has<Phase1aResult>(nakResult.Phase1aResult))
+                if (nakResult.Phase1aResult)
                 {
-                    phase1aResult = get<Phase1aResult>(
-                        nakResult.Phase1aResult);
+                    phase1aResult = *nakResult.Phase1aResult;
                     goto SendPhase1a;
                 }
             }
 
-            if (has<Phase1bMessage>(phase1bResult.Phase1bResponseMessage))
+            if (holds_alternative<Phase1bMessage>(phase1bResult.Phase1bResponseMessage))
             {
                 auto phase2aResult = co_await m_leader.Phase2a(
                     leaderState,
@@ -775,7 +773,7 @@ public:
                 if (phase2aResult.Phase2aMessage)
                 {
                     phase2aMessage = std::move(
-                        *phase2aResult.Phase2aMessage);
+                        phase2aResult.Phase2aMessage);
 
                     goto SendPhase2a;
                 }
@@ -786,8 +784,10 @@ public:
         goto StartPhase1a;
 
     SendPhase2a:
+        assert(phase2aMessage);
+
         auto phase2bEnumeration = m_messageSender.SendPhase2a(
-            phase2aMessage);
+            *phase2aMessage);
 
         for (
             auto phase2bIterator = co_await as_awaitable(phase2bEnumeration.begin());
@@ -795,26 +795,23 @@ public:
             co_await as_awaitable(++phase2bIterator)
             )
         {
-            member_type member;
-            typename paxos_type::Phase2bResult phase2bResult;
+            const auto& member = get<member_type>(*phase2bIterator);
+            const auto& phase2bResult = get<typename paxos_type::Phase2bResult>(*phase2bIterator);
 
-            tie(member, phase2bResult) = *phase2bIterator;
-
-            if (has<NakMessage>(phase2bResult.Phase2bResponseMessage))
+            if (holds_alternative<NakMessage>(phase2bResult.Phase2bResponseMessage))
             {
                 auto nakResult = co_await m_leader.Nak(
                     leaderState,
                     get<NakMessage>(phase2bResult.Phase2bResponseMessage));
 
-                if (has<Phase1aResult>(nakResult.Phase1aResult))
+                if (nakResult.Phase1aResult)
                 {
-                    phase1aResult = get<Phase1aResult>(
-                        nakResult.Phase1aResult);
+                    phase1aResult = *nakResult.Phase1aResult;
                     goto SendPhase1a;
                 }
             }
 
-            if (has<Phase2bMessage>(phase2bResult.Phase2bResponseMessage))
+            if (holds_alternative<Phase2bMessage>(phase2bResult.Phase2bResponseMessage))
             {
                 auto learnResult = co_await m_learner.Learn(
                     learnerState,
