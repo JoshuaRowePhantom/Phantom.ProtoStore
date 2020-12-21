@@ -306,4 +306,15 @@ template<
     }
 }
 
+template<
+    typename TEvent
+> concept Event
+= can_co_await<TEvent>
+&& requires(
+    TEvent event
+    )
+{
+    { event.set() };
+};
+
 }

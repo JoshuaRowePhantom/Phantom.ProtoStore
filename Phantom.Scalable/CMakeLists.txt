@@ -25,6 +25,7 @@ add_library (
     include/Phantom.Scalable/Consensus.h
     include/Phantom.Scalable/DataComponentString.h
     include/Phantom.Scalable/EgalitarianPaxos.h
+    include/Phantom.Scalable/EgalitarianPaxosImplementation.h
     include/Phantom.Scalable/InternalLockResourceManager.h
     include/Phantom.Scalable/InternalLockResourceManagerDatabase.h
     include/Phantom.Scalable/InternalResourceManager.h
