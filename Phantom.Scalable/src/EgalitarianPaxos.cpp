@@ -81,6 +81,50 @@ class StaticPaxosTests
         static_acceptor_type,
         actions_type
     >);
+
+    class StaticTestQuorumCheckerFactory
+    {
+    public:
+        quorum_checker_type operator()(
+            ballot_number_type,
+            CommandLeaderMessageDestination destination
+            );
+    };
+
+    static_assert(EgalitarianPaxosQuorumCheckerFactory<
+        StaticTestQuorumCheckerFactory,
+        ballot_number_type,
+        quorum_checker_type,
+        member_type
+    >);
+
+    class StaticTestMessageSender
+        :
+        public services_type,
+        public services_type::IAsyncMessageSender
+    {
+
+    };
+
+    typedef StaticCommandLeader<
+        services_type,
+        StaticTestQuorumCheckerFactory,
+        quorum_checker_type,
+        NumericBallotNumberFactory<size_t>,
+        StaticTestMessageSender,
+        cppcoro::task,
+        cppcoro::async_generator
+    > static_command_leader_type;
+
+    static_assert(CommandLeader<
+        services_type::IAsyncCommandLeader,
+        actions_type
+    >);
+
+    static_assert(CommandLeader<
+        static_command_leader_type,
+        actions_type
+    >);
 };
 
 }

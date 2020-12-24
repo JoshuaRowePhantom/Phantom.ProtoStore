@@ -951,6 +951,7 @@ template<
     typename TQuorumCheckerFactory,
     typename TQuorumChecker,
     typename TBallotNumberFactory,
+    typename TMessageSender,
     template <typename> typename TFuture,
     template <typename> typename TGenerator
 > 
@@ -970,12 +971,12 @@ class StaticCommandLeader
     : public TServices
 {
 public:
+    typedef TMessageSender message_sender_type;
+
     using typename TServices::member_type;
     using typename TServices::instance_type;
     using typename TServices::command_type;
-    using typename TServices::message_sender_type;
 
-    using typename TServices::CommandStatus;
     using typename TServices::PaxosInstanceState;
 
     using typename TServices::PreAcceptMessage;
@@ -1002,8 +1003,6 @@ public:
     using typename TServices::OnAcceptReplyResult;
     using typename TServices::OnPrepareReplyResult;
     using typename TServices::OnTryPreAcceptReplyResult;
-    using typename TServices::OnNakResult;
-    using typename TServices::OnCommittedResult;
     using typename TServices::RecoverResult;
 
 private:
