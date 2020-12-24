@@ -4,7 +4,7 @@
 #include "Phantom.System/async_utility.h"
 #include "Consensus.h"
 
-namespace Phantom::Scalable::EgalitarianPaxos
+namespace Phantom::Consensus::EgalitarianPaxos
 {
 
 enum CommandLeaderMessageDestination
@@ -76,6 +76,12 @@ public:
         sequence_number_type SequenceNumber;
     };
 
+    struct Vote
+    {
+        CommandData CommandData;
+        ballot_number_type VotedBallotNumber;
+    };
+
     struct PreAcceptMessage
     {
         PaxosInstanceState PaxosInstanceState;
@@ -85,7 +91,7 @@ public:
     struct AcceptMessage
     {
         PaxosInstanceState PaxosInstanceState;
-        std::optional<CommandData> CommandData;
+        CommandData CommandData;
     };
 
     struct CommitMessage
@@ -115,15 +121,14 @@ public:
     struct PrepareReplyMessage
     {
         PaxosInstanceState PaxosInstanceState;
-        std::optional<ballot_number_type> PreviousBallotNumber;
-        std::optional<CommandData> CommandData;
+        std::optional<Vote> Vote;
         CommandStatus CommandStatus;
     };
 
     struct TryPreAcceptMessage
     {
         PaxosInstanceState PaxosInstanceState;
-        std::optional<CommandData> CommandData;
+        CommandData CommandData;
     };
 
 
@@ -190,12 +195,10 @@ template<
 
 template<
     typename TCommandSequencer,
-    typename TCommandExecutor,
     typename TActions
 > concept CommandSequencer
 = requires(
     TCommandSequencer commandSequencer,
-    TCommandExecutor commandExecutor,
     typename TActions::instance_type instance,
     typename TActions::CommitMessage commitMessage)
 {
@@ -206,13 +209,13 @@ template<
 template<
     typename TMessages,
     template <typename> typename TFuture,
-    template <typename> typename TGenerator,
-    Event TEvent
+    template <typename> typename TGenerator
 >
 class Actions
     :
     public TMessages
 {
+public:
     using typename TMessages::ballot_number_type;
     using typename TMessages::member_type;
     using typename TMessages::instance_type;
@@ -220,6 +223,7 @@ class Actions
     using typename TMessages::command_type;
     using typename TMessages::sequence_number_type;
     
+    using typename TMessages::PaxosInstanceState;
     using typename TMessages::CommandData;
     using typename TMessages::CommandStatus;
     using typename TMessages::PreAcceptMessage;
@@ -384,11 +388,22 @@ class Actions
             return get<TMessage>(
                 m_message);
         }
+
+        template<
+            typename TLambda
+        > auto visit(
+            TLambda lambda) const
+        {
+            return std::visit(
+                lambda,
+                m_message);
+        }
     };
 
     typedef CommandLeaderResult<PreAcceptMessage> StartResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnPreAcceptReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnAcceptReplyResult;
+    typedef CommandLeaderResult<std::monostate, TryPreAcceptMessage> RecoverResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage> OnPrepareReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage> OnTryPreAcceptReplyResult;
 
@@ -396,8 +411,8 @@ class Actions
     {
     public:
         virtual TFuture<StartResult> Start(
-            const instance_type&,
-            const std::optional<command_type>&
+            const instance_type& instance,
+            const command_type& command
         ) = 0;
 
         virtual TFuture<OnPreAcceptReplyResult> OnPreAcceptReply(
@@ -410,6 +425,10 @@ class Actions
 
         virtual TFuture<OnPrepareReplyResult> OnPrepareReply(
             const PrepareResult& prepareResult
+        ) = 0;
+
+        virtual TFuture<RecoverResult> Recover(
+            const PaxosInstanceState& paxosInstanceState
         ) = 0;
 
         virtual TFuture<OnTryPreAcceptReplyResult> OnTryPreAcceptReply(
@@ -435,7 +454,6 @@ class Actions
     {
         instance_type Instance;
         CommandData CommandData;
-        TEvent Event;
     };
 
     class IAsyncCommandSequencer
@@ -511,11 +529,9 @@ template<
 
 template<
     typename TActions,
-    typename TMessageSender,
     typename TCommandLog,
-    template <typename> typename TFuture,
-    template <typename> typename TGenerator
-> class Services
+    template <typename> typename TFuture
+> class AcceptorServices
     :
     public TActions
 {
@@ -524,11 +540,11 @@ public:
     using typename TActions::instance_type;
     using typename TActions::instance_set_type;
     using typename TActions::sequence_number_type;
-    
+
     using typename TActions::PaxosInstanceState;
+    using typename TActions::Vote;
     using typename TActions::CommandData;
     using typename TActions::CommandStatus;
-    using typename TActions::CommandLeaderMessageDestination;
 
     using typename TActions::PreAcceptMessage;
     using typename TActions::AcceptMessage;
@@ -547,11 +563,10 @@ public:
     using typename TActions::TryPreAcceptResult;
 
     typedef TCommandLog command_log_type;
-    typedef TMessageSender message_sender_type;
 
     struct CommandLogEntry
     {
-        CommandData CommandData;
+        std::optional<Vote> Vote;
         ballot_number_type BallotNumber;
         CommandStatus CommandStatus;
     };
@@ -586,8 +601,30 @@ public:
 
     static_assert(CommandLog<
         IAsyncCommandLog,
-        Services
+        AcceptorServices
     >);
+};
+
+template<
+    typename TActions,
+    typename TMessageSender,
+    template <typename> typename TFuture,
+    template <typename> typename TGenerator
+> class ProposerServices
+    :
+    public TActions
+{
+
+    using typename TActions::PreAcceptMessage;
+    using typename TActions::AcceptMessage;
+    using typename TActions::PrepareMessage;
+    using typename TActions::TryPreAcceptMessage;
+    using typename TActions::CommitMessage;
+
+    using typename TActions::PreAcceptResult;
+    using typename TActions::AcceptResult;
+    using typename TActions::PrepareResult;
+    using typename TActions::TryPreAcceptResult;
 
     class IAsyncMessageSender
     {
@@ -632,7 +669,6 @@ template<
 public:
     using typename TServices::member_type;
     using typename TServices::command_log_type;
-    using typename TServices::message_sender_type;
 
     using typename TServices::CommandStatus;
     using typename TServices::PaxosInstanceState;
@@ -660,7 +696,6 @@ public:
 
     member_type m_thisReplica;
     command_log_type m_commandLog;
-    message_sender_type m_messageSender;
 
     template<
         typename TResult
@@ -746,20 +781,16 @@ public:
 public:
     template<
         typename TMember,
-        typename TCommandLog,
-        typename TMessageSender
+        typename TCommandLog
     >
         StaticAcceptor(
             TMember&& thisReplica,
-            TCommandLog&& commandLog,
-            TMessageSender&& messageSender
+            TCommandLog&& commandLog
         ) :
         m_thisReplica(
             std::forward<TMember>(thisReplica)),
         m_commandLog(
-            std::forward<TCommandLog>(commandLog)),
-        m_messageSender(
-            std::forward<TMessageSender>(messageSender))
+            std::forward<TCommandLog>(commandLog))
     {}
 
     TFuture<PreAcceptResult> OnPreAccept(
@@ -905,7 +936,7 @@ public:
         });
     }
 
-    virtual TFuture<CommitResult> OnCommit(
+    TFuture<CommitResult> OnCommit(
         const CommitMessage& commitMessage
     )
     {
@@ -943,7 +974,7 @@ template<
     typename TServices,
     typename TQuorumCheckerFactory,
     typename TQuorumChecker,
-    typename TMessageSender,
+    typename TBallotNumberFactory,
     template <typename> typename TFuture,
     template <typename> typename TGenerator
 > 
@@ -955,17 +986,17 @@ requires
         typename TServices::member_type
     >
 &&
-    MessageSender<
-        TMessageSender,
-        TServices
+    AsyncBallotNumberFactory<
+        TBallotNumberFactory,
+        typename TServices::ballot_number_type
     >
-
 class StaticCommandLeader
     : public TServices
 {
 public:
     using typename TServices::member_type;
-    using typename TServices::command_log_type;
+    using typename TServices::instance_type;
+    using typename TServices::command_type;
     using typename TServices::message_sender_type;
 
     using typename TServices::CommandStatus;
@@ -989,6 +1020,56 @@ public:
     using typename TServices::TryPreAcceptReplyMessage;
     using typename TServices::NakMessage;
     using typename TServices::CommittedMessage;
+
+    using typename TServices::StartResult;
+    using typename TServices::OnPreAcceptReplyResult;
+    using typename TServices::OnAcceptReplyResult;
+    using typename TServices::OnPrepareReplyResult;
+    using typename TServices::OnTryPreAcceptReplyResult;
+    using typename TServices::OnNakResult;
+    using typename TServices::OnCommittedResult;
+    using typename TServices::RecoverResult;
+
+private:
+    TQuorumCheckerFactory m_quorumCheckerFactory;
+
+public:
+    template<
+        typename TQuorumCheckerFactory,
+        typename TBallotNumberFactory
+    > StaticCommandLeader(
+        TQuorumCheckerFactory&& quorumCheckerFactory
+    ) :
+        m_quorumCheckerFactory(
+            std::forward<TQuorumCheckerFactory>(quorumCheckerFactory))
+    {}
+
+    TFuture<StartResult> Start(
+        const instance_type& instancetype,
+        const command_type& command
+    )
+    {
+    }
+
+    TFuture<OnPreAcceptReplyResult> OnPreAcceptReply(
+        const PreAcceptResult& preAcceptResult
+    );
+
+    TFuture<OnAcceptReplyResult> OnAcceptReply(
+        const AcceptResult& acceptResult
+    );
+
+    TFuture<OnPrepareReplyResult> OnPrepareReply(
+        const PrepareResult& prepareResult
+    );
+
+    TFuture<RecoverResult> Recover(
+        const PaxosInstanceState& paxosInstanceState
+    );
+
+    TFuture<OnTryPreAcceptReplyResult> OnTryPreAcceptReply(
+        const TryPreAcceptResult& tryPreAcceptResult
+    );
 };
 
 }
