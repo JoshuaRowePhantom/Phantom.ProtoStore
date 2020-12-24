@@ -6,6 +6,36 @@
 
 namespace Phantom::Scalable::EgalitarianPaxos
 {
+
+enum CommandLeaderMessageDestination
+{
+    Nowhere,
+    AllReplicas,
+    SlowQuorum,
+    FastQuorum,
+};
+
+template<
+    typename TQuorumCheckerFactory,
+    typename TBallotNumber,
+    typename TQuorumChecker,
+    typename TMember
+>
+concept EgalitarianPaxosQuorumCheckerFactory
+=
+QuorumChecker<TQuorumChecker, TMember>
+&&
+BallotNumber<TBallotNumber>
+&&
+requires(
+    TQuorumCheckerFactory quorumCheckerFactory,
+    TBallotNumber ballotNumber,
+    CommandLeaderMessageDestination destination
+    )
+{
+    { quorumCheckerFactory(ballotNumber, destination) } -> as_awaitable_convertible_to<TQuorumChecker>;
+};
+
 template<
     typename TBallotNumber,
     typename TMember,
@@ -313,14 +343,6 @@ class Actions
         Actions
     >);
 
-    enum CommandLeaderMessageDestination
-    {
-        Nowhere,
-        AllReplicas,
-        SlowQuorum,
-        FastQuorum,
-    };
-
     template<
         typename ... TMessages
     >
@@ -604,7 +626,7 @@ public:
 template<
     typename TServices,
     template <typename> typename TFuture
-> class StaticEngine
+> class StaticAcceptor
     : public TServices
 {
 public:
@@ -625,6 +647,339 @@ public:
     using typename TServices::AcceptResult;
     using typename TServices::PrepareResult;
     using typename TServices::TryPreAcceptResult;
+    using typename TServices::CommitResult;
+
+    using typename TServices::PreAcceptReplyMessage;
+    using typename TServices::AcceptReplyMessage;
+    using typename TServices::PrepareReplyMessage;
+    using typename TServices::TryPreAcceptReplyMessage;
+    using typename TServices::NakMessage;
+    using typename TServices::CommittedMessage;
+
+    using typename TServices::CommandLogEntry;
+
+    member_type m_thisReplica;
+    command_log_type m_commandLog;
+    message_sender_type m_messageSender;
+
+    template<
+        typename TResult
+    > TFuture<std::variant<std::optional<CommandLogEntry>, TResult>> GetCommandLogEntryOrNak(
+        const PaxosInstanceState& paxosInstanceState
+    )
+    {
+        auto commandLogEntry = co_await m_commandLog.Get(
+            paxosInstanceState.Instance
+        );
+
+        if (commandLogEntry
+            && commandLogEntry.BallotNumber >= paxosInstanceState.BallotNumber)
+        {
+            return GenerateNak(
+                paxosInstanceState,
+                commandLogEntry);
+        }
+
+        co_return std::move(
+            commandLogEntry);
+    }
+
+    template<
+        typename TResult
+    > TResult GenerateNak(
+        const PaxosInstanceState& paxosInstanceState,
+        const CommandLogEntry& commandLogEntry
+    )
+    {
+        co_return TResult
+        {
+            m_thisReplica,
+            NakMessage
+            {
+                paxosInstanceState,
+                commandLogEntry.BallotNumber,
+            },
+        };
+    }
+
+    template<
+        typename TResult,
+        typename TLambda
+    > TResult ExecuteCommandLogEntryTransaction(
+        const PaxosInstanceState& paxosInstanceState,
+        TLambda lambda
+    )
+    {
+        auto originalCommandLogEntry = co_await m_commandLog.Get(
+            paxosInstanceState.Instance
+        );
+
+        if (originalCommandLogEntry
+            && originalCommandLogEntry.BallotNumber >= paxosInstanceState.BallotNumber)
+        {
+            co_return GenerateNak(
+                paxosInstanceState,
+                originalCommandLogEntry);
+        }
+
+        auto newCommandLogEntry = originalCommandLogEntry;
+        if (!newCommandLogEntry)
+        {
+            newCommandLogEntry = CommandLogEntry
+            {
+            };
+        }
+
+        auto result = co_await lambda(
+            originalCommandLogEntry,
+            newCommandLogEntry);
+
+        co_await m_commandLog.Put(
+            paxosInstanceState.Instance,
+            originalCommandLogEntry,
+            newCommandLogEntry);
+
+        co_return std::move(
+            result);
+    }
+
+public:
+    template<
+        typename TMember,
+        typename TCommandLog,
+        typename TMessageSender
+    >
+        StaticAcceptor(
+            TMember&& thisReplica,
+            TCommandLog&& commandLog,
+            TMessageSender&& messageSender
+        ) :
+        m_thisReplica(
+            std::forward<TMember>(thisReplica)),
+        m_commandLog(
+            std::forward<TCommandLog>(commandLog)),
+        m_messageSender(
+            std::forward<TMessageSender>(messageSender))
+    {}
+
+    TFuture<PreAcceptResult> OnPreAccept(
+        const PreAcceptMessage& preAcceptMessage
+    )
+    {
+        auto updateDependenciesResult = co_await m_commandLog.UpdateDependencies(
+            preAcceptMessage.PaxosInstanceState,
+            preAcceptMessage.CommandData
+        );
+
+        if (!updateDependenciesResult.UpdatedCommandLogEntry)
+        {
+            // The only conditions we accept here are that the ballot number was invalid.
+            assert(updateDependenciesResult.OriginalCommandLogEntry);
+            assert(preAcceptMessage.PaxosInstanceState.BallotNumber <= updateDependenciesResult.OriginalCommandLogEntry.BallotNumber);
+
+            co_return GenerateNak<PreAcceptResult>(
+                preAcceptMessage.PaxosInstanceState,
+                updateDependenciesResult.OriginalCommandLogEntry
+                );
+        }
+
+        co_return PreAcceptResult
+        {
+            m_thisReplica,
+            PreAcceptReplyMessage
+            {
+                .PaxosInstanceState = preAcceptMessage.PaxosInstanceState,
+                .Dependencies = updateDependenciesResult.UpdatedCommandLogEntry.CommandData.Dependencies,
+                .SequenceNumber = updateDependenciesResult.UpdatedCommandLogEntry.SequenceNumber,
+            },
+        };
+    }
+
+    TFuture<AcceptResult> OnAccept(
+        const AcceptMessage& acceptMessage
+    )
+    {
+        co_return co_await ExecuteCommandLogEntryTransaction(
+            acceptMessage.PaxosInstanceState,
+            [&](
+                auto originalCommandLogEntry,
+                auto newCommandLogEntry
+                ) -> TFuture<AcceptResult>
+        {
+            newCommandLogEntry->BallotNumber = acceptMessage.PaxosInstanceState.BallotNumber;
+            newCommandLogEntry->CommandData = acceptMessage.CommandData;
+            newCommandLogEntry->Status = CommandStatus::Accepted;
+
+            co_return AcceptResult
+            {
+                m_thisReplica,
+                AcceptReplyMessage
+                {
+                    .PaxosInstanceState = acceptMessage.PaxosInstanceState,
+                },
+            };
+        });
+    }
+
+    TFuture<PrepareResult> OnPrepare(
+        const PrepareMessage& prepareMessage
+    )
+    {
+        co_return co_await ExecuteCommandLogEntryTransaction(
+            prepareMessage.PaxosInstanceState,
+            [&](
+                auto originalCommandLogEntry,
+                auto newCommandLogEntry
+                ) -> TFuture<PrepareResult>
+        {
+            newCommandLogEntry->BallotNumber = prepareMessage.PaxosInstanceState.BallotNumber;
+
+            if (originalCommandLogEntry)
+            {
+                co_return PrepareResult
+                {
+                    m_thisReplica,
+                    PrepareReplyMessage
+                    {
+                        .PaxosInstanceState = prepareMessage.PaxosInstanceState,
+                        .PreviousBallotNumber = originalCommandLogEntry->BallotNumber,
+                        .CommandData = originalCommandLogEntry->CommandData,
+                        .CommandStatus = originalCommandLogEntry->CommandStatus,
+                    }
+                };
+            }
+            else
+            {
+                co_return PrepareResult
+                {
+                    m_thisReplica,
+                    PrepareReplyMessage
+                    {
+                        .PaxosInstanceState = prepareMessage.PaxosInstanceState,
+                        .CommandStatus = CommandStatus::NotSeen,
+                    }
+                };
+            }
+        });
+    }
+
+    TFuture<TryPreAcceptResult> OnTryPreAccept(
+        const TryPreAcceptMessage& tryPreAcceptMessage
+    )
+    {
+        co_return co_await ExecuteCommandLogEntryTransaction(
+            tryPreAcceptMessage.PaxosInstanceState,
+            [&](
+                auto originalCommandLogEntry,
+                auto newCommandLogEntry
+                ) -> TFuture<PrepareResult>
+        {
+            newCommandLogEntry->BallotNumber = tryPreAcceptMessage.PaxosInstanceState.BallotNumber;
+
+            if (originalCommandLogEntry)
+            {
+                co_return PrepareResult
+                {
+                    m_thisReplica,
+                    PrepareReplyMessage
+                    {
+                        .PaxosInstanceState = tryPreAcceptMessage.PaxosInstanceState,
+                        .PreviousBallotNumber = originalCommandLogEntry->BallotNumber,
+                        .CommandData = originalCommandLogEntry->CommandData,
+                        .CommandStatus = originalCommandLogEntry->CommandStatus,
+                    }
+                };
+            }
+            else
+            {
+                co_return PrepareResult
+                {
+                    m_thisReplica,
+                    PrepareReplyMessage
+                    {
+                        .PaxosInstanceState = tryPreAcceptMessage.PaxosInstanceState,
+                        .CommandStatus = CommandStatus::NotSeen,
+                    }
+                };
+            }
+        });
+    }
+
+    virtual TFuture<CommitResult> OnCommit(
+        const CommitMessage& commitMessage
+    )
+    {
+        co_return co_await ExecuteCommandLogEntryTransaction(
+            commitMessage.PaxosInstanceState,
+            [&](
+                auto originalCommandLogEntry,
+                auto newCommandLogEntry
+                ) -> TFuture<void>
+        {
+            auto result = CommitResult
+            {
+                m_thisReplica,
+                CommittedMessage
+                {
+                    .PaxosInstanceState = commitMessage.PaxosInstanceState,
+                    .PreviousCommandStatus = originalCommandLogEntry.Status,
+                    .CommandData = commitMessage.CommandData,
+                }
+            };
+
+            if (originalCommandLogEntry.Status != CommandStatus::Executed
+                &&
+                originalCommandLogEntry.Status != CommandStatus::Committed)
+            {
+                newCommandLogEntry.Status = CommandStatus::Committed;
+            }
+
+            co_return result;
+        });
+    };
+};
+
+template<
+    typename TServices,
+    typename TQuorumCheckerFactory,
+    typename TQuorumChecker,
+    typename TMessageSender,
+    template <typename> typename TFuture,
+    template <typename> typename TGenerator
+> 
+requires
+    EgalitarianPaxosQuorumCheckerFactory<
+        TQuorumCheckerFactory,
+        typename TServices::ballot_number_type,
+        TQuorumChecker,
+        typename TServices::member_type
+    >
+&&
+    MessageSender<
+        TMessageSender,
+        TServices
+    >
+
+class StaticCommandLeader
+    : public TServices
+{
+public:
+    using typename TServices::member_type;
+    using typename TServices::command_log_type;
+    using typename TServices::message_sender_type;
+
+    using typename TServices::CommandStatus;
+    using typename TServices::PaxosInstanceState;
+
+    using typename TServices::PreAcceptMessage;
+    using typename TServices::AcceptMessage;
+    using typename TServices::PrepareMessage;
+    using typename TServices::TryPreAcceptMessage;
+    using typename TServices::CommitMessage;
+
+    using typename TServices::PreAcceptResult;
+    using typename TServices::AcceptResult;
+    using typename TServices::PrepareResult;
     using typename TServices::TryPreAcceptResult;
     using typename TServices::CommitResult;
 
@@ -632,294 +987,8 @@ public:
     using typename TServices::AcceptReplyMessage;
     using typename TServices::PrepareReplyMessage;
     using typename TServices::TryPreAcceptReplyMessage;
-    using typename TServices::TryPreAcceptReplyMessage;
     using typename TServices::NakMessage;
     using typename TServices::CommittedMessage;
-
-    using typename TServices::CommandLogEntry;
-
-    class StaticAcceptor
-    {
-        member_type m_thisReplica;
-        command_log_type m_commandLog;
-        message_sender_type m_messageSender;
-
-        template<
-            typename TResult
-        > TFuture<std::variant<std::optional<CommandLogEntry>, TResult>> GetCommandLogEntryOrNak(
-            const PaxosInstanceState& paxosInstanceState
-        )
-        {
-            auto commandLogEntry = co_await m_commandLog.Get(
-                paxosInstanceState.Instance
-            );
-
-            if (commandLogEntry
-                && commandLogEntry.BallotNumber >= paxosInstanceState.BallotNumber)
-            {
-                return GenerateNak(
-                    paxosInstanceState,
-                    commandLogEntry);
-            }
-
-            co_return std::move(
-                commandLogEntry);
-        }
-
-        template<
-            typename TResult
-        > TResult GenerateNak(
-            const PaxosInstanceState& paxosInstanceState,
-            const CommandLogEntry& commandLogEntry
-        )
-        {
-            co_return TResult
-            {
-                m_thisReplica,
-                NakMessage
-                {
-                    paxosInstanceState,
-                    commandLogEntry.BallotNumber,
-                },
-            };
-        }
-
-        template<
-            typename TResult,
-            typename TLambda
-        > TResult ExecuteCommandLogEntryTransaction(
-            const PaxosInstanceState& paxosInstanceState,
-            TLambda lambda
-        )
-        {
-            auto originalCommandLogEntry = co_await m_commandLog.Get(
-                paxosInstanceState.Instance
-            );
-
-            if (originalCommandLogEntry
-                && originalCommandLogEntry.BallotNumber >= paxosInstanceState.BallotNumber)
-            {
-                co_return GenerateNak(
-                    paxosInstanceState,
-                    originalCommandLogEntry);
-            }
-
-            auto newCommandLogEntry = originalCommandLogEntry;
-            if (!newCommandLogEntry)
-            {
-                newCommandLogEntry = CommandLogEntry
-                {
-                };
-            }
-
-            auto result = co_await lambda(
-                originalCommandLogEntry,
-                newCommandLogEntry);
-
-            co_await m_commandLog.Put(
-                paxosInstanceState.Instance,
-                originalCommandLogEntry,
-                newCommandLogEntry);
-
-            co_return std::move(
-                result);
-        }
-
-    public:
-        template<
-            typename TMember,
-            typename TCommandLog,
-            typename TMessageSender
-        >
-        StaticAcceptor(
-            TMember&& thisReplica,
-            TCommandLog&& commandLog,
-            TMessageSender&& messageSender
-        ) : 
-            m_thisReplica(
-                std::forward<TMember>(thisReplica)),
-            m_commandLog(
-                std::forward<TCommandLog>(commandLog)),
-            m_messageSender(
-                std::forward<TMessageSender>(messageSender))
-        {}
-
-        TFuture<PreAcceptResult> OnPreAccept(
-            const PreAcceptMessage& preAcceptMessage
-        )
-        {
-            auto updateDependenciesResult = co_await m_commandLog.UpdateDependencies(
-                preAcceptMessage.PaxosInstanceState,
-                preAcceptMessage.CommandData
-            );
-
-            if (!updateDependenciesResult.UpdatedCommandLogEntry)
-            {
-                // The only conditions we accept here are that the ballot number was invalid.
-                assert(updateDependenciesResult.OriginalCommandLogEntry);
-                assert(preAcceptMessage.PaxosInstanceState.BallotNumber <= updateDependenciesResult.OriginalCommandLogEntry.BallotNumber);
-
-                co_return GenerateNak<PreAcceptResult>(
-                    preAcceptMessage.PaxosInstanceState,
-                    updateDependenciesResult.OriginalCommandLogEntry
-                    );
-            }
-
-            co_return PreAcceptResult
-            {
-                m_thisReplica,
-                PreAcceptReplyMessage
-                {
-                    .PaxosInstanceState = preAcceptMessage.PaxosInstanceState,
-                    .Dependencies = updateDependenciesResult.UpdatedCommandLogEntry.CommandData.Dependencies,
-                    .SequenceNumber = updateDependenciesResult.UpdatedCommandLogEntry.SequenceNumber,
-                },
-            };
-        }
-
-        TFuture<AcceptResult> OnAccept(
-            const AcceptMessage& acceptMessage
-        )
-        {
-            co_return co_await ExecuteCommandLogEntryTransaction(
-                acceptMessage.PaxosInstanceState,
-                [&](
-                    auto originalCommandLogEntry,
-                    auto newCommandLogEntry
-                    ) -> TFuture<AcceptResult>
-            {
-                newCommandLogEntry->BallotNumber = acceptMessage.PaxosInstanceState.BallotNumber;
-                newCommandLogEntry->CommandData = acceptMessage.CommandData;
-                newCommandLogEntry->Status = CommandStatus::Accepted;
-
-                co_return AcceptResult
-                {
-                    m_thisReplica,
-                    AcceptReplyMessage
-                    {
-                        .PaxosInstanceState = acceptMessage.PaxosInstanceState,
-                    },
-                };
-            });
-        }
-
-        TFuture<PrepareResult> OnPrepare(
-            const PrepareMessage& prepareMessage
-        )
-        {
-            co_return co_await ExecuteCommandLogEntryTransaction(
-                prepareMessage.PaxosInstanceState,
-                [&](
-                    auto originalCommandLogEntry,
-                    auto newCommandLogEntry
-                    ) -> TFuture<PrepareResult>
-            {
-                newCommandLogEntry->BallotNumber = prepareMessage.PaxosInstanceState.BallotNumber;
-
-                if (originalCommandLogEntry)
-                {
-                    co_return PrepareResult
-                    {
-                        m_thisReplica,
-                        PrepareReplyMessage
-                        {
-                            .PaxosInstanceState = prepareMessage.PaxosInstanceState,
-                            .PreviousBallotNumber = originalCommandLogEntry->BallotNumber,
-                            .CommandData = originalCommandLogEntry->CommandData,
-                            .CommandStatus = originalCommandLogEntry->CommandStatus,
-                        }
-                    };
-                }
-                else
-                {
-                    co_return PrepareResult
-                    {
-                        m_thisReplica,
-                        PrepareReplyMessage
-                        {
-                            .PaxosInstanceState = prepareMessage.PaxosInstanceState,
-                            .CommandStatus = CommandStatus::NotSeen,
-                        }
-                    };
-                }
-            });
-        }
-
-        TFuture<TryPreAcceptResult> OnTryPreAccept(
-            const TryPreAcceptMessage& tryPreAcceptMessage
-        )
-        {
-            co_return co_await ExecuteCommandLogEntryTransaction(
-                tryPreAcceptMessage.PaxosInstanceState,
-                [&](
-                    auto originalCommandLogEntry,
-                    auto newCommandLogEntry
-                    ) -> TFuture<PrepareResult>
-            {
-                newCommandLogEntry->BallotNumber = tryPreAcceptMessage.PaxosInstanceState.BallotNumber;
-
-                if (originalCommandLogEntry)
-                {
-                    co_return PrepareResult
-                    {
-                        m_thisReplica,
-                        PrepareReplyMessage
-                        {
-                            .PaxosInstanceState = tryPreAcceptMessage.PaxosInstanceState,
-                            .PreviousBallotNumber = originalCommandLogEntry->BallotNumber,
-                            .CommandData = originalCommandLogEntry->CommandData,
-                            .CommandStatus = originalCommandLogEntry->CommandStatus,
-                        }
-                    };
-                }
-                else
-                {
-                    co_return PrepareResult
-                    {
-                        m_thisReplica,
-                        PrepareReplyMessage
-                        {
-                            .PaxosInstanceState = tryPreAcceptMessage.PaxosInstanceState,
-                            .CommandStatus = CommandStatus::NotSeen,
-                        }
-                    };
-                }
-            });
-        }
-
-        virtual TFuture<CommitResult> OnCommit(
-            const CommitMessage& commitMessage
-        )
-        {
-            co_return co_await ExecuteCommandLogEntryTransaction(
-                commitMessage.PaxosInstanceState,
-                [&](
-                    auto originalCommandLogEntry,
-                    auto newCommandLogEntry
-                    ) -> TFuture<void>
-            {
-                auto result = CommitResult
-                {
-                    m_thisReplica,
-                    CommittedMessage
-                    {
-                        .PaxosInstanceState = commitMessage.PaxosInstanceState,
-                        .PreviousCommandStatus = originalCommandLogEntry.Status,
-                        .CommandData = commitMessage.CommandData,
-                    }
-                };
-
-                if (originalCommandLogEntry.Status != CommandStatus::Executed
-                    &&
-                    originalCommandLogEntry.Status != CommandStatus::Committed)
-                {
-                    newCommandLogEntry.Status = CommandStatus::Committed;
-                }
-
-                co_return result;
-            });
-        }
-    };
 };
 
 }
