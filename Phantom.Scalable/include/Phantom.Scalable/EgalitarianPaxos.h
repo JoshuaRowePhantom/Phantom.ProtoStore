@@ -36,6 +36,16 @@ requires(
     { quorumCheckerFactory(ballotNumber, destination) } -> as_awaitable_convertible_to<TQuorumChecker>;
 };
 
+enum class CommandStatus
+{
+    NotSeen,
+    PreAccepted,
+    Accepted,
+    Committed,
+    TryPreAcceptOk,
+    Executed,
+};
+
 template<
     typename TBallotNumber,
     typename TMember,
@@ -52,16 +62,6 @@ public:
     typedef TInstanceSet instance_set_type;
     typedef TCommand command_type;
     typedef TSequenceNumber sequence_number_type;
-
-    enum class CommandStatus
-    {
-        NotSeen,
-        PreAccepted,
-        Accepted,
-        Committed,
-        TryPreAcceptOk,
-        Executed,
-    };
 
     struct PaxosInstanceState
     {
@@ -225,7 +225,6 @@ public:
     
     using typename TMessages::PaxosInstanceState;
     using typename TMessages::CommandData;
-    using typename TMessages::CommandStatus;
     using typename TMessages::PreAcceptMessage;
     using typename TMessages::PreAcceptReplyMessage;
     using typename TMessages::AcceptMessage;
@@ -484,11 +483,11 @@ template<
     typename TServices::CommandData commandData,
     std::optional<typename TServices::CommandLogEntry> originalCommandLogEntry,
     std::optional<typename TServices::CommandLogEntry> newCommandLogEntry,
-    typename TServices::CommandStatus commandStatus
+    CommandStatus commandStatus
     )
 {
     { commandLog.Get(instance) } -> as_awaitable_convertible_to<std::optional<typename TServices::CommandLogEntry>>;
-
+    
     // Put the command log entry, given the old command log entry.
     // This allows the implementation to diff the two values to determine what to write.
     { commandLog.Put(
@@ -529,9 +528,10 @@ template<
 
 template<
     typename TActions,
-    typename TCommandLog,
-    template <typename> typename TFuture
-> class AcceptorServices
+    template <typename> typename TFuture,
+    template <typename> typename TGenerator
+> 
+class Services
     :
     public TActions
 {
@@ -544,7 +544,6 @@ public:
     using typename TActions::PaxosInstanceState;
     using typename TActions::Vote;
     using typename TActions::CommandData;
-    using typename TActions::CommandStatus;
 
     using typename TActions::PreAcceptMessage;
     using typename TActions::AcceptMessage;
@@ -561,8 +560,6 @@ public:
     using typename TActions::AcceptResult;
     using typename TActions::PrepareResult;
     using typename TActions::TryPreAcceptResult;
-
-    typedef TCommandLog command_log_type;
 
     struct CommandLogEntry
     {
@@ -583,7 +580,7 @@ public:
     class IAsyncCommandLog
     {
     public:
-        virtual TFuture<CommandLogEntry> Get(
+        virtual TFuture<std::optional<CommandLogEntry>> Get(
             const instance_type& instance
         ) = 0;
 
@@ -601,30 +598,8 @@ public:
 
     static_assert(CommandLog<
         IAsyncCommandLog,
-        AcceptorServices
+        Services
     >);
-};
-
-template<
-    typename TActions,
-    typename TMessageSender,
-    template <typename> typename TFuture,
-    template <typename> typename TGenerator
-> class ProposerServices
-    :
-    public TActions
-{
-
-    using typename TActions::PreAcceptMessage;
-    using typename TActions::AcceptMessage;
-    using typename TActions::PrepareMessage;
-    using typename TActions::TryPreAcceptMessage;
-    using typename TActions::CommitMessage;
-
-    using typename TActions::PreAcceptResult;
-    using typename TActions::AcceptResult;
-    using typename TActions::PrepareResult;
-    using typename TActions::TryPreAcceptResult;
 
     class IAsyncMessageSender
     {
@@ -654,23 +629,24 @@ template<
         );
     };
 
-    static_assert(MessageSender<
-        IAsyncMessageSender,
-        Services
-    >);
+    //static_assert(MessageSender<
+    //    IAsyncMessageSender,
+    //    Services
+    //>);
 };
 
 template<
     typename TServices,
+    CommandLog<TServices> TCommandLog,
     template <typename> typename TFuture
-> class StaticAcceptor
+> 
+class StaticAcceptor
     : public TServices
 {
 public:
+    typedef TCommandLog command_log_type;
     using typename TServices::member_type;
-    using typename TServices::command_log_type;
 
-    using typename TServices::CommandStatus;
     using typename TServices::PaxosInstanceState;
 
     using typename TServices::PreAcceptMessage;

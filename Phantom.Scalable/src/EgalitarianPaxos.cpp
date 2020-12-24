@@ -33,17 +33,47 @@ class StaticPaxosTests
         cppcoro::async_generator
     > actions_type;
 
-    class CommandLog
-    {};
-
-    typedef AcceptorServices<
+    typedef Services<
         actions_type,
-        CommandLog,
-        cppcoro::task
-    > acceptor_services_type;
+        cppcoro::task,
+        cppcoro::async_generator
+    > services_type;
+
+    class StaticTestCommandLog
+        :
+        public services_type,
+        public services_type::IAsyncCommandLog
+    {
+    public:
+        virtual cppcoro::task<std::optional<CommandLogEntry>> Get(
+            const instance_type& instance
+        ) ;
+
+        virtual cppcoro::task<void> Put(
+            const instance_type& instance,
+            const std::optional<CommandLogEntry>& originalCommandLogEntry,
+            const std::optional<CommandLogEntry>& newCommandLogEntry
+        ) ;
+
+        virtual cppcoro::task<UpdateDependenciesResult> UpdateDependencies(
+            const PaxosInstanceState& instance,
+            const CommandData& command
+        ) ;
+    };
+
+    static_assert(EgalitarianPaxos::CommandLog<
+        services_type::IAsyncCommandLog,
+        services_type
+    >);
+
+    static_assert(EgalitarianPaxos::CommandLog<
+        StaticTestCommandLog,
+        services_type
+    >);
 
     typedef StaticAcceptor<
-        acceptor_services_type,
+        services_type,
+        StaticTestCommandLog,
         cppcoro::task
     > static_acceptor_type;
 
@@ -52,4 +82,5 @@ class StaticPaxosTests
         actions_type
     >);
 };
+
 }
