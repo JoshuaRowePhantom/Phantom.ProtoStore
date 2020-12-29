@@ -2,6 +2,7 @@
 
 #include <iterator>
 #include <optional>
+#include <variant>
 #include "Phantom.System/async_utility.h"
 #include "Consensus.h"
 
@@ -427,7 +428,7 @@ public:
     typedef CommandLeaderResult<PreAcceptMessage> StartResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnPreAcceptReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnAcceptReplyResult;
-    typedef CommandLeaderResult<TryPreAcceptMessage> RecoverResult;
+    typedef CommandLeaderResult<PrepareMessage> RecoverResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage> OnPrepareReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage> OnTryPreAcceptReplyResult;
 
@@ -1344,15 +1345,50 @@ public:
 
     TFuture<RecoverResult> Recover(
         const PaxosInstanceState& paxosInstanceState
-    );
+    )
+    {
+        typename TServices::ballot_number_type ballotNumber = co_await as_awaitable(m_ballotNumberFactory(
+            paxosInstanceState.BallotNumber));
+        auto slowQuorum = co_await as_awaitable(m_quorumCheckerFactory(
+            ballotNumber,
+            CommandLeaderMessageDestination::SlowQuorum));
 
-    TFuture<OnTryPreAcceptReplyResult> OnTryPreAcceptReply(
-        const TryPreAcceptResult& tryPreAcceptResult
-    );
+        m_leaderState = LeaderState
+        {
+            .PaxosInstanceState = PaxosInstanceState
+            {
+                .Instance = paxosInstanceState.Instance,
+                .BallotNumber = std::move(ballotNumber),
+            },
+            .State = PreparingState
+            {
+                .SlowQuorum = std::move(slowQuorum),
+            }
+        };
+
+        co_return RecoverResult
+        {
+            CommandLeaderMessageDestination::SlowQuorum,
+            PrepareMessage
+            {
+                .PaxosInstanceState = *m_leaderState.PaxosInstanceState,
+            },
+        };
+    }
 
     TFuture<OnPrepareReplyResult> OnPrepareReply(
         const PrepareResult& prepareResult
-    );
+    )
+    {
+        throw 0;
+    }
+
+    TFuture<OnTryPreAcceptReplyResult> OnTryPreAcceptReply(
+        const TryPreAcceptResult& tryPreAcceptResult
+    )
+    {
+        throw 0;
+    }
 };
 
 }

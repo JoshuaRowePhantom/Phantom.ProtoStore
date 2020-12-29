@@ -24,6 +24,7 @@ add_executable(
 	Phantom.Scalable.Test
 	AnyMessageTests.cpp
 	ConsensusTests.cpp
+	"EgalitarianPaxosTests.cpp"
 	"PaxosTests.cpp"
 	"SchedulingTests.cpp"
 	"StandardIncludes.cpp"
