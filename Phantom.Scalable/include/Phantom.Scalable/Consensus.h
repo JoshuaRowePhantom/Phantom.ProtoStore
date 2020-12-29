@@ -25,6 +25,14 @@ template<
 concept BallotNumber = std::totally_ordered<TBallotNumber>;
 
 template<
+    typename TBallotNumber
+>
+concept BallotNumberWithDefault =
+BallotNumber<TBallotNumber>
+&&
+std::convertible_to<TBallotNumber, bool>;
+
+template<
     typename TQuorumCheckerFactory,
     typename TBallotNumber,
     typename TQuorumChecker,

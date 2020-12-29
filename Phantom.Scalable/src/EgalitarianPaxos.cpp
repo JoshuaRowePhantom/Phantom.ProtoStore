@@ -111,9 +111,7 @@ class StaticPaxosTests
         StaticTestQuorumCheckerFactory,
         quorum_checker_type,
         NumericBallotNumberFactory<size_t>,
-        StaticTestMessageSender,
-        cppcoro::task,
-        cppcoro::async_generator
+        cppcoro::task
     > static_command_leader_type;
 
     static_assert(CommandLeader<
@@ -126,5 +124,7 @@ class StaticPaxosTests
         actions_type
     >);
 };
+
+template class StaticPaxosTests::static_command_leader_type;
 
 }

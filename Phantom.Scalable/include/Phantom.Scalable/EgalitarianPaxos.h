@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iterator>
 #include <optional>
 #include "Phantom.System/async_utility.h"
 #include "Consensus.h"
@@ -25,7 +26,7 @@ concept EgalitarianPaxosQuorumCheckerFactory
 =
 QuorumChecker<TQuorumChecker, TMember>
 &&
-BallotNumber<TBallotNumber>
+BallotNumberWithDefault<TBallotNumber>
 &&
 requires(
     TQuorumCheckerFactory quorumCheckerFactory,
@@ -44,6 +45,24 @@ enum class CommandStatus
     Committed,
     TryPreAcceptOk,
     Executed,
+};
+
+template<
+    typename TInstanceSet,
+    typename TInstance
+> concept InstanceSetType = requires(
+    const TInstanceSet sourceInstanceSet,
+    TInstanceSet destinationInstanceSet
+    )
+{
+    { 
+        std::copy(
+            sourceInstanceSet.cbegin(),
+            sourceInstanceSet.cend(),
+            std::inserter(
+                destinationInstanceSet, 
+                destinationInstanceSet.end()))
+    };
 };
 
 template<
@@ -67,6 +86,8 @@ public:
     {
         instance_type Instance;
         ballot_number_type BallotNumber;
+
+        bool operator==(const PaxosInstanceState&) const = default;
     };
 
     struct CommandData
@@ -241,9 +262,13 @@ public:
         typename TMessage
     > class ReplicaResult
     {
+    public:
+        typedef TMessage message_type;
+
+    private:
         member_type m_replica;
         std::variant<
-            TMessage,
+            message_type,
             NakMessage
         > m_messageOrNak;
 
@@ -265,25 +290,25 @@ public:
 
         bool HasMessage() const
         {
-            return hold_alternative<TMessage>(
+            return holds_alternative<message_type>(
                 m_messageOrNak);
         }
 
-        TMessage& Message()
+        message_type& Message()
         {
-            return get<TMessage>(
+            return get<message_type>(
                 m_messageOrNak);
         }
 
-        const TMessage& Message() const
+        const message_type& Message() const
         {
-            return get<TMessage>(
+            return get<message_type>(
                 m_messageOrNak);
         }
 
         bool HasNak() const
         {
-            return hold_alternative<Nak>(
+            return holds_alternative<NakMessage>(
                 m_messageOrNak);
         }
 
@@ -402,7 +427,7 @@ public:
     typedef CommandLeaderResult<PreAcceptMessage> StartResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnPreAcceptReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnAcceptReplyResult;
-    typedef CommandLeaderResult<std::monostate, TryPreAcceptMessage> RecoverResult;
+    typedef CommandLeaderResult<TryPreAcceptMessage> RecoverResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage> OnPrepareReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage> OnTryPreAcceptReplyResult;
 
@@ -951,9 +976,7 @@ template<
     typename TQuorumCheckerFactory,
     typename TQuorumChecker,
     typename TBallotNumberFactory,
-    typename TMessageSender,
-    template <typename> typename TFuture,
-    template <typename> typename TGenerator
+    template <typename> typename TFuture
 > 
 requires
     EgalitarianPaxosQuorumCheckerFactory<
@@ -971,13 +994,14 @@ class StaticCommandLeader
     : public TServices
 {
 public:
-    typedef TMessageSender message_sender_type;
-
     using typename TServices::member_type;
     using typename TServices::instance_type;
+    using typename TServices::instance_set_type;
     using typename TServices::command_type;
+    using typename TServices::sequence_number_type;
 
     using typename TServices::PaxosInstanceState;
+    using typename TServices::CommandData;
 
     using typename TServices::PreAcceptMessage;
     using typename TServices::AcceptMessage;
@@ -1005,38 +1029,318 @@ public:
     using typename TServices::OnTryPreAcceptReplyResult;
     using typename TServices::RecoverResult;
 
+    struct FastPreAcceptingState
+    {
+        TQuorumChecker FastQuorum;
+        std::optional<instance_set_type> InitialDependencies;
+        std::optional<sequence_number_type> InitialSequenceNumber;
+    };
+
+    struct PreAcceptingState
+    {
+        TQuorumChecker SlowQuorum;
+        std::optional<FastPreAcceptingState> FastState;
+    };
+
+    struct AcceptingState
+    {
+        TQuorumChecker SlowQuorum;
+    };
+
+    struct PreparingState
+    {
+        TQuorumChecker SlowQuorum;
+    };
+
+    struct TryPreAcceptingState
+    {
+        TQuorumChecker SlowQuorum;
+    };
+
+    struct LeaderState
+    {
+        std::optional<PaxosInstanceState> PaxosInstanceState;
+        std::variant<
+            std::monostate,
+            PreAcceptingState,
+            AcceptingState,
+            PreparingState,
+            TryPreAcceptingState
+        > State;
+        std::optional<CommandData> CommandData;
+    };
+
 private:
     TQuorumCheckerFactory m_quorumCheckerFactory;
+    TBallotNumberFactory m_ballotNumberFactory;
+    LeaderState m_leaderState;
+
+    template<
+        typename TResult
+    > TResult ChangeToCommittedStateAndGetCommittedResult()
+    {
+        auto result = TResult
+        {
+            CommandLeaderMessageDestination::AllReplicas,
+            CommitMessage
+            {
+                .PaxosInstanceState = std::move(*m_leaderState.PaxosInstanceState),
+                .CommandData = std::move(*m_leaderState.CommandData),
+            }
+        };
+        m_leaderState = LeaderState{};
+        return result;
+    }
+
+    template<
+        typename TResult
+    > TResult GetDoNothingResult()
+    {
+        return TResult
+        {
+            CommandLeaderMessageDestination::Nowhere,
+            std::monostate()
+        };
+    }
+
+    template<
+        typename TExpectedState,
+        typename TResult,
+        typename TReplicaResult
+    > TFuture<TResult> WithExpectedState(
+        const TReplicaResult& acceptorResult,
+        std::function<TFuture<TResult>(
+            TExpectedState&, 
+            const typename TReplicaResult::message_type&)
+        > lambda
+    )
+    {
+        // Ignore messages for the wrong state or wrong ballot number.
+        if (!std::holds_alternative<TExpectedState>(m_leaderState.State)
+            ||
+            acceptorResult.HasMessage()
+            &&
+            acceptorResult.Message().PaxosInstanceState != m_leaderState.PaxosInstanceState)
+        {
+            co_return GetDoNothingResult<TResult>();
+        }
+
+        // If the incoming acceptor result is a Nak,
+        // then the current leader state should go to recovery.
+        if (acceptorResult.HasNak())
+        {
+            throw 0;
+        }
+
+        auto& state = get<TExpectedState>(
+            m_leaderState.State);
+
+        co_return co_await lambda(
+            state,
+            acceptorResult.Message());
+    }
 
 public:
     template<
         typename TQuorumCheckerFactory,
-        typename TBallotNumberFactory
+        typename TBallotNumberFactory,
+        typename TLeaderState = LeaderState
     > StaticCommandLeader(
-        TQuorumCheckerFactory&& quorumCheckerFactory
+        TQuorumCheckerFactory&& quorumCheckerFactory,
+        TBallotNumberFactory&& ballotNumberFactory,
+        TLeaderState&& leaderState = TLeaderState{}
     ) :
         m_quorumCheckerFactory(
-            std::forward<TQuorumCheckerFactory>(quorumCheckerFactory))
+            std::forward<TQuorumCheckerFactory>(quorumCheckerFactory)),
+        m_ballotNumberFactory(
+            std::forward<TBallotNumberFactory>(ballotNumberFactory)),
+        m_leaderState(
+            std::forward<TLeaderState>(leaderState))
     {}
 
+    template<
+        typename TInstance,
+        typename TCommand
+    >
     TFuture<StartResult> Start(
-        const instance_type& instancetype,
-        const command_type& command
+        TInstance&& instance,
+        TCommand&& command,
+        std::optional<instance_set_type> dependencies = {},
+        std::optional<sequence_number_type> sequenceNumber = {}
     )
     {
+        auto ballotNumber = co_await as_awaitable(m_ballotNumberFactory());
+        auto slowQuorum = co_await as_awaitable(m_quorumCheckerFactory(
+            ballotNumber,
+            CommandLeaderMessageDestination::SlowQuorum));
+        auto preAcceptMessageDestination = CommandLeaderMessageDestination::SlowQuorum;
+
+        std::optional<FastPreAcceptingState> fastState;
+
+        if (!ballotNumber)
+        {
+            fastState = FastPreAcceptingState
+            {
+                .FastQuorum = co_await as_awaitable(m_quorumCheckerFactory(
+                    ballotNumber,
+                    CommandLeaderMessageDestination::FastQuorum)),
+                .InitialDependencies = dependencies,
+                .InitialSequenceNumber = sequenceNumber,
+            };
+        }
+
+        m_leaderState = LeaderState
+        {
+            .PaxosInstanceState =
+            {
+                .Instance = std::forward<TInstance>(instance),
+                .BallotNumber = std::move(ballotNumber),
+            },
+            .State = PreAcceptingState
+            {
+                .SlowQuorum = std::move(slowQuorum),
+                .FastState = std::move(fastState),
+            },
+            .CommandData = CommandData
+            {
+                .Command = std::forward<TCommand>(command),
+            },
+        };
+
+        return StartResult
+        {
+            preAcceptMessageDestination,
+            PreAcceptMessage
+            {
+                .PaxosInstanceState = m_leaderState.PaxosInstanceState,
+                .CommandData = *m_leaderState.CommandData,
+            },
+        };
     }
 
     TFuture<OnPreAcceptReplyResult> OnPreAcceptReply(
         const PreAcceptResult& preAcceptResult
-    );
+    )
+    {
+        return WithExpectedState<PreAcceptingState, OnPreAcceptReplyResult>(
+            preAcceptResult,
+            [&](
+                auto& preAcceptingState,
+                auto& message) 
+            -> TFuture<OnPreAcceptReplyResult>
+        {
+            std::copy(
+                message.Dependencies.cbegin(),
+                message.Dependencies.cend(),
+                std::inserter(
+                    m_leaderState.CommandData->Dependencies,
+                    m_leaderState.CommandData->Dependencies.begin()));
+
+            m_leaderState.CommandData->SequenceNumber = std::max(
+                m_leaderState.CommandData->SequenceNumber,
+                message.SequenceNumber);
+
+            preAcceptingState.SlowQuorum += preAcceptResult.Replica();
+
+            if (preAcceptingState.FastState)
+            {
+                auto& fastState = *preAcceptingState.FastState;
+
+                // If we haven't already accepted a message on the fast path,
+                // accept this one.
+                if (!fastState.InitialSequenceNumber)
+                {
+                    fastState.InitialSequenceNumber = message.SequenceNumber;
+                    fastState.InitialDependencies = message.Dependencies;
+                    fastState.FastQuorum += preAcceptResult.Replica();
+                }
+                // If we've already accepted a message on the fast path,
+                // check to make sure it has identical attributes.
+                else if (
+                    fastState.InitialSequenceNumber == message.SequenceNumber
+                    &&
+                    fastState.InitialDependencies == message.Dependencies)
+                {
+                    fastState.FastQuorum += preAcceptResult.Replica();
+                }
+                // We've already accepted a message on the fast path, but have
+                // a conflicting result.  Use the slow path.
+                else
+                {
+                    preAcceptingState.FastState.reset();
+                }
+            }
+
+            // If we're still on the fast path and the fast path quorum is complete,
+            // commit the command.
+            if (preAcceptingState.FastState
+                &&
+                preAcceptingState.FastState->FastQuorum)
+            {
+                co_return ChangeToCommittedStateAndGetCommittedResult<OnPreAcceptReplyResult>();
+            }
+
+            if (!preAcceptingState.SlowQuorum)
+            {
+                co_return GetDoNothingResult<OnPreAcceptReplyResult>();
+            }
+
+            // The slow quorum is valid,
+            // so return that we can do Accept stuff.
+            co_return OnPreAcceptReplyResult
+            {
+                CommandLeaderMessageDestination::SlowQuorum,
+                AcceptMessage
+                {
+                    .PaxosInstanceState = *m_leaderState.PaxosInstanceState,
+                    .CommandData = *m_leaderState.CommandData,
+                }
+            };
+        });
+    }
 
     TFuture<OnAcceptReplyResult> OnAcceptReply(
         const AcceptResult& acceptResult
-    );
+    )
+    {
+        // If we were in PreAcceptingState on the same ballot number,
+        // transition to AcceptingState.  Ignore the result
+        // of this operation, since we'll recheck the ballot
+        // number in the second call to WithExpectedState below.
+        co_await WithExpectedState<PreAcceptingState, OnAcceptReplyResult>(
+            acceptResult,
+            [&](
+                auto& preAcceptingState,
+                auto& message)
+            -> TFuture<OnAcceptReplyResult>
+        {
+            m_leaderState.State = AcceptingState
+            {
+                .SlowQuorum = co_await as_awaitable(m_quorumCheckerFactory(
+                    m_leaderState.PaxosInstanceState->BallotNumber,
+                    CommandLeaderMessageDestination::SlowQuorum)),
+            };
 
-    TFuture<OnPrepareReplyResult> OnPrepareReply(
-        const PrepareResult& prepareResult
-    );
+            co_return GetDoNothingResult<OnAcceptReplyResult>();
+        });
+
+        co_return co_await WithExpectedState<AcceptingState, OnAcceptReplyResult>(
+            acceptResult,
+            [&](
+                auto& acceptingState,
+                auto& message)
+            -> TFuture<OnAcceptReplyResult>
+        {
+            if (acceptingState.SlowQuorum += acceptResult.Replica())
+            {
+                // The slow quorum has completed,
+                // so we can commit!
+                co_return ChangeToCommittedStateAndGetCommittedResult<OnAcceptReplyResult>();
+            }
+
+            co_return GetDoNothingResult<OnAcceptReplyResult>();
+        });
+    }
 
     TFuture<RecoverResult> Recover(
         const PaxosInstanceState& paxosInstanceState
@@ -1044,6 +1348,10 @@ public:
 
     TFuture<OnTryPreAcceptReplyResult> OnTryPreAcceptReply(
         const TryPreAcceptResult& tryPreAcceptResult
+    );
+
+    TFuture<OnPrepareReplyResult> OnPrepareReply(
+        const PrepareResult& prepareResult
     );
 };
 
