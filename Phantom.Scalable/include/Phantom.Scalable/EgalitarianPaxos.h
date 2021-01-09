@@ -15,6 +15,7 @@ enum CommandLeaderMessageDestination
     AllReplicas,
     SlowQuorum,
     FastQuorum,
+    FastQuorumRemnant,
 };
 
 template<
@@ -429,7 +430,7 @@ public:
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnPreAcceptReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnAcceptReplyResult;
     typedef CommandLeaderResult<PrepareMessage> RecoverResult;
-    typedef CommandLeaderResult<std::monostate, CommitMessage> OnPrepareReplyResult;
+    typedef CommandLeaderResult<std::monostate, CommitMessage, AcceptMessage> OnPrepareReplyResult;
     typedef CommandLeaderResult<std::monostate, CommitMessage> OnTryPreAcceptReplyResult;
 
     class IAsyncCommandLeader
@@ -1001,6 +1002,7 @@ public:
     using typename TServices::command_type;
     using typename TServices::sequence_number_type;
 
+    using typename TServices::Vote;
     using typename TServices::PaxosInstanceState;
     using typename TServices::CommandData;
 
@@ -1051,6 +1053,8 @@ public:
     struct PreparingState
     {
         TQuorumChecker SlowQuorum;
+        std::optional<Vote> HighestVote;
+        bool NotSeen = true;
     };
 
     struct TryPreAcceptingState
@@ -1380,7 +1384,81 @@ public:
         const PrepareResult& prepareResult
     )
     {
-        throw 0;
+        return WithExpectedState<PreparingState, OnPrepareReplyResult>(
+            prepareResult,
+            [&](
+                auto preparingState,
+                auto prepareReplyMessage
+                ) -> TFuture<OnPrepareReplyResult>
+        {
+            // If we find a message saying the command was committed by any replica,
+            // then its attributes are fixed by this replica's vote.
+            // Immediately commit the command.
+            if (prepareReplyMessage.CommandStatus == CommandStatus::Committed
+                ||
+                prepareReplyMessage.CommandStatus == CommandStatus::Executed)
+            {
+                m_leaderState.CommandData = prepareReplyMessage.Vote->CommandData;
+                co_return ChangeToCommittedStateAndGetCommittedResult<OnPrepareReplyResult>();
+            }
+
+            // Keep the highest vote among returned Accepted status values.
+            if (prepareReplyMessage.CommandStatus == CommandStatus::Accepted
+                &&
+                (!preparingState.HighestVote
+                    || preparingState.HighestVote->VotedBallotNumber < prepareReplyMessage.Vote->VotedBallotNumber))
+            {
+                preparingState.HighestVote = prepareReplyMessage.Vote;
+            }
+
+            if (prepareReplyMessage.CommandStatus != CommandStatus::NotSeen)
+            {
+                preparingState.NotSeen = false;
+            }
+
+            // If we haven't yet reached quorum,
+            // do nothing.
+            if (!(preparingState.SlowQuorum += prepareResult.Replica()))
+            {
+                co_return GetDoNothingResult<OnPrepareReplyResult>();
+            }
+
+            // If we have no knowledge at all,
+            // or an accepted vote,
+            // then we move on to AcceptingState.
+            if (preparingState.NotSeen
+                ||
+                preparingState.HighestVote)
+            {
+                if (preparingState.HighestVote)
+                {
+                    m_leaderState.CommandData = std::move(
+                        preparingState.HighestVote->CommandData);
+                }
+                else
+                {
+                    // Try to commit a noop command.
+                    m_leaderState.CommandData = CommandData{};
+                }
+
+                m_leaderState.State = AcceptingState
+                {
+                    .SlowQuorum = co_await as_awaitable(m_quorumCheckerFactory(
+                        m_leaderState.PaxosInstanceState->BallotNumber,
+                        CommandLeaderMessageDestination::SlowQuorum)),
+                };
+
+                co_return OnPrepareReplyResult
+                {
+                    CommandLeaderMessageDestination::SlowQuorum,
+                    AcceptMessage
+                    {
+                        .PaxosInstanceState = *m_leaderState.PaxosInstanceState,
+                        .CommandData = *m_leaderState.CommandData,
+                    },
+                };
+            }
+        });
     }
 
     TFuture<OnTryPreAcceptReplyResult> OnTryPreAcceptReply(
