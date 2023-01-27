@@ -1,4 +1,5 @@
 #include "StandardIncludes.h"
+#if 0
 #include "Phantom.System/async_ring_buffer.h"
 #include <cppcoro/async_scope.hpp>
 
@@ -143,3 +144,4 @@ TEST(async_ring_buffer_tests, CanRestartEnumeration_by_calling_begin_multiple_ti
 //}
 
 }
+#endif

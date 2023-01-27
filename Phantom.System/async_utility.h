@@ -3,6 +3,7 @@
 #include <coroutine>
 #include <functional>
 #include <type_traits>
+#include <cppcoro/awaitable_traits.hpp>
 #include <cppcoro/is_awaitable.hpp>
 #include <cppcoro/shared_task.hpp>
 #include <cppcoro/sync_wait.hpp>

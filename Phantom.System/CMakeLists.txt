@@ -25,7 +25,8 @@ add_library (
 
 target_link_libraries(
 	Phantom.System
-	cppcoro
+	Phantom.Coroutines
+	Phantom.Coroutines.cppcoro
 )
 
 target_include_directories(

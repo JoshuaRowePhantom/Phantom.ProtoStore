@@ -1227,81 +1227,83 @@ public:
         const PreAcceptResult& preAcceptResult
     )
     {
-        return WithExpectedState<PreAcceptingState, OnPreAcceptReplyResult>(
-            preAcceptResult,
-            [&](
-                auto& preAcceptingState,
-                auto& message) 
-            -> TFuture<OnPreAcceptReplyResult>
-        {
-            std::copy(
-                message.Dependencies.cbegin(),
-                message.Dependencies.cend(),
-                std::inserter(
-                    m_leaderState.CommandData->Dependencies,
-                    m_leaderState.CommandData->Dependencies.begin()));
+        throw 0;
+        // Current ICE
+        //return WithExpectedState<PreAcceptingState, OnPreAcceptReplyResult>(
+        //    preAcceptResult,
+        //    [&](
+        //        auto& preAcceptingState,
+        //        auto& message) 
+        //    -> TFuture<OnPreAcceptReplyResult>
+        //{
+        //    std::copy(
+        //        message.Dependencies.cbegin(),
+        //        message.Dependencies.cend(),
+        //        std::inserter(
+        //            m_leaderState.CommandData->Dependencies,
+        //            m_leaderState.CommandData->Dependencies.begin()));
 
-            m_leaderState.CommandData->SequenceNumber = std::max(
-                m_leaderState.CommandData->SequenceNumber,
-                message.SequenceNumber);
+        //    m_leaderState.CommandData->SequenceNumber = std::max(
+        //        m_leaderState.CommandData->SequenceNumber,
+        //        message.SequenceNumber);
 
-            preAcceptingState.SlowQuorum += preAcceptResult.Replica();
+        //    preAcceptingState.SlowQuorum += preAcceptResult.Replica();
 
-            if (preAcceptingState.FastState)
-            {
-                auto& fastState = *preAcceptingState.FastState;
+        //    if (preAcceptingState.FastState)
+        //    {
+        //        auto& fastState = *preAcceptingState.FastState;
 
-                // If we haven't already accepted a message on the fast path,
-                // accept this one.
-                if (!fastState.InitialSequenceNumber)
-                {
-                    fastState.InitialSequenceNumber = message.SequenceNumber;
-                    fastState.InitialDependencies = message.Dependencies;
-                    fastState.FastQuorum += preAcceptResult.Replica();
-                }
-                // If we've already accepted a message on the fast path,
-                // check to make sure it has identical attributes.
-                else if (
-                    fastState.InitialSequenceNumber == message.SequenceNumber
-                    &&
-                    fastState.InitialDependencies == message.Dependencies)
-                {
-                    fastState.FastQuorum += preAcceptResult.Replica();
-                }
-                // We've already accepted a message on the fast path, but have
-                // a conflicting result.  Use the slow path.
-                else
-                {
-                    preAcceptingState.FastState.reset();
-                }
-            }
+        //        // If we haven't already accepted a message on the fast path,
+        //        // accept this one.
+        //        if (!fastState.InitialSequenceNumber)
+        //        {
+        //            fastState.InitialSequenceNumber = message.SequenceNumber;
+        //            fastState.InitialDependencies = message.Dependencies;
+        //            fastState.FastQuorum += preAcceptResult.Replica();
+        //        }
+        //        // If we've already accepted a message on the fast path,
+        //        // check to make sure it has identical attributes.
+        //        else if (
+        //            fastState.InitialSequenceNumber == message.SequenceNumber
+        //            &&
+        //            fastState.InitialDependencies == message.Dependencies)
+        //        {
+        //            fastState.FastQuorum += preAcceptResult.Replica();
+        //        }
+        //        // We've already accepted a message on the fast path, but have
+        //        // a conflicting result.  Use the slow path.
+        //        else
+        //        {
+        //            preAcceptingState.FastState.reset();
+        //        }
+        //    }
 
-            // If we're still on the fast path and the fast path quorum is complete,
-            // commit the command.
-            if (preAcceptingState.FastState
-                &&
-                preAcceptingState.FastState->FastQuorum)
-            {
-                co_return ChangeToCommittedStateAndGetCommittedResult<OnPreAcceptReplyResult>();
-            }
+        //    // If we're still on the fast path and the fast path quorum is complete,
+        //    // commit the command.
+        //    if (preAcceptingState.FastState
+        //        &&
+        //        preAcceptingState.FastState->FastQuorum)
+        //    {
+        //        co_return ChangeToCommittedStateAndGetCommittedResult<OnPreAcceptReplyResult>();
+        //    }
 
-            if (!preAcceptingState.SlowQuorum)
-            {
-                co_return GetDoNothingResult<OnPreAcceptReplyResult>();
-            }
+        //    if (!preAcceptingState.SlowQuorum)
+        //    {
+        //        co_return GetDoNothingResult<OnPreAcceptReplyResult>();
+        //    }
 
-            // The slow quorum is valid,
-            // so return that we can do Accept stuff.
-            co_return OnPreAcceptReplyResult
-            {
-                CommandLeaderMessageDestination::SlowQuorum,
-                AcceptMessage
-                {
-                    .PaxosInstanceState = *m_leaderState.PaxosInstanceState,
-                    .CommandData = *m_leaderState.CommandData,
-                }
-            };
-        });
+        //    // The slow quorum is valid,
+        //    // so return that we can do Accept stuff.
+        //    co_return OnPreAcceptReplyResult
+        //    {
+        //        CommandLeaderMessageDestination::SlowQuorum,
+        //        AcceptMessage
+        //        {
+        //            .PaxosInstanceState = *m_leaderState.PaxosInstanceState,
+        //            .CommandData = *m_leaderState.CommandData,
+        //        }
+        //    };
+        //});
     }
 
     TFuture<OnAcceptReplyResult> OnAcceptReply(
@@ -1384,81 +1386,85 @@ public:
         const PrepareResult& prepareResult
     )
     {
-        return WithExpectedState<PreparingState, OnPrepareReplyResult>(
-            prepareResult,
-            [&](
-                auto preparingState,
-                auto prepareReplyMessage
-                ) -> TFuture<OnPrepareReplyResult>
-        {
-            // If we find a message saying the command was committed by any replica,
-            // then its attributes are fixed by this replica's vote.
-            // Immediately commit the command.
-            if (prepareReplyMessage.CommandStatus == CommandStatus::Committed
-                ||
-                prepareReplyMessage.CommandStatus == CommandStatus::Executed)
-            {
-                m_leaderState.CommandData = prepareReplyMessage.Vote->CommandData;
-                co_return ChangeToCommittedStateAndGetCommittedResult<OnPrepareReplyResult>();
-            }
+        throw 0;
+        // Current ICE
+        //return WithExpectedState<PreparingState, OnPrepareReplyResult>(
+        //    prepareResult,
+        //    [&](
+        //        auto preparingState,
+        //        auto prepareReplyMessage
+        //        ) -> TFuture<OnPrepareReplyResult>
+        //{
+        //    // If we find a message saying the command was committed by any replica,
+        //    // then its attributes are fixed by this replica's vote.
+        //    // Immediately commit the command.
+        //    if (prepareReplyMessage.CommandStatus == CommandStatus::Committed
+        //        ||
+        //        prepareReplyMessage.CommandStatus == CommandStatus::Executed)
+        //    {
+        //        m_leaderState.CommandData = prepareReplyMessage.Vote->CommandData;
+        //        co_return ChangeToCommittedStateAndGetCommittedResult<OnPrepareReplyResult>();
+        //    }
 
-            // Keep the highest vote among returned Accepted status values.
-            if (prepareReplyMessage.CommandStatus == CommandStatus::Accepted
-                &&
-                (!preparingState.HighestVote
-                    || preparingState.HighestVote->VotedBallotNumber < prepareReplyMessage.Vote->VotedBallotNumber))
-            {
-                preparingState.HighestVote = prepareReplyMessage.Vote;
-            }
+        //    // Keep the highest vote among returned Accepted status values.
+        //    if (prepareReplyMessage.CommandStatus == CommandStatus::Accepted
+        //        &&
+        //        (!preparingState.HighestVote
+        //            || preparingState.HighestVote->VotedBallotNumber < prepareReplyMessage.Vote->VotedBallotNumber))
+        //    {
+        //        preparingState.HighestVote = prepareReplyMessage.Vote;
+        //    }
 
-            if (prepareReplyMessage.CommandStatus != CommandStatus::NotSeen)
-            {
-                preparingState.NotSeen = false;
-            }
+        //    if (prepareReplyMessage.CommandStatus != CommandStatus::NotSeen)
+        //    {
+        //        preparingState.NotSeen = false;
+        //    }
 
-            // If we haven't yet reached quorum,
-            // do nothing.
-            if (!(preparingState.SlowQuorum += prepareResult.Replica()))
-            {
-                co_return GetDoNothingResult<OnPrepareReplyResult>();
-            }
+        //    // If we haven't yet reached quorum,
+        //    // do nothing.
+        //    if (!(preparingState.SlowQuorum += prepareResult.Replica()))
+        //    {
+        //        co_return GetDoNothingResult<OnPrepareReplyResult>();
+        //    }
 
-            // If we have no knowledge at all,
-            // or an accepted vote,
-            // then we move on to AcceptingState.
-            if (preparingState.NotSeen
-                ||
-                preparingState.HighestVote)
-            {
-                if (preparingState.HighestVote)
-                {
-                    m_leaderState.CommandData = std::move(
-                        preparingState.HighestVote->CommandData);
-                }
-                else
-                {
-                    // Try to commit a noop command.
-                    m_leaderState.CommandData = CommandData{};
-                }
+        //    // If we have no knowledge at all,
+        //    // or an accepted vote,
+        //    // then we move on to AcceptingState.
+        //    if (preparingState.NotSeen
+        //        ||
+        //        preparingState.HighestVote)
+        //    {
+        //        if (preparingState.HighestVote)
+        //        {
+        //            m_leaderState.CommandData = std::move(
+        //                preparingState.HighestVote->CommandData);
+        //        }
+        //        else
+        //        {
+        //            // Try to commit a noop command.
+        //            m_leaderState.CommandData = CommandData{};
+        //        }
 
-                m_leaderState.State = AcceptingState
-                {
-                    .SlowQuorum = co_await as_awaitable(m_quorumCheckerFactory(
-                        m_leaderState.PaxosInstanceState->BallotNumber,
-                        CommandLeaderMessageDestination::SlowQuorum)),
-                };
+        //        m_leaderState.State = AcceptingState
+        //        {
+        //            .SlowQuorum = co_await as_awaitable(m_quorumCheckerFactory(
+        //                m_leaderState.PaxosInstanceState->BallotNumber,
+        //                CommandLeaderMessageDestination::SlowQuorum)),
+        //        };
 
-                co_return OnPrepareReplyResult
-                {
-                    CommandLeaderMessageDestination::SlowQuorum,
-                    AcceptMessage
-                    {
-                        .PaxosInstanceState = *m_leaderState.PaxosInstanceState,
-                        .CommandData = *m_leaderState.CommandData,
-                    },
-                };
-            }
-        });
+        //        co_return OnPrepareReplyResult
+        //        {
+        //            CommandLeaderMessageDestination::SlowQuorum,
+        //            AcceptMessage
+        //            {
+        //                .PaxosInstanceState = *m_leaderState.PaxosInstanceState,
+        //                .CommandData = *m_leaderState.CommandData,
+        //            },
+        //        };
+        //    }
+
+        //    throw 0;
+        //});
     }
 
     TFuture<OnTryPreAcceptReplyResult> OnTryPreAcceptReply(

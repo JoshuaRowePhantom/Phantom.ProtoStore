@@ -113,12 +113,14 @@ TEST_F(PaxosTests, Learner_returns_Nak_for_old_ballot)
                 }
             );
 
-            EXPECT_EQ((
-                NakMessage
-                {
-                    .BallotNumber = 1,
-                    .MaxBallotNumber = 2,
-                }), 
+            auto expectedMessage = NakMessage
+            {
+                .BallotNumber = 1,
+                .MaxBallotNumber = 2,
+            };
+
+            EXPECT_EQ(
+                expectedMessage,
                 get<NakMessage>(learnResult.LearnedValue));
         }
     });

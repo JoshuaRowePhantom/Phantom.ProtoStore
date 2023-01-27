@@ -3,22 +3,6 @@
 #
 cmake_minimum_required (VERSION 3.17)
 
-get_target_property(
-    protobuf_INCLUDE_DIRECTORIES
-    protobuf::libprotoc
-    INCLUDE_DIRECTORIES
-)
-
-phantom_protobuf_generate_cpp(
-    PROTOC_CPP
-    PROTOC_H
-    IMPORTDIRECTORY
-    ${protobuf_INCLUDE_DIRECTORIES}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-	../Phantom.ProtoStore/include
-	PROTO
-    ProtoStoreTest.proto
-)
 
 add_executable(
 	Phantom.ProtoStore.Test
@@ -37,9 +21,14 @@ add_executable(
 	"SchemaTests.cpp"
 	"SkipListTest.cpp"
 	"StandardIncludes.cpp"
-	"StandardIncludes.h"
-	${PROTOC_CPP}
-    ${PROTOC_H})
+	"StandardIncludes.h")
+	
+PROTOBUF_GENERATE(
+    LANGUAGE cpp
+    TARGET Phantom.ProtoStore.Test
+    PROTOS 
+    ProtoStoreTest.proto
+)
 
 target_compile_definitions(
 	Phantom.ProtoStore.Test

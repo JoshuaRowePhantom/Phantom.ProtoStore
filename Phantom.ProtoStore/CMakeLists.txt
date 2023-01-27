@@ -1,23 +1,5 @@
 ﻿cmake_minimum_required (VERSION 3.17)
 
-get_target_property(
-    protobuf_INCLUDE_DIRECTORIES
-    protobuf::libprotoc
-    INCLUDE_DIRECTORIES
-)
-
-phantom_protobuf_generate_cpp(
-    PROTOC_CPP
-    PROTOC_H
-    IMPORTDIRECTORY
-    include
-    ${protobuf_INCLUDE_DIRECTORIES}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    PROTO
-    Phantom.ProtoStore/ProtoStore.proto
-    src/ProtoStoreInternal.proto
-)
-
 add_library (
     Phantom.ProtoStore 
     STATIC
@@ -80,10 +62,17 @@ add_library (
     "src/SkipList.h" 
     "src/StandardTypes.h"
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
-    ${PROTOC_CPP}
-    ${PROTOC_H} )
+    )
     
-    
+
+PROTOBUF_GENERATE(
+    LANGUAGE cpp
+    TARGET Phantom.ProtoStore
+    PROTOS 
+    include/Phantom.ProtoStore/ProtoStore.proto
+    src/ProtoStoreInternal.proto
+)
+
 target_include_directories(
     Phantom.ProtoStore
     PUBLIC

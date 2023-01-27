@@ -1,23 +1,5 @@
 cmake_minimum_required (VERSION 3.17)
 
-get_target_property(
-    protobuf_INCLUDE_DIRECTORIES
-    protobuf::libprotoc
-    INCLUDE_DIRECTORIES
-)
-
-phantom_grpc_generate_cpp(
-    GRPC_CPP
-    GRPC_H
-    IMPORTDIRECTORY
-    include
-    ${protobuf_INCLUDE_DIRECTORIES}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    PROTO
-    Phantom.Scalable/PhantomScalableGrpc.proto
-    src/PhantomScalableGrpcInternal.proto
-)
-
 add_library (
     Phantom.Scalable 
     STATIC
@@ -55,11 +37,17 @@ add_library (
     src/Scheduling.cpp
     src/StandardIncludes.cpp
     src/StandardIncludes.h
-    ${GRPC_CPP}
-    ${GRPC_H} 
     )
     
-    
+
+PROTOBUF_GENERATE(
+    LANGUAGE cpp
+    TARGET Phantom.Scalable
+    PROTOS 
+    include/Phantom.Scalable/PhantomScalableGrpc.proto
+    src/PhantomScalableGrpcInternal.proto
+)
+
 target_include_directories(
     Phantom.Scalable
     PUBLIC
@@ -78,7 +66,6 @@ target_compile_definitions(
 target_link_libraries(
     Phantom.Scalable
     PUBLIC
-    cppcoro
     libprotobuf
     Phantom.ProtoStore
     Phantom.System
@@ -86,4 +73,5 @@ target_link_libraries(
     boost_filesystem
     boost_interprocess
     grpc
+    Phantom.Coroutines
 )
