@@ -1,7 +1,7 @@
 #include "StandardIncludes.h"
+#include <cppcoro/async_scope.hpp>
 #include <cppcoro/async_manual_reset_event.hpp>
 #include <cppcoro/task.hpp>
-//#include <cppcoro/when_all.hpp>
 #include "Phantom.System/async_value_source.h"
 
 using cppcoro::task;
@@ -102,19 +102,21 @@ TEST_F(value_publisher_tests, can_get_value_before_set_initially)
 {
     run_async([]()->task<>
     {
+        cppcoro::async_scope scope;
         async_value_source<std::string> publisher;
         auto task1 = [&]()->task<>
         {
             EXPECT_EQ(false, publisher.is_set());
             EXPECT_EQ(co_await publisher.wait(), "foo");
-        } ();
+        };
         auto task2 = [&]()->task<>
         {
             publisher.emplace("foo");
             co_return;
-        } ();
-        co_await task1;
-        co_await task2;
+        };
+        scope.spawn(task1);
+        scope.spawn(task2);
+        co_await scope.join();
     });
 }
 
@@ -122,6 +124,7 @@ TEST_F(value_publisher_tests, can_get_exception_before_set_initially)
 {
     run_async([]()->task<>
     {
+        cppcoro::async_scope scope;
         async_value_source<std::string> publisher;
         auto task1 = [&]()->task<>
         {
@@ -129,7 +132,7 @@ TEST_F(value_publisher_tests, can_get_exception_before_set_initially)
             EXPECT_THROW(
                 co_await publisher.wait(),
                 std::range_error);
-        } ();
+        };
         auto task2 = [&]()->task<>
         {
             try
@@ -141,9 +144,10 @@ TEST_F(value_publisher_tests, can_get_exception_before_set_initially)
                 publisher.unhandled_exception();
             }
             co_return;
-        } ();
-        co_await task1;
-        co_await task2;
+        };
+        scope.spawn(task1);
+        scope.spawn(task2);
+        co_await scope.join();
     });
 }
 
