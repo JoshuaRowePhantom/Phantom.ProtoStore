@@ -125,7 +125,14 @@ class PlaceholderKey;
 
 typedef ExtentName MergeId;
 
-class ResultRow;
+
+struct ResultRow
+{
+    const Message* Key;
+    SequenceNumber WriteSequenceNumber;
+    const Message* Value;
+};
+
 typedef cppcoro::async_generator<ResultRow> row_generator;
 typedef row_generator::iterator row_generator_iterator;
 typedef cppcoro::generator<row_generator> row_generators;

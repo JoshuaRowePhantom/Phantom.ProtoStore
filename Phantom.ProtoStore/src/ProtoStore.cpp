@@ -13,7 +13,6 @@
 #include "PartitionImpl.h"
 #include "PartitionWriterImpl.h"
 #include <cppcoro/sync_wait.hpp>
-#include <cppcoro/when_all.hpp>
 #include <cppcoro/on_scope_exit.hpp>
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
@@ -1023,8 +1022,15 @@ task<> ProtoStore::InternalCheckpoint()
         }
     }
 
-    co_await cppcoro::when_all(
-        move(checkpointTasks));
+    for (auto& task : checkpointTasks)
+    {
+        co_await task.when_ready();
+    }
+
+    for (auto& task : checkpointTasks)
+    {
+        co_await task;
+    }
 }
 
 task<> ProtoStore::Merge()

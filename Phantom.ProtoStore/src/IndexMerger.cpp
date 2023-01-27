@@ -8,7 +8,6 @@
 #include "RowMerger.h"
 #include "InternalProtoStore.h"
 #include "ExtentName.h"
-#include <cppcoro/when_all.hpp>
 #include <unordered_set>
 #include <algorithm>
 
@@ -47,8 +46,15 @@ task<> IndexMerger::Merge(
                 *incompleteMergeIterator));
     }
 
-    co_await cppcoro::when_all(
-        move(mergeTasks));
+    for (auto& task : mergeTasks)
+    {
+        co_await task.when_ready();
+    }
+
+    for (auto& task : mergeTasks)
+    {
+        co_await task;
+    }
 }
 
 task<> IndexMerger::RestartIncompleteMerge(

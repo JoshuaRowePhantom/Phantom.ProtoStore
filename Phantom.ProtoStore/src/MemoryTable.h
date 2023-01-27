@@ -14,13 +14,6 @@ struct MemoryTableRow
     unique_ptr<const Message> Value;
 };
 
-struct ResultRow
-{
-    const Message* Key;
-    SequenceNumber WriteSequenceNumber;
-    const Message* Value;
-};
-
 struct KeyRangeEnd
 {
     const Message* Key;
