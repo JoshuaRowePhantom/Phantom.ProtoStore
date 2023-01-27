@@ -13,7 +13,6 @@
 #include "PartitionImpl.h"
 #include "PartitionWriterImpl.h"
 #include <cppcoro/sync_wait.hpp>
-#include <cppcoro/on_scope_exit.hpp>
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
 #include <algorithm>
@@ -886,7 +885,7 @@ task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexEntryInternal(
 
         m_indexesByNumber[indexNumber] = indexEntry;
 
-        co_return indexEntry;
+        co_return m_indexesByNumber[indexNumber];
     }
 }
 
@@ -1253,8 +1252,15 @@ task<> ProtoStore::Join()
             index.second.Index->Join());
     }
 
-    co_await cppcoro::when_all(
-        move(joinTasks));
+    for (auto& task : joinTasks)
+    {
+        co_await task.when_ready();
+    }
+
+    for (auto& task : joinTasks)
+    {
+        co_await task;
+    }
 
     co_await AsyncScopeMixin::Join();
 }
