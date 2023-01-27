@@ -6,6 +6,8 @@
 namespace Phantom::ProtoStore
 {
 
+auto mimalloc_version = mi_version();
+
 std::function<task<shared_ptr<IExtentStore>>()> UseMemoryExtentStore()
 {
     auto extentStore = make_shared<MemoryExtentStore>(

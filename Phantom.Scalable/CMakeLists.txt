@@ -37,12 +37,15 @@ add_library (
     src/Scheduling.cpp
     src/StandardIncludes.cpp
     src/StandardIncludes.h
+    include/Phantom.Scalable/PhantomScalableGrpc.proto
+    src/PhantomScalableGrpcInternal.proto
     )
     
 
 PROTOBUF_GENERATE(
     LANGUAGE cpp
     TARGET Phantom.Scalable
+    IMPORT_DIRS src include
     PROTOS 
     include/Phantom.Scalable/PhantomScalableGrpc.proto
     src/PhantomScalableGrpcInternal.proto
@@ -55,6 +58,8 @@ target_include_directories(
     ${Boost_INCLUDE_DIR}
     ${Protobuf_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
 target_compile_definitions(

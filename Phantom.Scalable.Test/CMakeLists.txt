@@ -41,12 +41,13 @@ target_compile_definitions(
 target_link_libraries(
 	Phantom.Scalable.Test
 	PUBLIC
+	mimalloc-redirect
+	mimalloc
 	Phantom.System
 	Phantom.ProtoStore
 	Phantom.Scalable
 	gtest
 	gtest_main
-	mimalloc-static
 )
 
 target_include_directories(

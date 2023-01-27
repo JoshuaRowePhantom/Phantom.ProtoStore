@@ -12,7 +12,7 @@ namespace Phantom
 // task completes only after all previous invocations of
 // spawn() have completed.
 // The intent is that each call to spawn starts some process
-// that should only be reported as long as it and all previous
+// that should only be reported complete as long as it and all previous
 // calls have completed, but can otherwise proceed independently.
 template<
     typename TSequenceNumber = std::uint_fast64_t

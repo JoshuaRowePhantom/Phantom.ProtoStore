@@ -1,7 +1,7 @@
 #pragma once
 
 #include "StandardIncludes.h"
-#include "src/PhantomScalableGrpcInternal.grpc.pb.h"
+#include "PhantomScalableGrpcInternal.pb.h"
 
 namespace Phantom::Scalable
 {

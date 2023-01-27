@@ -24,11 +24,11 @@ TEST(BackgroundWorkerTests, can_spawn_and_create_and_destroy_without_joining)
 TEST(BackgroundWorkerTests, can_spawn_and_create_and_destroy_without_joining_with_task_that_last_longer_than_lifetime_of_BackgroundWorker)
 {
     cppcoro::async_manual_reset_event event;
-    cppcoro::shared_task task = [&event]()->cppcoro::shared_task<>
+    cppcoro::shared_task<> task = [&event]()->cppcoro::shared_task<>
     {
         co_await event;
     }();
-    cppcoro::shared_task joinTask;
+    cppcoro::shared_task<> joinTask;
 
     {
         auto backgroundWorker = std::make_shared<BackgroundWorker>();
@@ -50,11 +50,11 @@ TEST(BackgroundWorkerTests, can_spawn_and_create_and_destroy_with_joining_with_t
     run_async([]()->cppcoro::task<>
     {
         cppcoro::async_manual_reset_event event;
-        cppcoro::shared_task task = [&event]()->cppcoro::shared_task<>
+        cppcoro::shared_task<> task = [&event]()->cppcoro::shared_task<>
         {
             co_await event;
         }();
-        cppcoro::shared_task joinTask;
+        cppcoro::shared_task<> joinTask;
         cppcoro::async_scope joinScope;
 
         {
@@ -80,11 +80,11 @@ TEST(BackgroundWorkerTests, can_spawn_and_create_and_destroy_with_joining_before
     run_async([]()->cppcoro::task<>
     {
         cppcoro::async_manual_reset_event event;
-        cppcoro::shared_task task = [&event]()->cppcoro::shared_task<>
+        cppcoro::shared_task<> task = [&event]()->cppcoro::shared_task<>
         {
             co_await event;
         }();
-        cppcoro::shared_task joinTask;
+        cppcoro::shared_task<> joinTask;
         cppcoro::async_scope joinScope;
 
         {

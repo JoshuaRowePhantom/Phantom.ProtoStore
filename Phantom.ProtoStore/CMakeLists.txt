@@ -62,6 +62,8 @@ add_library (
     "src/SkipList.h" 
     "src/StandardTypes.h"
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
+    src/ProtoStoreInternal.proto
+    include/Phantom.ProtoStore/ProtoStore.proto
     )
     
 
@@ -72,31 +74,30 @@ target_include_directories(
     ${Boost_INCLUDE_DIR}
     ${Protobuf_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
 PROTOBUF_GENERATE(
     LANGUAGE cpp
-    TARGET Phantom.ProtoStore
-    PROTOC_OPTIONS -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    PROTOS 
-    include/Phantom.ProtoStore/ProtoStore.proto
+    TARGET Phantom.ProtoStore 
+    IMPORT_DIRS ./src ./include
+    PROTOS
     src/ProtoStoreInternal.proto
+    include/Phantom.ProtoStore/ProtoStore.proto
 )
 
 target_compile_definitions(
-	Phantom.ProtoStore
+    Phantom.ProtoStore
     PUBLIC
-	"BOOST_ALL_NO_LIB=1"
+    "BOOST_ALL_NO_LIB=1"
 )
 
 target_link_libraries(
     Phantom.ProtoStore
     PUBLIC
-    cppcoro
-    libprotobuf
+    Phantom.Coroutines.cppcoro
+    protobuf::libprotobuf
     PRIVATE
     Phantom.System
-    boost_crc
-    boost_filesystem
-    boost_interprocess
 )

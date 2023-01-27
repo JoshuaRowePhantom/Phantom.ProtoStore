@@ -1,7 +1,6 @@
 #include <cppcoro/async_latch.hpp>
 #include <cppcoro/async_manual_reset_event.hpp>
 #include <cppcoro/async_scope.hpp>
-#include <cppcoro/when_all.hpp>
 #include "Phantom.Scalable/InternalResourceManager.h"
 #include "Phantom.Scalable/InternalTransactionImpl.h"
 #include "Phantom.Scalable/PeerToPeerClient.h"
@@ -85,11 +84,15 @@ shared_task<Grpc::TransactionOutcome> InternalTransaction::WaitForTransactionOut
 {
     co_await m_internalTransactionInformationTask;
 
-    auto prepareOutcomes = co_await cppcoro::when_all(
-        move(m_internalOperationPrepareOutcomeTasks));
-
-    for (auto prepareOutcome : prepareOutcomes)
+    for (auto& task : m_internalOperationPrepareOutcomeTasks)
     {
+        co_await task.when_ready();
+    }
+
+    for (auto& task : m_internalOperationPrepareOutcomeTasks)
+    {
+        auto prepareOutcome = co_await task;
+
         if (prepareOutcome != Grpc::TransactionOutcome::Succeeded)
         {
             co_return prepareOutcome;

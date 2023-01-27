@@ -41,9 +41,13 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
         const entry& right
         )
     {
+        // The comparer is a less-than comparer,
+        // the lists are sorted smallest-to-highest,
+        // so we want the highest item to be lower priority than the lowest item,
+        // therefore compare opposite to the caller's comparer.
         return comparer(
-            *left.item,
-            *right.item
+            *right.item,
+            *left.item
         );
     };
 
@@ -81,6 +85,8 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
 
                     itemProducedEvent.set();
                 }
+
+                co_await itemConsumedEvent;
             }
         }
         catch (...)
@@ -99,17 +105,16 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
 
     {
         auto lock = co_await mutex.scoped_lock_async();
-        for (auto generatorIterator = beginIterator; generatorIterator != endIterator; generatorIterator++)
+        auto generators = std::ranges::subrange{ beginIterator, endIterator };
+        for (auto& generator : generators)
         {
-            scope.spawn(processGeneratorLambda(*generatorIterator));
+            scope.spawn(processGeneratorLambda(generator));
             ++notReadyGeneratorCount;
         }
     }
 
     while(true)
     {
-        co_await itemProducedEvent;
-
         {
             auto lock = co_await mutex.scoped_lock_async();
             if (notReadyGeneratorCount > 0)
@@ -127,9 +132,14 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
                 co_return;
             }
 
+            ++notReadyGeneratorCount;
+
             co_yield *entries.top().item;
+            entries.top().itemConsumedEvent->set();
             entries.pop();
         }
+
+        co_await itemProducedEvent;
     }
 }
 

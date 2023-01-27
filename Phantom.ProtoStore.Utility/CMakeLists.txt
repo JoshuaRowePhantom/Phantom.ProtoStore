@@ -5,22 +5,21 @@ cmake_minimum_required (VERSION 3.17)
 
 
 add_executable(
-	Phantom.ProtoStore.Utility
-	"main.cpp" 
-	"DumpLog.cpp"
-	"DumpPartition.cpp"
-	"Utility.h"
-	)
+    Phantom.ProtoStore.Utility
+    "main.cpp" 
+    "DumpLog.cpp"
+    "DumpPartition.cpp"
+    "Utility.h"
+    )
 
 target_compile_definitions(
-	Phantom.ProtoStore.Utility
-	PUBLIC
-	"BOOST_ALL_NO_LIB=1"
+    Phantom.ProtoStore.Utility
+    PUBLIC
+    "BOOST_ALL_NO_LIB=1"
 )
 
 target_link_libraries(
-	Phantom.ProtoStore.Utility
-	Phantom.System
-	Phantom.ProtoStore
-	mimalloc-static
+    Phantom.ProtoStore.Utility
+    Phantom.System
+    Phantom.ProtoStore
 )

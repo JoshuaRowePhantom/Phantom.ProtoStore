@@ -2,7 +2,7 @@
 
 #include "StandardIncludes.h"
 #include "Paxos.h"
-#include "src/PhantomScalableGrpcInternal.pb.h"
+#include "PhantomScalableGrpcInternal.pb.h"
 #include <map>
 #include <optional>
 #include <vector>

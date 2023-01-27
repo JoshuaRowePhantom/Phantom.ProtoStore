@@ -5,8 +5,6 @@
 #include <cppcoro/single_consumer_event.hpp>
 #include <cppcoro/async_scope.hpp>
 #include <cppcoro/static_thread_pool.hpp>
-#include <cppcoro/when_all.hpp>
-#include <cppcoro/when_all_ready.hpp>
 
 using namespace std;
 
@@ -1108,12 +1106,11 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
                 &unexpectedValue);
         });
 
-        auto result = co_await cppcoro::when_all_ready(
-            move(operation1),
-            move(operation2));
+        co_await operation1.when_ready();
+        co_await operation2.when_ready();
 
-        EXPECT_NO_THROW(get<0>(result).result());
-        EXPECT_THROW(get<1>(result).result(), WriteConflict);
+        EXPECT_NO_THROW(co_await operation1);
+        EXPECT_THROW(co_await operation2, WriteConflict);
 
         co_await ExpectGetTestRow(
             store,
@@ -1277,8 +1274,10 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
             }(value));
         }
 
-        co_await cppcoro::when_all(
-            move(tasks));
+        for (auto& task : tasks)
+        {
+            co_await task;
+        }
 
         auto endTime = chrono::high_resolution_clock::now();
 
@@ -1446,8 +1445,10 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
                 }(threadNumber));
             }
 
-            co_await cppcoro::when_all(
-                move(tasks));
+            for (auto& task : tasks)
+            {
+                co_await task;
+            }
 
             auto endReadTime = chrono::high_resolution_clock::now();
             auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
@@ -1513,8 +1514,10 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
                 }(threadNumber));
             }
 
-            co_await cppcoro::when_all(
-                move(tasks));
+            for (auto& task : tasks)
+            {
+                co_await task;
+            }
 
             auto endReadTime = chrono::high_resolution_clock::now();
             auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);

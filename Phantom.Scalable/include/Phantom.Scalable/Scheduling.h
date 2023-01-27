@@ -7,6 +7,7 @@
 #include <cppcoro/async_manual_reset_event.hpp>
 #include <cppcoro/shared_task.hpp>
 #include <cppcoro/sync_wait.hpp>
+#include <cppcoro/task.hpp>
 
 namespace Phantom::Scalable
 {
