@@ -1,7 +1,7 @@
 #include "StandardIncludes.h"
 #include <cppcoro/async_manual_reset_event.hpp>
 #include <cppcoro/task.hpp>
-#include <cppcoro/when_all.hpp>
+//#include <cppcoro/when_all.hpp>
 #include "Phantom.System/async_value_source.h"
 
 using cppcoro::task;
@@ -113,9 +113,8 @@ TEST_F(value_publisher_tests, can_get_value_before_set_initially)
             publisher.emplace("foo");
             co_return;
         } ();
-        co_await cppcoro::when_all(
-            std::move(task1),
-            std::move(task2));
+        co_await task1;
+        co_await task2;
     });
 }
 
@@ -143,9 +142,8 @@ TEST_F(value_publisher_tests, can_get_exception_before_set_initially)
             }
             co_return;
         } ();
-        co_await cppcoro::when_all(
-            std::move(task1),
-            std::move(task2));
+        co_await task1;
+        co_await task2;
     });
 }
 

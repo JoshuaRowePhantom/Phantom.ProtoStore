@@ -65,14 +65,6 @@ add_library (
     )
     
 
-PROTOBUF_GENERATE(
-    LANGUAGE cpp
-    TARGET Phantom.ProtoStore
-    PROTOS 
-    include/Phantom.ProtoStore/ProtoStore.proto
-    src/ProtoStoreInternal.proto
-)
-
 target_include_directories(
     Phantom.ProtoStore
     PUBLIC
@@ -80,6 +72,15 @@ target_include_directories(
     ${Boost_INCLUDE_DIR}
     ${Protobuf_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+PROTOBUF_GENERATE(
+    LANGUAGE cpp
+    TARGET Phantom.ProtoStore
+    PROTOC_OPTIONS -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    PROTOS 
+    include/Phantom.ProtoStore/ProtoStore.proto
+    src/ProtoStoreInternal.proto
 )
 
 target_compile_definitions(
