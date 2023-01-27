@@ -3,7 +3,7 @@
 #include "PartitionWriterImpl.h"
 #include "MessageStore.h"
 #include <vector>
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "BloomFilter.h"
 
 namespace Phantom::ProtoStore

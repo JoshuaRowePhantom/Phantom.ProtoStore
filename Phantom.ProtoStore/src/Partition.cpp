@@ -1,6 +1,6 @@
 #include "PartitionImpl.h"
 #include "RandomMessageAccessor.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "Schema.h"
 #include "KeyComparer.h"
 #include <compare>

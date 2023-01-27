@@ -1,6 +1,6 @@
 #include <algorithm>
 #include "IndexImpl.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "KeyComparer.h"
 #include "MemoryTableImpl.h"
 #include "RowMerger.h"

@@ -5,7 +5,7 @@
 #include "RandomMessageAccessor.h"
 #include "HeaderAccessor.h"
 #include "Schema.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "IndexImpl.h"
 #include "IndexDataSourcesImpl.h"
 #include "MemoryTableImpl.h"

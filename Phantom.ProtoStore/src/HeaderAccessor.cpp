@@ -1,7 +1,7 @@
 #include "HeaderAccessorImpl.h"
 #include "RandomMessageAccessor.h"
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "ExtentName.h"
 
 namespace Phantom::ProtoStore

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "StandardTypes.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "MessageStore.h"
 

@@ -5,7 +5,7 @@
 #include "IndexPartitionMergeGenerator.h"
 #include <cppcoro/async_mutex.hpp>
 #include "AsyncScopeMixin.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "PartitionWriter.h"
 #include <cppcoro/async_generator.hpp>
 

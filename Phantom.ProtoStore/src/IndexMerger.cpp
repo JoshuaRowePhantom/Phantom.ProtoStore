@@ -1,6 +1,6 @@
 #include "IndexMerger.h"
 #include "Phantom.System/utility.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "Partition.h"
 #include "PartitionWriterImpl.h"
 #include "Index.h"

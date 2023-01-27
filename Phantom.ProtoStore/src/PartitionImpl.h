@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "Partition.h"
 #include "AsyncScopeMixin.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "SkipList.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "PartitionTreeNodeCache.h"

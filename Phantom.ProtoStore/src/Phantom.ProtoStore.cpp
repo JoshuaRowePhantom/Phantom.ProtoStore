@@ -2,7 +2,7 @@
 //
 
 #include "Phantom.ProtoStore/Phantom.ProtoStore.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 
 namespace Phantom::ProtoStore
 {

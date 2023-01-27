@@ -1,6 +1,6 @@
 #include "IndexDataSourcesImpl.h"
 #include "Index.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 
 namespace Phantom::ProtoStore
 {

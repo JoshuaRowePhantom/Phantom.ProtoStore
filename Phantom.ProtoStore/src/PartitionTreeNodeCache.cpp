@@ -1,6 +1,6 @@
 #include "PartitionTreeNodeCache.h"
 #include "RandomMessageAccessor.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "Schema.h"
 
 namespace Phantom::ProtoStore

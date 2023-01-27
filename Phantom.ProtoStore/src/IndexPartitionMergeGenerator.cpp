@@ -1,7 +1,7 @@
 #include "IndexPartitionMergeGenerator.h"
 #include <algorithm>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "ExtentName.h"
 #include <unordered_set>
 

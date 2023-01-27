@@ -1,5 +1,5 @@
 #include "Schema.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include <google/protobuf/dynamic_message.h>
 #include <array>
 

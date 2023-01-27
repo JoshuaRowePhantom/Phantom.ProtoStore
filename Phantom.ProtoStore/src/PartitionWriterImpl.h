@@ -1,7 +1,7 @@
 #pragma once
 
 #include "PartitionWriter.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "MessageStore.h"
 
 namespace Phantom::ProtoStore

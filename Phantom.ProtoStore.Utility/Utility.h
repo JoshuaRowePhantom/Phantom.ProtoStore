@@ -4,7 +4,7 @@
 #include <vector>
 #include "Phantom.System/async_utility.h"
 #include "Phantom.System/utility.h"
-#include "src/ProtoStoreInternal.pb.h"
+#include "ProtoStoreInternal.pb.h"
 #include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include <cppcoro/task.hpp>
