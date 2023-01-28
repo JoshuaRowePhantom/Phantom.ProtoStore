@@ -176,9 +176,9 @@ namespace Phantom::ProtoStore
                 auto readBuffer = co_await readableExtent->CreateReadBuffer();
                 co_await readBuffer->Read(expectedEndOfMessage - 1, 1);
 
-                google::protobuf::io::CodedInputStream iutputStream(
+                google::protobuf::io::CodedInputStream inputStream(
                     readBuffer->Stream());
-                iutputStream.ReadRaw(
+                inputStream.ReadRaw(
                     &lastChecksumByte,
                     sizeof(lastChecksumByte));
             }
@@ -189,12 +189,15 @@ namespace Phantom::ProtoStore
                 auto writableExtent = co_await extentStore->OpenExtentForWrite(MakeLogExtentName(0));
                 auto writeBuffer = co_await writableExtent->CreateWriteBuffer();
                 co_await writeBuffer->Write(expectedEndOfMessage - 1, 1);
-            
-                google::protobuf::io::CodedOutputStream corruptingOutputStream(
-                    writeBuffer->Stream());
-                corruptingOutputStream.WriteRaw(
-                    &corruptedLastChecksumByte,
-                    sizeof(corruptedLastChecksumByte));
+
+                {
+                    google::protobuf::io::CodedOutputStream corruptingOutputStream(
+                        writeBuffer->Stream());
+
+                    corruptingOutputStream.WriteRaw(
+                        &corruptedLastChecksumByte,
+                        sizeof(corruptedLastChecksumByte));
+                }
 
                 co_await writeBuffer->Flush();
             }
