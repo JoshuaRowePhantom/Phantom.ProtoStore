@@ -10,7 +10,8 @@ task<> DumpPartition(
         Schedulers::Default(),
         "nonexistent",
         "dummy",
-        4096);
+        4096,
+        MemoryMappedFileExtentStore::ExtentDeleteAction::Rename);
 
     auto messageStore = MakeMessageStore(
         Schedulers::Default(),

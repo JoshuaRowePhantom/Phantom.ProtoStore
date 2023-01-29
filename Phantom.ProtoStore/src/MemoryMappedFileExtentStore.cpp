@@ -615,12 +615,14 @@ MemoryMappedFileExtentStore::MemoryMappedFileExtentStore(
     Schedulers schedulers,
     std::string extentFilenamePrefix,
     std::string extentFilenameSuffix,
-    uint64_t writeBlockSize
+    uint64_t writeBlockSize,
+    ExtentDeleteAction extentDeleteAction
 ) :
     m_schedulers(schedulers),
     m_extentFilenamePrefix(extentFilenamePrefix),
     m_extentFilenameSuffix(extentFilenameSuffix),
-    m_writeBlockSize(writeBlockSize)
+    m_writeBlockSize(writeBlockSize),
+    m_extentDeleteAction(extentDeleteAction)
 {
 }
 
@@ -768,17 +770,23 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
     auto filename = GetFilename(
         extentName);
 
-    if (std::filesystem::exists(
-        filename
-    ))
+    if (m_extentDeleteAction == ExtentDeleteAction::Rename)
     {
-        std::filesystem::rename(
-            filename,
-            filename + ".deleted");
+        if (std::filesystem::exists(
+            filename
+        ))
+        {
+            std::filesystem::rename(
+                filename,
+                filename + ".deleted");
+        }
+    }
+    else
+    {
+        std::filesystem::remove(
+            filename);
     }
 
-    //std::filesystem::remove(
-    //    GetFilename(ExtentName));
     co_return;
 }
 

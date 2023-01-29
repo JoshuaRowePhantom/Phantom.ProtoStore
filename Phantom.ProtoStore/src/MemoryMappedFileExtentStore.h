@@ -8,10 +8,19 @@ class MemoryMappedFileExtentStore
     :
     public IExtentStore
 {
-    Schedulers m_schedulers;
-    std::string m_extentFilenamePrefix;
-    std::string m_extentFilenameSuffix;
-    uint64_t m_writeBlockSize;
+public:
+    enum class ExtentDeleteAction
+    {
+        Rename,
+        Delete,
+    };
+
+private:
+    const Schedulers m_schedulers;
+    const std::string m_extentFilenamePrefix;
+    const std::string m_extentFilenameSuffix;
+    const uint64_t m_writeBlockSize;
+    const ExtentDeleteAction m_extentDeleteAction;
 
     std::string GetSanitizedIndexName(
         const string& indexName);
@@ -24,7 +33,8 @@ public:
         Schedulers schedulers,
         std::string extentFilenamePrefix,
         std::string extentFilenameSuffix,
-        uint64_t writeBlockSize
+        uint64_t writeBlockSize,
+        ExtentDeleteAction extentDeleteAction
     );
     
     task<shared_ptr<IReadableExtent>> OpenExtentForRead(
