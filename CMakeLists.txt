@@ -11,8 +11,6 @@ if (MSVC)
 	add_compile_options("/std:c++latest")
 	add_compile_options("/WX")
 
-	add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:/GL>")
-	add_link_options("$<$<CONFIG:RELWITHDEBINFO>:/LTCG>")
 	add_compile_definitions(_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS)
 	add_compile_definitions(_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS)
 endif()

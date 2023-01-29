@@ -40,7 +40,10 @@ target_compile_definitions(
 
 target_link_libraries(
     Phantom.ProtoStore.Test
-    mimalloc
+    "$<$<CONFIG:RelWithDebInfo>:mimalloc>")
+
+target_link_libraries(
+    Phantom.ProtoStore.Test
     Phantom.System
     Phantom.ProtoStore
     GTest::gtest

@@ -3,23 +3,6 @@
 #
 cmake_minimum_required (VERSION 3.17)
 
-#get_target_property(
-#    protobuf_INCLUDE_DIRECTORIES
-#    protobuf::libprotoc
-#    INCLUDE_DIRECTORIES
-#)
-
-#phantom_protobuf_generate_cpp(
-#    PROTOC_CPP
-#    PROTOC_H
-#    IMPORTDIRECTORY
-#    ${protobuf_INCLUDE_DIRECTORIES}
-#    ${CMAKE_CURRENT_SOURCE_DIR}
-#	../Phantom.ProtoStore/include
-#	PROTO
-#    ProtoStoreTest.proto
-#)
-
 add_executable(
 	Phantom.Scalable.Test
 	AnyMessageTests.cpp
@@ -41,13 +24,12 @@ target_compile_definitions(
 target_link_libraries(
 	Phantom.Scalable.Test
 	PUBLIC
-	mimalloc-redirect
-	mimalloc
 	Phantom.System
 	Phantom.ProtoStore
 	Phantom.Scalable
 	gtest
 	gtest_main
+	$<$<CONFIG:RELWITHDEBINFO>:mimalloc>
 )
 
 target_include_directories(

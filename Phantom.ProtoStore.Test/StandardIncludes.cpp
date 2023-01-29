@@ -1,12 +1,17 @@
 #include "StandardIncludes.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
+
+#if PHANTOM_USE_MIMALLOC
 #include "mimalloc-new-delete.h"
+#endif
 
 namespace Phantom::ProtoStore
 {
 
+#if PHANTOM_USE_MIMALLOC
 auto mimalloc_version = mi_version();
+#endif
 
 std::function<task<shared_ptr<IExtentStore>>()> UseMemoryExtentStore()
 {
@@ -79,7 +84,8 @@ shared_ptr<IExtentStore> MakeFilesystemStore(
         Schedulers::Default(),
         path.string(),
         ".dat",
-        4096
+        4096,
+        MemoryMappedFileExtentStore::ExtentDeleteAction::Rename
         );
 
     return store;
