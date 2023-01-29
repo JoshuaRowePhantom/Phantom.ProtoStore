@@ -113,8 +113,14 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
         }
     }
 
+    // Just in case the set of non-empty generators is zero,
+    // signal the first time through the loop.
+    itemProducedEvent.set();
+
     while(true)
     {
+        co_await itemProducedEvent;
+
         {
             auto lock = co_await mutex.scoped_lock_async();
             if (notReadyGeneratorCount > 0)
@@ -138,8 +144,6 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
             entries.top().itemConsumedEvent->set();
             entries.pop();
         }
-
-        co_await itemProducedEvent;
     }
 }
 
