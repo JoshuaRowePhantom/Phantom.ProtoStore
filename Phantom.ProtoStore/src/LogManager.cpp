@@ -207,7 +207,7 @@ task<WriteMessageResult> LogManager::WriteLogRecord(
             !m_logExtentUsageLock.writer().has_waiter()
             )
         {
-            auto writeLock = m_logExtentUsageLock.writer().scoped_lock_async();
+            auto writeLock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
 
             auto extentName = MakeLogExtentName(
                 m_currentLogExtentSequenceNumber);
