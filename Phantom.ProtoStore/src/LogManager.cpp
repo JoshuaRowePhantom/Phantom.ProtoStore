@@ -2,6 +2,7 @@
 #include "LogManager.h"
 #include "ExtentStore.h"
 #include "MessageStore.h"
+#include "Phantom.Coroutines/suspend_result.h"
 
 namespace Phantom::ProtoStore
 {
@@ -177,51 +178,50 @@ task<WriteMessageResult> LogManager::WriteLogRecord(
     const LogRecord& logRecord
 )
 {
-    while (true)
+    RetryWithReadLock:
     {
+        Phantom::Coroutines::suspend_result suspendResult;
+        auto readlock = co_await(suspendResult << m_logExtentUsageLock.reader().scoped_lock_async());
+        if (suspendResult.did_suspend())
         {
-            auto readLock = m_logExtentUsageLock.reader().scoped_try_lock();
-            if (!readLock)
-            {
-                readLock = co_await m_logExtentUsageLock.reader().scoped_lock_async();
-                co_await *m_schedulers.IoScheduler;
-            }
-
-            if (!NeedToUpdateMaps(
-                m_currentLogExtentSequenceNumber,
-                logRecord))
-            {
-                auto writeResult = co_await m_logMessageWriter->Write(
-                    logRecord,
-                    FlushBehavior::Flush);
-
-                co_return writeResult;
-            }
+            co_await *m_schedulers.IoScheduler;
         }
 
-        // Most of the time, the reason the write lock can't be acquired
-        // is because someone else is adding the same entry,
-        // so just go back to the read path if we don't think we'll be able to acquire the lock.
-        if (!m_logExtentUsageLock.writer().has_owner()
-            &&
-            !m_logExtentUsageLock.writer().has_waiter()
-            )
+        if (!NeedToUpdateMaps(
+            m_currentLogExtentSequenceNumber,
+            logRecord))
         {
-            auto writeLock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
-
-            auto extentName = MakeLogExtentName(
-                m_currentLogExtentSequenceNumber);
-
-            co_await Replay(
-                extentName,
-                logRecord);
-
             auto writeResult = co_await m_logMessageWriter->Write(
                 logRecord,
                 FlushBehavior::Flush);
 
             co_return writeResult;
         }
+    }
+
+    {
+        auto writeLock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
+        co_await *m_schedulers.IoScheduler;
+
+        if (!NeedToUpdateMaps(
+            m_currentLogExtentSequenceNumber,
+            logRecord))
+        {
+            goto RetryWithReadLock;
+        }
+
+        auto extentName = MakeLogExtentName(
+            m_currentLogExtentSequenceNumber);
+
+        co_await Replay(
+            extentName,
+            logRecord);
+
+        auto writeResult = co_await m_logMessageWriter->Write(
+            logRecord,
+            FlushBehavior::Flush);
+
+        co_return writeResult;
     }
 }
 

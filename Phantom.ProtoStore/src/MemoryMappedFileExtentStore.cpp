@@ -341,11 +341,10 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
     flush_region& flushRegion)
 {
     {
-        auto mappedRegionLock = m_lastMappedFullRegionLock.reader().scoped_try_lock();
-
-        if (!mappedRegionLock)
+        Phantom::Coroutines::suspend_result suspendResult;
+        auto mappedRegionLock = co_await(suspendResult << m_lastMappedFullRegionLock.reader().scoped_lock_async());
+        if (suspendResult.did_suspend())
         {
-            mappedRegionLock = co_await m_lastMappedFullRegionLock.reader().scoped_lock_async();
             co_await m_schedulers.LockScheduler->schedule();
         }
 
@@ -364,13 +363,7 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
     }
 
     {
-        auto mappedRegionLock = m_lastMappedFullRegionLock.writer().scoped_try_lock();
-
-        if (!mappedRegionLock)
-        {
-            mappedRegionLock = co_await m_lastMappedFullRegionLock.writer().scoped_lock_async();
-            co_await m_schedulers.LockScheduler->schedule();
-        }
+        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.writer().scoped_lock_async();
 
         if (offset + count < m_lastMappedFullRegionSize)
         {
@@ -571,39 +564,27 @@ task<> MemoryMappedWritableExtent::Flush(
     shared_task<> flushTask;
     bool didUpdateFlushMap = false;
 
-    while (!didUpdateFlushMap)
     {
+        auto lock = co_await m_flushMapLock.reader().scoped_lock_async();
+        if (didUpdateFlushMap = UnsafeUpdateFlushMap(
+            mappedRegion,
+            flushRegion
+        ))
         {
-            auto lock = co_await m_flushMapLock.reader().scoped_lock_async();
-            if (didUpdateFlushMap = UnsafeUpdateFlushMap(
-                mappedRegion,
-                flushRegion
-            ))
-            {
-                flushTask = m_flushTask;
-            }
-        }
-
-        // If we didn't update the flush map, it's because there was no entry 
-        // in the map.  It's highly likely that another waiter will be trying
-        // to add this flush map entry, so to cut down on the number of
-        // times the write lock is acquired we only acquire it if there are
-        // no other writers.  If there are other writers waiting or already
-        // acquired the lock, just retry on the read path.
-
-        if (!didUpdateFlushMap
-            &&
-            !m_flushMapLock.writer().has_owner()
-            &&
-            !m_flushMapLock.writer().has_waiter())
-        {
-            auto lock = co_await m_flushMapLock.writer().scoped_lock_async();
-            UnsafeAddToFlushMap(
-                mappedRegion,
-                flushRegion);
-            didUpdateFlushMap = true;
             flushTask = m_flushTask;
         }
+    }
+
+    // If we didn't update the flush map, it's because there was no entry 
+    // in the map.  
+    if (!didUpdateFlushMap)
+    {
+        auto lock = co_await m_flushMapLock.writer().scoped_lock_async();
+        UnsafeAddToFlushMap(
+            mappedRegion,
+            flushRegion);
+        didUpdateFlushMap = true;
+        flushTask = m_flushTask;
     }
 
     // This lazily starts the flush task.
