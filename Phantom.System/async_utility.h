@@ -28,7 +28,7 @@ template<
 
 template<
     can_co_await T
-> auto as_awaitable(
+> decltype(auto) as_awaitable(
     T&& t
 )
 {
@@ -37,37 +37,34 @@ template<
 
 template<
     typename T
-> class simple_awaitable
+> class [[nodiscard]] simple_awaitable
     : public std::suspend_never
 {
-    T m_t;
+    T&& m_t;
 public:
-    template<
-        typename TI
-    >
     simple_awaitable(
-        TI&& t
-    ) : m_t(std::forward<TI>(t))
+        T&& t
+    ) : m_t(std::forward<T>(t))
     {}
 
-    T& await_resume() & noexcept
+    T&& await_resume() noexcept
     {
-        return m_t;
+        return std::forward<T>(m_t);
     }
 
-    T&& await_resume() && noexcept
+    simple_awaitable& operator co_await()&&
     {
-        return std::move(m_t);
+        return *this;
     }
 };
 
 template<
     typename T
-> simple_awaitable<typename std::remove_reference<T>::type> as_awaitable(
+> simple_awaitable<T> as_awaitable(
     T&& t
 )
 {
-    return simple_awaitable<typename std::remove_reference<T>::type>(std::forward<T>(t));
+    return simple_awaitable<T>(std::forward<T>(t));
 }
 
 template<
