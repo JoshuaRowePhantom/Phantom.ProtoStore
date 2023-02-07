@@ -102,7 +102,7 @@ namespace Phantom::ProtoStore
         shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
         task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-            ExtentName ExtentName);
+            const ExtentName& ExtentName);
 
         task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
             ExtentName ExtentName);

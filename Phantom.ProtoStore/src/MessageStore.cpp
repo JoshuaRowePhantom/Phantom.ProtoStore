@@ -307,7 +307,7 @@ namespace Phantom::ProtoStore
     }
 
     task<shared_ptr<IReadableExtent>> MessageStore::OpenExtentForRead(
-        ExtentName extentName)
+        const ExtentName& extentName)
     {
         shared_ptr<IReadableExtent> readableExtent;
 
