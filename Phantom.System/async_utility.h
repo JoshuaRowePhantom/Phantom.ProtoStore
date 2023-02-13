@@ -245,7 +245,7 @@ template<
     TAsyncIterator iterator
     )
 {
-    { cppcoro::sync_wait(as_awaitable(++iterator)) };
+    { ++iterator } -> Phantom::Coroutines::is_awaitable;
     { iterator == iterator } -> std::convertible_to<bool>;
     { iterator != iterator } -> std::convertible_to<bool>;
 };
