@@ -52,7 +52,7 @@ const IndexName& Index::GetIndexName() const
     return m_indexName;
 }
 
-task<CheckpointNumber> Index::AddRow(
+status_task<CheckpointNumber> Index::AddRow(
     SequenceNumber readSequenceNumber,
     const ProtoValue& key,
     const ProtoValue& value,
@@ -100,7 +100,7 @@ task<CheckpointNumber> Index::AddRow(
 
         if (conflictingSequenceNumber.has_value())
         {
-            throw WriteConflict();
+            co_return std::unexpected{ make_error_code(ProtoStoreErrorCode::WriteConflict) };
         }
     }
 
@@ -120,11 +120,11 @@ task<CheckpointNumber> Index::AddRow(
 
         if (conflictingSequenceNumber.has_value())
         {
-            throw WriteConflict();
+            co_return make_unexpected(ProtoStoreErrorCode::WriteConflict);
         }
     }
 
-    co_await m_activeMemoryTable->AddRow(
+    co_await co_await m_activeMemoryTable->AddRow(
         readSequenceNumber,
         row, 
         operationOutcomeTask);
@@ -167,7 +167,7 @@ task<> Index::GetEnumerationDataSources(
     partitions = m_partitions;
 }
 
-task<ReadResult> Index::Read(
+operation_task<ReadResult> Index::Read(
     const ReadRequest& readRequest
 )
 {
@@ -248,7 +248,7 @@ task<ReadResult> Index::Read(
     };
 }
 
-cppcoro::async_generator<EnumerateResult> Index::Enumerate(
+cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
     const EnumerateRequest& enumerateRequest
 )
 {
@@ -328,12 +328,15 @@ cppcoro::async_generator<EnumerateResult> Index::Enumerate(
         co_await ++iterator)
     {
         auto& resultRow = *iterator;
-
+        
         co_yield EnumerateResult
         {
-            .Key = resultRow.Key,
-            .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-            .Value = resultRow.Value,
+            {
+                .WriteSequenceNumber = resultRow.WriteSequenceNumber,
+                .Value = resultRow.Value,
+                .ReadStatus = ReadStatus::HasValue,
+            },
+            resultRow.Key,
         };
     }
 }

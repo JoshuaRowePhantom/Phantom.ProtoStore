@@ -336,7 +336,7 @@ task<> ProtoStore::Replay(
             loggedRowWrite.indexnumber(),
             DoReplayPartitions);
 
-        co_await indexEntry.DataSources->Replay(
+        co_await indexEntry->DataSources->Replay(
             loggedRowWrite);
     }
 
@@ -446,10 +446,10 @@ task<ProtoIndex> ProtoStore::GetIndex(
 task<shared_ptr<IIndex>> ProtoStore::GetIndex(
     IndexNumber indexNumber)
 {
-    co_return (co_await GetIndexEntryInternal(indexNumber, DoReplayPartitions)).Index;
+    co_return (co_await GetIndexEntryInternal(indexNumber, DoReplayPartitions))->Index;
 }
 
-task<ReadResult> ProtoStore::Read(
+operation_task<ReadResult> ProtoStore::Read(
     const ReadRequest& readRequest
 )
 {
@@ -457,7 +457,7 @@ task<ReadResult> ProtoStore::Read(
         readRequest);
 }
 
-async_generator<EnumerateResult> ProtoStore::Enumerate(
+async_generator<OperationResult<EnumerateResult>> ProtoStore::Enumerate(
     const EnumerateRequest& enumerateRequest
 )
 {
@@ -467,7 +467,7 @@ async_generator<EnumerateResult> ProtoStore::Enumerate(
 
 class Operation
     :
-    public IInternalOperation
+    public IInternalTransaction
 {
     ProtoStore& m_protoStore;
     ::Phantom::ProtoStore::LogRecord m_logRecord;
@@ -476,6 +476,7 @@ class Operation
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
     shared_task<CommitResult> m_commitTask;
+    std::vector<FailedResult> m_failures;
 
     MemoryTableOperationOutcomeTask GetOperationOutcome()
     {
@@ -542,17 +543,22 @@ public:
         return m_logRecord;
     }
 
-    // Inherited via IOperation
-    virtual task<> AddLoggedAction(
+    std::vector<FailedResult>& Failures()
+    {
+        return m_failures;
+    }
+
+    // Inherited via ITransaction
+    virtual operation_task<> AddLoggedAction(
         const WriteOperationMetadata& writeOperationMetadata, 
         const Message* loggedAction, 
         LoggedOperationDisposition disposition
     ) override
     {
-        return task<>();
+        return operation_task<>();
     }
 
-    virtual task<> AddRow(
+    virtual operation_task<> AddRow(
         const WriteOperationMetadata& writeOperationMetadata, 
         ProtoIndex protoIndex,
         const ProtoValue& key,
@@ -577,6 +583,18 @@ public:
             writeSequenceNumber,
             operationOutcomeTask
         );
+        if (!checkpointNumber)
+        {
+            FailedResult failedResult = { checkpointNumber.error() };
+            if (failedResult.ErrorCode == make_error_code(ProtoStoreErrorCode::WriteConflict))
+            {
+                failedResult.ErrorDetails = WriteConflict
+                {
+                };
+            }
+            m_failures.push_back(failedResult);
+            co_return std::unexpected{ std::move(failedResult) };
+        }
 
         auto loggedRowWrite = m_logRecord.add_rows();
         if (writeOperationMetadata.WriteSequenceNumber.has_value())
@@ -589,15 +607,17 @@ public:
         value.pack(
             loggedRowWrite->mutable_value());
         loggedRowWrite->set_checkpointnumber(
-            checkpointNumber);
+            *checkpointNumber);
+
+        co_return{};
     }
 
-    virtual task<> ResolveTransaction(
+    virtual operation_task<> ResolveTransaction(
         const WriteOperationMetadata& writeOperationMetadata, 
         TransactionOutcome outcome
     ) override
     {
-        return task<>();
+        return operation_task<>();
     }
 
     virtual task<ProtoIndex> GetIndex(
@@ -608,7 +628,7 @@ public:
             getIndexRequest);
     }
 
-    virtual task<ReadResult> Read(
+    virtual operation_task<ReadResult> Read(
         const ReadRequest& readRequest
     ) override
     {
@@ -616,7 +636,7 @@ public:
             readRequest);
     }
 
-    virtual async_generator<EnumerateResult> Enumerate(
+    virtual async_generator<OperationResult<EnumerateResult>> Enumerate(
         const EnumerateRequest& enumerateRequest
     ) override
     {
@@ -624,8 +644,8 @@ public:
             enumerateRequest);
     }
 
-    // Inherited via IOperationTransaction
-    virtual task<CommitResult> Commit(
+    // Inherited via ICommittableTransaction
+    virtual operation_task<CommitResult> Commit(
     ) override
     {
         co_return co_await m_commitTask;
@@ -661,22 +681,22 @@ private:
     }
 };
 
-task<OperationResult> ProtoStore::ExecuteOperation(
+operation_task<TransactionSucceededResult> ProtoStore::ExecuteTransaction(
     const BeginTransactionRequest beginRequest,
-    OperationVisitor visitor
+    TransactionVisitor visitor
 )
 {
-    return InternalExecuteOperation(
+    co_return co_await InternalExecuteTransaction(
         beginRequest,
-        [=](auto operation)
+        [&](auto operation)
     {
         return visitor(operation);
     });
 }
 
-task<OperationResult> ProtoStore::InternalExecuteOperation(
+operation_task<TransactionSucceededResult> ProtoStore::InternalExecuteTransaction(
     const BeginTransactionRequest beginRequest,
-    InternalOperationVisitor visitor
+    InternalTransactionVisitor visitor
 )
 {
     auto previousWriteSequenceNumber = m_nextWriteSequenceNumber.fetch_add(
@@ -684,7 +704,7 @@ task<OperationResult> ProtoStore::InternalExecuteOperation(
         std::memory_order_acq_rel);
     auto thisWriteSequenceNumber = previousWriteSequenceNumber + 1;
 
-    auto executionOperationTask = InternalExecuteOperation(
+    auto executionTransactionTask = InternalExecuteTransaction(
         visitor,
         thisWriteSequenceNumber,
         thisWriteSequenceNumber);
@@ -697,11 +717,11 @@ task<OperationResult> ProtoStore::InternalExecuteOperation(
     //m_asyncScope.spawn(move(
     //    publishTask));
 
-    co_return co_await executionOperationTask;
+    co_return co_await executionTransactionTask;
 }
 
-shared_task<OperationResult> ProtoStore::InternalExecuteOperation(
-    InternalOperationVisitor visitor,
+shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExecuteTransaction(
+    InternalTransactionVisitor visitor,
     uint64_t readSequenceNumber,
     uint64_t thisWriteSequenceNumber
 )
@@ -711,18 +731,49 @@ shared_task<OperationResult> ProtoStore::InternalExecuteOperation(
         ToSequenceNumber(readSequenceNumber),
         ToSequenceNumber(thisWriteSequenceNumber));
 
-    co_await visitor(&operation);
-    co_await operation.Commit();
+    auto result = co_await visitor(&operation);
 
-    co_return OperationResult{};
+    TransactionOutcome outcome = TransactionOutcome::Committed;
+    if (result)
+    {
+        co_await operation.Commit();
+    }
+    else
+    {
+        outcome = TransactionOutcome::Aborted;
+    }
+
+    if (outcome == TransactionOutcome::Committed
+        || outcome == TransactionOutcome::ReadOnly)
+    {
+        co_return TransactionSucceededResult
+        {
+            .m_transactionOutcome = outcome,
+        };
+    }
+    else
+    {
+        co_return std::unexpected
+        {
+            FailedResult
+            {
+                .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
+                .ErrorDetails = TransactionFailedResult
+                {
+                    .TransactionOutcome = outcome,
+                    .Failures = std::move(operation.Failures()),
+                },
+            },
+        };
+    }
 }
 
 task<> ProtoStore::Publish(
-    shared_task<OperationResult> operationResult,
+    shared_task<TransactionResult> transactionResult,
     uint64_t previousWriteSequenceNumber,
     uint64_t thisWriteSequenceNumber)
 {
-    co_await operationResult.when_ready();
+    co_await transactionResult.when_ready();
 
     co_await m_writeSequenceNumberBarrier.wait_until_published(
         previousWriteSequenceNumber,
@@ -751,17 +802,25 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
     auto readResult = co_await m_indexesByNameIndex.Index->Read(
         readRequest);
 
-    if (readResult.ReadStatus == ReadStatus::NoValue)
+    // Our internal ability to read an index should not be in doubt.
+    // This failure means there's something really wrong with the database.
+    if (!readResult)
+    {
+        std::move(readResult).error().throw_exception();
+    }
+
+    // Ordinary index-not-found errors are handled by returning a null index.
+    if (readResult->ReadStatus == ReadStatus::NoValue)
     {
         co_return nullptr;
     }
 
-    auto indexesByNameValue = readResult.Value.cast_if<IndexesByNameValue>();
+    auto indexesByNameValue = readResult->Value.cast_if<IndexesByNameValue>();
 
     co_return (co_await GetIndexEntryInternal(
         indexesByNameValue->indexnumber(),
         DoReplayPartitions)
-        ).Index;
+        )->Index;
 }
 
 task<IndexNumber> ProtoStore::AllocateIndexNumber()
@@ -769,7 +828,7 @@ task<IndexNumber> ProtoStore::AllocateIndexNumber()
     co_return m_nextIndexNumber.fetch_add(1);
 }
 
-task<ProtoIndex> ProtoStore::CreateIndex(
+operation_task<ProtoIndex> ProtoStore::CreateIndex(
     const CreateIndexRequest& createIndexRequest
 )
 {
@@ -788,13 +847,13 @@ task<ProtoIndex> ProtoStore::CreateIndex(
         createIndexRequest.ValueSchema.ValueDescriptor
     );
 
-    co_await InternalExecuteOperation(
+    auto transactionResult = co_await co_await InternalExecuteTransaction(
         BeginTransactionRequest(),
-        [&](auto operation)->task<>
+        [&](auto operation)->status_task<>
     {
         WriteOperationMetadata metadata;
 
-        co_await operation->AddRow(
+        co_await co_await operation->AddRow(
             metadata,
             m_indexesByNumberIndex.Index,
             &indexesByNumberKey,
@@ -809,13 +868,14 @@ task<ProtoIndex> ProtoStore::CreateIndex(
         indexesByNameValue.set_indexnumber(
             indexNumber);
 
-        co_await operation->AddRow(
+        co_await co_await operation->AddRow(
             metadata,
             m_indexesByNameIndex.Index,
             &indexesByNameKey,
             &indexesByNameValue
         );
 
+        co_return{};
     });
 
     auto indexEntry = co_await GetIndexEntryInternal(
@@ -823,10 +883,10 @@ task<ProtoIndex> ProtoStore::CreateIndex(
         DoReplayPartitions);
 
     co_return ProtoIndex(
-        indexEntry.Index);
+        indexEntry->Index);
 }
 
-task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexEntryInternal(
+task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
     google::protobuf::uint64 indexNumber,
     bool doReplayPartitions
 )
@@ -838,7 +898,7 @@ task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexEntryInternal(
             indexNumber);
         if (indexIterator != m_indexesByNumber.end())
         {
-            co_return indexIterator->second;
+            co_return &indexIterator->second;
         }
     }
 
@@ -855,8 +915,13 @@ task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexEntryInternal(
     auto readResult = co_await m_indexesByNumberIndex.Index->Read(
         readRequest);
 
-    auto indexesByNumberValue = readResult.Value.cast_if<IndexesByNumberValue>();
+    if (!readResult)
+    {
+        readResult.error().throw_exception();
+    }
 
+    auto indexesByNumberValue = readResult->Value.cast_if<IndexesByNumberValue>();
+    
     // Look for the index using a write lock, and create the index if it doesn't exist.
     {
         auto lock = co_await m_indexesByNumberLock.writer().scoped_lock_async();
@@ -864,7 +929,7 @@ task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexEntryInternal(
             indexNumber);
         if (indexIterator != m_indexesByNumber.end())
         {
-            co_return indexIterator->second;
+            co_return &indexIterator->second;
         }
 
         auto indexEntry = MakeIndex(
@@ -885,7 +950,7 @@ task<const ProtoStore::IndexEntry&> ProtoStore::GetIndexEntryInternal(
 
         m_indexesByNumber[indexNumber] = indexEntry;
 
-        co_return m_indexesByNumber[indexNumber];
+        co_return &m_indexesByNumber[indexNumber];
     }
 }
 
@@ -1092,9 +1157,9 @@ task<> ProtoStore::Checkpoint(
     auto writeSequenceNumber = ToSequenceNumber(
         m_nextWriteSequenceNumber.fetch_add(1));
 
-    co_await InternalExecuteOperation(
+    co_await InternalExecuteTransaction(
         BeginTransactionRequest{},
-        [&](auto operation) -> task<>
+        [&](auto operation) -> status_task<>
     {
         co_await LogCommitExtent(
             operation->LogRecord(),
@@ -1184,6 +1249,8 @@ task<> ProtoStore::Checkpoint(
             co_await indexEntry.DataSources->UpdatePartitions(
                 loggedCheckpoint,
                 partitions);
+
+            co_return{};
         }
     });
 }
@@ -1216,8 +1283,8 @@ task<vector<std::tuple<PartitionsKey, PartitionsValue>>> ProtoStore::GetPartitio
     {
         result.push_back(
             std::make_tuple(
-                *((*iterator).Key.cast_if<PartitionsKey>()),
-                *((*iterator).Value.cast_if<PartitionsValue>())));
+                *((*iterator)->Key.cast_if<PartitionsKey>()),
+                *((*iterator)->Value.cast_if<PartitionsValue>())));
     }
 
     co_return result;

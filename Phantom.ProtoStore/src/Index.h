@@ -10,7 +10,7 @@ namespace Phantom::ProtoStore
 class IIndex
 {
 public:
-    virtual task<CheckpointNumber> AddRow(
+    virtual status_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
         const ProtoValue& key,
         const ProtoValue& value,
@@ -27,11 +27,11 @@ public:
     virtual shared_ptr<IMessageFactory> GetValueFactory(
     ) = 0;
 
-    virtual task<ReadResult> Read(
+    virtual operation_task<ReadResult> Read(
         const ReadRequest& readRequest
     ) = 0;
 
-    virtual cppcoro::async_generator<EnumerateResult> Enumerate(
+    virtual cppcoro::async_generator<OperationResult<EnumerateResult>> Enumerate(
         const EnumerateRequest& readRequest
     ) = 0;
 

@@ -38,7 +38,7 @@ public:
     // If there is a conflict, an exception of the proper type with be thrown,
     // and the row will be left untouched.
     // Otherwise, the content of the row are std::move'd into the memory table.
-    virtual task<> AddRow(
+    virtual status_task<> AddRow(
         SequenceNumber readSequenceNumber,
         MemoryTableRow& row,
         MemoryTableOperationOutcomeTask outcomeTask

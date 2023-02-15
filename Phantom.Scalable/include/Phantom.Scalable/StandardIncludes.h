@@ -13,7 +13,7 @@
 namespace Phantom::ProtoStore
 {
 class IProtoStore;
-class IOperation;
+class ITransaction;
 }
 
 namespace Phantom::Scalable
@@ -33,6 +33,6 @@ using google::protobuf::Any;
 using google::protobuf::Message;
 
 using Phantom::ProtoStore::IProtoStore;
-typedef Phantom::ProtoStore::IOperation IProtoStoreOperation;
+typedef Phantom::ProtoStore::ITransaction IProtoStoreOperation;
 
 }

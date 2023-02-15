@@ -84,7 +84,7 @@ class ProtoStore
     const bool DoReplayPartitions = true;
     const bool DontReplayPartitions = false;
 
-    task<const IndexEntry&> GetIndexEntryInternal(
+    task<const IndexEntry*> GetIndexEntryInternal(
         google::protobuf::uint64 indexNumber,
         bool doReplayPartitions
     );
@@ -192,18 +192,18 @@ class ProtoStore
         const vector<ExtentName>& headerExtentNumbers
     ) override;
 
-    shared_task<OperationResult> InternalExecuteOperation(
-        InternalOperationVisitor visitor,
+    shared_task<TransactionResult> InternalExecuteTransaction(
+        InternalTransactionVisitor visitor,
         uint64_t readSequenceNumber,
         uint64_t thisWriteSequenceNumber);
 
-    task<OperationResult> InternalExecuteOperation(
+    operation_task<TransactionSucceededResult> InternalExecuteTransaction(
         const BeginTransactionRequest beginRequest,
-        InternalOperationVisitor visitor
+        InternalTransactionVisitor visitor
     );
 
     task<> Publish(
-        shared_task<OperationResult> operationResult,
+        shared_task<TransactionResult> transactionResult,
         uint64_t previousWriteSequenceNumber,
         uint64_t thisWriteSequenceNumber);
 
@@ -268,12 +268,12 @@ public:
     virtual task<> Merge(
     ) override;
 
-    virtual task<OperationResult> ExecuteOperation(
+    virtual operation_task<TransactionSucceededResult> ExecuteTransaction(
         const BeginTransactionRequest beginRequest,
-        OperationVisitor visitor
+        TransactionVisitor visitor
     ) override;
 
-    virtual task<ProtoIndex> CreateIndex(
+    virtual operation_task<ProtoIndex> CreateIndex(
         const CreateIndexRequest& createIndexRequest
     ) override;
 
@@ -281,11 +281,11 @@ public:
         const GetIndexRequest& getIndexRequest
     ) override;
 
-    virtual task<ReadResult> Read(
+    virtual operation_task<ReadResult> Read(
         const ReadRequest& readRequest
     ) override;
 
-    virtual async_generator<EnumerateResult> Enumerate(
+    virtual async_generator<OperationResult<EnumerateResult>> Enumerate(
         const EnumerateRequest& enumerateRequest
     ) override;
 

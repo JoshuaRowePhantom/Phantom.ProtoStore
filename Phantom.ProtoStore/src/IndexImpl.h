@@ -66,7 +66,7 @@ public:
     virtual shared_ptr<IMessageFactory> GetValueFactory(
     ) override;
 
-    virtual task<CheckpointNumber> AddRow(
+    virtual status_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
         const ProtoValue& key,
         const ProtoValue& value,
@@ -81,11 +81,11 @@ public:
         SequenceNumber writeSequenceNumber
     ) override;
 
-    virtual task<ReadResult> Read(
+    virtual operation_task<ReadResult> Read(
         const ReadRequest& readRequest
     ) override;
 
-    virtual cppcoro::async_generator<EnumerateResult> Enumerate(
+    virtual cppcoro::async_generator<OperationResult<EnumerateResult>> Enumerate(
         const EnumerateRequest& readRequest
     ) override;
 

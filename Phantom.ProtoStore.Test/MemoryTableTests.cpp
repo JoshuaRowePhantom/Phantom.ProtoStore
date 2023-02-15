@@ -239,15 +239,15 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
             .Value = copy_unique(value2),
         };
 
-        EXPECT_THROW(
+        auto result =
             co_await memoryTable.AddRow(
                 SequenceNumber::Earliest,
                 row2,
                 WithOutcome(
                     OperationOutcome::Committed,
-                    6)),
-            WriteConflict);
+                    6));
 
+        EXPECT_EQ(make_unexpected(ProtoStoreErrorCode::WriteConflict), result);
         EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
         EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
 
@@ -292,13 +292,13 @@ TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
             .Value = copy_unique(value2),
         };
 
-        EXPECT_THROW(
+        auto result =
             co_await memoryTable.AddRow(
                 ToSequenceNumber(7),
                 row2,
-                WithOutcome(OperationOutcome::Committed, 7)),
-            WriteConflict);
+                WithOutcome(OperationOutcome::Committed, 7));
 
+        EXPECT_EQ(make_unexpected(ProtoStoreErrorCode::WriteConflict), result);
         EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
         EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
 

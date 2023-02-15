@@ -87,7 +87,7 @@ task<size_t> MemoryTable::GetRowCount()
         std::memory_order_relaxed);
 }
 
-task<> MemoryTable::AddRow(
+status_task<> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
     MemoryTableRow& row,
     MemoryTableOperationOutcomeTask asyncOperationOutcome
@@ -134,7 +134,7 @@ task<> MemoryTable::AddRow(
 
         if (previousOperationOutcome == OperationOutcome::Committed)
         {
-            throw WriteConflict();
+            co_return make_unexpected(ProtoStoreErrorCode::WriteConflict);
         }
 
         // The cursory check shows the result is either Aborted or Unknown.
@@ -155,7 +155,7 @@ task<> MemoryTable::AddRow(
         // Now we might discover there's a committed transaction.
         if (previousOperationOutcome == OperationOutcome::Committed)
         {
-            throw WriteConflict();
+            co_return make_unexpected(ProtoStoreErrorCode::WriteConflict);
         }
 
         assert(previousOperationOutcome == OperationOutcome::Aborted);
@@ -185,7 +185,7 @@ task<> MemoryTable::AddRow(
                 updateRowCounts));
     }
 
-    co_return;
+    co_return{};
 }
 
 task<> MemoryTable::ReplayRow(

@@ -15,7 +15,7 @@ public:
     virtual const InternalOperation& GetInternalOperation(
     ) const = 0;
 
-    virtual ProtoStore::IOperation* GetStoreOperation(
+    virtual ProtoStore::ITransaction* GetStoreOperation(
     ) const = 0;
 };
 

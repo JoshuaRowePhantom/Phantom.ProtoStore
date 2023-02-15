@@ -72,7 +72,8 @@ public:
         auto index = co_await store->CreateIndex(
             createIndexRequest
         );
-        co_return index;
+        
+        co_return *index;
     }
 
     task<ProtoIndex> GetTestIndex(
@@ -90,7 +91,7 @@ public:
         co_return index;
     }
 
-    task<> AddRowToTestIndex(
+    task<TransactionResult> AddRowToTestIndex(
         const shared_ptr<IProtoStore>& store,
         ProtoIndex index,
         string key,
@@ -107,11 +108,11 @@ public:
             stringValue.set_value(*value);
         }
 
-        co_await store->ExecuteOperation(
+        co_return co_await store->ExecuteTransaction(
             BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
+            [&](ITransaction* operation)->status_task<>
         {
-            co_await operation->AddRow(
+            co_await co_await operation->AddRow(
                 WriteOperationMetadata
                 {
                     .ReadSequenceNumber = readSequenceNumber,
@@ -120,6 +121,8 @@ public:
                 index,
                 &stringKey,
                 value.has_value() ? & stringValue : nullptr);
+
+            co_return{};
         });
     }
 
@@ -146,14 +149,14 @@ public:
 
         if (!expectedValue.has_value())
         {
-            EXPECT_EQ(false, readResult.Value.has_value());
+            EXPECT_EQ(false, readResult->Value.has_value());
         }
         else
         {
             StringValue actualValue;
-            readResult.Value.unpack(&actualValue);
+            readResult->Value.unpack(&actualValue);
             EXPECT_EQ(*expectedValue, actualValue.value());
-            EXPECT_EQ(expectedSequenceNumber, readResult.WriteSequenceNumber);
+            EXPECT_EQ(expectedSequenceNumber, readResult->WriteSequenceNumber);
         }
     }
 
@@ -196,10 +199,10 @@ public:
             co_await ++iterator)
         {
             row<StringKey, StringValue> resultRow;
-            (*iterator).Key.unpack(&resultRow.Key);
-            (*iterator).Value.unpack(&resultRow.Value);
-            resultRow.ReadSequenceNumber = (*iterator).WriteSequenceNumber;
-            resultRow.WriteSequenceNumber = (*iterator).WriteSequenceNumber;
+            (*iterator)->Key.unpack(&resultRow.Key);
+            (*iterator)->Value.unpack(&resultRow.Value);
+            resultRow.ReadSequenceNumber = (*iterator)->WriteSequenceNumber;
+            resultRow.WriteSequenceNumber = (*iterator)->WriteSequenceNumber;
             result.push_back(resultRow);
         }
 
@@ -809,14 +812,34 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
             "testValue1",
             ToSequenceNumber(5));
 
-        EXPECT_THROW(
+        auto result =
             co_await AddRowToTestIndex(
                 store,
                 index,
                 "testKey1",
                 "testValue2",
-                ToSequenceNumber(4)),
-            WriteConflict);
+                ToSequenceNumber(4));
+        EXPECT_EQ((std::unexpected
+            {
+                FailedResult
+                {
+                    .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
+                    .ErrorDetails = TransactionFailedResult
+                    {
+                        .TransactionOutcome = TransactionOutcome::Aborted,
+                        .Failures =
+                        {
+                            {
+                                .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                                .ErrorDetails = WriteConflict
+                                {
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+            result);
 
         co_await ExpectGetTestRow(
             store,
@@ -854,14 +877,34 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
 
         co_await store->Checkpoint();
 
-        EXPECT_THROW(
+        auto result =
             co_await AddRowToTestIndex(
                 store,
                 index,
                 "testKey1",
                 "testValue2",
-                ToSequenceNumber(4)),
-            WriteConflict);
+                ToSequenceNumber(4));
+        EXPECT_EQ((std::unexpected
+            {
+                FailedResult
+                {
+                    .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
+                    .ErrorDetails = TransactionFailedResult
+                    {
+                        .TransactionOutcome = TransactionOutcome::Aborted,
+                        .Failures = 
+                        {
+                            {
+                                .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                                .ErrorDetails = WriteConflict
+                                {
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+            result);
 
         co_await ExpectGetTestRow(
             store,
@@ -1030,11 +1073,11 @@ TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
         auto index = co_await CreateTestIndex(
             store);
 
-        co_await store->ExecuteOperation(
+        co_await store->ExecuteTransaction(
             BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
+            [&](ITransaction* operation)->status_task<>
         {
-            co_await operation->AddRow(
+            co_await co_await operation->AddRow(
                 WriteOperationMetadata(),
                 index,
                 &key,
@@ -1050,8 +1093,10 @@ TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
                 );
 
                 StringValue actualValue;
-                readResult.Value.unpack(&actualValue);
+                readResult->Value.unpack(&actualValue);
             }
+
+            co_return{};
         });
 
     });
@@ -1075,11 +1120,11 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
 
         cppcoro::single_consumer_event addRowEvent;
 
-        auto operation1 = store->ExecuteOperation(
+        auto operation1 = store->ExecuteTransaction(
             BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
+            [&](ITransaction* operation)->status_task<>
         {
-            co_await operation->AddRow(
+            co_await co_await operation->AddRow(
                 WriteOperationMetadata
                 {
                     .WriteSequenceNumber = ToSequenceNumber(5),
@@ -1089,14 +1134,16 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
                 &expectedValue);
 
             addRowEvent.set();
+
+            co_return {};
         });
 
-        auto operation2 = store->ExecuteOperation(
+        auto operation2 = store->ExecuteTransaction(
             BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
+            [&](ITransaction* operation)->status_task<>
         {
             co_await addRowEvent;
-            co_await operation->AddRow(
+            co_await co_await operation->AddRow(
                 WriteOperationMetadata
                 {
                     .WriteSequenceNumber = ToSequenceNumber(4),
@@ -1104,13 +1151,37 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
                 index,
                 &key,
                 &unexpectedValue);
+
+            co_return{};
         });
 
         co_await operation1.when_ready();
         co_await operation2.when_ready();
 
-        EXPECT_NO_THROW(co_await operation1);
-        EXPECT_THROW(co_await operation2, WriteConflict);
+        auto result = co_await operation1;
+        EXPECT_EQ(result, TransactionSucceededResult { TransactionOutcome::Committed });
+        result = co_await operation2;
+        EXPECT_EQ((std::unexpected
+            {
+                FailedResult
+                {
+                    .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
+                    .ErrorDetails = TransactionFailedResult
+                    {
+                        .TransactionOutcome = TransactionOutcome::Aborted,
+                        .Failures =
+                        {
+                            {
+                                .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                                .ErrorDetails = WriteConflict
+                                {
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+            result);
 
         co_await ExpectGetTestRow(
             store,
@@ -1139,11 +1210,11 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
         auto index = co_await CreateTestIndex(
             store);
 
-        co_await store->ExecuteOperation(
+        co_await store->ExecuteTransaction(
             BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
+            [&](ITransaction* operation)->status_task<>
         {
-            co_await operation->AddRow(
+            co_await co_await operation->AddRow(
                 WriteOperationMetadata
                 {
                     .TransactionId = &transactionId,
@@ -1151,6 +1222,8 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
                 index,
                 &key,
                 &expectedValue);
+
+            co_return{};
         });
 
         {
@@ -1158,15 +1231,14 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
             readRequest.Key = &key;
             readRequest.Index = index;
 
-            EXPECT_THROW(
-                co_await store->Read(
-                    readRequest),
-                UnresolvedTransactionConflict);
+            auto result = co_await store->Read(
+                readRequest);
+            EXPECT_EQ(make_unexpected(ProtoStoreErrorCode::UnresolvedTransaction), result);
         }
 
-        co_await store->ExecuteOperation(
+        co_await store->ExecuteTransaction(
             BeginTransactionRequest(),
-            [&](IOperation* operation)->task<>
+            [&](ITransaction* operation)->status_task<>
         {
             co_await operation->ResolveTransaction(
                 WriteOperationMetadata
@@ -1174,6 +1246,8 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
                     .TransactionId = &transactionId,
                 },
                 TransactionOutcome::Committed);
+
+            co_return{};
         });
 
         {
@@ -1186,7 +1260,7 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
             );
 
             StringValue actualValue;
-            readResult.Value.unpack(&actualValue);
+            readResult->Value.unpack(&actualValue);
         }
     });
 }
@@ -1231,15 +1305,17 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
                 StringValue expectedValue;
                 expectedValue.set_value(myKey);
 
-                co_await store->ExecuteOperation(
+                co_await store->ExecuteTransaction(
                     BeginTransactionRequest(),
-                    [&](IOperation* operation)->task<>
+                    [&](ITransaction* operation)->status_task<>
                 {
-                    co_await operation->AddRow(
+                    co_await co_await operation->AddRow(
                         WriteOperationMetadata{},
                         index,
                         &key,
                         &expectedValue);
+
+                co_return{};
                 });
             }(value));
         }
@@ -1268,7 +1344,7 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
                 );
 
                 StringValue actualValue;
-                readResult.Value.unpack(&actualValue);
+                readResult->Value.unpack(&actualValue);
 
                 auto messageDifferencerResult = MessageDifferencer::Equals(
                     expectedValue,
@@ -1346,9 +1422,9 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
             co_await schedulers.ComputeScheduler->schedule();
             Perf2_running_items.fetch_add(1);
 
-            co_await store->ExecuteOperation(
+            co_await store->ExecuteTransaction(
                 BeginTransactionRequest(),
-                [&](IOperation* operation)->task<>
+                [&](ITransaction* operation)->status_task<>
             {
                 for (auto myKeyIndex = startKeyIndex;
                 myKeyIndex < endKeyIndex;
@@ -1360,11 +1436,13 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
                 StringValue expectedValue;
                 expectedValue.set_value(myKey);
 
-                co_await operation->AddRow(
+                co_await co_await operation->AddRow(
                     WriteOperationMetadata{},
                     index,
                     &key,
                     &expectedValue);
+
+                co_return{};
             }
             });
 
@@ -1434,7 +1512,7 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
                     );
 
                     StringValue actualValue;
-                    readResult.Value.unpack(&actualValue);
+                    readResult->Value.unpack(&actualValue);
 
                     auto messageDifferencerResult = MessageDifferencer::Equals(
                         expectedValue,
@@ -1511,7 +1589,7 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
                         readRequest
                     );
 
-                    EXPECT_EQ(true, !readResult.Value);
+                    EXPECT_EQ(true, !readResult->Value);
 
                     Perf2_running_items.fetch_sub(1);
                 }

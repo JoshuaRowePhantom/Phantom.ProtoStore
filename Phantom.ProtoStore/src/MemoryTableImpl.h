@@ -196,7 +196,7 @@ public:
     virtual task<size_t> GetRowCount(
     ) override;
 
-    virtual task<> AddRow(
+    virtual status_task<> AddRow(
         SequenceNumber readSequenceNumber, 
         MemoryTableRow& row,
         MemoryTableOperationOutcomeTask asyncOperationOutcome

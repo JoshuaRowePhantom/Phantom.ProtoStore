@@ -34,14 +34,14 @@ class IndexMerger
     );
 
     task<> WriteMergeProgress(
-        IInternalOperation* operation,
+        IInternalTransaction* operation,
         ExtentName dataExtentName,
         IncompleteMerge& incompleteMerge,
         const WriteRowsResult& writeRowsResult
     );
 
     task<> WriteMergeCompletion(
-        IInternalOperation* operation,
+        IInternalTransaction* operation,
         ExtentName headerExtentName,
         ExtentName dataExtentName,
         const IncompleteMerge& incompleteMerge,
@@ -49,7 +49,7 @@ class IndexMerger
     );
 
     task<> WriteMergedPartitionsTableHeaderExtentNumbers(
-        IInternalOperation* operation,
+        IInternalTransaction* operation,
         ExtentName headerExtentName,
         const IncompleteMerge& incompleteMerge);
 

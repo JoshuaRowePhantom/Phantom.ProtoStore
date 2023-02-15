@@ -6,16 +6,16 @@
 namespace Phantom::ProtoStore
 {
 
-class IInternalOperation
+class IInternalTransaction
     :
-    public IOperationTransaction
+    public ICommittableTransaction
 {
 public:
     virtual LogRecord& LogRecord(
     ) = 0;
 };
 
-typedef std::function<task<>(IInternalOperation*)> InternalOperationVisitor;
+typedef std::function<status_task<>(IInternalTransaction*)> InternalTransactionVisitor;
 
 class IInternalProtoStore
     :
@@ -43,9 +43,9 @@ public:
     virtual task<shared_ptr<IIndex>> GetMergesIndex(
     ) = 0;
 
-    virtual task<OperationResult> InternalExecuteOperation(
+    virtual operation_task<TransactionSucceededResult> InternalExecuteTransaction(
         const BeginTransactionRequest beginRequest,
-        InternalOperationVisitor visitor
+        InternalTransactionVisitor visitor
     ) = 0;
 
     virtual task<> LogCommitExtent(

@@ -9,20 +9,92 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <system_error>
 #include <type_traits>
 #include <variant>
 #include <cppcoro/async_generator.hpp>
-#include <cppcoro/task.hpp>
 #include <cppcoro/static_thread_pool.hpp>
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
 #include <Phantom.System/pooled_ptr.h>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
+#include "Phantom.Coroutines/early_termination_task.h"
+#include "Phantom.Coroutines/expected_early_termination.h"
+#include "Phantom.Coroutines/reusable_task.h"
 
-namespace Phantom::ProtoStore 
+namespace Phantom::ProtoStore
 {
 using cppcoro::async_generator;
-using cppcoro::task;
+
+template<
+    typename Result = void
+> using StatusResult = std::expected<Result, std::error_code>;
+
+template<
+    typename Result = void
+> using status_task =
+Phantom::Coroutines::basic_reusable_task
+<
+    Phantom::Coroutines::derived_promise
+    <
+        Phantom::Coroutines::reusable_task_promise
+        <
+            StatusResult<Result>
+        >,
+        Phantom::Coroutines::expected_early_termination_transformer,
+        Phantom::Coroutines::await_all_await_transform
+    >
+>;
+
+struct FailedResult;
+
+template<
+    typename Result
+>
+using OperationResult = std::expected<Result, FailedResult>;
+
+template<
+    typename Result = void
+> using operation_task =
+Phantom::Coroutines::basic_reusable_task
+<
+    Phantom::Coroutines::derived_promise
+    <
+        Phantom::Coroutines::reusable_task_promise
+        <
+            OperationResult<Result>
+        >,
+        Phantom::Coroutines::expected_early_termination_transformer,
+        Phantom::Coroutines::await_all_await_transform
+    >
+>;
+
+extern const std::error_category& ProtoStoreErrorCategory();
+
+enum class ProtoStoreErrorCode
+{
+    AbortedTransaction,
+    WriteConflict,
+    UnresolvedTransaction,
+};
+
+std::error_code make_error_code(
+    ProtoStoreErrorCode errorCode
+);
+
+std::unexpected<std::error_code> make_unexpected(
+    ProtoStoreErrorCode errorCode
+);
+
+// Operation processors can return this error code
+// to generically abort the operation.
+std::unexpected<std::error_code> abort_transaction();
+
+template<
+    typename Result = void
+> using task =
+Phantom::Coroutines::reusable_task<Result>;
+
 using google::protobuf::Message;
 using std::shared_ptr;
 using std::unique_ptr;
@@ -104,16 +176,31 @@ struct GetIndexRequest
 {
     SequenceNumber SequenceNumber = SequenceNumber::Latest;
     IndexName IndexName;
+
+    friend bool operator==(
+        const GetIndexRequest&,
+        const GetIndexRequest&
+        ) = default;
 };
 
 struct KeySchema
 {
     const google::protobuf::Descriptor* KeyDescriptor;
+
+    friend bool operator==(
+        const KeySchema&,
+        const KeySchema&
+        ) = default;
 };
 
 struct ValueSchema
 {
     const google::protobuf::Descriptor* ValueDescriptor;
+
+    friend bool operator==(
+        const ValueSchema&,
+        const ValueSchema&
+        ) = default;
 };
 
 struct CreateIndexRequest
@@ -121,6 +208,11 @@ struct CreateIndexRequest
 {
     KeySchema KeySchema;
     ValueSchema ValueSchema;
+
+    friend bool operator==(
+        const CreateIndexRequest&,
+        const CreateIndexRequest&
+        ) = default;
 };
 
 class ProtoValue
@@ -337,6 +429,107 @@ public:
     bool IsKeyMax() const;
 };
 
+struct WriteConflict
+{
+    friend bool operator ==(
+        const WriteConflict&,
+        const WriteConflict&
+        ) = default;
+};
+
+struct UnresolvedTransaction
+{
+    friend bool operator ==(
+        const UnresolvedTransaction&,
+        const UnresolvedTransaction&
+        ) = default;
+};
+
+enum class TransactionOutcome {
+    Unknown = 0,
+    Committed = 1,
+    ReadOnly = 2,
+    Aborted = 3,
+};
+
+struct TransactionFailedResult
+{
+    // The transaction outcome,
+    // which will be either Aborted or Unknown.
+    TransactionOutcome TransactionOutcome;
+
+    // The failures that were encountered during
+    // execution of the transaction. These failures
+    // may have been ignored by the actual transaction
+    // processor.
+    std::vector<FailedResult> Failures;
+
+    friend bool operator==(
+        const TransactionFailedResult&,
+        const TransactionFailedResult&
+        ) = default;
+};
+
+struct FailedResult
+{
+    std::error_code ErrorCode;
+
+    using error_details_type = std::variant<
+        std::monostate,
+        WriteConflict,
+        UnresolvedTransaction,
+        TransactionFailedResult
+    >;
+
+    error_details_type ErrorDetails;
+
+    operator std::error_code() const
+    {
+        return ErrorCode;
+    }
+
+    operator std::unexpected<std::error_code>() const
+    {
+        return std::unexpected{ ErrorCode };
+    }
+
+    operator std::unexpected<FailedResult>() const &
+    {
+        return std::unexpected{ *this };
+    }
+
+    operator std::unexpected<FailedResult>() &&
+    {
+        return std::unexpected{ std::move(*this) };
+    }
+
+    friend bool operator ==(
+        const FailedResult&,
+        const FailedResult&
+        ) = default;
+
+    void throw_exception(
+        this auto&& self);
+};
+
+class ProtoStoreException : std::exception
+{
+public:
+    const FailedResult Result;
+
+    ProtoStoreException(
+        FailedResult result
+    ) : Result(std::move(result))
+    {
+    }
+};
+
+void FailedResult::throw_exception(
+    this auto&& self)
+{
+    throw ProtoStoreException{ std::forward<decltype(self)>(self) };
+}
+
 struct WriteOperation
 {
     ProtoIndex Index;
@@ -344,6 +537,11 @@ struct WriteOperation
     ProtoValue Value;
     std::optional<SequenceNumber> OriginalSequenceNumber;
     std::optional<SequenceNumber> ExpirationSequenceNumber;
+
+    friend bool operator==(
+        const WriteOperation&,
+        const WriteOperation&
+        ) = default;
 };
 
 enum ReadValueDisposition
@@ -358,6 +556,11 @@ struct ReadRequest
     SequenceNumber SequenceNumber = SequenceNumber::LatestCommitted;
     ProtoValue Key;
     ReadValueDisposition ReadValueDisposition = ReadValueDisposition::ReadValue;
+
+    friend bool operator==(
+        const ReadRequest&,
+        const ReadRequest&
+        ) = default;
 };
 
 enum ReadStatus
@@ -371,6 +574,11 @@ struct ReadResult
     SequenceNumber WriteSequenceNumber;
     ProtoValue Value;
     ReadStatus ReadStatus;
+
+    friend bool operator==(
+        const ReadResult&,
+        const ReadResult&
+        ) = default;
 };
 
 enum class Inclusivity {
@@ -386,41 +594,72 @@ struct EnumerateRequest
     Inclusivity KeyLowInclusivity;
     ProtoValue KeyHigh;
     Inclusivity KeyHighInclusivity;
+
+    friend bool operator==(
+        const EnumerateRequest&,
+        const EnumerateRequest&
+        ) = default;
 };
 
-struct EnumerateResult
+struct EnumerateResult : ReadResult
 {
     ProtoValue Key;
-    SequenceNumber WriteSequenceNumber;
-    ProtoValue Value;
 };
 
 struct CommitTransactionRequest
 {
     SequenceNumber SequenceNumber;
+
+    friend bool operator==(
+        const CommitTransactionRequest&,
+        const CommitTransactionRequest&
+        ) = default;
 };
 
 struct CommitTransactionResult
 {
+    friend bool operator==(
+        const CommitTransactionResult&,
+        const CommitTransactionResult&
+        ) = default;
 };
 
 struct AbortTransactionRequest
 {
     SequenceNumber SequenceNumber;
+
+    friend bool operator==(
+        const AbortTransactionRequest&,
+        const AbortTransactionRequest&
+        ) = default;
 };
 
 struct AbortTransactionResult
 {
+    friend bool operator==(
+        const AbortTransactionResult&,
+        const AbortTransactionResult&
+        ) = default;
 };
 
 struct BeginTransactionRequest
 {
     SequenceNumber MinimumWriteSequenceNumber = SequenceNumber::Earliest;
     SequenceNumber MinimumReadSequenceNumber = SequenceNumber::LatestCommitted;
+    
+    friend bool operator==(
+        const BeginTransactionRequest&,
+        const BeginTransactionRequest&
+        ) = default;
 };
 
 struct CommitResult
-{};
+{
+    friend bool operator==(
+        const CommitResult&,
+        const CommitResult&
+        ) = default;
+};
 
 class IReadableProtoStore
 {
@@ -429,11 +668,11 @@ public:
         const GetIndexRequest& getIndexRequest
     ) = 0;
 
-    virtual task<ReadResult> Read(
+    virtual operation_task<ReadResult> Read(
         const ReadRequest& readRequest
     ) = 0;
 
-    virtual async_generator<EnumerateResult> Enumerate(
+    virtual async_generator<OperationResult<EnumerateResult>> Enumerate(
         const EnumerateRequest& enumerateRequest
     ) = 0;
 };
@@ -442,11 +681,6 @@ enum class OperationOutcome {
     Unknown = 0,
     Committed = 1,
     Aborted = 2,
-};
-
-enum class TransactionOutcome {
-    Committed = 0,
-    Aborted = 1,
 };
 
 enum class LoggedOperationDisposition {
@@ -462,88 +696,85 @@ struct WriteOperationMetadata
     std::optional<SequenceNumber> WriteSequenceNumber;
 };
 
-class ProtoStoreException
-    : public std::runtime_error 
-{
-public:
-    ProtoStoreException(
-        const char* message)
-        : std::runtime_error(message)
-    {}
-};
+}
 
-class WriteConflict
-    : public ProtoStoreException
+namespace std
 {
-public:
-    WriteConflict()
-        : ProtoStoreException("A write conflict occurred")
-    {}
-};
+template<>
+struct is_error_code_enum<Phantom::ProtoStore::ProtoStoreErrorCode> : true_type
+{};
+}
 
-class UnresolvedTransactionConflict
-    : public ProtoStoreException
+namespace Phantom::ProtoStore
 {
-public:
-    UnresolvedTransactionConflict()
-        : ProtoStoreException("An unresolved transaction was discovered")
-    {}
-};
 
-class IWritableOperation
+class IWritableTransaction
 {
 public:
-    virtual task<> AddLoggedAction(
+    virtual operation_task<> AddLoggedAction(
         const WriteOperationMetadata& writeOperationMetadata,
         const Message* loggedAction,
         LoggedOperationDisposition disposition
     ) = 0;
 
-    virtual task<> AddRow(
+    virtual operation_task<> AddRow(
         const WriteOperationMetadata& writeOperationMetadata,
         ProtoIndex protoIndex,
         const ProtoValue& key,
         const ProtoValue& value
     ) = 0;
 
-    virtual task<> ResolveTransaction(
+    virtual operation_task<> ResolveTransaction(
         const WriteOperationMetadata& writeOperationMetadata,
         TransactionOutcome outcome
     ) = 0;
 };
 
-class IOperation
+class ITransaction
     :
-    public IWritableOperation,
+    public IWritableTransaction,
     public IReadableProtoStore
 {
 public:
 };
 
-class IOperationTransaction
+class ICommittableTransaction
     :
-    public IOperation
+    public ITransaction
 {
 public:
-    virtual task<CommitResult> Commit(
+    virtual operation_task<CommitResult> Commit(
     ) = 0;
 };
 
-typedef std::function<task<>(IWritableOperation*)> WritableOperationVisitor;
-typedef std::function<task<>(IOperation*)> OperationVisitor;
+typedef std::function<status_task<>(IWritableTransaction*)> WritableTransactionVisitor;
+typedef std::function<status_task<>(ICommittableTransaction*)> TransactionVisitor;
 
 class IOperationProcessor
 {
 public:
-    virtual task<> ProcessOperation(
-        IOperation* resultOperation,
-        WritableOperationVisitor sourceOperation
-    ) = 0;
+    //virtual task<> ProcessOperation(
+    //    ITransaction* resultOperation,
+    //    WritableOperationVisitor sourceOperation
+    //) = 0;
 };
 
-struct OperationResult
+struct TransactionSucceededResult
 {
+    // The transaction outcome,
+    // which will be either Committed or ReadOnly.
+    TransactionOutcome m_transactionOutcome;
+
+    friend bool operator==(
+        const TransactionSucceededResult&,
+        const TransactionSucceededResult&
+        ) = default;
 };
+
+using TransactionResult = std::expected<
+    TransactionSucceededResult,
+    FailedResult
+>;
 
 class IJoinable
 {
@@ -673,12 +904,12 @@ class IProtoStore
     public virtual IJoinable
 {
 public:
-    virtual task<OperationResult> ExecuteOperation(
+    virtual operation_task<TransactionSucceededResult> ExecuteTransaction(
         const BeginTransactionRequest beginRequest,
-        OperationVisitor visitor
+        TransactionVisitor visitor
     ) = 0;
 
-    virtual task<ProtoIndex> CreateIndex(
+    virtual operation_task<ProtoIndex> CreateIndex(
         const CreateIndexRequest& createIndexRequest
     ) = 0;
 
@@ -723,12 +954,22 @@ struct OpenProtoStoreRequest
     };
 
     OpenProtoStoreRequest();
+
+    friend bool operator==(
+        const OpenProtoStoreRequest&,
+        const OpenProtoStoreRequest&
+        ) = default;
 };
 
 struct CreateProtoStoreRequest
     : public OpenProtoStoreRequest
 {
     size_t LogAlignment = 0;
+
+    friend bool operator==(
+        const CreateProtoStoreRequest&,
+        const CreateProtoStoreRequest&
+        ) = default;
 };
 
 enum class IntegrityCheckErrorCode
@@ -753,6 +994,11 @@ struct ExtentLocation
 {
     ExtentName extentName;
     ExtentOffset extentOffset;
+
+    friend bool operator==(
+        const ExtentLocation&,
+        const ExtentLocation&
+        ) = default;
 };
 
 struct IntegrityCheckError
@@ -762,6 +1008,11 @@ struct IntegrityCheckError
     std::optional<ExtentLocation> Location;
     std::optional<int> TreeNodeEntryIndex;
     std::optional<int> TreeNodeValueIndex;
+
+    friend bool operator==(
+        const IntegrityCheckError&,
+        const IntegrityCheckError&
+        ) = default;
 };
 
 typedef std::vector<IntegrityCheckError> IntegrityCheckErrorList;

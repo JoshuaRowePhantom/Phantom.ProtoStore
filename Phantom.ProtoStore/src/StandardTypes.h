@@ -55,7 +55,6 @@ using std::unique_ptr;
 using std::unordered_map;
 using std::vector;
 using std::weak_ptr;
-using cppcoro::task;
 using cppcoro::shared_task;
 using Phantom::pooled_ptr;
 using google::protobuf::Message;

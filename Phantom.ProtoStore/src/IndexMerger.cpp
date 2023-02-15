@@ -142,9 +142,9 @@ task<> IndexMerger::RestartIncompleteMerge(
 
         isCompleteMerge = writeRowsResult.resumptionRow == rowGenerator.end();
 
-        co_await m_protoStore->InternalExecuteOperation(
+        co_await m_protoStore->InternalExecuteTransaction(
             BeginTransactionRequest{},
-            [&](auto operation) -> task<>
+            [&](auto operation) -> status_task<>
         {
             co_await m_protoStore->LogCommitExtent(
                 operation->LogRecord(),
@@ -181,12 +181,14 @@ task<> IndexMerger::RestartIncompleteMerge(
                     incompleteMerge.Merge.Key.indexnumber(),
                     updatePartitionsLock);
             }
+
+            co_return{};
         });
     } while (!isCompleteMerge);
 }
 
 task<> IndexMerger::WriteMergeProgress(
-    IInternalOperation* operation,
+    IInternalTransaction* operation,
     ExtentName headerExtentName,
     IncompleteMerge& incompleteMerge,
     const WriteRowsResult& writeRowsResult
@@ -248,7 +250,7 @@ task<> IndexMerger::WriteMergeProgress(
 }
 
 task<> IndexMerger::WriteMergeCompletion(
-    IInternalOperation* operation,
+    IInternalTransaction* operation,
     ExtentName headerExtentName,
     ExtentName dataExtentName,
     const IncompleteMerge& incompleteMerge,
@@ -394,7 +396,7 @@ task<> IndexMerger::WriteMergeCompletion(
 }
 
 task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
-    IInternalOperation* operation,
+    IInternalTransaction* operation,
     ExtentName headerExtentName,
     const IncompleteMerge& incompleteMerge)
 {
@@ -461,10 +463,10 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
     {
         // We found an incomplete merge.  We're going to return it directly from here.
         IncompleteMerge result;
-        (*mergesIterator).Key.unpack(&result.Merge.Key);
-        (*mergesIterator).Value.unpack(&result.Merge.Value);
-        result.Merge.ReadSequenceNumber = (*mergesIterator).WriteSequenceNumber;
-        result.Merge.WriteSequenceNumber = (*mergesIterator).WriteSequenceNumber;
+        (*mergesIterator)->Key.unpack(&result.Merge.Key);
+        (*mergesIterator)->Value.unpack(&result.Merge.Value);
+        result.Merge.ReadSequenceNumber = (*mergesIterator)->WriteSequenceNumber;
+        result.Merge.WriteSequenceNumber = (*mergesIterator)->WriteSequenceNumber;
 
         // Now get all the MergeProgress rows for this merge.
         auto mergeProgressIndex = co_await m_protoStore->GetMergeProgressIndex();
@@ -494,12 +496,12 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
             co_await ++mergeProgressIterator)
         {
             merge_progress_row_type mergeProgressRow;
-            (*mergeProgressIterator).Key.unpack(
+            (*mergeProgressIterator)->Key.unpack(
                 &mergeProgressRow.Key);
-            (*mergeProgressIterator).Value.unpack(
+            (*mergeProgressIterator)->Value.unpack(
                 &mergeProgressRow.Value);
-            mergeProgressRow.ReadSequenceNumber = (*mergeProgressIterator).WriteSequenceNumber;
-            mergeProgressRow.WriteSequenceNumber = (*mergeProgressIterator).WriteSequenceNumber;
+            mergeProgressRow.ReadSequenceNumber = (*mergeProgressIterator)->WriteSequenceNumber;
+            mergeProgressRow.WriteSequenceNumber = (*mergeProgressIterator)->WriteSequenceNumber;
 
             result.CompleteProgress.emplace_back(
                 move(mergeProgressRow));
@@ -535,12 +537,12 @@ task<> IndexMerger::GenerateMerges(
             co_await ++partitionsIterator)
         {
             partition_row_type partitionRow;
-            (*partitionsIterator).Key.unpack(
+            (*partitionsIterator)->Key.unpack(
                 &partitionRow.Key);
-            (*partitionsIterator).Value.unpack(
+            (*partitionsIterator)->Value.unpack(
                 &partitionRow.Value);
-            partitionRow.ReadSequenceNumber = (*partitionsIterator).WriteSequenceNumber;
-            partitionRow.WriteSequenceNumber = (*partitionsIterator).WriteSequenceNumber;
+            partitionRow.ReadSequenceNumber = (*partitionsIterator)->WriteSequenceNumber;
+            partitionRow.WriteSequenceNumber = (*partitionsIterator)->WriteSequenceNumber;
 
             auto indexNumber = partitionRow.Key.indexnumber();
 
@@ -567,12 +569,12 @@ task<> IndexMerger::GenerateMerges(
             co_await ++mergesIterator)
         {
             merges_row_type mergesRow;
-            (*mergesIterator).Key.unpack(
+            (*mergesIterator)->Key.unpack(
                 &mergesRow.Key);
-            (*mergesIterator).Value.unpack(
+            (*mergesIterator)->Value.unpack(
                 &mergesRow.Value);
-            mergesRow.ReadSequenceNumber = (*mergesIterator).WriteSequenceNumber;
-            mergesRow.WriteSequenceNumber = (*mergesIterator).WriteSequenceNumber;
+            mergesRow.ReadSequenceNumber = (*mergesIterator)->WriteSequenceNumber;
+            mergesRow.WriteSequenceNumber = (*mergesIterator)->WriteSequenceNumber;
 
             auto indexNumber = mergesRow.Key.indexnumber();
 
@@ -592,9 +594,9 @@ task<> IndexMerger::GenerateMerges(
             indexNumberAndPartitions.second,
             mergesRowsByIndexNumber[indexNumber]);
 
-        co_await m_protoStore->InternalExecuteOperation(
+        co_await m_protoStore->InternalExecuteTransaction(
             BeginTransactionRequest{},
-            [&](auto operation) -> task<>
+            [&](auto operation) -> status_task<>
         {
             for (auto& newMerge : newMerges)
             {
@@ -605,6 +607,8 @@ task<> IndexMerger::GenerateMerges(
                     &newMerge.Value
                 );
             }
+
+            co_return{};
         });
     }
 }
