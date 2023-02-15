@@ -10,7 +10,7 @@ namespace Phantom::ProtoStore
 class IIndex
 {
 public:
-    virtual status_task<CheckpointNumber> AddRow(
+    virtual operation_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
         const ProtoValue& key,
         const ProtoValue& value,

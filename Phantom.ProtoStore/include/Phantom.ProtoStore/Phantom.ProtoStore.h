@@ -436,6 +436,7 @@ public:
 struct WriteConflict
 {
     ProtoIndex Index;
+    SequenceNumber ConflictingSequenceNumber;
 
     friend bool operator ==(
         const WriteConflict&,

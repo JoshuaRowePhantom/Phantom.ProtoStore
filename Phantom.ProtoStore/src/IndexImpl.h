@@ -66,7 +66,7 @@ public:
     virtual shared_ptr<IMessageFactory> GetValueFactory(
     ) override;
 
-    virtual status_task<CheckpointNumber> AddRow(
+    virtual operation_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
         const ProtoValue& key,
         const ProtoValue& value,

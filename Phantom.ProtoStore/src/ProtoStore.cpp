@@ -585,16 +585,8 @@ public:
         );
         if (!checkpointNumber)
         {
-            FailedResult failedResult = { checkpointNumber.error() };
-            if (failedResult.ErrorCode == make_error_code(ProtoStoreErrorCode::WriteConflict))
-            {
-                failedResult.ErrorDetails = WriteConflict
-                {
-                    .Index = index,
-                };
-            }
-            m_failures.push_back(failedResult);
-            co_return std::unexpected{ std::move(failedResult) };
+            m_failures.push_back(checkpointNumber.error());
+            co_return std::unexpected{ checkpointNumber.error() };
         }
 
         auto loggedRowWrite = m_logRecord.add_rows();

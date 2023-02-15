@@ -834,6 +834,7 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
                                 .ErrorDetails = WriteConflict
                                 {
                                     .Index = index,
+                                    .ConflictingSequenceNumber = ToSequenceNumber(5),
                                 }
                             }
                         }
@@ -900,6 +901,7 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
                                 .ErrorDetails = WriteConflict
                                 {
                                     .Index = index,
+                                    .ConflictingSequenceNumber = ToSequenceNumber(5),
                                 }
                             }
                         }
@@ -1178,6 +1180,7 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
                                 .ErrorDetails = WriteConflict
                                 {
                                     .Index = index,
+                                    .ConflictingSequenceNumber = ToSequenceNumber(5),
                                 }
                             }
                         }

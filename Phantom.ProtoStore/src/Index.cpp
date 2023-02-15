@@ -52,7 +52,7 @@ const IndexName& Index::GetIndexName() const
     return m_indexName;
 }
 
-status_task<CheckpointNumber> Index::AddRow(
+operation_task<CheckpointNumber> Index::AddRow(
     SequenceNumber readSequenceNumber,
     const ProtoValue& key,
     const ProtoValue& value,
@@ -83,6 +83,22 @@ status_task<CheckpointNumber> Index::AddRow(
     PartitionsEnumeration partitions;
 
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+    
+    auto makeWriteConflict = [&](SequenceNumber conflictingSequenceNumber)
+    {
+        return std::unexpected
+        {
+            FailedResult
+            {
+                .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                .ErrorDetails = WriteConflict
+                {
+                    .Index = this,
+                    .ConflictingSequenceNumber = conflictingSequenceNumber,
+                },
+            },
+        };
+    };
 
     for (auto& memoryTable : *m_inactiveMemoryTables)
     {
@@ -100,7 +116,7 @@ status_task<CheckpointNumber> Index::AddRow(
 
         if (conflictingSequenceNumber.has_value())
         {
-            co_return std::unexpected{ make_error_code(ProtoStoreErrorCode::WriteConflict) };
+            co_return makeWriteConflict(*conflictingSequenceNumber);
         }
     }
 
@@ -120,14 +136,19 @@ status_task<CheckpointNumber> Index::AddRow(
 
         if (conflictingSequenceNumber.has_value())
         {
-            co_return make_unexpected(ProtoStoreErrorCode::WriteConflict);
+            co_return makeWriteConflict(*conflictingSequenceNumber);
         }
     }
 
-    co_await co_await m_activeMemoryTable->AddRow(
+    auto conflictingSequenceNumber = co_await m_activeMemoryTable->AddRow(
         readSequenceNumber,
         row, 
         operationOutcomeTask);
+
+    if (conflictingSequenceNumber.has_value())
+    {
+        co_return makeWriteConflict(*conflictingSequenceNumber);
+    }
 
     co_return m_activeCheckpointNumber;
 }

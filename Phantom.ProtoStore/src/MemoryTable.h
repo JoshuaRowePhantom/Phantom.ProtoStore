@@ -35,10 +35,9 @@ public:
     ) = 0;
 
     // Add the specified row.
-    // If there is a conflict, an exception of the proper type with be thrown,
-    // and the row will be left untouched.
+    // If there is a conflict, the sequence number of the conflicting row is returned.
     // Otherwise, the content of the row are std::move'd into the memory table.
-    virtual status_task<> AddRow(
+    virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
         MemoryTableRow& row,
         MemoryTableOperationOutcomeTask outcomeTask
