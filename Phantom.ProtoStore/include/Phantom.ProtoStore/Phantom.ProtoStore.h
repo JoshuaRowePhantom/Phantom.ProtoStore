@@ -446,6 +446,8 @@ struct WriteConflict
 
 struct UnresolvedTransaction
 {
+    TransactionId UnresolvedTransactionId;
+
     friend bool operator ==(
         const UnresolvedTransaction&,
         const UnresolvedTransaction&

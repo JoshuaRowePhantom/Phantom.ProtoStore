@@ -8,7 +8,8 @@
 namespace Phantom::ProtoStore
 {
 
-class PartitionTreeNodeCacheEntry
+class PartitionTreeNodeCacheEntry : 
+    public SerializationTypes
 {
     google::protobuf::Arena m_arena;
     shared_ptr<IMessageFactory> m_keyFactory;

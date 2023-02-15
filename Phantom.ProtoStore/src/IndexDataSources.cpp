@@ -59,7 +59,7 @@ task<> IndexDataSources::FinishReplay()
     co_await UpdateIndexDataSources();
 }
 
-task<LoggedCheckpoint> IndexDataSources::StartCheckpoint()
+task<Serialization::LoggedCheckpoint> IndexDataSources::StartCheckpoint()
 {
     auto lock = co_await m_dataSourcesLock.scoped_lock_async();
 

@@ -35,7 +35,7 @@ HeaderAccessor::HeaderAccessor(
 
 task<bool> HeaderAccessor::ReadHeader(
     ExtentLocation location,
-    Header& header,
+    Serialization::Header& header,
     bool throwOnError)
 {
     try
@@ -58,9 +58,9 @@ task<bool> HeaderAccessor::ReadHeader(
 }
 
 task<> HeaderAccessor::ReadHeader(
-    Header& header)
+    Serialization::Header& header)
 {
-    Header location1Header;
+    Serialization::Header location1Header;
 
     if (!co_await ReadHeader(
         m_headerLocation1,
@@ -78,7 +78,7 @@ task<> HeaderAccessor::ReadHeader(
         co_return;
     }
 
-    Header location2Header;
+    Serialization::Header location2Header;
 
     if (!co_await ReadHeader(
         m_headerLocation2,
@@ -107,7 +107,7 @@ task<> HeaderAccessor::ReadHeader(
 }
 
 task<> HeaderAccessor::WriteHeader(
-    const Header& header)
+    const Serialization::Header& header)
 {
     co_await m_messageAccessor->WriteMessage(
         m_nextLocation,

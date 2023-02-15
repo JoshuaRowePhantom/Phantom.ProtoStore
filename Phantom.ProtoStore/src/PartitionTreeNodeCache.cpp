@@ -19,7 +19,7 @@ PartitionTreeNodeCacheEntry::PartitionTreeNodeCacheEntry(
 }
 
 
-shared_task<const PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNodeInternal(
+shared_task<const Serialization::PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNodeInternal(
     shared_ptr<IRandomMessageAccessor> messageAccessor,
     ExtentLocation messageLocation)
 {
@@ -54,7 +54,7 @@ shared_task<const Message*> PartitionTreeNodeCacheEntry::GetKeyInternal(
     co_return key;
 }
 
-shared_task<const PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNode() const
+shared_task<const Serialization::PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNode() const
 {
     return m_readTreeNodeTask;
 }

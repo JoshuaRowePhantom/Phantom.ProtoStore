@@ -5,17 +5,15 @@
 
 namespace Phantom::ProtoStore
 {
-class Header;
-
 class IHeaderAccessor
 {
 public:
     virtual task<> ReadHeader(
-        Header& header
+        Serialization::Header& header
     ) = 0;
 
     virtual task<> WriteHeader(
-        const Header& header
+        const Serialization::Header& header
     ) = 0;
 };
 

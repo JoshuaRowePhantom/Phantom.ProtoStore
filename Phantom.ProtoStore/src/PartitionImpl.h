@@ -17,6 +17,7 @@ class Partition
     :
     public IPartition,
     private AsyncScopeMixin,
+    private SerializationTypes,
     public virtual IJoinable
 {
     shared_ptr<KeyComparer> m_keyComparer;

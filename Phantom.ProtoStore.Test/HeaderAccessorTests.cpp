@@ -11,6 +11,8 @@ using google::protobuf::util::MessageDifferencer;
 namespace Phantom::ProtoStore
 {
 
+using namespace Serialization;
+
 TEST(HeaderAccessorTests, Throws_exception_when_no_valid_header)
 {
     run_async([]() -> task<>

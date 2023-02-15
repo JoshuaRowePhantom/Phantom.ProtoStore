@@ -12,8 +12,8 @@ namespace Phantom::ProtoStore
 
 using namespace google::protobuf;
 
-const PlaceholderKey KeyMinMessage = [] { PlaceholderKey key; key.set_iskeymin(true); return key; }();
-const PlaceholderKey KeyMaxMessage = [] { PlaceholderKey key; key.set_iskeymax(true); return key; }();
+const Serialization::PlaceholderKey KeyMinMessage = [] { Serialization::PlaceholderKey key; key.set_iskeymin(true); return key; }();
+const Serialization::PlaceholderKey KeyMaxMessage = [] { Serialization::PlaceholderKey key; key.set_iskeymax(true); return key; }();
 
 KeyComparer::KeyComparer(
     const Descriptor* messageDescriptor)

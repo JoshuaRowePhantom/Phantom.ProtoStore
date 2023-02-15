@@ -13,8 +13,9 @@ struct PartitionWriterParameters
     size_t MaxEmbeddedValueSize = 100;
 };
 
-class PartitionTreeWriter
+class PartitionTreeWriter : SerializationTypes
 {
+private:
     struct StackEntry
     {
         PartitionMessage Message;
@@ -26,7 +27,7 @@ class PartitionTreeWriter
     shared_ptr<ISequentialMessageWriter> m_dataWriter;
 
     google::protobuf::uint64 GetLowestSequenceNumber(
-        const PartitionTreeEntry& treeEntry
+        const Serialization::PartitionTreeEntry& treeEntry
     );
 
     task<WriteMessageResult> Write(
@@ -72,8 +73,8 @@ public:
     task<WriteMessageResult> WriteRoot();
 };
 
-class PartitionWriter
-    :
+class PartitionWriter : 
+    SerializationTypes,
     public IPartitionWriter
 {
     shared_ptr<ISequentialMessageWriter> m_dataWriter;

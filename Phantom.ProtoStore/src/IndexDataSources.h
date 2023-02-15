@@ -5,10 +5,9 @@
 namespace Phantom::ProtoStore
 {
 
-class IIndexDataSources
+class IIndexDataSources : public SerializationTypes
 {
 public:
-
     virtual task<> Replay(
         const LoggedRowWrite& rowWrite
     ) = 0;

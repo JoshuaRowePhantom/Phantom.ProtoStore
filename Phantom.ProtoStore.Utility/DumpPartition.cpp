@@ -23,7 +23,7 @@ task<> DumpPartition(
     auto dataMessageReader = co_await messageStore->OpenExtentForSequentialReadAccess(
         dataExtent);
 
-    PartitionMessage message;
+    Serialization::PartitionMessage message;
     do
     {
         auto readMessageResult = co_await dataMessageReader->Read(

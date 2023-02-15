@@ -12,6 +12,8 @@
 namespace Phantom::ProtoStore
 {
 
+using namespace Serialization;
+
 class PartitionTests : 
     public testing::Test
 {

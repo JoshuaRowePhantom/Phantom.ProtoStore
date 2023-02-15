@@ -18,7 +18,7 @@ class HeaderAccessor
 
     task<bool> ReadHeader(
         ExtentLocation location,
-        Header& header,
+        Serialization::Header& header,
         bool throwOnError);
 
 public:
@@ -28,11 +28,11 @@ public:
         ExtentLocation headerLocation2);
 
     virtual task<> ReadHeader(
-        Header& header
+        Serialization::Header& header
     ) override;
 
     virtual task<> WriteHeader(
-        const Header& header
+        const Serialization::Header& header
     ) override;
 };
 

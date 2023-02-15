@@ -24,7 +24,7 @@ task<> DumpLog(
     auto logMessageReader = co_await messageStore->OpenExtentForSequentialReadAccess(
         logExtent);
 
-    LogRecord message;
+    Serialization::LogRecord message;
     try
     {
         do

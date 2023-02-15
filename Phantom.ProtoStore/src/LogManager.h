@@ -8,7 +8,7 @@
 namespace Phantom::ProtoStore
 {
 
-class LogManager
+class LogManager : SerializationTypes
 {
     Schedulers m_schedulers;
     shared_ptr<IExtentStore> m_logExtentStore;

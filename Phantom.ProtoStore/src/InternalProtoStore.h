@@ -8,7 +8,8 @@ namespace Phantom::ProtoStore
 
 class IInternalTransaction
     :
-    public ICommittableTransaction
+    public ICommittableTransaction,
+    public SerializationTypes
 {
 public:
     virtual LogRecord& LogRecord(
@@ -19,7 +20,8 @@ typedef std::function<status_task<>(IInternalTransaction*)> InternalTransactionV
 
 class IInternalProtoStore
     :
-    public IProtoStore
+    public IProtoStore,
+    public SerializationTypes
 {
 public:
     virtual cppcoro::async_mutex_scoped_lock_operation AcquireUpdatePartitionsLock(

@@ -66,12 +66,12 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
         // If that number exceeds the parameter, then it's a merge candidate for the next level.
         if (mergeCount > mergeParameters.mergesperlevel())
         {
-            MergesKey mergesKey;
+            Serialization::MergesKey mergesKey;
             mergesKey.set_indexnumber(indexNumber);
             *mergesKey.mutable_mergesuniqueid() = 
                 partitionsAtSourceLevel.second[0].Key.headerextentname();
 
-            MergesValue mergesValue;
+            Serialization::MergesValue mergesValue;
             mergesValue.set_sourcelevelnumber(
                 partitionsAtSourceLevel.first);
 

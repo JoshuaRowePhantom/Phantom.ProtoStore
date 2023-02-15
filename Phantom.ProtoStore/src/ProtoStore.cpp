@@ -179,11 +179,31 @@ task<> ProtoStore::Open(
         );
     }
 
+    {
+        IndexesByNumberKey indexesByNumberKey;
+        IndexesByNumberValue indexesByNumberValue;
+
+        MakeIndexesByNumberRow(
+            indexesByNumberKey,
+            indexesByNumberValue,
+            "__System.UnresolvedTransactions",
+            6,
+            SequenceNumber::Earliest,
+            UnresolvedTransactionKey::descriptor(),
+            UnresolvedTransactionValue::descriptor());
+
+        m_unresolvedTransactionIndex = MakeIndex(
+            indexesByNumberKey,
+            indexesByNumberValue
+        );
+    }
+
     m_indexesByNumber[m_indexesByNumberIndex.IndexNumber] = m_indexesByNumberIndex;
     m_indexesByNumber[m_indexesByNameIndex.IndexNumber] = m_indexesByNameIndex;
     m_indexesByNumber[m_partitionsIndex.IndexNumber] = m_partitionsIndex;
     m_indexesByNumber[m_mergesIndex.IndexNumber] = m_mergesIndex;
     m_indexesByNumber[m_mergeProgressIndex.IndexNumber] = m_mergeProgressIndex;
+    m_indexesByNumber[m_unresolvedTransactionIndex.IndexNumber] = m_unresolvedTransactionIndex;
 
     m_logManager.emplace(
         m_schedulers,
@@ -470,7 +490,7 @@ class Operation
     public IInternalTransaction
 {
     ProtoStore& m_protoStore;
-    ::Phantom::ProtoStore::LogRecord m_logRecord;
+    Serialization::LogRecord m_logRecord;
     async_value_source<MemoryTableOperationOutcome> m_outcomeValueSource;
     MemoryTableOperationOutcomeTask m_operationOutcomeTask;
     SequenceNumber m_readSequenceNumber;
@@ -538,7 +558,7 @@ public:
         }
     }
 
-    ::Phantom::ProtoStore::LogRecord& LogRecord()
+    Serialization::LogRecord& LogRecord()
     {
         return m_logRecord;
     }
@@ -1248,7 +1268,7 @@ task<> ProtoStore::Checkpoint(
     });
 }
 
-task<vector<std::tuple<PartitionsKey, PartitionsValue>>> ProtoStore::GetPartitionsForIndex(
+task<vector<std::tuple<Serialization::PartitionsKey, Serialization::PartitionsValue>>> ProtoStore::GetPartitionsForIndex(
     IndexNumber indexNumber)
 {
     PartitionsKey partitionsKeyLow;

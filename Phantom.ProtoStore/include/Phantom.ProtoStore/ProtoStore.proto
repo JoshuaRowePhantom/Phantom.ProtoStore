@@ -51,31 +51,31 @@ message IndexSchemaDescription {
 	ValueSchemaDescription Value = 2;
 }
 
-message DatabaseHeaderExtentName {
-	uint64 HeaderCopyNumber = 1;
-};
-
-message IndexExtentName {
-	uint64 PartitionNumber = 1;
-	uint64 IndexNumber = 2;
-	uint64 Level = 3;
-	string IndexName = 4;
-}
-
-message LogExtentName {
-	uint64 LogExtentSequenceNumber = 1;
-}
-
-message ExtentName {
-	oneof ExtentNameType {
-		IndexExtentName IndexDataExtentName = 1;
-		IndexExtentName IndexHeaderExtentName = 2;
-		DatabaseHeaderExtentName DatabaseHeaderExtentName = 3;
-		LogExtentName LogExtentName = 4;
-	}
-}
-
 message MergeParameters {
 	uint64 MergesPerLevel = 1;
 	uint64 MaxLevel = 2;
+}
+
+message DatabaseHeaderExtentName {
+    uint64 HeaderCopyNumber = 1;
+};
+
+message IndexExtentName {
+    uint64 PartitionNumber = 1;
+    uint64 IndexNumber = 2;
+    uint64 Level = 3;
+    string IndexName = 4;
+}
+
+message LogExtentName {
+    uint64 LogExtentSequenceNumber = 1;
+}
+
+message ExtentName {
+    oneof ExtentNameType {
+        IndexExtentName IndexDataExtentName = 1;
+        IndexExtentName IndexHeaderExtentName = 2;
+        DatabaseHeaderExtentName DatabaseHeaderExtentName = 3;
+        LogExtentName LogExtentName = 4;
+    }
 }

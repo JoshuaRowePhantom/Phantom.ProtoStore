@@ -7,8 +7,8 @@
 namespace Phantom::ProtoStore
 {
 
-extern const PlaceholderKey KeyMinMessage;
-extern const PlaceholderKey KeyMaxMessage;
+extern const Serialization::PlaceholderKey KeyMinMessage;
+extern const Serialization::PlaceholderKey KeyMaxMessage;
 
 ProtoValue ProtoValue::KeyMin()
 {

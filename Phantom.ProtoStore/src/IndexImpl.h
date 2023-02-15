@@ -11,7 +11,8 @@ namespace Phantom::ProtoStore
 {
 
 class Index
-    : public IIndex
+    : public IIndex,
+    SerializationTypes
 {
     IndexName m_indexName;
     IndexNumber m_indexNumber;

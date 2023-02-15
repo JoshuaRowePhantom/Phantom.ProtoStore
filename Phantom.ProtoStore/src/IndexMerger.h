@@ -13,7 +13,8 @@ namespace Phantom::ProtoStore
 {
 
 class IndexMerger
-    : public AsyncScopeMixin
+    : public AsyncScopeMixin,
+    public SerializationTypes
 {
     IInternalProtoStore* const m_protoStore;
     IndexPartitionMergeGenerator* const m_mergeGenerator;

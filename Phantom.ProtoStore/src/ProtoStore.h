@@ -72,6 +72,7 @@ class ProtoStore
     IndexEntry m_partitionsIndex;
     IndexEntry m_mergesIndex;
     IndexEntry m_mergeProgressIndex;
+    IndexEntry m_unresolvedTransactionIndex;
 
     typedef unordered_map<google::protobuf::uint64, IndexEntry> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;

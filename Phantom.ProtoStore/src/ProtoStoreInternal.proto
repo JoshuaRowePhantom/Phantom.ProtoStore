@@ -4,265 +4,283 @@ import "google/protobuf/descriptor.proto";
 import "google/protobuf/any.proto";
 import "Phantom.ProtoStore/ProtoStore.proto";
 
-package Phantom.ProtoStore;
+package Phantom.ProtoStore.Serialization;
 
 message Header {
-	uint32 Version = 1;
-	uint32 LogAlignment = 2;
-	repeated ExtentName LogReplayExtentNames = 3;
-	uint64 Epoch = 5;
-	uint64 NextIndexNumber = 6;
-	uint64 NextPartitionNumber = 7;
+    uint32 Version = 1;
+    uint32 LogAlignment = 2;
+    repeated ExtentName LogReplayExtentNames = 3;
+    uint64 Epoch = 5;
+    uint64 NextIndexNumber = 6;
+    uint64 NextPartitionNumber = 7;
 }
 
 message LoggedRowWrite {
-	uint64 IndexNumber = 1;
-	bytes Key = 2;
-	bytes Value = 3;
-	uint64 SequenceNumber = 4;
-	uint64 CheckpointNumber = 5;
+    uint64 IndexNumber = 1;
+    bytes Key = 2;
+    bytes Value = 3;
+    uint64 SequenceNumber = 4;
+    uint64 CheckpointNumber = 5;
 }
 
 message LoggedAction {
-	oneof LoggedActionType {
-		google.protobuf.Any ArbitraryAction = 1;
-		LoggedCheckpoint LoggedCheckpoints = 2;
-		LoggedCreateExtent LoggedCreateExtent = 3;
-		LoggedDeleteExtentPendingPartitionsUpdated LoggedDeleteExtentPendingPartitionsUpdated = 4;
-		LoggedCommitExtent LoggedCommitExtent = 5;
-		LoggedCreateIndex LoggedCreateIndex = 6;
-		LoggedUpdatePartitions LoggedUpdatePartitions = 7;
-		LoggedPartitionsData LoggedPartitionsData = 8;
-		LoggedCreatePartition LoggedCreatePartition = 9;
+    oneof LoggedActionType {
+        google.protobuf.Any ArbitraryAction = 1;
+        LoggedCheckpoint LoggedCheckpoints = 2;
+        LoggedCreateExtent LoggedCreateExtent = 3;
+        LoggedDeleteExtentPendingPartitionsUpdated LoggedDeleteExtentPendingPartitionsUpdated = 4;
+        LoggedCommitExtent LoggedCommitExtent = 5;
+        LoggedCreateIndex LoggedCreateIndex = 6;
+        LoggedUpdatePartitions LoggedUpdatePartitions = 7;
+        LoggedPartitionsData LoggedPartitionsData = 8;
+        LoggedCreatePartition LoggedCreatePartition = 9;
     }
 }
 
 message LoggedCreateIndex {
-	uint64 IndexNumber = 1;
+    uint64 IndexNumber = 1;
 }
 
 message LoggedCreateExtent {
-	ExtentName ExtentName = 1;
+    ExtentName ExtentName = 1;
 }
 
 message LoggedDeleteExtentPendingPartitionsUpdated {
-	ExtentName ExtentName = 1;
-	uint64 PartitionsTableCheckpointNumber = 2;
+    ExtentName ExtentName = 1;
+    uint64 PartitionsTableCheckpointNumber = 2;
 }
 
 message LoggedCommitExtent {
-	ExtentName ExtentName = 1;
+    ExtentName ExtentName = 1;
 }
 
 message LoggedCheckpoint {
-	uint64 IndexNumber = 1;
-	repeated uint64 CheckpointNumber = 2;
+    uint64 IndexNumber = 1;
+    repeated uint64 CheckpointNumber = 2;
 }
 
 message LoggedUpdatePartitions {
-	uint64 IndexNumber = 1;
+    uint64 IndexNumber = 1;
 }
 
 message LoggedPartitionsData {
-	repeated ExtentName HeaderExtentNames = 1;
-	uint64 PartitionsTableCheckpointNumber = 2;
+    repeated ExtentName HeaderExtentNames = 1;
+    uint64 PartitionsTableCheckpointNumber = 2;
 }
 
 message LoggedCreatePartition {
-	uint64 PartitionNumber = 1;
+    uint64 PartitionNumber = 1;
 }
 
 message LogRecordExtras {
-	repeated LoggedAction LoggedActions = 1;
+    repeated LoggedAction LoggedActions = 1;
 }
 
 message LogRecord {
-	uint32 Alignment = 1;
-	// Most log records are for rows, so put them right in the message.
-	repeated LoggedRowWrite Rows = 2;
-	// Most log records don't have extras, so put them in another message.
-	LogRecordExtras Extras = 3;
+    uint32 Alignment = 1;
+    // Most log records are for rows, so put them right in the message.
+    repeated LoggedRowWrite Rows = 2;
+    // Most log records don't have extras, so put them in another message.
+    LogRecordExtras Extras = 3;
 }
 
 message InternalKeyPrefixMetadata {
 }
 
 message InternalKeySuffixMetadata {
-	uint64 SequenceNumber = 1 [(FieldOptions) = {
-		SortOrder: Descending;
-	}];
+    uint64 SequenceNumber = 1 [(FieldOptions) = {
+        SortOrder: Descending;
+    }];
 }
 
 message InternalKey {
-	bytes KeyMessage = 20;
+    bytes KeyMessage = 20;
 
-	uint64 SequenceNumber = 30 [(FieldOptions) = {
-		SortOrder: Descending;
-	}];
+    uint64 SequenceNumber = 30 [(FieldOptions) = {
+        SortOrder: Descending;
+    }];
 }
 
 message InternalValue {
-	oneof Value {
-		bytes ValueMessage = 20;
+    oneof Value {
+        bytes ValueMessage = 20;
     }
 }
 
 message IndexesByNameKey {
-	string IndexName = 1;
+    string IndexName = 1;
 }
 
 message IndexesByNameValue {
-	uint64 IndexNumber = 1;
+    uint64 IndexNumber = 1;
 }
 
 message IndexesByNumberKey {
-	uint64 IndexNumber = 1;
+    uint64 IndexNumber = 1;
 }
 
 message IndexesByNumberValue {
-	IndexSchemaDescription Schema = 1;
-	string IndexName = 2;
-	uint64 CreateSequenceNumber = 3;
+    IndexSchemaDescription Schema = 1;
+    string IndexName = 2;
+    uint64 CreateSequenceNumber = 3;
 }
 
 message PartitionsKey {
-	uint64 IndexNumber = 1;
-	ExtentName HeaderExtentName = 2;
+    uint64 IndexNumber = 1;
+    ExtentName HeaderExtentName = 2;
 }
 
 message PartitionsValue {
-	ExtentName DataExtentName = 1;
-	uint64 Level = 2;
-	uint64 Size = 3;
-	// The merge that generated the partition.
-	ExtentName MergeUniqueId = 4;
-	// The latest checkpoint number that is in the partition
-	uint64 CheckpointNumber = 5;
+    ExtentName DataExtentName = 1;
+    uint64 Level = 2;
+    uint64 Size = 3;
+    // The merge that generated the partition.
+    ExtentName MergeUniqueId = 4;
+    // The latest checkpoint number that is in the partition
+    uint64 CheckpointNumber = 5;
 }
 
 message MergesKey {
-	uint64 IndexNumber = 1;
-	// This will be the name of an extent in the merge.
-	ExtentName MergesUniqueId = 2;
+    uint64 IndexNumber = 1;
+    // This will be the name of an extent in the merge.
+    ExtentName MergesUniqueId = 2;
 }
 
 message MergeResumeKey {
-	bytes Key = 1;
-	uint64 WriteSequenceNumber = 2;
+    bytes Key = 1;
+    uint64 WriteSequenceNumber = 2;
 }
 
 message MergesValue {
-	repeated ExtentName SourceHeaderExtentNames = 1;
-	uint64 SourceLevelNumber = 2;
-	uint64 DestinationLevelNumber = 3;
+    repeated ExtentName SourceHeaderExtentNames = 1;
+    uint64 SourceLevelNumber = 2;
+    uint64 DestinationLevelNumber = 3;
 
-	// The checkpoint number to report for the generated partitions.
-	uint64 CheckpointNumber = 4;
+    // The checkpoint number to report for the generated partitions.
+    uint64 CheckpointNumber = 4;
 
-	// If StartKey is set, then resume the merge at the
-	// given start key.  Otherwise, resume the merge
-	// at the beginning of the key space.
-	oneof MergeResumeKeyType {
-		MergeResumeKey ResumeKey = 5;
+    // If StartKey is set, then resume the merge at the
+    // given start key.  Otherwise, resume the merge
+    // at the beginning of the key space.
+    oneof MergeResumeKeyType {
+        MergeResumeKey ResumeKey = 5;
     }
 }
 
 message MergeProgressKey {
-	MergesKey MergesKey = 1;
-	// This field is used only for query purposes.
-	// All rows have a value of 0.  One can query for a value of 1 at the high end of a range
-	// to get all the rows with the same MergesKey but different HeaderExtentName values.
-	uint32 RangeDiscriminator = 2;
-	ExtentName HeaderExtentName = 3;
+    MergesKey MergesKey = 1;
+    // This field is used only for query purposes.
+    // All rows have a value of 0.  One can query for a value of 1 at the high end of a range
+    // to get all the rows with the same MergesKey but different HeaderExtentName values.
+    uint32 RangeDiscriminator = 2;
+    ExtentName HeaderExtentName = 3;
 }
 
 message MergeProgressValue {
-	uint64 DataSize = 1;
+    uint64 DataSize = 1;
 }
 
 message PartitionTreeEntryValue {
-	oneof PartitionTreeEntryValue {
-		// Set if this entry is an inline small value.
-		bytes Value = 1;
-		// Set if this entry is an offset into the file.
-		uint64 ValueOffset = 2;
-		// Set if this entry is to a deleted row.
-		bool Deleted = 3;
+    oneof PartitionTreeEntryValue {
+        // Set if this entry is an inline small value.
+        bytes Value = 1;
+        // Set if this entry is an offset into the file.
+        uint64 ValueOffset = 2;
+        // Set if this entry is to a deleted row.
+        bool Deleted = 3;
     }
-	uint64 WriteSequenceNumber = 4;
+    uint64 WriteSequenceNumber = 4;
 }
 
 message PartitionTreeEntryValueSet {
-	// A set of values sorted by decreasing sequence number.
-	repeated PartitionTreeEntryValue Values = 1;
+    // A set of values sorted by decreasing sequence number.
+    repeated PartitionTreeEntryValue Values = 1;
 }
 
 message PartitionTreeEntryChild {
-	// The offset to the PartitionMessage containing a PartitionTreeNode
-	uint64 TreeNodeOffset = 1;
-	// The lowest write sequence number for the given Key that is contained
-	// in the subtree.
-	uint64 LowestWriteSequenceNumberForKey = 2;
+    // The offset to the PartitionMessage containing a PartitionTreeNode
+    uint64 TreeNodeOffset = 1;
+    // The lowest write sequence number for the given Key that is contained
+    // in the subtree.
+    uint64 LowestWriteSequenceNumberForKey = 2;
 }
 
 message PartitionTreeEntry {
-	// The key for this tree entry,
-	// or the highest key in the subtree owned by this tree entry.
-	bytes Key = 1;
-	oneof PartitionTreeEntryType {
-		// Set if the tree points to a subtree.
-		PartitionTreeEntryChild Child = 4;
-		// Set if the tree points to multiple values for the
-		// same key but different sequence numbers.
-		PartitionTreeEntryValueSet ValueSet = 6;
+    // The key for this tree entry,
+    // or the highest key in the subtree owned by this tree entry.
+    bytes Key = 1;
+    oneof PartitionTreeEntryType {
+        // Set if the tree points to a subtree.
+        PartitionTreeEntryChild Child = 4;
+        // Set if the tree points to multiple values for the
+        // same key but different sequence numbers.
+        PartitionTreeEntryValueSet ValueSet = 6;
     }
 }
 
 message PartitionTreeNode {
-	repeated PartitionTreeEntry TreeEntries = 1;
-	uint64 Level = 2;
-	uint64 Size = 3;
-	uint64 SizeRunningTotal = 4;
-	uint64 ApproximateKeyCount = 5;
-	uint64 ApproximateKeyCountRunningTotal = 6;
+    repeated PartitionTreeEntry TreeEntries = 1;
+    uint64 Level = 2;
+    uint64 Size = 3;
+    uint64 SizeRunningTotal = 4;
+    uint64 ApproximateKeyCount = 5;
+    uint64 ApproximateKeyCountRunningTotal = 6;
 }
 
 enum PartitionBloomFilterHashAlgorithm {
-	Version1 = 0;
+    Version1 = 0;
 }
 
 message PartitionBloomFilter {
-	PartitionBloomFilterHashAlgorithm Algorithm = 1;
-	uint32 HashFunctionCount = 2;
-	bytes Filter = 3;
+    PartitionBloomFilterHashAlgorithm Algorithm = 1;
+    uint32 HashFunctionCount = 2;
+    bytes Filter = 3;
 }
 
 message PartitionRoot {
-	uint64 RootTreeNodeOffset = 1;
-	uint64 RowCount = 2;
-	uint64 BloomFilterOffset = 3;
-	uint64 EarliestSequenceNumber = 4;
-	uint64 LatestSequenceNumber = 5;
+    uint64 RootTreeNodeOffset = 1;
+    uint64 RowCount = 2;
+    uint64 BloomFilterOffset = 3;
+    uint64 EarliestSequenceNumber = 4;
+    uint64 LatestSequenceNumber = 5;
 }
 
 message PartitionHeader {
-	fixed64 PartitionRootOffset = 1;
+    fixed64 PartitionRootOffset = 1;
 }
 
 message PartitionMessage {
-	oneof PartitionMessageType {
-		PartitionHeader PartitionHeader = 1;
-		PartitionRoot PartitionRoot = 2;
-		PartitionTreeNode PartitionTreeNode = 3;
-		PartitionBloomFilter PartitionBloomFilter = 4;
-		bytes Value = 5;
-	}
+    oneof PartitionMessageType {
+        PartitionHeader PartitionHeader = 1;
+        PartitionRoot PartitionRoot = 2;
+        PartitionTreeNode PartitionTreeNode = 3;
+        PartitionBloomFilter PartitionBloomFilter = 4;
+        bytes Value = 5;
+    }
+}
+
+enum TransactionOutcome
+{
+    Unresolved = 0;
+    Committed = 1;
+    Aborted = 2;
+}
+
+message UnresolvedTransactionKey
+{
+    bytes TransactionId = 1;
+}
+
+message UnresolvedTransactionValue
+{
+    TransactionOutcome Outcome = 1;
+    repeated PartitionsKey ReferencingPartitions = 2;
 }
 
 // Used for KeyMin, KeyMax
 message PlaceholderKey {
 oneof PlaceholderKeyType {
-	bool IsKeyMin = 1;
-	bool IsKeyMax = 2;
+    bool IsKeyMin = 1;
+    bool IsKeyMax = 2;
 }
 }
