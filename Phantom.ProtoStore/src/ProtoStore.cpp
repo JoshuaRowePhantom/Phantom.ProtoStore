@@ -590,6 +590,7 @@ public:
             {
                 failedResult.ErrorDetails = WriteConflict
                 {
+                    .Index = index,
                 };
             }
             m_failures.push_back(failedResult);

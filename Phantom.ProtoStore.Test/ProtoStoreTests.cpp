@@ -833,6 +833,7 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
                                 .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
                                 .ErrorDetails = WriteConflict
                                 {
+                                    .Index = index,
                                 }
                             }
                         }
@@ -898,6 +899,7 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
                                 .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
                                 .ErrorDetails = WriteConflict
                                 {
+                                    .Index = index,
                                 }
                             }
                         }
@@ -1175,6 +1177,7 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
                                 .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
                                 .ErrorDetails = WriteConflict
                                 {
+                                    .Index = index,
                                 }
                             }
                         }

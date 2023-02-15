@@ -147,7 +147,6 @@ class ProtoIndex
     friend class Operation;
     IIndex* m_index;
 
-
 public:
     ProtoIndex()
         :
@@ -170,6 +169,11 @@ public:
 
     ProtoStore* ProtoStore() const;
     const IndexName& IndexName() const;
+
+    friend bool operator==(
+        const ProtoIndex&,
+        const ProtoIndex&
+        ) = default;
 };
 
 struct GetIndexRequest
@@ -431,6 +435,8 @@ public:
 
 struct WriteConflict
 {
+    ProtoIndex Index;
+
     friend bool operator ==(
         const WriteConflict&,
         const WriteConflict&
