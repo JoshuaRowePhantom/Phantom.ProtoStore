@@ -7,6 +7,8 @@ find_package(mimalloc REQUIRED)
 
 add_executable(
     Phantom.ProtoStore.Test
+    "async_test.cpp"
+    "async_test.h"
     "BloomFilterTests.cpp" 
     "ChecksumTests.cpp" 
     "HeaderAccessorTests.cpp"

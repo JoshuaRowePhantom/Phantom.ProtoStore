@@ -9,6 +9,7 @@
 #include <random>
 #include <filesystem>
 #include "Phantom.ProtoStore/src/ExtentName.h"
+#include "async_test.h"
 
 namespace Phantom::ProtoStore
 {
