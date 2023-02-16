@@ -57,6 +57,7 @@ using std::vector;
 using std::weak_ptr;
 using cppcoro::shared_task;
 using Phantom::pooled_ptr;
+using Phantom::Coroutines::reusable_task;
 using google::protobuf::Message;
 using google::protobuf::Descriptor;
 using google::protobuf::io::ZeroCopyInputStream;

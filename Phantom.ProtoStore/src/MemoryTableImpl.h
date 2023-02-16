@@ -15,20 +15,8 @@ class MemoryTable
     public IMemoryTable,
     public AsyncScopeMixin
 {
-    enum class MemoryTableOutcomeAndSequenceNumber;
-
-    static MemoryTableOutcomeAndSequenceNumber ToMemoryTableOutcomeAndSequenceNumber(
-        SequenceNumber sequenceNumber,
-        OperationOutcome operationOutcome);
-
     static MemoryTableOutcomeAndSequenceNumber ToOutcomeUnknownSubsequentInsertion(
         SequenceNumber sequenceNumber);
-
-    static OperationOutcome GetOperationOutcome(
-        MemoryTableOutcomeAndSequenceNumber value);
-
-    static SequenceNumber ToSequenceNumber(
-        MemoryTableOutcomeAndSequenceNumber value);
 
     struct MemoryTableValue;
 

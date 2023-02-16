@@ -1,4 +1,5 @@
 #include "StandardIncludes.h"
+#include "Phantom.Coroutines/async_scope.h"
 #include "Phantom.ProtoStore/src/MemoryTableImpl.h"
 #include "ProtoStoreTest.pb.h"
 #include <optional>
@@ -138,407 +139,837 @@ protected:
     }
 };
 
-TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
+ASYNC_TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
 {
-    run_async([&]()->task<>
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0,
+        OperationOutcome::Committed,
+        "transaction id"
+    );
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1", 5, "transaction id"},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Can_add_distinct_rows)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0
+    );
+
+    co_await AddRow(
+        "key-2",
+        "value-2",
+        5,
+        0
+    );
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1", 5},
+            {"key-2", "value-2", 5},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Skips_aborted_rows)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0
+    );
+
+    co_await AddRow(
+        "key-2",
+        "value-2",
+        5,
+        0,
+        OperationOutcome::Aborted
+    );
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0
+    );
+
+    StringKey key2;
+    key2.set_value("key-1");
+    StringValue value2;
+    value2.set_value("value-1-2");
+
+    MemoryTableRow row2
     {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0,
+        .Key = copy_unique(key2),
+        .WriteSequenceNumber = ToSequenceNumber(6),
+        .Value = copy_unique(value2),
+    };
+
+    auto result =
+        co_await memoryTable.AddRow(
+            SequenceNumber::Earliest,
+            row2,
+            WithOutcome(
+                OperationOutcome::Committed,
+                6));
+
+    EXPECT_EQ(ToSequenceNumber(5), result);
+    EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
+    EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        6,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Committed_Row)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0
+    );
+
+    StringKey key2;
+    key2.set_value("key-1");
+    StringValue value2;
+    value2.set_value("value-1-2");
+
+    MemoryTableRow row2
+    {
+        .Key = copy_unique(key2),
+        .WriteSequenceNumber = ToSequenceNumber(5),
+        .Value = copy_unique(value2),
+    };
+
+    auto result =
+        co_await memoryTable.AddRow(
+            ToSequenceNumber(7),
+            row2,
+            WithOutcome(OperationOutcome::Unknown, 7));
+
+    EXPECT_EQ(ToSequenceNumber(5), result);
+    EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
+    EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        6,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Uncommitted_Row)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0,
+        OperationOutcome::Unknown
+    );
+
+    StringKey key2;
+    key2.set_value("key-1");
+    StringValue value2;
+    value2.set_value("value-1-2");
+
+    MemoryTableRow row2
+    {
+        .Key = copy_unique(key2),
+        .WriteSequenceNumber = ToSequenceNumber(5),
+        .Value = copy_unique(value2),
+    };
+
+    auto result =
+        co_await memoryTable.AddRow(
+            ToSequenceNumber(7),
+            row2,
+            WithOutcome(OperationOutcome::Committed, 7));
+
+    EXPECT_EQ(
+        ToSequenceNumber(5),
+        result);
+
+    EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
+    EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        6,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Fail_to_read_conflict_from_Uncommitted_Row)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0,
+        OperationOutcome::Unknown
+    );
+
+    StringKey key2;
+    key2.set_value("key-1");
+    StringValue value2;
+    value2.set_value("value-1-2");
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        6,
+        {
+            {"key-1", "value-1", 5},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_earlier_sequence_number_if_operation_aborted)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0,
+        OperationOutcome::Aborted
+    );
+
+    co_await AddRow(
+        "key-1",
+        "value-1-2",
+        4,
+        0
+    );
+
+    co_await EnumerateExpectedRows(
+        4,
+        {
+            {"key-1", "value-1-2", 4},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1-2", 4},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_later_sequence_number_if_operation_aborted)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0,
+        OperationOutcome::Aborted
+    );
+
+    co_await AddRow(
+        "key-1",
+        "value-1-2",
+        6,
+        0
+    );
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        6,
+        {
+            {"key-1", "value-1-2", 6},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_number_if_operation_aborted)
+{
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        5,
+        0,
+        OperationOutcome::Aborted
+    );
+
+    co_await AddRow(
+        "key-1",
+        "value-1-2",
+        5,
+        0
+    );
+
+    co_await EnumerateExpectedRows(
+        5,
+        {
+            {"key-1", "value-1-2", 5},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_write)
+{
+    uint64_t version1 = 5;
+    uint64_t version2 = 6;
+
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        version1,
+        0
+    );
+
+    co_await AddRow(
+        "key-1",
+        "value-1-2",
+        version2,
+        version1
+    );
+
+    co_await EnumerateExpectedRows(
+        version1 - 1,
+        {
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        version1,
+        {
+            {"key-1", "value-1", version1},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        version2,
+        {
+            {"key-1", "value-1-2", version2},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        version2 + 1,
+        {
+            {"key-1", "value-1-2", version2},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_version)
+{
+    uint64_t version1 = 5;
+    uint64_t version2 = 6;
+    uint64_t version3 = 7;
+
+    co_await AddRow(
+        "key-1",
+        "value-1",
+        version1,
+        0
+    );
+
+    co_await AddRow(
+        "key-1",
+        "value-1-2",
+        version3,
+        version2
+    );
+
+    co_await EnumerateExpectedRows(
+        version1 - 1,
+        {
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        version1,
+        {
+            {"key-1", "value-1", version1},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        version2,
+        {
+            {"key-1", "value-1", version1},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        version3,
+        {
+            {"key-1", "value-1-2", version3},
+        }
+    );
+
+    co_await EnumerateExpectedRows(
+        version3 + 1,
+        {
+            {"key-1", "value-1-2", version3},
+        }
+    );
+
+    co_await memoryTable.Join();
+}
+
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Commit_before_GetOutcome_has_GetOutcome_return_committed_sequence_number)
+{
+    DelayedMemoryTableOperationOutcome outcome(5);
+    outcome.Commit(ToSequenceNumber(7));
+    auto result = co_await outcome.GetOutcome();
+    EXPECT_EQ(
+        result,
+        (MemoryTableOperationOutcome 
+        {
             OperationOutcome::Committed,
-            "transaction id"
-        );
-
-        co_await EnumerateExpectedRows(
-            5,
-            {
-                {"key-1", "value-1", 5, "transaction id"},
-            }
-        );
-
-        co_await memoryTable.Join();
-    });
+            ToSequenceNumber(7),
+        }));
 }
 
-TEST_F(MemoryTableTests, Can_add_distinct_rows)
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Commit_after_GetOutcome_has_GetOutcome_return_committed_sequence_number)
 {
-    run_async([&]()->task<>
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+    bool completed = false;
+
+    scope.spawn([&]() -> reusable_task<>
     {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0
-        );
-
-        co_await AddRow(
-            "key-2",
-            "value-2",
-            5,
-            0
-        );
-
-        co_await EnumerateExpectedRows(
-            5,
-            {
-                {"key-1", "value-1", 5},
-                {"key-2", "value-2", 5},
-            }
-        );
-
-        co_await memoryTable.Join();
-    });
-}
-
-TEST_F(MemoryTableTests, Skips_aborted_rows)
-{
-    run_async([&]()->task<>
-    {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0
-        );
-
-        co_await AddRow(
-            "key-2",
-            "value-2",
-            5,
-            0,
-            OperationOutcome::Aborted
-        );
-
-        co_await EnumerateExpectedRows(
-            5,
-            {
-                {"key-1", "value-1", 5},
-            }
-        );
-
-        co_await memoryTable.Join();
-    });
-}
-
-TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
-{
-    run_async([&]()->task<>
-    {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0
-        );
-
-        StringKey key2;
-        key2.set_value("key-1");
-        StringValue value2;
-        value2.set_value("value-1-2");
-
-        MemoryTableRow row2
-        {
-            .Key = copy_unique(key2),
-            .WriteSequenceNumber = ToSequenceNumber(6),
-            .Value = copy_unique(value2),
-        };
-
-        auto result =
-            co_await memoryTable.AddRow(
-                SequenceNumber::Earliest,
-                row2,
-                WithOutcome(
+        auto result = co_await outcome.GetOutcome();
+        completed = true;
+        EXPECT_EQ(
+            result,
+            (MemoryTableOperationOutcome
+                {
                     OperationOutcome::Committed,
-                    6));
-
-        EXPECT_EQ(ToSequenceNumber(5), result);
-        EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
-        EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
-
-        co_await EnumerateExpectedRows(
-            5,
-            {
-                {"key-1", "value-1", 5},
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            6,
-            {
-                {"key-1", "value-1", 5},
-            }
-        );
-
-        co_await memoryTable.Join();
+                    ToSequenceNumber(7),
+                }));
     });
+
+    EXPECT_EQ(false, completed);
+    outcome.Commit(ToSequenceNumber(7));
+    EXPECT_EQ(true, completed);
+
+    co_await scope.join();
 }
 
-TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Row)
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Abort_before_GetOutcome_has_GetOutcome_return_aborted)
 {
-    run_async([&]()->task<>
-    {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0
-        );
-
-        StringKey key2;
-        key2.set_value("key-1");
-        StringValue value2;
-        value2.set_value("value-1-2");
-
-        MemoryTableRow row2
-        {
-            .Key = copy_unique(key2),
-            .WriteSequenceNumber = ToSequenceNumber(5),
-            .Value = copy_unique(value2),
-        };
-
-        auto result =
-            co_await memoryTable.AddRow(
-                ToSequenceNumber(7),
-                row2,
-                WithOutcome(OperationOutcome::Committed, 7));
-
-        EXPECT_EQ(ToSequenceNumber(5), result);
-        EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
-        EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
-
-        co_await EnumerateExpectedRows(
-            5,
+    DelayedMemoryTableOperationOutcome outcome(5);
+    outcome.Abort();
+    auto result = co_await outcome.GetOutcome();
+    EXPECT_EQ(
+        result,
+        (MemoryTableOperationOutcome
             {
-                {"key-1", "value-1", 5},
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            6,
-            {
-                {"key-1", "value-1", 5},
-            }
-        );
-
-        co_await memoryTable.Join();
-    });
+                OperationOutcome::Aborted,
+                ToSequenceNumber(0),
+            }));
 }
 
-TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_earlier_sequence_number_if_operation_aborted)
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Abort_after_GetOutcome_has_GetOutcome_return_aborted)
 {
-    run_async([&]()->task<>
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+    bool completed = false;
+
+    scope.spawn([&]() -> reusable_task<>
     {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0,
-            OperationOutcome::Aborted
-        );
-
-        co_await AddRow(
-            "key-1",
-            "value-1-2",
-            4,
-            0
-        );
-
-        co_await EnumerateExpectedRows(
-            4,
+        auto result = co_await outcome.GetOutcome();
+    completed = true;
+    EXPECT_EQ(
+        result,
+        (MemoryTableOperationOutcome
             {
-                {"key-1", "value-1-2", 4},
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            5,
-            {
-                {"key-1", "value-1-2", 4},
-            }
-        );
-
-        co_await memoryTable.Join();
+                OperationOutcome::Aborted,
+                ToSequenceNumber(0),
+            }));
     });
+
+    EXPECT_EQ(false, completed);
+    outcome.Abort();
+    EXPECT_EQ(true, completed);
+
+    co_await scope.join();
 }
 
-TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_later_sequence_number_if_operation_aborted)
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_earlier_transaction_sequence_number_before_GetOutcome_has_GetOutcome_return_aborted)
 {
-    run_async([&]()->task<>
-    {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0,
-            OperationOutcome::Aborted
-        );
+    DelayedMemoryTableOperationOutcome outcome(5);
+    auto result = co_await outcome.Resolve(4);
 
-        co_await AddRow(
-            "key-1",
-            "value-1-2",
-            6,
-            0
-        );
-
-        co_await EnumerateExpectedRows(
-            5,
+    EXPECT_EQ(
+        result,
+        (MemoryTableOperationOutcome
             {
-            }
-        );
+                OperationOutcome::Aborted,
+                ToSequenceNumber(0),
+            }));
 
-        co_await EnumerateExpectedRows(
-            6,
+    result = co_await outcome.GetOutcome();
+
+    EXPECT_EQ(
+        result,
+        (MemoryTableOperationOutcome
             {
-                {"key-1", "value-1-2", 6},
-            }
-        );
-
-        co_await memoryTable.Join();
-    });
+                OperationOutcome::Aborted,
+                ToSequenceNumber(0),
+            }));
 }
 
-TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_number_if_operation_aborted)
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_earlier_transaction_sequence_number_after_GetOutcome_has_GetOutcome_return_aborted)
 {
-    run_async([&]()->task<>
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+    bool completed = false;
+
+    scope.spawn([&]() -> reusable_task<>
     {
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            5,
-            0,
-            OperationOutcome::Aborted
-        );
-
-        co_await AddRow(
-            "key-1",
-            "value-1-2",
-            5,
-            0
-        );
-
-        co_await EnumerateExpectedRows(
-            5,
-            {
-                {"key-1", "value-1-2", 5},
-            }
-        );
-
-        co_await memoryTable.Join();
+        auto result = co_await outcome.GetOutcome();
+        completed = true;
+        EXPECT_EQ(
+            result,
+            (MemoryTableOperationOutcome
+                {
+                    OperationOutcome::Aborted,
+                    ToSequenceNumber(0),
+                }));
     });
+
+    EXPECT_EQ(false, completed);
+    auto result = co_await outcome.Resolve(4);
+    EXPECT_EQ(
+        result,
+        (MemoryTableOperationOutcome
+            {
+                OperationOutcome::Aborted,
+                ToSequenceNumber(0),
+            }));
+    EXPECT_EQ(true, completed);
+
+    co_await scope.join();
 }
 
-TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_write)
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_before_GetOutcome_waits_for_Commit)
 {
-    run_async([&]()->task<>
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+
+    MemoryTableOperationOutcome expectedOutcome
     {
-        uint64_t version1 = 5;
-        uint64_t version2 = 6;
+        OperationOutcome::Committed,
+        ToSequenceNumber(7),
+    };
 
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            version1,
-            0
-        );
-
-        co_await AddRow(
-            "key-1",
-            "value-1-2",
-            version2,
-            version1
-        );
-
-        co_await EnumerateExpectedRows(
-            version1 - 1,
-            {
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            version1,
-            {
-                {"key-1", "value-1", version1},
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            version2,
-            {
-                {"key-1", "value-1-2", version2},
-            }
-        );    
-
-        co_await EnumerateExpectedRows(
-            version2 + 1,
-            {
-                {"key-1", "value-1-2", version2},
-            }
-        );
-
-        co_await memoryTable.Join();
+    bool resolveCompleted = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.Resolve(6);
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        resolveCompleted = true;
     });
+
+    EXPECT_EQ(resolveCompleted, false);
+
+    auto result = outcome.Commit(ToSequenceNumber(7));
+    EXPECT_EQ(resolveCompleted, true);
+    EXPECT_EQ(
+        result,
+        expectedOutcome);
+
+    result = co_await outcome.GetOutcome();
+
+    EXPECT_EQ(
+        result,
+        expectedOutcome);
+
+    co_await scope.join();
 }
 
-TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_version)
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_after_GetOutcome_waits_for_Commit)
 {
-    run_async([&]()->task<>
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+
+    MemoryTableOperationOutcome expectedOutcome
     {
-        uint64_t version1 = 5;
-        uint64_t version2 = 6;
-        uint64_t version3 = 7;
+        OperationOutcome::Committed,
+        ToSequenceNumber(7),
+    };
 
-        co_await AddRow(
-            "key-1",
-            "value-1",
-            version1,
-            0
-        );
-
-        co_await AddRow(
-            "key-1",
-            "value-1-2",
-            version3,
-            version2
-        );
-
-        co_await EnumerateExpectedRows(
-            version1 - 1,
-            {
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            version1,
-            {
-                {"key-1", "value-1", version1},
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            version2,
-            {
-                {"key-1", "value-1", version1},
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            version3,
-            {
-                {"key-1", "value-1-2", version3},
-            }
-        );
-
-        co_await EnumerateExpectedRows(
-            version3 + 1,
-            {
-                {"key-1", "value-1-2", version3},
-            }
-        );
-
-        co_await memoryTable.Join();
+    bool resolveCompleted = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.Resolve(6);
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        resolveCompleted = true;
     });
+
+    bool getOutcomeComplete = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.GetOutcome();
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        getOutcomeComplete = true;
+    });
+
+    EXPECT_EQ(resolveCompleted, false);
+    EXPECT_EQ(getOutcomeComplete, false);
+
+    auto result = outcome.Commit(ToSequenceNumber(7));
+    EXPECT_EQ(resolveCompleted, true);
+    EXPECT_EQ(getOutcomeComplete, true);
+    EXPECT_EQ(
+        result,
+        expectedOutcome);
+
+    co_await scope.join();
+}
+
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_before_GetOutcome_waits_for_Abort)
+{
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+
+    MemoryTableOperationOutcome expectedOutcome
+    {
+        OperationOutcome::Aborted,
+        ToSequenceNumber(0),
+    };
+
+    bool resolveCompleted = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.Resolve(6);
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        resolveCompleted = true;
+    });
+
+    EXPECT_EQ(resolveCompleted, false);
+
+    outcome.Abort();
+    EXPECT_EQ(resolveCompleted, true);
+
+    auto result = co_await outcome.GetOutcome();
+
+    EXPECT_EQ(
+        result,
+        expectedOutcome);
+
+    co_await scope.join();
+}
+
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_after_GetOutcome_waits_for_Abort)
+{
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+
+    MemoryTableOperationOutcome expectedOutcome
+    {
+        OperationOutcome::Aborted,
+        ToSequenceNumber(0),
+    };
+
+    bool resolveCompleted = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.Resolve(6);
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        resolveCompleted = true;
+    });
+
+    bool getOutcomeComplete = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.GetOutcome();
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        getOutcomeComplete = true;
+    });
+
+    EXPECT_EQ(resolveCompleted, false);
+    EXPECT_EQ(getOutcomeComplete, false);
+
+    outcome.Abort();
+    EXPECT_EQ(resolveCompleted, true);
+    EXPECT_EQ(getOutcomeComplete, true);
+
+    co_await scope.join();
+}
+
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_before_GetOutcome_waits_for_abort_from_earlier_Resolve)
+{
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+
+    MemoryTableOperationOutcome expectedOutcome
+    {
+        OperationOutcome::Aborted,
+        ToSequenceNumber(0),
+    };
+
+    bool resolveCompleted = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.Resolve(6);
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        resolveCompleted = true;
+    });
+
+    EXPECT_EQ(resolveCompleted, false);
+
+    auto result = co_await outcome.Resolve(4);
+    EXPECT_EQ(
+        result,
+        expectedOutcome);
+
+    EXPECT_EQ(resolveCompleted, true);
+
+    result = co_await outcome.GetOutcome();
+    EXPECT_EQ(
+        result,
+        expectedOutcome);
+
+    co_await scope.join();
+}
+
+ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_after_GetOutcome_waits_for_abort_from_earlier_Resolve)
+{
+    DelayedMemoryTableOperationOutcome outcome(5);
+    Phantom::Coroutines::async_scope<> scope;
+
+    MemoryTableOperationOutcome expectedOutcome
+    {
+        OperationOutcome::Aborted,
+        ToSequenceNumber(0),
+    };
+
+    bool resolveCompleted = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.Resolve(6);
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        resolveCompleted = true;
+    });
+
+    bool getOutcomeComplete = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        auto result = co_await outcome.GetOutcome();
+        EXPECT_EQ(
+            result,
+            expectedOutcome);
+        getOutcomeComplete = true;
+    });
+
+    EXPECT_EQ(resolveCompleted, false);
+    EXPECT_EQ(getOutcomeComplete, false);
+
+    auto result = co_await outcome.Resolve(4);
+    EXPECT_EQ(
+        result,
+        expectedOutcome);
+
+    EXPECT_EQ(resolveCompleted, true);
+    EXPECT_EQ(getOutcomeComplete, true);
+
+    co_await scope.join();
 }
 
 }

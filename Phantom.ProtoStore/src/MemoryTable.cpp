@@ -4,37 +4,7 @@
 namespace Phantom::ProtoStore
 {
 
-enum class MemoryTable::MemoryTableOutcomeAndSequenceNumber
-{
-    Earliest = 0,
-    NumberMask = 0xfffffffffffffffc,
-    OutcomeMask = 0x3,
-    // These values must match those in OperationOutcome.
-    OutcomeUnknown = 0x0,
-    OutcomeCommitted = 0x1,
-    OutcomeAborted = 0x2,
-    // This value indicates that the value may not be atomically replaced.
-    OutcomeUnknownSubsequentInsertion = 0x3,
-};
-
-MemoryTable::MemoryTableOutcomeAndSequenceNumber MemoryTable::ToMemoryTableOutcomeAndSequenceNumber(
-    SequenceNumber sequenceNumber,
-    OperationOutcome operationOutcome)
-{
-    return static_cast<MemoryTableOutcomeAndSequenceNumber>(
-        static_cast<std::uint64_t>(sequenceNumber)
-        | static_cast<std::uint64_t>(operationOutcome));
-}
-
-MemoryTable::MemoryTableOutcomeAndSequenceNumber MemoryTable::ToOutcomeUnknownSubsequentInsertion(
-    SequenceNumber sequenceNumber)
-{
-    return static_cast<MemoryTableOutcomeAndSequenceNumber>(
-        static_cast<std::uint64_t>(sequenceNumber)
-        | static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeUnknownSubsequentInsertion));
-}
-
-OperationOutcome MemoryTable::GetOperationOutcome(
+OperationOutcome GetOperationOutcome(
     MemoryTableOutcomeAndSequenceNumber value
 )
 {
@@ -43,13 +13,40 @@ OperationOutcome MemoryTable::GetOperationOutcome(
         & static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeMask));
 }
 
-SequenceNumber MemoryTable::ToSequenceNumber(
+SequenceNumber ToSequenceNumber(
     MemoryTableOutcomeAndSequenceNumber value
 )
 {
     return static_cast<SequenceNumber>(
         static_cast<std::uint64_t>(value)
         & static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::NumberMask));
+}
+
+MemoryTableOperationOutcome ToMemoryTableOperationOutcome(
+    MemoryTableOutcomeAndSequenceNumber value)
+{
+    return
+    {
+        .Outcome = GetOperationOutcome(value),
+        .WriteSequenceNumber = ToSequenceNumber(value),
+    };
+}
+
+MemoryTableOutcomeAndSequenceNumber ToMemoryTableOutcomeAndSequenceNumber(
+    SequenceNumber sequenceNumber,
+    OperationOutcome operationOutcome)
+{
+    return static_cast<MemoryTableOutcomeAndSequenceNumber>(
+        static_cast<std::uint64_t>(sequenceNumber)
+        | static_cast<std::uint64_t>(operationOutcome));
+}
+
+MemoryTableOutcomeAndSequenceNumber MemoryTable::ToOutcomeUnknownSubsequentInsertion(
+    SequenceNumber sequenceNumber)
+{
+    return static_cast<MemoryTableOutcomeAndSequenceNumber>(
+        static_cast<std::uint64_t>(sequenceNumber)
+        | static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeUnknownSubsequentInsertion));
 }
 
 MemoryTable::MemoryTable(
@@ -709,6 +706,74 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     }
 
     return comparisonResult;
+}
+
+DelayedMemoryTableOperationOutcome::DelayedMemoryTableOperationOutcome(
+    MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber
+) : m_originatingTransactionSequenceNumber(originatingTransactionSequenceNumber)
+{
+    m_outcomeTask = GetOutcomeImpl();
+}
+
+shared_task<MemoryTableOperationOutcome> DelayedMemoryTableOperationOutcome::GetOutcomeImpl()
+{
+    co_await m_resolvedSignal;
+    co_return ToMemoryTableOperationOutcome(
+        m_outcomeAndSequenceNumber.load(std::memory_order_relaxed)
+    );
+}
+
+shared_task<MemoryTableOperationOutcome> DelayedMemoryTableOperationOutcome::GetOutcome()
+{
+    return m_outcomeTask;
+}
+
+MemoryTableOperationOutcome DelayedMemoryTableOperationOutcome::Commit(
+    SequenceNumber writeSequenceNumber)
+{
+    auto previousResult = MemoryTableOutcomeAndSequenceNumber::Earliest;
+    auto committedResult = ToMemoryTableOutcomeAndSequenceNumber(writeSequenceNumber, OperationOutcome::Committed);
+
+    if (!m_outcomeAndSequenceNumber.compare_exchange_strong(
+        previousResult,
+        committedResult,
+        std::memory_order_acq_rel))
+    {
+        return ToMemoryTableOperationOutcome(previousResult);
+    }
+
+    m_resolvedSignal.set();
+    return ToMemoryTableOperationOutcome(committedResult);
+}
+
+void DelayedMemoryTableOperationOutcome::Abort()
+{
+    m_outcomeAndSequenceNumber.store(
+        MemoryTableOutcomeAndSequenceNumber::OutcomeAborted,
+        std::memory_order_release
+    );
+
+    m_resolvedSignal.set();
+}
+
+shared_task<MemoryTableOperationOutcome> DelayedMemoryTableOperationOutcome::Resolve(
+    MemoryTableTransactionSequenceNumber resolvingTransactionSequenceNumber)
+{
+    if (m_originatingTransactionSequenceNumber > resolvingTransactionSequenceNumber)
+    {
+        auto previousResult = MemoryTableOutcomeAndSequenceNumber::Earliest;
+        auto abortedResult = MemoryTableOutcomeAndSequenceNumber::OutcomeAborted;
+
+        m_outcomeAndSequenceNumber.compare_exchange_strong(
+            previousResult,
+            abortedResult,
+            std::memory_order_acq_rel
+        );
+
+        m_resolvedSignal.set();
+    }
+
+    return m_outcomeTask;
 }
 
 }
