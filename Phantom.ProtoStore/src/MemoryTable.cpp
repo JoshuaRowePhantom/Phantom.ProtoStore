@@ -207,7 +207,7 @@ task<> MemoryTable::ReplayRow(
     co_return;
 }
 
-cppcoro::async_generator<ResultRow> MemoryTable::Enumerate(
+row_generator MemoryTable::Enumerate(
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high
@@ -304,6 +304,7 @@ cppcoro::async_generator<ResultRow> MemoryTable::Enumerate(
                     .Key = memoryTableValue.Row.Key.get(),
                     .WriteSequenceNumber = memoryTableValue.Row.WriteSequenceNumber,
                     .Value = memoryTableValue.Row.Value.get(),
+                    .TransactionId = memoryTableValue.Row.TransactionId ? &*(memoryTableValue.Row.TransactionId) : nullptr,
                 };
 
                 // Change the enumeration key to be exclusive so that we'll
@@ -486,7 +487,7 @@ task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
         updateRowCounters);
 }
 
-cppcoro::async_generator<ResultRow> MemoryTable::Checkpoint()
+row_generator MemoryTable::Checkpoint()
 {
     auto end = m_skipList.end();
     for (auto iterator = m_skipList.begin();
@@ -505,6 +506,7 @@ cppcoro::async_generator<ResultRow> MemoryTable::Checkpoint()
                 .Key = iterator->Row.Key.get(),
                 .WriteSequenceNumber = iterator->Row.WriteSequenceNumber,
                 .Value = iterator->Row.Value.get(),
+                .TransactionId = iterator->Row.TransactionId ? &*(iterator->Row.TransactionId) : nullptr,
             };
         }
     }

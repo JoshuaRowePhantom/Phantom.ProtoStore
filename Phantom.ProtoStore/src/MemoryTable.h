@@ -12,6 +12,7 @@ struct MemoryTableRow
     unique_ptr<const Message> Key;
     SequenceNumber WriteSequenceNumber;
     unique_ptr<const Message> Value;
+    std::optional<TransactionId> TransactionId;
 };
 
 struct KeyRangeEnd
@@ -48,13 +49,13 @@ public:
         MemoryTableRow& row
     ) = 0;
 
-    virtual cppcoro::async_generator<ResultRow> Enumerate(
+    virtual row_generator Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high
     ) = 0;
 
-    virtual cppcoro::async_generator<ResultRow> Checkpoint(
+    virtual row_generator Checkpoint(
     ) = 0;
 
     virtual SequenceNumber GetLatestSequenceNumber(

@@ -42,7 +42,8 @@ protected:
         string value,
         uint64_t writeSequenceNumber,
         uint64_t readSequenceNumber,
-        OperationOutcome outcome = OperationOutcome::Committed)
+        OperationOutcome outcome = OperationOutcome::Committed,
+        std::optional<TransactionId> transactionId = {})
     {
         StringKey rowKey;
         rowKey.set_value(key);
@@ -54,6 +55,7 @@ protected:
             .Key = copy_unique(rowKey),
             .WriteSequenceNumber = ToSequenceNumber(writeSequenceNumber),
             .Value = copy_unique(rowValue),
+            .TransactionId = transactionId,
         };
 
         co_await memoryTable.AddRow(
@@ -67,6 +69,7 @@ protected:
         string Key;
         string Value;
         uint64_t SequenceNumber;
+        std::optional<TransactionId> TransactionId;
 
         auto operator <=>(const ExpectedRow&) const = default;
     };
@@ -122,6 +125,7 @@ protected:
                     .Key = static_cast<const StringKey*>(row.Key)->value(),
                     .Value = static_cast<const StringKey*>(row.Value)->value(),
                     .SequenceNumber = ToUint64(row.WriteSequenceNumber),
+                    .TransactionId = row.TransactionId ? std::optional { *row.TransactionId } : std::optional<TransactionId> { },
                 }
             );
         }
@@ -142,13 +146,15 @@ TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
             "key-1",
             "value-1",
             5,
-            0
+            0,
+            OperationOutcome::Committed,
+            "transaction id"
         );
 
         co_await EnumerateExpectedRows(
             5,
             {
-                {"key-1", "value-1", 5},
+                {"key-1", "value-1", 5, "transaction id"},
             }
         );
 
