@@ -76,6 +76,8 @@ typedef google::protobuf::uint64 LevelNumber;
 typedef google::protobuf::uint64 PartitionNumber;
 typedef google::protobuf::uint64 LogExtentSequenceNumber;
 
+class IInternalProtoStore;
+class IInternalTransaction;
 class IExtentStore;
 class IMessageStore;
 class IRandomMessageAccessor;
@@ -86,6 +88,7 @@ class ISequentialMessageWriter;
 class IPartition;
 class IPartitionWriter;
 class IMessageFactory;
+class IUnresolvedTransactionsTracker;
 class KeyComparer;
 class RowMerger;
 struct MemoryTableOperationOutcome;
@@ -116,6 +119,8 @@ class LoggedCreateIndex;
 class LoggedCreateDataExtent;
 class LoggedCreatePartition;
 class LoggedUpdatePartitions;
+class LoggedCommitExtent;
+class LoggedUnresolvedTransactions;
 class PartitionHeader;
 class PartitionRoot;
 class PartitionBloomFilter;
@@ -133,6 +138,7 @@ class MergeProgressValue;
 class PlaceholderKey;
 class PartitionMessage;
 class LoggedPartitionsData;
+enum TransactionOutcome;
 class UnresolvedTransactionKey;
 class UnresolvedTransactionValue;
 }
@@ -153,6 +159,8 @@ public:
     using LoggedCreateDataExtent = Serialization::LoggedCreateDataExtent;
     using LoggedCreatePartition = Serialization::LoggedCreatePartition;
     using LoggedUpdatePartitions = Serialization::LoggedUpdatePartitions;
+    using LoggedCommitExtent = Serialization::LoggedCommitExtent;
+    using LoggedUnresolvedTransactions = Serialization::LoggedUnresolvedTransactions;
     using PartitionHeader = Serialization::PartitionHeader;
     using PartitionRoot = Serialization::PartitionRoot;
     using PartitionBloomFilter = Serialization::PartitionBloomFilter;
@@ -174,6 +182,7 @@ public:
     using UnresolvedTransactionValue = Serialization::UnresolvedTransactionValue;
 };
 
+using TransactionId = std::string;
 typedef ExtentName MergeId;
 
 
@@ -181,7 +190,8 @@ struct ResultRow
 {
     const Message* Key;
     SequenceNumber WriteSequenceNumber;
-    const Message* Value;
+    const Message* Value = nullptr;
+    const TransactionId* TransactionId = nullptr;
 };
 
 typedef cppcoro::async_generator<ResultRow> row_generator;

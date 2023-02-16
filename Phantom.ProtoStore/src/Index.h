@@ -15,6 +15,7 @@ public:
         const ProtoValue& key,
         const ProtoValue& value,
         SequenceNumber writeSequenceNumber,
+        const TransactionId* transactionId,
         MemoryTableOperationOutcomeTask operationOutcomeTask
     ) = 0;
 
@@ -53,8 +54,9 @@ public:
         shared_ptr<IMemoryTable> memoryTable,
         const string& key,
         const string& value,
-        SequenceNumber writeSequenceNumber
-    ) = 0;
+        SequenceNumber writeSequenceNumber,
+        const TransactionId* transactionId
+        ) = 0;
 
     virtual task<> SetDataSources(
         shared_ptr<IMemoryTable> activeMemoryTable,

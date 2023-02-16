@@ -61,9 +61,11 @@ add_library (
     "src/SkipList.cpp"
     "src/SkipList.h" 
     "src/StandardTypes.h"
+    "src/UnresolvedTransactionsTracker.h" 
+    "src/UnresolvedTransactionsTracker.cpp"
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
-    src/ProtoStoreInternal.proto
-    include/Phantom.ProtoStore/ProtoStore.proto
+    "src/ProtoStoreInternal.proto"
+    "include/Phantom.ProtoStore/ProtoStore.proto"
     )
     
 

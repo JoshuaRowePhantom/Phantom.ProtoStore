@@ -74,6 +74,8 @@ class ProtoStore
     IndexEntry m_mergeProgressIndex;
     IndexEntry m_unresolvedTransactionIndex;
 
+    shared_ptr<IUnresolvedTransactionsTracker> m_unresolvedTransactionsTracker;
+
     typedef unordered_map<google::protobuf::uint64, IndexEntry> IndexesByNumberMap;
     IndexesByNumberMap m_indexesByNumber;
 
@@ -231,7 +233,7 @@ class ProtoStore
     virtual shared_ptr<IIndex> GetUnresolvedTransactionsIndex(
     ) override;
 
-    friend class Operation;
+    friend class LocalTransaction;
 
 public:
 

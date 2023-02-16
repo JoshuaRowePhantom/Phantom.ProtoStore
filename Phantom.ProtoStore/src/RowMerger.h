@@ -10,7 +10,7 @@ namespace Phantom::ProtoStore
 
 class RowMerger
 {
-    KeyComparer* m_keyComparer;
+    KeyComparer* const m_keyComparer;
 public:
     RowMerger(
         KeyComparer* keyComparer

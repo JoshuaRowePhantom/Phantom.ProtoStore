@@ -21,6 +21,9 @@ message LoggedRowWrite {
     bytes Value = 3;
     uint64 SequenceNumber = 4;
     uint64 CheckpointNumber = 5;
+    oneof HasTransactionId {
+        string TransactionId = 6;
+    }
 }
 
 message LoggedAction {
@@ -34,6 +37,7 @@ message LoggedAction {
         LoggedUpdatePartitions LoggedUpdatePartitions = 7;
         LoggedPartitionsData LoggedPartitionsData = 8;
         LoggedCreatePartition LoggedCreatePartition = 9;
+        LoggedUnresolvedTransactions LoggedUnresolvedTransactions = 10;
     }
 }
 
@@ -70,6 +74,11 @@ message LoggedPartitionsData {
 
 message LoggedCreatePartition {
     uint64 PartitionNumber = 1;
+}
+
+message LoggedUnresolvedTransactions {
+    PartitionsKey Partition = 1;
+    repeated string UnresolvedTransactions = 2;
 }
 
 message LogRecordExtras {
@@ -181,15 +190,20 @@ message MergeProgressValue {
 }
 
 message PartitionTreeEntryValue {
+    uint64 WriteSequenceNumber = 1;
     oneof PartitionTreeEntryValue {
         // Set if this entry is an inline small value.
-        bytes Value = 1;
+        bytes Value = 2;
         // Set if this entry is an offset into the file.
-        uint64 ValueOffset = 2;
+        uint64 ValueOffset = 3;
         // Set if this entry is to a deleted row.
-        bool Deleted = 3;
+        bool Deleted = 4;
+        // Set if this transaction has not been resolved
+        // as of when the row was written to disk.
+        // This value is cleared upon merge whenever
+        // the transaction outcome is known.
+        string UnresolvedTransactionId = 5;
     }
-    uint64 WriteSequenceNumber = 4;
 }
 
 message PartitionTreeEntryValueSet {
@@ -259,22 +273,29 @@ message PartitionMessage {
     }
 }
 
-enum TransactionOutcome
-{
-    Unresolved = 0;
-    Committed = 1;
-    Aborted = 2;
-}
-
+// The UnresolvedTransactions table holds the transactions whose
+// outcomes are unresolved or aborted. Transactions that have
+// committed are removed from the UnresolvedTransactions table completely.
+// The unresolved transactions table has special pruning logic to remove
+// rows for which all the referencing partitions are gone.
 message UnresolvedTransactionKey
 {
     bytes TransactionId = 1;
+    oneof Reference {
+        PartitionsKey Partition = 2;
+
+    }
 }
 
 message UnresolvedTransactionValue
 {
-    TransactionOutcome Outcome = 1;
-    repeated PartitionsKey ReferencingPartitions = 2;
+    UnresolvedTransactionStatus Status = 1;
+}
+
+enum UnresolvedTransactionStatus
+{
+    Unresolved = 0;
+    Aborted = 1;
 }
 
 // Used for KeyMin, KeyMax

@@ -14,6 +14,9 @@ class IInternalTransaction
 public:
     virtual LogRecord& LogRecord(
     ) = 0;
+
+    virtual LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions(
+    ) = 0;
 };
 
 typedef std::function<status_task<>(IInternalTransaction*)> InternalTransactionVisitor;

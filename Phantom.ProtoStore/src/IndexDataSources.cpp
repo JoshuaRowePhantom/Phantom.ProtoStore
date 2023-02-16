@@ -37,7 +37,8 @@ task<> IndexDataSources::Replay(
         memoryTable,
         rowWrite.key(),
         rowWrite.value(),
-        ToSequenceNumber(rowWrite.sequencenumber())
+        ToSequenceNumber(rowWrite.sequencenumber()),
+        rowWrite.has_transactionid() ? &rowWrite.transactionid() : nullptr
     );
 }
 

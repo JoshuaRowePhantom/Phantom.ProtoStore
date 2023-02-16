@@ -144,7 +144,7 @@ class IIndex;
 class ProtoIndex
 {
     friend class ProtoStore;
-    friend class Operation;
+    friend class LocalTransaction;
     IIndex* m_index;
 
 public:

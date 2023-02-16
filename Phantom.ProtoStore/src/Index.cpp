@@ -5,6 +5,7 @@
 #include "MemoryTableImpl.h"
 #include "RowMerger.h"
 #include "PartitionWriter.h"
+#include "UnresolvedTransactionsTracker.h"
 
 namespace Phantom::ProtoStore
 {
@@ -14,7 +15,8 @@ Index::Index(
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
     shared_ptr<IMessageFactory> keyFactory,
-    shared_ptr<IMessageFactory> valueFactory
+    shared_ptr<IMessageFactory> valueFactory,
+    IUnresolvedTransactionsTracker* unresolvedTransactionsTracker
 )
     :
     m_indexName(indexName),
@@ -23,7 +25,8 @@ Index::Index(
     m_keyFactory(keyFactory),
     m_valueFactory(valueFactory),
     m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor())),
-    m_rowMerger(make_shared<RowMerger>(&*m_keyComparer))
+    m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
+    m_unresolvedTransactionsTracker(unresolvedTransactionsTracker)
 {
 }
 
@@ -57,10 +60,9 @@ operation_task<CheckpointNumber> Index::AddRow(
     const ProtoValue& key,
     const ProtoValue& value,
     SequenceNumber writeSequenceNumber,
+    const TransactionId* transactionId,
     MemoryTableOperationOutcomeTask operationOutcomeTask)
 {
-    MemoryTableRow row;
-
     unique_ptr<Message> keyMessage(
         m_keyFactory->GetPrototype()->New());
     key.unpack<>(keyMessage.get());
@@ -73,9 +75,13 @@ operation_task<CheckpointNumber> Index::AddRow(
         value.unpack<>(valueMessage.get());
     }
 
-    row.Key = move(keyMessage);
-    row.Value = move(valueMessage);
-    row.WriteSequenceNumber = writeSequenceNumber;
+    MemoryTableRow row
+    {
+        .Key = move(keyMessage),
+        .WriteSequenceNumber = writeSequenceNumber,
+        .Value = move(valueMessage),
+        .TransactionId = transactionId ? std::optional { *transactionId } : std::optional<TransactionId>{},
+    };
 
     shared_ptr<IMemoryTable> activeMemoryTable;
     CheckpointNumber activeCheckpointNumber;
@@ -157,7 +163,8 @@ task<> Index::ReplayRow(
     shared_ptr<IMemoryTable> memoryTable,
     const string& key,
     const string& value,
-    SequenceNumber writeSequenceNumber
+    SequenceNumber writeSequenceNumber,
+    const TransactionId* transactionId
 )
 {
     unique_ptr<Message> keyMessage(
@@ -170,13 +177,32 @@ task<> Index::ReplayRow(
     valueMessage->ParseFromString(
         value);
 
-    MemoryTableRow row;
-    row.Key = move(keyMessage);
-    row.Value = move(valueMessage);
-    row.WriteSequenceNumber = writeSequenceNumber;
+    MemoryTableRow row
+    {
+        .Key = move(keyMessage),
+        .WriteSequenceNumber = writeSequenceNumber,
+        .Value = move(valueMessage),
+        .TransactionId = transactionId ? std::optional{ *transactionId } : std::optional<TransactionId>{},
+    };
 
     co_await memoryTable->ReplayRow(
         row);
+}
+
+std::unexpected<FailedResult> Index::MakeUnresolvedTransactionFailedResult(
+    TransactionId unresolvedTransactionId)
+{
+    return std::unexpected
+    {
+        FailedResult
+        {
+            .ErrorCode = make_error_code(ProtoStoreErrorCode::UnresolvedTransaction),
+            .ErrorDetails = UnresolvedTransaction
+            {
+                .UnresolvedTransactionId = std::move(unresolvedTransactionId),
+            }
+        }
+    };
 }
 
 task<> Index::GetEnumerationDataSources(
@@ -243,7 +269,24 @@ operation_task<ReadResult> Index::Read(
         iterator != enumeration.end();
         co_await ++iterator)
     {
-        auto& resultRow = *iterator;
+        ResultRow& resultRow = *iterator;
+
+        if (resultRow.TransactionId)
+        {
+            auto transactionOutcome = co_await m_unresolvedTransactionsTracker->GetTransactionOutcome(
+                *resultRow.TransactionId
+            );
+
+            if (transactionOutcome == TransactionOutcome::Unknown)
+            {
+                co_return MakeUnresolvedTransactionFailedResult(
+                    *resultRow.TransactionId);
+            }
+            else if (transactionOutcome == TransactionOutcome::Aborted)
+            {
+                continue;
+            }
+        }
 
         if (!resultRow.Value)
         {

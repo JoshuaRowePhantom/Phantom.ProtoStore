@@ -15,6 +15,7 @@
 #include <cppcoro/sync_wait.hpp>
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
+#include "UnresolvedTransactionsTracker.h"
 #include <algorithm>
 
 namespace Phantom::ProtoStore
@@ -204,6 +205,9 @@ task<> ProtoStore::Open(
     m_indexesByNumber[m_mergesIndex.IndexNumber] = m_mergesIndex;
     m_indexesByNumber[m_mergeProgressIndex.IndexNumber] = m_mergeProgressIndex;
     m_indexesByNumber[m_unresolvedTransactionIndex.IndexNumber] = m_unresolvedTransactionIndex;
+
+    m_unresolvedTransactionsTracker = MakeUnresolvedTransactionsTracker(
+        this);
 
     m_logManager.emplace(
         m_schedulers,
@@ -485,7 +489,7 @@ async_generator<OperationResult<EnumerateResult>> ProtoStore::Enumerate(
         enumerateRequest);
 }
 
-class Operation
+class LocalTransaction
     :
     public IInternalTransaction
 {
@@ -497,7 +501,7 @@ class Operation
     SequenceNumber m_initialWriteSequenceNumber;
     shared_task<CommitResult> m_commitTask;
     std::vector<FailedResult> m_failures;
-
+    
     MemoryTableOperationOutcomeTask GetOperationOutcome()
     {
         co_return co_await m_outcomeValueSource.wait();
@@ -528,8 +532,18 @@ class Operation
             writeOperationMetadata);
     }
 
+    LoggedUnresolvedTransactions* m_loggedUnresolvedTransactions = nullptr;
+    LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions()
+    {
+        if (!m_loggedUnresolvedTransactions)
+        {
+            m_loggedUnresolvedTransactions = m_logRecord.mutable_extras()->add_loggedactions()->mutable_loggedunresolvedtransactions();
+        }
+        return *m_loggedUnresolvedTransactions;
+    }
+
 public:
-    Operation(
+    LocalTransaction(
         ProtoStore& protoStore,
         SequenceNumber readSequenceNumber,
         SequenceNumber initialWriteSequenceNumber
@@ -543,7 +557,7 @@ public:
         m_commitTask = DelayedCommit();
     }
 
-    ~Operation()
+    ~LocalTransaction()
     {
         if (!m_outcomeValueSource.is_set())
         {
@@ -601,6 +615,7 @@ public:
             key,
             value,
             writeSequenceNumber,
+            writeOperationMetadata.TransactionId,
             operationOutcomeTask
         );
         if (!checkpointNumber)
@@ -621,6 +636,14 @@ public:
             loggedRowWrite->mutable_value());
         loggedRowWrite->set_checkpointnumber(
             *checkpointNumber);
+
+        if (writeOperationMetadata.TransactionId)
+        {
+            co_await m_protoStore.m_unresolvedTransactionsTracker->LogUnresolvedTransaction(
+                this,
+                *loggedRowWrite
+            );
+        }
 
         co_return{};
     }
@@ -739,17 +762,17 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
     uint64_t thisWriteSequenceNumber
 )
 {
-    Operation operation(
+    LocalTransaction transaction(
         *this,
         ToSequenceNumber(readSequenceNumber),
         ToSequenceNumber(thisWriteSequenceNumber));
 
-    auto result = co_await visitor(&operation);
+    auto result = co_await visitor(&transaction);
 
     TransactionOutcome outcome = TransactionOutcome::Committed;
     if (result)
     {
-        co_await operation.Commit();
+        co_await transaction.Commit();
     }
     else
     {
@@ -774,7 +797,7 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
                 .ErrorDetails = TransactionFailedResult
                 {
                     .TransactionOutcome = outcome,
-                    .Failures = std::move(operation.Failures()),
+                    .Failures = std::move(transaction.Failures()),
                 },
             },
         };
@@ -1010,7 +1033,9 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
         indexesByNumberKey.indexnumber(),
         ToSequenceNumber(indexesByNumberValue.createsequencenumber()),
         keyMessageFactory,
-        valueMessageFactory);
+        valueMessageFactory,
+        m_unresolvedTransactionsTracker.get()
+        );
 
     auto makeMemoryTable = [=]()
     {

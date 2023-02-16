@@ -14,13 +14,14 @@ class Index
     : public IIndex,
     SerializationTypes
 {
-    IndexName m_indexName;
-    IndexNumber m_indexNumber;
-    SequenceNumber m_createSequenceNumber;
-    shared_ptr<KeyComparer> m_keyComparer;
-    shared_ptr<RowMerger> m_rowMerger;
-    shared_ptr<IMessageFactory> m_keyFactory;
-    shared_ptr<IMessageFactory> m_valueFactory;
+    const IndexName m_indexName;
+    const IndexNumber m_indexNumber;
+    const SequenceNumber m_createSequenceNumber;
+    const shared_ptr<KeyComparer> m_keyComparer;
+    const shared_ptr<RowMerger> m_rowMerger;
+    const shared_ptr<IMessageFactory> m_keyFactory;
+    const shared_ptr<IMessageFactory> m_valueFactory;
+    IUnresolvedTransactionsTracker* const m_unresolvedTransactionsTracker;
 
     // This lock control access to the following members:
     // vvvvvvvvvvvvvvvvv
@@ -48,6 +49,8 @@ class Index
         const LoggedCheckpoint& loggedCheckpoint
     );
 
+    std::unexpected<FailedResult> MakeUnresolvedTransactionFailedResult(
+        TransactionId unresolvedTransactionId);
 
 public:
     Index(
@@ -55,7 +58,8 @@ public:
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
         shared_ptr<IMessageFactory> keyFactory,
-        shared_ptr<IMessageFactory> valueFactory
+        shared_ptr<IMessageFactory> valueFactory,
+        IUnresolvedTransactionsTracker* unresolvedTransactionsTracker
     );
 
     virtual shared_ptr<KeyComparer> GetKeyComparer(
@@ -72,6 +76,7 @@ public:
         const ProtoValue& key,
         const ProtoValue& value,
         SequenceNumber writeSequenceNumber,
+        const TransactionId* transactionId,
         MemoryTableOperationOutcomeTask operationOutcomeTask
     ) override;
 
@@ -79,7 +84,8 @@ public:
         shared_ptr<IMemoryTable> memoryTable,
         const string& key,
         const string& value,
-        SequenceNumber writeSequenceNumber
+        SequenceNumber writeSequenceNumber,
+        const TransactionId* transactionId
     ) override;
 
     virtual operation_task<ReadResult> Read(
