@@ -197,8 +197,8 @@ task<> IndexMerger::WriteMergeProgress(
     // We write two rows:
     // 1. Update the Merges row with the current progress.
     // 2. Write a MergeProgress row.
-    auto mergesIndex = co_await m_protoStore->GetMergesIndex();
-    auto mergeProgressIndex = co_await m_protoStore->GetMergeProgressIndex();
+    auto mergesIndex = m_protoStore->GetMergesIndex();
+    auto mergeProgressIndex = m_protoStore->GetMergeProgressIndex();
 
     // Add a new complete merge progress record.
     MergeProgressKey completeMergeProgressKey;
@@ -263,9 +263,9 @@ task<> IndexMerger::WriteMergeCompletion(
     // add a Partitions row for the newly completed merged partition.
 
     auto indexNumber = incompleteMerge.Merge.Key.indexnumber();
-    auto mergesIndex = co_await m_protoStore->GetMergesIndex();
-    auto mergeProgressIndex = co_await m_protoStore->GetMergeProgressIndex();
-    auto partitionsIndex = co_await m_protoStore->GetPartitionsIndex();
+    auto mergesIndex = m_protoStore->GetMergesIndex();
+    auto mergeProgressIndex = m_protoStore->GetMergeProgressIndex();
+    auto partitionsIndex = m_protoStore->GetPartitionsIndex();
 
     // Special case: if the merged index is the Partitions index, we have to write
     // all the partitions for the table.
@@ -444,7 +444,7 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
 
 async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges()
 {
-    auto mergesIndex = co_await m_protoStore->GetMergesIndex();
+    auto mergesIndex = m_protoStore->GetMergesIndex();
 
     EnumerateRequest enumerateMergesRequest;
     enumerateMergesRequest.KeyLow = ProtoValue::KeyMin();
@@ -469,7 +469,7 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
         result.Merge.WriteSequenceNumber = (*mergesIterator)->WriteSequenceNumber;
 
         // Now get all the MergeProgress rows for this merge.
-        auto mergeProgressIndex = co_await m_protoStore->GetMergeProgressIndex();
+        auto mergeProgressIndex = m_protoStore->GetMergeProgressIndex();
 
         MergeProgressKey mergeProgressKeyLow;
         mergeProgressKeyLow.mutable_mergeskey()->CopyFrom(
@@ -516,10 +516,10 @@ task<> IndexMerger::GenerateMerges(
 {
     map<IndexNumber, partition_row_list_type> partitionRowsByIndexNumber;
     map<IndexNumber, merges_row_list_type> mergesRowsByIndexNumber;
-    auto mergesIndex = co_await m_protoStore->GetMergesIndex();
+    auto mergesIndex = m_protoStore->GetMergesIndex();
 
     {
-        auto partitionsIndex = co_await m_protoStore->GetPartitionsIndex();
+        auto partitionsIndex = m_protoStore->GetPartitionsIndex();
 
         EnumerateRequest enumeratePartitionsRequest;
         enumeratePartitionsRequest.KeyLow = ProtoValue::KeyMin();

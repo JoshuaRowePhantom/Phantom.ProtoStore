@@ -1433,19 +1433,24 @@ task<> ProtoStore::UpdatePartitionsForIndex(
         indexEntry);
 }
 
-task<shared_ptr<IIndex>> ProtoStore::GetMergesIndex()
+shared_ptr<IIndex> ProtoStore::GetMergesIndex()
 {
-    co_return m_mergesIndex.Index;
+    return m_mergesIndex.Index;
 }
 
-task<shared_ptr<IIndex>> ProtoStore::GetMergeProgressIndex()
+shared_ptr<IIndex> ProtoStore::GetMergeProgressIndex()
 {
-    co_return m_mergeProgressIndex.Index;
+    return m_mergeProgressIndex.Index;
 }
 
-task<shared_ptr<IIndex>> ProtoStore::GetPartitionsIndex()
+shared_ptr<IIndex> ProtoStore::GetPartitionsIndex()
 {
-    co_return m_partitionsIndex.Index;
+    return m_partitionsIndex.Index;
+}
+
+shared_ptr<IIndex> ProtoStore::GetUnresolvedTransactionsIndex()
+{
+    return m_unresolvedTransactionIndex.Index;
 }
 
 task<> ProtoStore::LogCommitExtent(

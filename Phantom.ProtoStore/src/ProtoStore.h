@@ -219,13 +219,16 @@ class ProtoStore
         cppcoro::async_mutex_lock& acquiredUpdatePartitionsLock
     ) override;
 
-    virtual task<shared_ptr<IIndex>> GetPartitionsIndex(
+    virtual shared_ptr<IIndex> GetPartitionsIndex(
     ) override;
 
-    virtual task<shared_ptr<IIndex>> GetMergeProgressIndex(
+    virtual shared_ptr<IIndex> GetMergeProgressIndex(
     ) override;
 
-    virtual task<shared_ptr<IIndex>> GetMergesIndex(
+    virtual shared_ptr<IIndex> GetMergesIndex(
+    ) override;
+
+    virtual shared_ptr<IIndex> GetUnresolvedTransactionsIndex(
     ) override;
 
     friend class Operation;

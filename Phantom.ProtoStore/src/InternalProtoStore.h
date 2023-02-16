@@ -36,13 +36,16 @@ public:
         IndexNumber indexNumber
     ) = 0;
 
-    virtual task<shared_ptr<IIndex>> GetPartitionsIndex(
+    virtual shared_ptr<IIndex> GetPartitionsIndex(
     ) = 0;
 
-    virtual task<shared_ptr<IIndex>> GetMergeProgressIndex(
+    virtual shared_ptr<IIndex> GetMergeProgressIndex(
     ) = 0;
 
-    virtual task<shared_ptr<IIndex>> GetMergesIndex(
+    virtual shared_ptr<IIndex> GetMergesIndex(
+    ) = 0;
+
+    virtual shared_ptr<IIndex> GetUnresolvedTransactionsIndex(
     ) = 0;
 
     virtual operation_task<TransactionSucceededResult> InternalExecuteTransaction(
