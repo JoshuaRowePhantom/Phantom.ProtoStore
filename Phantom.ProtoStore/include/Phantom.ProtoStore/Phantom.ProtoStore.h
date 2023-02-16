@@ -517,6 +517,7 @@ struct FailedResult
         const FailedResult&
         ) = default;
 
+    [[noreturn]]
     void throw_exception(
         this auto&& self);
 };
@@ -533,6 +534,7 @@ public:
     }
 };
 
+[[noreturn]]
 void FailedResult::throw_exception(
     this auto&& self)
 {
