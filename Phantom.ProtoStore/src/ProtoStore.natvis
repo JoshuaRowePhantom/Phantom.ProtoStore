@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="Phantom::ProtoStore::SkipList&lt;*,*,*,*&gt;">
+        <DisplayString>
+            hello
+        </DisplayString>
+        <Expand>
+            <LinkedListItems>
+                <HeadPointer>m_head._Elems[0]._Storage._Value</HeadPointer>
+                <NextPointer>reinterpret_cast&lt;AtomicNextPointersType&gt;(this + 1)->_Storage._Value</NextPointer>
+                <ValueNode>Item</ValueNode>
+            </LinkedListItems>
+        </Expand>
+    </Type>
+</AutoVisualizer>
