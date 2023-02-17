@@ -478,6 +478,7 @@ operation_task<ReadResult> ProtoStore::Read(
 )
 {
     return readRequest.Index.m_index->Read(
+        m_memoryTableTransactionSequenceNumber.load(std::memory_order_seq_cst),
         readRequest);
 }
 
@@ -486,6 +487,7 @@ async_generator<OperationResult<EnumerateResult>> ProtoStore::Enumerate(
 )
 {
     return enumerateRequest.Index.m_index->Enumerate(
+        m_memoryTableTransactionSequenceNumber.load(std::memory_order_seq_cst),
         enumerateRequest);
 }
 
@@ -496,41 +498,12 @@ class LocalTransaction
     ProtoStore& m_protoStore;
     Serialization::LogRecord m_logRecord;
     async_value_source<MemoryTableOperationOutcome> m_outcomeValueSource;
-    MemoryTableOperationOutcomeTask m_operationOutcomeTask;
+    shared_ptr<DelayedMemoryTableOperationOutcome> m_delayedOperationOutcome;
+    std::optional<DelayedMemoryTableOperationOutcome::ScopedCompleter> m_memoryTableTransactionCompleter;
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
     shared_task<CommitResult> m_commitTask;
     std::vector<FailedResult> m_failures;
-    
-    MemoryTableOperationOutcomeTask GetOperationOutcome()
-    {
-        co_return co_await m_outcomeValueSource.wait();
-    }
-
-    MemoryTableOperationOutcomeTask GetOperationOutcomeAsync(
-        WriteOperationMetadata writeOperationMetadata
-    )
-    {
-        auto underlyingOutcome = co_await m_operationOutcomeTask;
-        co_return MemoryTableOperationOutcome
-        {
-            .Outcome = underlyingOutcome.Outcome,
-            .WriteSequenceNumber = *writeOperationMetadata.WriteSequenceNumber,
-        };
-    }
-
-    MemoryTableOperationOutcomeTask GetOperationOutcomeTask(
-        WriteOperationMetadata writeOperationMetadata
-    )
-    {
-        if (!writeOperationMetadata.WriteSequenceNumber.has_value())
-        {
-            return m_operationOutcomeTask;
-        }
-
-        return GetOperationOutcomeAsync(
-            writeOperationMetadata);
-    }
 
     LoggedUnresolvedTransactions* m_loggedUnresolvedTransactions = nullptr;
     LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions()
@@ -544,6 +517,7 @@ class LocalTransaction
 
 public:
     LocalTransaction(
+        MemoryTableTransactionSequenceNumber transactionSequenceNumber,
         ProtoStore& protoStore,
         SequenceNumber readSequenceNumber,
         SequenceNumber initialWriteSequenceNumber
@@ -551,25 +525,13 @@ public:
     :
         m_protoStore(protoStore),
         m_readSequenceNumber(readSequenceNumber),
-        m_initialWriteSequenceNumber(initialWriteSequenceNumber)
+        m_initialWriteSequenceNumber(initialWriteSequenceNumber),
+        m_delayedOperationOutcome(std::make_shared<DelayedMemoryTableOperationOutcome>(
+            transactionSequenceNumber
+            )),
+        m_memoryTableTransactionCompleter(m_delayedOperationOutcome->GetCompleter())
     {
-        m_operationOutcomeTask = GetOperationOutcome();
         m_commitTask = DelayedCommit();
-    }
-
-    ~LocalTransaction()
-    {
-        if (!m_outcomeValueSource.is_set())
-        {
-            MemoryTableOperationOutcome outcome =
-            {
-                .Outcome = OperationOutcome::Aborted,
-            };
-
-            m_outcomeValueSource.emplace(
-                outcome
-            );
-        }
     }
 
     Serialization::LogRecord& LogRecord()
@@ -606,17 +568,13 @@ public:
         auto writeSequenceNumber = writeOperationMetadata.WriteSequenceNumber.value_or(
             m_initialWriteSequenceNumber);
 
-        auto operationOutcomeTask = GetOperationOutcomeTask(
-            writeOperationMetadata
-        );
-
         auto checkpointNumber = co_await index->AddRow(
             readSequenceNumber,
             key,
             value,
             writeSequenceNumber,
             writeOperationMetadata.TransactionId,
-            operationOutcomeTask
+            m_delayedOperationOutcome
         );
         if (!checkpointNumber)
         {
@@ -690,21 +648,15 @@ public:
 private:
     shared_task<CommitResult> DelayedCommit()
     {
-        MemoryTableOperationOutcome outcome =
-        {
-            .Outcome = OperationOutcome::Committed,
-            .WriteSequenceNumber = m_initialWriteSequenceNumber,
-        };
-
-        m_outcomeValueSource.emplace(
-            outcome);
+        auto result = m_delayedOperationOutcome->BeginCommit(
+            m_initialWriteSequenceNumber);
 
         for (auto& addedRow : *m_logRecord.mutable_rows())
         {
             if (!addedRow.sequencenumber())
             {
                 addedRow.set_sequencenumber(
-                    ToUint64(outcome.WriteSequenceNumber));
+                    ToUint64(result.WriteSequenceNumber));
             }
         }
 
@@ -763,10 +715,11 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
 )
 {
     LocalTransaction transaction(
+        m_memoryTableTransactionSequenceNumber.fetch_add(2, std::memory_order_seq_cst) + 1,
         *this,
         ToSequenceNumber(readSequenceNumber),
         ToSequenceNumber(thisWriteSequenceNumber));
-
+    
     auto result = co_await visitor(&transaction);
 
     TransactionOutcome outcome = TransactionOutcome::Committed;
@@ -836,6 +789,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
     readRequest.SequenceNumber = sequenceNumber;
 
     auto readResult = co_await m_indexesByNameIndex.Index->Read(
+        MemoryTableTransactionSequenceNumber_ResolveAll,
         readRequest);
 
     // Our internal ability to read an index should not be in doubt.
@@ -949,6 +903,7 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
     readRequest.SequenceNumber = SequenceNumber::Latest;
     readRequest.ReadValueDisposition = ReadValueDisposition::ReadValue;
     auto readResult = co_await m_indexesByNumberIndex.Index->Read(
+        MemoryTableTransactionSequenceNumber_ResolveAll,
         readRequest);
 
     if (!readResult)
@@ -1311,6 +1266,7 @@ task<vector<std::tuple<Serialization::PartitionsKey, Serialization::PartitionsVa
     enumerateRequest.Index = ProtoIndex{ m_partitionsIndex.Index };
 
     auto enumeration = m_partitionsIndex.Index->Enumerate(
+        MemoryTableTransactionSequenceNumber_ResolveAll,
         enumerateRequest);
 
     vector<std::tuple<PartitionsKey, PartitionsValue>> result;

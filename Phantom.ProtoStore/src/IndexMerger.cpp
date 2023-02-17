@@ -455,6 +455,7 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
     enumerateMergesRequest.Index = mergesIndex;
 
     auto mergesEnumeration = mergesIndex->Enumerate(
+        MemoryTableTransactionSequenceNumber_ResolveAll,
         enumerateMergesRequest);
 
     for (auto mergesIterator = co_await mergesEnumeration.begin();
@@ -489,6 +490,7 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
         enumerateMergeProgressRequest.Index = mergesIndex;
 
         auto mergeProgressEnumeration = mergeProgressIndex->Enumerate(
+            MemoryTableTransactionSequenceNumber_ResolveAll,
             enumerateMergeProgressRequest);
 
         for (auto mergeProgressIterator = co_await mergeProgressEnumeration.begin();
@@ -530,6 +532,7 @@ task<> IndexMerger::GenerateMerges(
         enumeratePartitionsRequest.Index = partitionsIndex;
 
         auto partitionsEnumeration = partitionsIndex->Enumerate(
+            MemoryTableTransactionSequenceNumber_ResolveAll,
             enumeratePartitionsRequest);
 
         for (auto partitionsIterator = co_await partitionsEnumeration.begin();
@@ -562,6 +565,7 @@ task<> IndexMerger::GenerateMerges(
         enumerateMergesRequest.Index = mergesIndex;
 
         auto mergesEnumeration = mergesIndex->Enumerate(
+            MemoryTableTransactionSequenceNumber_ResolveAll,
             enumerateMergesRequest);
 
         for (auto mergesIterator = co_await mergesEnumeration.begin();

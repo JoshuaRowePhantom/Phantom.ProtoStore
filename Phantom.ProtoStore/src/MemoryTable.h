@@ -41,8 +41,6 @@ enum class MemoryTableOutcomeAndSequenceNumber
     OutcomeUnknown = 0x0,
     OutcomeCommitted = 0x1,
     OutcomeAborted = 0x2,
-    // This value indicates that the value may not be atomically replaced.
-    OutcomeUnknownSubsequentInsertion = 0x3,
 };
 
 MemoryTableOperationOutcome ToMemoryTableOperationOutcome(
@@ -53,6 +51,8 @@ MemoryTableOutcomeAndSequenceNumber ToMemoryTableOutcomeAndSequenceNumber(
     OperationOutcome operationOutcome);
 
 using MemoryTableTransactionSequenceNumber = uint64_t;
+constexpr MemoryTableTransactionSequenceNumber MemoryTableTransactionSequenceNumber_AbortAll = 0;
+constexpr MemoryTableTransactionSequenceNumber MemoryTableTransactionSequenceNumber_ResolveAll = std::numeric_limits<uint64_t>::max();
 
 class DelayedMemoryTableOperationOutcome
 {
@@ -62,18 +62,32 @@ class DelayedMemoryTableOperationOutcome
     shared_task<MemoryTableOperationOutcome> m_outcomeTask;
     shared_task<MemoryTableOperationOutcome> GetOutcomeImpl();
 
+    void Complete();
+
 public:
     DelayedMemoryTableOperationOutcome(
         MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber
     );
 
+    class ScopedCompleter
+    {
+        friend class DelayedMemoryTableOperationOutcome;
+        DelayedMemoryTableOperationOutcome& m_delayedOperationOutcome;
+        ScopedCompleter(DelayedMemoryTableOperationOutcome&);
+    public:
+        ~ScopedCompleter();
+    };
+
+    MemoryTableTransactionSequenceNumber GetOriginatingTransactionSequenceNumber() const;
+    ScopedCompleter GetCompleter();
     shared_task<MemoryTableOperationOutcome> GetOutcome();
     shared_task<MemoryTableOperationOutcome> Resolve(
         MemoryTableTransactionSequenceNumber resolvingTransactionSequenceNumber);
 
-    MemoryTableOperationOutcome Commit(
+    // Begin the process of committing the transaction.
+    // Once this process has started, the transaction cannot be aborted.
+    MemoryTableOperationOutcome BeginCommit(
         SequenceNumber writeSequenceNumber);
-    void Abort();
 };
 
 class IMemoryTable
@@ -90,7 +104,7 @@ public:
     virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
         MemoryTableRow& row,
-        MemoryTableOperationOutcomeTask task
+        shared_ptr<DelayedMemoryTableOperationOutcome> outcome
     ) = 0;
 
     // Add the specified row, unconditionally.
@@ -99,6 +113,7 @@ public:
     ) = 0;
 
     virtual row_generator Enumerate(
+        MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high
@@ -108,12 +123,6 @@ public:
     ) = 0;
 
     virtual SequenceNumber GetLatestSequenceNumber(
-    ) = 0;
-
-    virtual task<optional<SequenceNumber>> CheckForWriteConflict(
-        SequenceNumber readSequenceNumber,
-        SequenceNumber writeSequenceNumber,
-        const Message* key
     ) = 0;
 };
 }

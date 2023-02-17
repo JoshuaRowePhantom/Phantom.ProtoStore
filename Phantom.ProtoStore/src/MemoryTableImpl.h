@@ -32,7 +32,7 @@ class MemoryTable
     {
         InsertionKey(
             MemoryTableRow& row,
-            MemoryTableOperationOutcomeTask memoryTableOperationOutcomeTask,
+            shared_ptr<DelayedMemoryTableOperationOutcome>& delayedOperationOutcome,
             SequenceNumber readSequenceNumber);
 
         InsertionKey(
@@ -49,7 +49,7 @@ class MemoryTable
             MemoryTableValue&& memoryTableValue);
 
         MemoryTableRow& Row;
-        MemoryTableOperationOutcomeTask& AsyncOperationOutcome;
+        shared_ptr<DelayedMemoryTableOperationOutcome>& DelayedOperationOutcome;
         SequenceNumber ReadSequenceNumber;
     };
 
@@ -95,7 +95,7 @@ class MemoryTable
 
         // The outcome of the owning operation.
         // It must only be checked while the Mutex is held.
-        MemoryTableOperationOutcomeTask AsyncOperationOutcome;
+        shared_ptr<DelayedMemoryTableOperationOutcome> DelayedOperationOutcome;
     };
 
     struct EnumerationKey
@@ -148,20 +148,15 @@ class MemoryTable
     const MemoryTableRowComparer m_comparer;
     SkipList<MemoryTableValue, void, 32, MemoryTableRowComparer> m_skipList;
 
-    // Resolve a memory table row's outcome using the passed-in
-    // task and original sequence number.  Does not acquire the row's mutex.
-    task<OperationOutcome> ResolveMemoryTableRowOutcome(
-        MemoryTableOutcomeAndSequenceNumber writeSequenceNumber,
+    // Resolve a memory table row's outcome when the transaction it is in completes.
+    task<> UpdateOutcome(
         MemoryTableValue& memoryTableValue,
-        MemoryTableOperationOutcomeTask task,
-        bool updateRowCounters
+        shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome
     );
 
     // Resolve a memory table row with acquiring the mutex.
-    task<OperationOutcome> ResolveMemoryTableRowOutcome(
-        MemoryTableValue& memoryTableValue,
-        bool updateRowCounters
-    );
+    task<OperationOutcome> Resolve(
+        MemoryTableValue& memoryTableValue);
 
     void UpdateSequenceNumberRange(
         SequenceNumber writeSequenceNumber
@@ -185,9 +180,9 @@ public:
     ) override;
 
     virtual task<std::optional<SequenceNumber>> AddRow(
-        SequenceNumber readSequenceNumber, 
+        SequenceNumber readSequenceNumber,
         MemoryTableRow& row,
-        MemoryTableOperationOutcomeTask asyncOperationOutcome
+        shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome
     ) override;
 
     virtual task<> ReplayRow(
@@ -195,18 +190,13 @@ public:
     ) override;
 
     virtual async_generator<ResultRow> Enumerate(
-        SequenceNumber readSequenceNumber, 
+        MemoryTableTransactionSequenceNumber transactionSequenceNumber,
+        SequenceNumber readSequenceNumber,
         KeyRangeEnd low, 
         KeyRangeEnd high
     ) override;
 
     virtual SequenceNumber GetLatestSequenceNumber(
-    ) override;
-
-    task<optional<SequenceNumber>> CheckForWriteConflict(
-        SequenceNumber readSequenceNumber,
-        SequenceNumber writeSequenceNumber,
-        const Message* key
     ) override;
 
     virtual cppcoro::async_generator<ResultRow> Checkpoint(

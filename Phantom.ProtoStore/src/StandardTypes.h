@@ -93,7 +93,6 @@ class IUnresolvedTransactionsTracker;
 class KeyComparer;
 class RowMerger;
 struct MemoryTableOperationOutcome;
-typedef cppcoro::shared_task<MemoryTableOperationOutcome> MemoryTableOperationOutcomeTask;
 
 enum class FlushBehavior
 {

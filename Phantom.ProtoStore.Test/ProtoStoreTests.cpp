@@ -1199,7 +1199,7 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
     });
 }
 
-TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
+TEST_F(ProtoStoreTests, Can_commit_transaction_in_memory_table_from_another_transaction)
 {
     run_async([&]() -> task<>
     {
@@ -1239,7 +1239,19 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
 
             auto result = co_await store->Read(
                 readRequest);
-            EXPECT_EQ(make_unexpected(ProtoStoreErrorCode::UnresolvedTransaction), result);
+            EXPECT_EQ(
+                (std::unexpected
+                {
+                    FailedResult
+                    {
+                        .ErrorCode = make_error_code(ProtoStoreErrorCode::UnresolvedTransaction),
+                        .ErrorDetails = UnresolvedTransaction
+                        {
+                            .UnresolvedTransactionId = transactionId,
+                        },
+                    }
+                }),
+                result);
         }
 
         co_await store->ExecuteTransaction(
@@ -1267,6 +1279,112 @@ TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction)
 
             StringValue actualValue;
             readResult->Value.unpack(&actualValue);
+        }
+    });
+}
+
+TEST_F(ProtoStoreTests, Can_commit_transaction_in_memory_table_from_replayed_store)
+{
+    run_async([&]() -> task<>
+    {
+        auto createRequest = GetCreateMemoryStoreRequest();
+        auto store = co_await CreateStore(createRequest);
+
+        StringKey key;
+        key.set_value("testKey1");
+        StringValue expectedValue;
+        expectedValue.set_value("testValue1");
+        StringValue unexpectedValue;
+        unexpectedValue.set_value("testValue2");
+        TransactionId transactionId("transactionId1");
+
+        auto index = co_await CreateTestIndex(
+            store);
+
+        co_await store->ExecuteTransaction(
+            BeginTransactionRequest(),
+            [&](ITransaction* operation)->status_task<>
+        {
+            co_await co_await operation->AddRow(
+                WriteOperationMetadata
+                {
+                    .TransactionId = &transactionId,
+                    .WriteSequenceNumber = ToSequenceNumber(5),
+                },
+                index,
+                &key,
+                &expectedValue);
+
+            co_return{};
+        });
+
+        // Close and reopen the store, thus replaying the transactions.
+        // The transaction should still be unresolved.
+        store.reset();
+        store = co_await OpenStore(createRequest);
+
+        {
+            ReadRequest readRequest;
+            readRequest.Key = &key;
+            readRequest.Index = index;
+
+            auto result = co_await store->Read(
+                readRequest);
+            EXPECT_EQ(
+                (std::unexpected
+                {
+                    FailedResult
+                    {
+                        .ErrorCode = make_error_code(ProtoStoreErrorCode::UnresolvedTransaction),
+                        .ErrorDetails = UnresolvedTransaction
+                        {
+                            .UnresolvedTransactionId = transactionId,
+                        },
+                    }
+                }),
+                result);
+        }
+
+        // Now resolve the transaction.
+        co_await store->ExecuteTransaction(
+            BeginTransactionRequest(),
+            [&](ITransaction* operation)->status_task<>
+        {
+            co_await operation->ResolveTransaction(
+                WriteOperationMetadata
+                {
+                    .TransactionId = &transactionId,
+                },
+                TransactionOutcome::Committed);
+
+            co_return{};
+        });
+
+        // The transaction should work!
+        {
+            co_await ExpectGetTestRow(
+                store,
+                index,
+                key.value(),
+                expectedValue.value(),
+                SequenceNumber::Latest,
+                ToSequenceNumber(5)
+            );
+        }
+
+        // Close and reopen the store, thus replaying the transactions.
+        store.reset();
+        store = co_await OpenStore(createRequest);
+
+        {
+            co_await ExpectGetTestRow(
+                store,
+                index,
+                key.value(),
+                expectedValue.value(),
+                SequenceNumber::Latest,
+                ToSequenceNumber(1)
+            );
         }
     });
 }

@@ -33,6 +33,7 @@ public:
         };
 
         auto readResult = co_await m_unresolvedTransactionsIndex->Read(
+            0,
             readRequest);
         
         // We should always be able to read from unresolved transactions.

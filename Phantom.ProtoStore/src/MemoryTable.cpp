@@ -46,7 +46,7 @@ MemoryTableOutcomeAndSequenceNumber MemoryTable::ToOutcomeUnknownSubsequentInser
 {
     return static_cast<MemoryTableOutcomeAndSequenceNumber>(
         static_cast<std::uint64_t>(sequenceNumber)
-        | static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeUnknownSubsequentInsertion));
+        | static_cast<std::uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeUnknown));
 }
 
 MemoryTable::MemoryTable(
@@ -87,67 +87,51 @@ task<size_t> MemoryTable::GetRowCount()
 task<std::optional<SequenceNumber>> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
     MemoryTableRow& row,
-    MemoryTableOperationOutcomeTask asyncOperationOutcome
+    shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome
 )
 {
     InsertionKey insertionKey(
         row,
-        asyncOperationOutcome,
+        delayedOperationOutcome,
         readSequenceNumber);
-
-    auto [iterator, succeeded] = m_skipList.insert(
-        move(insertionKey));
 
     auto memoryTableWriteSequenceNumber = ToMemoryTableOutcomeAndSequenceNumber(
         row.WriteSequenceNumber,
         OperationOutcome::Unknown);
 
-    if (succeeded)
-    {
-        m_unresolvedRowCount.fetch_add(
-            1,
-            std::memory_order_acq_rel);
+    auto [iterator, succeeded] = m_skipList.insert(
+        move(insertionKey));
 
-        bool updateRowCounts = true;
-
-        // Use the transaction resolver without acquiring a mutex.
-        spawn(
-            ResolveMemoryTableRowOutcome(
-                memoryTableWriteSequenceNumber,
-                *iterator,
-                asyncOperationOutcome,
-                updateRowCounts));
-    }
-    else
+    if (!succeeded)
     {
         // Do a cursory check to see what the outcome was.
         // We expect that most transactions commit.  The outcome is likely to be "Committed".
         // The cursory check for this is better than acquiring the mutex.
         auto previousMemoryTableWriteSequenceNumber = iterator->WriteSequenceNumber.load(
-            std::memory_order_relaxed);
+            std::memory_order_acquire);
 
         auto previousOperationOutcome = GetOperationOutcome(
             previousMemoryTableWriteSequenceNumber);
 
+        // If this conflicting operation was committed,
+        // then we return that information right away.
         if (previousOperationOutcome == OperationOutcome::Committed)
         {
             co_return ToSequenceNumber(previousMemoryTableWriteSequenceNumber);
         }
 
-        // The cursory check shows the result is either Aborted or Unknown.
-        // Since we'll want to check the operation outcome's task,
-        // then replace the Value and Task, we acquire the lock now.
+        // We'll need to lock the entry so that we can resolve it
+        // and update it in place.
         auto lock = co_await iterator->Mutex.scoped_lock_async();
 
-        // This should be fast if the transaction outcome is known,
-        // so there's no point in re-checking the fast outcome variable.
-        // If the outcome wasn't known, we'll have to wait anyway.
-        bool updateRowCounts = false;
-        previousOperationOutcome = co_await ResolveMemoryTableRowOutcome(
-            previousMemoryTableWriteSequenceNumber,
-            *iterator,
-            iterator->AsyncOperationOutcome,
-            updateRowCounts);
+        // The cursory check shows the result is either Aborted or Unknown.
+        // If unknown, force resolution of the transaction.
+        if (previousOperationOutcome == OperationOutcome::Unknown)
+        {
+            auto resolution = co_await iterator->DelayedOperationOutcome->Resolve(
+                delayedOperationOutcome->GetOriginatingTransactionSequenceNumber());
+            previousOperationOutcome = resolution.Outcome;
+        }
 
         // Now we might discover there's a committed transaction.
         if (previousOperationOutcome == OperationOutcome::Committed)
@@ -159,13 +143,9 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
 
         // Oh jolly joy!  The previous write aborted, so this one
         // can proceed.
-        m_unresolvedRowCount.fetch_add(
-            1,
-            std::memory_order_acq_rel);
-
         iterator->Row.WriteSequenceNumber = row.WriteSequenceNumber;
         iterator->Row.Value = std::move(row.Value);
-        iterator->AsyncOperationOutcome = asyncOperationOutcome;
+        iterator->DelayedOperationOutcome = delayedOperationOutcome;
 
         memoryTableWriteSequenceNumber = ToOutcomeUnknownSubsequentInsertion(
             row.WriteSequenceNumber);
@@ -174,15 +154,73 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
             memoryTableWriteSequenceNumber,
             std::memory_order_release);
 
-        // Use the transaction resolve that acquires the mutex.
-        updateRowCounts = true;
-        spawn(
-            ResolveMemoryTableRowOutcome(
-                *iterator,
-                updateRowCounts));
+        // We now allow other potential resolvers to resolve.
+        lock.unlock();
     }
 
+    m_unresolvedRowCount.fetch_add(
+        1,
+        std::memory_order_acq_rel);
+
+    spawn(
+        UpdateOutcome(
+            *iterator,
+            // We pass in the parameter version of delayedOperationOutcome
+            // so that no 
+            std::move(delayedOperationOutcome)));
+
     co_return{};
+}
+
+task<> MemoryTable::UpdateOutcome(
+    MemoryTableValue& memoryTableValue,
+    shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome)
+{
+    auto outcome = co_await delayedOperationOutcome->GetOutcome();
+
+    auto lock = co_await memoryTableValue.Mutex.scoped_lock_async();
+    // It's possible that another UpdateOutcome replaced the DelayedOperationOutcome
+    // because this row aborted and the other resolver updated the row.
+    // 
+    // Check for that condition before updating the row.
+    if (delayedOperationOutcome != memoryTableValue.DelayedOperationOutcome)
+    {
+        lock.unlock();
+
+        m_unresolvedRowCount.fetch_add(
+            -1,
+            std::memory_order_release);
+        
+        m_rowResolved.set();
+
+        co_return;
+    }
+
+    memoryTableValue.Row.WriteSequenceNumber = outcome.WriteSequenceNumber;
+
+    // After this point, 
+    memoryTableValue.WriteSequenceNumber.store(
+        ToMemoryTableOutcomeAndSequenceNumber(outcome.WriteSequenceNumber, outcome.Outcome),
+        std::memory_order_release
+    );
+
+    if (outcome.Outcome == OperationOutcome::Committed)
+    {
+        m_committedRowCount.fetch_add(
+            1, 
+            std::memory_order_release);
+    }
+
+    // We don't need the resolver anymore.
+    memoryTableValue.DelayedOperationOutcome = nullptr;
+    
+    lock.unlock();
+
+    m_unresolvedRowCount.fetch_add(
+        -1,
+        std::memory_order_release);
+
+    m_rowResolved.set();
 }
 
 task<> MemoryTable::ReplayRow(
@@ -205,6 +243,7 @@ task<> MemoryTable::ReplayRow(
 }
 
 row_generator MemoryTable::Enumerate(
+    MemoryTableTransactionSequenceNumber transactionSequenceNumber,
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high
@@ -272,10 +311,13 @@ row_generator MemoryTable::Enumerate(
             if (operationOutcome == OperationOutcome::Unknown)
             {
                 // We need to wait for resolution of this row.
-                bool updateRowCounts = false;
-                operationOutcome = co_await ResolveMemoryTableRowOutcome(
-                    memoryTableValue,
-                    updateRowCounts);
+                auto lock = co_await memoryTableValue.Mutex.scoped_lock_async();
+                auto delayedOperationOutcome = memoryTableValue.DelayedOperationOutcome;
+                lock.unlock();
+
+                operationOutcome = (co_await delayedOperationOutcome->Resolve(
+                    transactionSequenceNumber
+                )).Outcome;
                 
                 assert(operationOutcome == OperationOutcome::Aborted
                     || operationOutcome == OperationOutcome::Committed);
@@ -327,109 +369,6 @@ SequenceNumber MemoryTable::GetLatestSequenceNumber(
         std::memory_order_acquire);
 }
 
-task<optional<SequenceNumber>> MemoryTable::CheckForWriteConflict(
-    SequenceNumber readSequenceNumber,
-    SequenceNumber writeSequenceNumber,
-    const Message* key
-)
-{
-    KeyRangeEnd keyLow
-    {
-        .Key = key,
-        .Inclusivity = Inclusivity::Inclusive,
-    };
-
-    auto generator = Enumerate(
-        SequenceNumber::Latest,
-        keyLow,
-        keyLow
-    );
-
-    for (auto iterator = co_await generator.begin();
-        iterator != generator.end();
-        co_await ++iterator)
-    {
-        if ((*iterator).WriteSequenceNumber >= writeSequenceNumber
-            ||
-            (*iterator).WriteSequenceNumber > readSequenceNumber)
-        {
-            co_return (*iterator).WriteSequenceNumber;
-        }
-
-        co_return optional<SequenceNumber>();
-    }
-    co_return optional<SequenceNumber>();
-}
-
-task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
-    MemoryTableOutcomeAndSequenceNumber writeSequenceNumber,
-    MemoryTableValue& memoryTableValue,
-    MemoryTableOperationOutcomeTask task,
-    bool updateRowCounters
-)
-{
-    auto memoryTableOperationOutcome = co_await task;
-
-    assert(memoryTableOperationOutcome.Outcome == OperationOutcome::Aborted
-        || memoryTableOperationOutcome.Outcome == OperationOutcome::Committed);
-
-    auto newWriteSequenceNumber = ToMemoryTableOutcomeAndSequenceNumber(
-        memoryTableOperationOutcome.WriteSequenceNumber,
-        memoryTableOperationOutcome.Outcome);
-
-    UpdateSequenceNumberRange(
-        memoryTableOperationOutcome.WriteSequenceNumber
-    );
-
-    if (memoryTableOperationOutcome.Outcome == OperationOutcome::Committed)
-    {
-        // The completed operation must happen at a sequence number at least as
-        // late as the current row, or snapshot isolation will have failed.
-        assert(memoryTableOperationOutcome.WriteSequenceNumber >= ToSequenceNumber(memoryTableValue.WriteSequenceNumber.load(std::memory_order_relaxed)));
-
-        // The transaction committed, and we can safely write the 
-        // completion information to the transaction.
-        memoryTableValue.Row.WriteSequenceNumber = memoryTableOperationOutcome.WriteSequenceNumber;
-
-        memoryTableValue.WriteSequenceNumber.store(
-            newWriteSequenceNumber,
-            std::memory_order_release);
-
-        if (updateRowCounters)
-        {
-            m_committedRowCount.fetch_add(
-                1,
-                std::memory_order_relaxed);
-            m_unresolvedRowCount.fetch_sub(
-                1,
-                std::memory_order_relaxed);
-            m_rowResolved.set();
-        }
-    }
-    else
-    {
-        if (updateRowCounters)
-        {
-            m_unresolvedRowCount.fetch_sub(
-                1,
-                std::memory_order_relaxed);
-            m_rowResolved.set();
-        }
-
-        // The transaction aborted.  Some other resolver may
-        // have noticed and may have already written the outcome,
-        // and yet another AddRow might have replaced the outcome,
-        // so conditionally write the outcome if it is still Unknown.
-        // In those cases, AddRow will have used an outcome of OutcomeUnknownSubsequentInsertion.
-        memoryTableValue.WriteSequenceNumber.compare_exchange_strong(
-            writeSequenceNumber,
-            newWriteSequenceNumber,
-            std::memory_order_relaxed);
-    }
-
-    co_return memoryTableOperationOutcome.Outcome;
-}
-
 void MemoryTable::UpdateSequenceNumberRange(
     SequenceNumber writeSequenceNumber
 )
@@ -460,30 +399,6 @@ void MemoryTable::UpdateSequenceNumberRange(
         );
 }
 
-task<OperationOutcome> MemoryTable::ResolveMemoryTableRowOutcome(
-    MemoryTableValue& memoryTableValue,
-    bool updateRowCounters
-)
-{
-    auto lock = co_await memoryTableValue.Mutex.scoped_lock_async();
-    auto writeSequenceNumber = memoryTableValue.WriteSequenceNumber.load(
-        std::memory_order_acquire);
-
-    auto outcome = GetOperationOutcome(
-        writeSequenceNumber);
-
-    if (outcome != OperationOutcome::Unknown)
-    {
-        co_return outcome;
-    }
-
-    co_return co_await ResolveMemoryTableRowOutcome(
-        writeSequenceNumber,
-        memoryTableValue,
-        MemoryTableOperationOutcomeTask(memoryTableValue.AsyncOperationOutcome),
-        updateRowCounters);
-}
-
 row_generator MemoryTable::Checkpoint()
 {
     auto end = m_skipList.end();
@@ -491,10 +406,7 @@ row_generator MemoryTable::Checkpoint()
         iterator != end;
         ++iterator)
     {
-        bool updateRowCounts = false;
-        auto outcome = co_await ResolveMemoryTableRowOutcome(
-            *iterator,
-            updateRowCounts);
+        auto outcome = GetOperationOutcome(iterator->WriteSequenceNumber.load(std::memory_order_acquire));
 
         if (outcome == OperationOutcome::Committed)
         {
@@ -523,15 +435,6 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
 {
     assert(Row.Key.get());
     auto writeSequenceNumber = Row.WriteSequenceNumber;
-
-    AsyncOperationOutcome = [writeSequenceNumber]() -> MemoryTableOperationOutcomeTask
-    {
-        co_return MemoryTableOperationOutcome
-        {
-            .Outcome = OperationOutcome::Committed,
-            .WriteSequenceNumber = writeSequenceNumber,
-        };
-    }();
 }
 
 MemoryTable::MemoryTableValue::MemoryTableValue(
@@ -545,7 +448,7 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
             other.Row.WriteSequenceNumber,
             OperationOutcome::Unknown)
     },
-    AsyncOperationOutcome { other.AsyncOperationOutcome }
+    DelayedOperationOutcome{ other.DelayedOperationOutcome }
 {
     assert(Row.Key.get());
 }
@@ -558,11 +461,11 @@ MemoryTable::ReplayInsertionKey::ReplayInsertionKey(
 
 MemoryTable::InsertionKey::InsertionKey(
     MemoryTableRow& row,
-    MemoryTableOperationOutcomeTask memoryTableOperationOutcomeTask,
+    shared_ptr<DelayedMemoryTableOperationOutcome>& delayedOperationOutcome,
     SequenceNumber readSequenceNumber)
     :
     Row(row),
-    AsyncOperationOutcome(memoryTableOperationOutcomeTask),
+    DelayedOperationOutcome(delayedOperationOutcome),
     ReadSequenceNumber(readSequenceNumber)
 {
 }
@@ -708,11 +611,29 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     return comparisonResult;
 }
 
+
+DelayedMemoryTableOperationOutcome::ScopedCompleter::ScopedCompleter(
+    DelayedMemoryTableOperationOutcome& delayedOperationOutcome)
+    :
+    m_delayedOperationOutcome{ delayedOperationOutcome }
+{
+}
+
+DelayedMemoryTableOperationOutcome::ScopedCompleter::~ScopedCompleter()
+{
+    m_delayedOperationOutcome.Complete();
+}
+
 DelayedMemoryTableOperationOutcome::DelayedMemoryTableOperationOutcome(
     MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber
 ) : m_originatingTransactionSequenceNumber(originatingTransactionSequenceNumber)
 {
     m_outcomeTask = GetOutcomeImpl();
+}
+
+MemoryTableTransactionSequenceNumber DelayedMemoryTableOperationOutcome::GetOriginatingTransactionSequenceNumber() const
+{
+    return m_originatingTransactionSequenceNumber;
 }
 
 shared_task<MemoryTableOperationOutcome> DelayedMemoryTableOperationOutcome::GetOutcomeImpl()
@@ -728,7 +649,12 @@ shared_task<MemoryTableOperationOutcome> DelayedMemoryTableOperationOutcome::Get
     return m_outcomeTask;
 }
 
-MemoryTableOperationOutcome DelayedMemoryTableOperationOutcome::Commit(
+DelayedMemoryTableOperationOutcome::ScopedCompleter DelayedMemoryTableOperationOutcome::GetCompleter()
+{
+    return { *this };
+}
+
+MemoryTableOperationOutcome DelayedMemoryTableOperationOutcome::BeginCommit(
     SequenceNumber writeSequenceNumber)
 {
     auto previousResult = MemoryTableOutcomeAndSequenceNumber::Earliest;
@@ -742,16 +668,20 @@ MemoryTableOperationOutcome DelayedMemoryTableOperationOutcome::Commit(
         return ToMemoryTableOperationOutcome(previousResult);
     }
 
-    m_resolvedSignal.set();
     return ToMemoryTableOperationOutcome(committedResult);
 }
 
-void DelayedMemoryTableOperationOutcome::Abort()
+void DelayedMemoryTableOperationOutcome::Complete()
 {
-    m_outcomeAndSequenceNumber.store(
-        MemoryTableOutcomeAndSequenceNumber::OutcomeAborted,
-        std::memory_order_release
-    );
+    auto previousValue = m_outcomeAndSequenceNumber.load(std::memory_order_acquire);
+    if (previousValue == MemoryTableOutcomeAndSequenceNumber::Earliest)
+    {
+        m_outcomeAndSequenceNumber.compare_exchange_strong(
+            previousValue,
+            MemoryTableOutcomeAndSequenceNumber::OutcomeAborted,
+            std::memory_order_release
+        );
+    }
 
     m_resolvedSignal.set();
 }

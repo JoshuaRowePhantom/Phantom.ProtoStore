@@ -61,7 +61,7 @@ operation_task<CheckpointNumber> Index::AddRow(
     const ProtoValue& value,
     SequenceNumber writeSequenceNumber,
     const TransactionId* transactionId,
-    MemoryTableOperationOutcomeTask operationOutcomeTask)
+    shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome)
 {
     unique_ptr<Message> keyMessage(
         m_keyFactory->GetPrototype()->New());
@@ -114,16 +114,6 @@ operation_task<CheckpointNumber> Index::AddRow(
         {
             continue;
         }
-
-        auto conflictingSequenceNumber = co_await memoryTable->CheckForWriteConflict(
-            readSequenceNumber,
-            writeSequenceNumber,
-            row.Key.get());
-
-        if (conflictingSequenceNumber.has_value())
-        {
-            co_return makeWriteConflict(*conflictingSequenceNumber);
-        }
     }
 
     for (auto& partition : *m_partitions)
@@ -149,7 +139,7 @@ operation_task<CheckpointNumber> Index::AddRow(
     auto conflictingSequenceNumber = co_await m_activeMemoryTable->AddRow(
         readSequenceNumber,
         row, 
-        operationOutcomeTask);
+        std::move(delayedOperationOutcome));
 
     if (conflictingSequenceNumber.has_value())
     {
@@ -215,6 +205,7 @@ task<> Index::GetEnumerationDataSources(
 }
 
 operation_task<ReadResult> Index::Read(
+    MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
     const ReadRequest& readRequest
 )
 {
@@ -247,6 +238,7 @@ operation_task<ReadResult> Index::Read(
         for (auto& memoryTable : *memoryTablesEnumeration)
         {
             co_yield memoryTable->Enumerate(
+                originatingTransactionSequenceNumber,
                 readRequest.SequenceNumber,
                 keyLow,
                 keyLow
@@ -313,6 +305,7 @@ operation_task<ReadResult> Index::Read(
 }
 
 cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
+    MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
     const EnumerateRequest& enumerateRequest
 )
 {
@@ -368,6 +361,7 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
         for (auto& memoryTable : *memoryTablesEnumeration)
         {
             co_yield memoryTable->Enumerate(
+                originatingTransactionSequenceNumber,
                 enumerateRequest.SequenceNumber,
                 keyLow,
                 keyHigh

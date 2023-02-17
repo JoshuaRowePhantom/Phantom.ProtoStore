@@ -46,6 +46,7 @@ class ProtoStore
     std::atomic<uint64_t> m_nextWriteSequenceNumber;
     std::atomic<IndexNumber> m_nextIndexNumber;
     std::atomic<PartitionNumber> m_nextPartitionNumber;
+    std::atomic<MemoryTableTransactionSequenceNumber> m_memoryTableTransactionSequenceNumber = 1;
 
     cppcoro::async_mutex m_headerMutex;
     async_reader_writer_lock m_indexesByNumberLock;

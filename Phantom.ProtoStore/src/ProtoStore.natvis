@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
     <Type Name="Phantom::ProtoStore::SkipList&lt;*,*,*,*&gt;">
-        <DisplayString>
-            hello
-        </DisplayString>
         <Expand>
             <LinkedListItems>
                 <HeadPointer>m_head._Elems[0]._Storage._Value</HeadPointer>
@@ -11,5 +8,12 @@
                 <ValueNode>Item</ValueNode>
             </LinkedListItems>
         </Expand>
+    </Type>
+
+    <Type Name="std::atomic&lt;enum Phantom::ProtoStore::MemoryTableOutcomeAndSequenceNumber&gt;">
+        <DisplayString Condition="(_Storage._Value &amp; 0x3) == 0">Unresolved: {_Storage._Value}</DisplayString>
+        <DisplayString Condition="(_Storage._Value &amp; 0x3) == 1">Committed: {_Storage._Value}</DisplayString>
+        <DisplayString Condition="(_Storage._Value &amp; 0x3) == 2">Aborted: {_Storage._Value}</DisplayString>
+        <DisplayString>Invalid: {_Storage._Value}</DisplayString>
     </Type>
 </AutoVisualizer>
