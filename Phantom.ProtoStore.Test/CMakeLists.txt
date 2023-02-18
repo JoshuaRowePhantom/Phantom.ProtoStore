@@ -26,7 +26,7 @@ add_executable(
     "StandardIncludes.cpp"
     "StandardIncludes.h"
     ProtoStoreTest.proto
-)
+ "DelayedMemoryTableTransactionOutcomeTests.cpp")
     
 PROTOBUF_GENERATE(
     LANGUAGE cpp

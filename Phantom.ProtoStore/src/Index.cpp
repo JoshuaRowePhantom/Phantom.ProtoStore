@@ -61,7 +61,7 @@ operation_task<CheckpointNumber> Index::AddRow(
     const ProtoValue& value,
     SequenceNumber writeSequenceNumber,
     const TransactionId* transactionId,
-    shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome)
+    shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome)
 {
     unique_ptr<Message> keyMessage(
         m_keyFactory->GetPrototype()->New());
@@ -139,7 +139,7 @@ operation_task<CheckpointNumber> Index::AddRow(
     auto conflictingSequenceNumber = co_await m_activeMemoryTable->AddRow(
         readSequenceNumber,
         row, 
-        std::move(delayedOperationOutcome));
+        std::move(delayedTransactionOutcome));
 
     if (conflictingSequenceNumber.has_value())
     {
@@ -205,7 +205,7 @@ task<> Index::GetEnumerationDataSources(
 }
 
 operation_task<ReadResult> Index::Read(
-    MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
+    shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
     const ReadRequest& readRequest
 )
 {
@@ -238,7 +238,7 @@ operation_task<ReadResult> Index::Read(
         for (auto& memoryTable : *memoryTablesEnumeration)
         {
             co_yield memoryTable->Enumerate(
-                originatingTransactionSequenceNumber,
+                originatingTransactionOutcome,
                 readRequest.SequenceNumber,
                 keyLow,
                 keyLow
@@ -305,7 +305,7 @@ operation_task<ReadResult> Index::Read(
 }
 
 cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
-    MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
+    shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
     const EnumerateRequest& enumerateRequest
 )
 {
@@ -361,7 +361,7 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
         for (auto& memoryTable : *memoryTablesEnumeration)
         {
             co_yield memoryTable->Enumerate(
-                originatingTransactionSequenceNumber,
+                originatingTransactionOutcome,
                 enumerateRequest.SequenceNumber,
                 keyLow,
                 keyHigh

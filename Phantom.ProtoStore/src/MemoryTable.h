@@ -3,6 +3,7 @@
 #include "StandardTypes.h"
 #include <cppcoro/async_generator.hpp>
 #include "Phantom.Coroutines/async_manual_reset_event.h"
+#include "Phantom.Coroutines/async_reader_writer_lock.h"
 
 namespace Phantom::ProtoStore
 {
@@ -21,14 +22,14 @@ struct KeyRangeEnd
     Inclusivity Inclusivity;
 };
 
-struct MemoryTableOperationOutcome
+struct MemoryTableTransactionOutcome
 {
-    OperationOutcome Outcome;
+    TransactionOutcome Outcome;
     SequenceNumber WriteSequenceNumber;
 
     friend bool operator==(
-        const MemoryTableOperationOutcome&,
-        const MemoryTableOperationOutcome&
+        const MemoryTableTransactionOutcome&,
+        const MemoryTableTransactionOutcome&
         ) = default;
 };
 
@@ -37,56 +38,63 @@ enum class MemoryTableOutcomeAndSequenceNumber
     Earliest = 0,
     NumberMask = 0xfffffffffffffffc,
     OutcomeMask = 0x3,
-    // These values must match those in OperationOutcome.
+    // These values must match those in TransactionOutcome.
     OutcomeUnknown = 0x0,
     OutcomeCommitted = 0x1,
     OutcomeAborted = 0x2,
 };
 
-MemoryTableOperationOutcome ToMemoryTableOperationOutcome(
+MemoryTableTransactionOutcome ToMemoryTableTransactionOutcome(
     MemoryTableOutcomeAndSequenceNumber);
 
 MemoryTableOutcomeAndSequenceNumber ToMemoryTableOutcomeAndSequenceNumber(
     SequenceNumber sequenceNumber,
-    OperationOutcome operationOutcome);
+    TransactionOutcome transactionOutcome);
 
 using MemoryTableTransactionSequenceNumber = uint64_t;
 constexpr MemoryTableTransactionSequenceNumber MemoryTableTransactionSequenceNumber_AbortAll = 0;
 constexpr MemoryTableTransactionSequenceNumber MemoryTableTransactionSequenceNumber_ResolveAll = std::numeric_limits<uint64_t>::max();
 
-class DelayedMemoryTableOperationOutcome
+class DelayedMemoryTableTransactionOutcome
 {
     MemoryTableTransactionSequenceNumber m_originatingTransactionSequenceNumber;
     std::atomic<MemoryTableOutcomeAndSequenceNumber> m_outcomeAndSequenceNumber = MemoryTableOutcomeAndSequenceNumber::Earliest;
     Phantom::Coroutines::async_manual_reset_event<> m_resolvedSignal;
-    shared_task<MemoryTableOperationOutcome> m_outcomeTask;
-    shared_task<MemoryTableOperationOutcome> GetOutcomeImpl();
+    shared_task<MemoryTableTransactionOutcome> m_outcomeTask;
+    
+    Phantom::Coroutines::async_reader_writer_lock<> m_deadlockDetectionLock;
+    shared_ptr<DelayedMemoryTableTransactionOutcome> m_currentDeadlockDetectionResolutionTarget;
+
+    shared_task<MemoryTableTransactionOutcome> GetOutcomeImpl();
+
+    shared_task<MemoryTableTransactionOutcome> ResolveTargetTransactionImpl(
+        shared_ptr<DelayedMemoryTableTransactionOutcome> targetTransaction);
 
     void Complete();
 
 public:
-    DelayedMemoryTableOperationOutcome(
+    DelayedMemoryTableTransactionOutcome(
         MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber
     );
 
     class ScopedCompleter
     {
-        friend class DelayedMemoryTableOperationOutcome;
-        DelayedMemoryTableOperationOutcome& m_delayedOperationOutcome;
-        ScopedCompleter(DelayedMemoryTableOperationOutcome&);
+        friend class DelayedMemoryTableTransactionOutcome;
+        DelayedMemoryTableTransactionOutcome& m_delayedTransactionOutcome;
+        ScopedCompleter(DelayedMemoryTableTransactionOutcome&);
     public:
         ~ScopedCompleter();
     };
 
-    MemoryTableTransactionSequenceNumber GetOriginatingTransactionSequenceNumber() const;
     ScopedCompleter GetCompleter();
-    shared_task<MemoryTableOperationOutcome> GetOutcome();
-    shared_task<MemoryTableOperationOutcome> Resolve(
-        MemoryTableTransactionSequenceNumber resolvingTransactionSequenceNumber);
+    shared_task<MemoryTableTransactionOutcome> GetOutcome();
+
+    task<MemoryTableTransactionOutcome> ResolveTargetTransaction(
+        shared_ptr<DelayedMemoryTableTransactionOutcome> targetTransaction);
 
     // Begin the process of committing the transaction.
     // Once this process has started, the transaction cannot be aborted.
-    MemoryTableOperationOutcome BeginCommit(
+    MemoryTableTransactionOutcome BeginCommit(
         SequenceNumber writeSequenceNumber);
 };
 
@@ -104,7 +112,7 @@ public:
     virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
         MemoryTableRow& row,
-        shared_ptr<DelayedMemoryTableOperationOutcome> outcome
+        shared_ptr<DelayedMemoryTableTransactionOutcome> outcome
     ) = 0;
 
     // Add the specified row, unconditionally.
@@ -113,7 +121,7 @@ public:
     ) = 0;
 
     virtual row_generator Enumerate(
-        MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
+        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high

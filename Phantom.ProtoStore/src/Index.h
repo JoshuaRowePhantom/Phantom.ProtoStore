@@ -16,7 +16,7 @@ public:
         const ProtoValue& value,
         SequenceNumber writeSequenceNumber,
         const TransactionId* transactionId,
-        shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome
+        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) = 0;
 
     virtual shared_ptr<KeyComparer> GetKeyComparer(
@@ -29,12 +29,12 @@ public:
     ) = 0;
 
     virtual operation_task<ReadResult> Read(
-        MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
+        shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
         const ReadRequest& readRequest
     ) = 0;
 
     virtual cppcoro::async_generator<OperationResult<EnumerateResult>> Enumerate(
-        MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
+        shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
         const EnumerateRequest& readRequest
     ) = 0;
 

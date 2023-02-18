@@ -32,7 +32,7 @@ class MemoryTable
     {
         InsertionKey(
             MemoryTableRow& row,
-            shared_ptr<DelayedMemoryTableOperationOutcome>& delayedOperationOutcome,
+            shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
             SequenceNumber readSequenceNumber);
 
         InsertionKey(
@@ -49,7 +49,7 @@ class MemoryTable
             MemoryTableValue&& memoryTableValue);
 
         MemoryTableRow& Row;
-        shared_ptr<DelayedMemoryTableOperationOutcome>& DelayedOperationOutcome;
+        shared_ptr<DelayedMemoryTableTransactionOutcome>& DelayedTransactionOutcome;
         SequenceNumber ReadSequenceNumber;
     };
 
@@ -82,12 +82,12 @@ class MemoryTable
         // the contents of Row, the write this with Release semantics.
         std::atomic<MemoryTableOutcomeAndSequenceNumber> WriteSequenceNumber;
 
-        // This mutex controls reading and writing Row and AsyncOperationOutcome
+        // This mutex controls reading and writing Row and AsyncTransactionOutcome
         // after the row has been added to the SkipList.
         cppcoro::async_mutex Mutex;
 
         // This contains owning copies of the row data.
-        // .Value must not be read unless OperationOutcome indicates Committed
+        // .Value must not be read unless TransactionOutcome indicates Committed
         // or the Mutex is acquired.
         // The Key in it must never be replaced, as it is used in a thread-unsafe way
         // after the skip list node is created.
@@ -95,7 +95,7 @@ class MemoryTable
 
         // The outcome of the owning operation.
         // It must only be checked while the Mutex is held.
-        shared_ptr<DelayedMemoryTableOperationOutcome> DelayedOperationOutcome;
+        shared_ptr<DelayedMemoryTableTransactionOutcome> DelayedTransactionOutcome;
     };
 
     struct EnumerationKey
@@ -151,11 +151,11 @@ class MemoryTable
     // Resolve a memory table row's outcome when the transaction it is in completes.
     task<> UpdateOutcome(
         MemoryTableValue& memoryTableValue,
-        shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome
+        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     );
 
     // Resolve a memory table row with acquiring the mutex.
-    task<OperationOutcome> Resolve(
+    task<TransactionOutcome> Resolve(
         MemoryTableValue& memoryTableValue);
 
     void UpdateSequenceNumberRange(
@@ -182,7 +182,7 @@ public:
     virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
         MemoryTableRow& row,
-        shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome
+        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) override;
 
     virtual task<> ReplayRow(
@@ -190,7 +190,7 @@ public:
     ) override;
 
     virtual async_generator<ResultRow> Enumerate(
-        MemoryTableTransactionSequenceNumber transactionSequenceNumber,
+        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low, 
         KeyRangeEnd high

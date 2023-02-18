@@ -478,7 +478,7 @@ operation_task<ReadResult> ProtoStore::Read(
 )
 {
     return readRequest.Index.m_index->Read(
-        m_memoryTableTransactionSequenceNumber.load(std::memory_order_seq_cst),
+        nullptr,
         readRequest);
 }
 
@@ -487,7 +487,7 @@ async_generator<OperationResult<EnumerateResult>> ProtoStore::Enumerate(
 )
 {
     return enumerateRequest.Index.m_index->Enumerate(
-        m_memoryTableTransactionSequenceNumber.load(std::memory_order_seq_cst),
+        nullptr,
         enumerateRequest);
 }
 
@@ -497,9 +497,8 @@ class LocalTransaction
 {
     ProtoStore& m_protoStore;
     Serialization::LogRecord m_logRecord;
-    async_value_source<MemoryTableOperationOutcome> m_outcomeValueSource;
-    shared_ptr<DelayedMemoryTableOperationOutcome> m_delayedOperationOutcome;
-    std::optional<DelayedMemoryTableOperationOutcome::ScopedCompleter> m_memoryTableTransactionCompleter;
+    shared_ptr<DelayedMemoryTableTransactionOutcome> m_delayedOperationOutcome;
+    std::optional<DelayedMemoryTableTransactionOutcome::ScopedCompleter> m_memoryTableTransactionCompleter;
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
     shared_task<CommitResult> m_commitTask;
@@ -526,7 +525,7 @@ public:
         m_protoStore(protoStore),
         m_readSequenceNumber(readSequenceNumber),
         m_initialWriteSequenceNumber(initialWriteSequenceNumber),
-        m_delayedOperationOutcome(std::make_shared<DelayedMemoryTableOperationOutcome>(
+        m_delayedOperationOutcome(std::make_shared<DelayedMemoryTableTransactionOutcome>(
             transactionSequenceNumber
             )),
         m_memoryTableTransactionCompleter(m_delayedOperationOutcome->GetCompleter())
@@ -732,8 +731,7 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
         outcome = TransactionOutcome::Aborted;
     }
 
-    if (outcome == TransactionOutcome::Committed
-        || outcome == TransactionOutcome::ReadOnly)
+    if (outcome == TransactionOutcome::Committed)
     {
         co_return TransactionSucceededResult
         {
@@ -789,7 +787,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
     readRequest.SequenceNumber = sequenceNumber;
 
     auto readResult = co_await m_indexesByNameIndex.Index->Read(
-        MemoryTableTransactionSequenceNumber_ResolveAll,
+        nullptr,
         readRequest);
 
     // Our internal ability to read an index should not be in doubt.
@@ -903,7 +901,7 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
     readRequest.SequenceNumber = SequenceNumber::Latest;
     readRequest.ReadValueDisposition = ReadValueDisposition::ReadValue;
     auto readResult = co_await m_indexesByNumberIndex.Index->Read(
-        MemoryTableTransactionSequenceNumber_ResolveAll,
+        nullptr,
         readRequest);
 
     if (!readResult)
@@ -1266,7 +1264,7 @@ task<vector<std::tuple<Serialization::PartitionsKey, Serialization::PartitionsVa
     enumerateRequest.Index = ProtoIndex{ m_partitionsIndex.Index };
 
     auto enumeration = m_partitionsIndex.Index->Enumerate(
-        MemoryTableTransactionSequenceNumber_ResolveAll,
+        nullptr,
         enumerateRequest);
 
     vector<std::tuple<PartitionsKey, PartitionsValue>> result;

@@ -27,17 +27,17 @@ public:
     {}
 
 protected:
-    shared_ptr<DelayedMemoryTableOperationOutcome> WithOutcome(
+    shared_ptr<DelayedMemoryTableTransactionOutcome> WithOutcome(
         MemoryTableTransactionSequenceNumber transactionSequenceNumber,
-        OperationOutcome outcome,
+        TransactionOutcome outcome,
         uint64_t writeSequenceNumber)
     {
-        auto delayedOutcome = make_shared<DelayedMemoryTableOperationOutcome>(
+        auto delayedOutcome = make_shared<DelayedMemoryTableTransactionOutcome>(
             transactionSequenceNumber);
-        if (outcome != OperationOutcome::Unknown)
+        if (outcome != TransactionOutcome::Unknown)
         {
             auto completer = delayedOutcome->GetCompleter();
-            if (outcome == OperationOutcome::Committed)
+            if (outcome == TransactionOutcome::Committed)
             {
                 delayedOutcome->BeginCommit(
                     ToSequenceNumber(writeSequenceNumber));
@@ -47,13 +47,13 @@ protected:
         return delayedOutcome;
     }
 
-    task<shared_ptr<DelayedMemoryTableOperationOutcome>> AddRow(
+    task<shared_ptr<DelayedMemoryTableTransactionOutcome>> AddRow(
         MemoryTableTransactionSequenceNumber transactionSequenceNumber,
         string key,
         string value,
         uint64_t writeSequenceNumber,
         uint64_t readSequenceNumber,
-        OperationOutcome outcome = OperationOutcome::Committed,
+        TransactionOutcome outcome = TransactionOutcome::Committed,
         std::optional<TransactionId> transactionId = {})
     {
         StringKey rowKey;
@@ -163,7 +163,7 @@ ASYNC_TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
         "value-1",
         5,
         0,
-        OperationOutcome::Committed,
+        TransactionOutcome::Committed,
         "transaction id"
     );
 
@@ -224,7 +224,7 @@ ASYNC_TEST_F(MemoryTableTests, Skips_aborted_rows)
         "value-2",
         5,
         0,
-        OperationOutcome::Aborted
+        TransactionOutcome::Aborted
     );
 
     co_await EnumerateExpectedRows(
@@ -266,7 +266,7 @@ ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumbe
             row2,
             WithOutcome(
                 0,
-                OperationOutcome::Committed,
+                TransactionOutcome::Committed,
                 6));
 
     EXPECT_EQ(ToSequenceNumber(5), result);
@@ -318,7 +318,7 @@ ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Committed_Row)
         co_await memoryTable.AddRow(
             ToSequenceNumber(7),
             row2,
-            WithOutcome(0, OperationOutcome::Unknown, 7));
+            WithOutcome(0, TransactionOutcome::Unknown, 7));
 
     EXPECT_EQ(ToSequenceNumber(5), result);
     EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
@@ -351,7 +351,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_co
         "value-1",
         5,
         0,
-        OperationOutcome::Unknown
+        TransactionOutcome::Unknown
     );
 
     StringKey key2;
@@ -374,7 +374,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_co
         co_await memoryTable.AddRow(
             ToSequenceNumber(7),
             row2,
-            WithOutcome(1, OperationOutcome::Committed, 7));
+            WithOutcome(1, TransactionOutcome::Committed, 7));
 
         EXPECT_EQ(
             ToSequenceNumber(5),
@@ -415,7 +415,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         "value-1",
         5,
         0,
-        OperationOutcome::Unknown
+        TransactionOutcome::Unknown
     );
 
     StringKey key2;
@@ -437,7 +437,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         auto result = co_await memoryTable.AddRow(
             ToSequenceNumber(7),
             row2,
-            WithOutcome(1, OperationOutcome::Committed, 7));
+            WithOutcome(1, TransactionOutcome::Committed, 7));
 
         EXPECT_FALSE(
             result);
@@ -475,7 +475,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         "value-1",
         5,
         0,
-        OperationOutcome::Unknown
+        TransactionOutcome::Unknown
     );
 
     StringKey key2;
@@ -495,13 +495,13 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         row2,
         // This 0 is earlier than the 1 on the above AddRow,
         // thus the above AddRow should be aborted.
-        WithOutcome(0, OperationOutcome::Committed, 7));
+        WithOutcome(0, TransactionOutcome::Committed, 7));
 
     EXPECT_FALSE(
         result);
 
     auto outcome = delayedOutcome->BeginCommit(ToSequenceNumber(7));
-    EXPECT_EQ(outcome.Outcome, OperationOutcome::Aborted);
+    EXPECT_EQ(outcome.Outcome, TransactionOutcome::Aborted);
 
     co_await EnumerateExpectedRows(
         0,
@@ -529,7 +529,7 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_aborts_uncommitted_row_from_)
         "value-1",
         5,
         0,
-        OperationOutcome::Unknown
+        TransactionOutcome::Unknown
     );
 
     StringKey key2;
@@ -564,7 +564,7 @@ ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_earlier_sequenc
         "value-1",
         5,
         0,
-        OperationOutcome::Aborted
+        TransactionOutcome::Aborted
     );
 
     co_await AddRow(
@@ -602,7 +602,7 @@ ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_later_sequence_
         "value-1",
         5,
         0,
-        OperationOutcome::Aborted
+        TransactionOutcome::Aborted
     );
 
     co_await AddRow(
@@ -639,7 +639,7 @@ ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_n
         "value-1",
         5,
         0,
-        OperationOutcome::Aborted
+        TransactionOutcome::Aborted
     );
 
     co_await AddRow(
@@ -776,392 +776,6 @@ ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_v
     );
 
     co_await memoryTable.Join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Commit_before_GetOutcome_has_GetOutcome_return_committed_sequence_number)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    outcome.BeginCommit(ToSequenceNumber(7));
-    std::ignore = outcome.GetCompleter();
-    auto result = co_await outcome.GetOutcome();
-    EXPECT_EQ(
-        result,
-        (MemoryTableOperationOutcome 
-        {
-            OperationOutcome::Committed,
-            ToSequenceNumber(7),
-        }));
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Commit_after_GetOutcome_has_GetOutcome_return_committed_sequence_number)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-    bool completed = false;
-
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.GetOutcome();
-        completed = true;
-        EXPECT_EQ(
-            result,
-            (MemoryTableOperationOutcome
-                {
-                    OperationOutcome::Committed,
-                    ToSequenceNumber(7),
-                }));
-    });
-
-    EXPECT_EQ(false, completed);
-    outcome.BeginCommit(ToSequenceNumber(7));
-    EXPECT_EQ(false, completed);
-    std::ignore = outcome.GetCompleter();
-    EXPECT_EQ(true, completed);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Abort_before_GetOutcome_has_GetOutcome_return_aborted)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    std::ignore = outcome.GetCompleter();
-    auto result = co_await outcome.GetOutcome();
-    EXPECT_EQ(
-        result,
-        (MemoryTableOperationOutcome
-            {
-                OperationOutcome::Aborted,
-                ToSequenceNumber(0),
-            }));
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Abort_after_GetOutcome_has_GetOutcome_return_aborted)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-    bool completed = false;
-
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.GetOutcome();
-    completed = true;
-    EXPECT_EQ(
-        result,
-        (MemoryTableOperationOutcome
-            {
-                OperationOutcome::Aborted,
-                ToSequenceNumber(0),
-            }));
-    });
-
-    EXPECT_EQ(false, completed);
-    std::ignore = outcome.GetCompleter();
-    EXPECT_EQ(true, completed);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_earlier_transaction_sequence_number_before_GetOutcome_has_GetOutcome_return_aborted)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    auto result = co_await outcome.Resolve(4);
-
-    EXPECT_EQ(
-        result,
-        (MemoryTableOperationOutcome
-            {
-                OperationOutcome::Aborted,
-                ToSequenceNumber(0),
-            }));
-
-    result = co_await outcome.GetOutcome();
-
-    EXPECT_EQ(
-        result,
-        (MemoryTableOperationOutcome
-            {
-                OperationOutcome::Aborted,
-                ToSequenceNumber(0),
-            }));
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_earlier_transaction_sequence_number_after_GetOutcome_has_GetOutcome_return_aborted)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-    bool completed = false;
-
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.GetOutcome();
-        completed = true;
-        EXPECT_EQ(
-            result,
-            (MemoryTableOperationOutcome
-                {
-                    OperationOutcome::Aborted,
-                    ToSequenceNumber(0),
-                }));
-    });
-
-    EXPECT_EQ(false, completed);
-    auto result = co_await outcome.Resolve(4);
-    EXPECT_EQ(
-        result,
-        (MemoryTableOperationOutcome
-            {
-                OperationOutcome::Aborted,
-                ToSequenceNumber(0),
-            }));
-    EXPECT_EQ(true, completed);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_before_GetOutcome_waits_for_Commit)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-
-    MemoryTableOperationOutcome expectedOutcome
-    {
-        OperationOutcome::Committed,
-        ToSequenceNumber(7),
-    };
-
-    bool resolveCompleted = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.Resolve(6);
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        resolveCompleted = true;
-    });
-
-    EXPECT_EQ(resolveCompleted, false);
-
-    auto result = outcome.BeginCommit(ToSequenceNumber(7));
-    EXPECT_EQ(resolveCompleted, false);
-    std::ignore = outcome.GetCompleter();
-    EXPECT_EQ(resolveCompleted, true);
-    EXPECT_EQ(
-        result,
-        expectedOutcome);
-
-    result = co_await outcome.GetOutcome();
-
-    EXPECT_EQ(
-        result,
-        expectedOutcome);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_after_GetOutcome_waits_for_Commit)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-
-    MemoryTableOperationOutcome expectedOutcome
-    {
-        OperationOutcome::Committed,
-        ToSequenceNumber(7),
-    };
-
-    bool resolveCompleted = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.Resolve(6);
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        resolveCompleted = true;
-    });
-
-    bool getOutcomeComplete = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.GetOutcome();
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        getOutcomeComplete = true;
-    });
-
-    EXPECT_EQ(resolveCompleted, false);
-    EXPECT_EQ(getOutcomeComplete, false);
-
-    auto result = outcome.BeginCommit(ToSequenceNumber(7));
-    EXPECT_EQ(false, resolveCompleted);
-    EXPECT_EQ(false, getOutcomeComplete);
-    std::ignore = outcome.GetCompleter();
-    EXPECT_EQ(resolveCompleted, true);
-    EXPECT_EQ(getOutcomeComplete, true);
-    EXPECT_EQ(
-        result,
-        expectedOutcome);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_before_GetOutcome_waits_for_Abort)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-
-    MemoryTableOperationOutcome expectedOutcome
-    {
-        OperationOutcome::Aborted,
-        ToSequenceNumber(0),
-    };
-
-    bool resolveCompleted = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.Resolve(6);
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        resolveCompleted = true;
-    });
-
-    EXPECT_EQ(resolveCompleted, false);
-
-    std::ignore = outcome.GetCompleter();
-    EXPECT_EQ(resolveCompleted, true);
-
-    auto result = co_await outcome.GetOutcome();
-
-    EXPECT_EQ(
-        result,
-        expectedOutcome);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_after_GetOutcome_waits_for_Abort)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-
-    MemoryTableOperationOutcome expectedOutcome
-    {
-        OperationOutcome::Aborted,
-        ToSequenceNumber(0),
-    };
-
-    bool resolveCompleted = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.Resolve(6);
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        resolveCompleted = true;
-    });
-
-    bool getOutcomeComplete = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.GetOutcome();
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        getOutcomeComplete = true;
-    });
-
-    EXPECT_EQ(resolveCompleted, false);
-    EXPECT_EQ(getOutcomeComplete, false);
-
-    std::ignore = outcome.GetCompleter();
-    EXPECT_EQ(resolveCompleted, true);
-    EXPECT_EQ(getOutcomeComplete, true);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_before_GetOutcome_waits_for_abort_from_earlier_Resolve)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-
-    MemoryTableOperationOutcome expectedOutcome
-    {
-        OperationOutcome::Aborted,
-        ToSequenceNumber(0),
-    };
-
-    bool resolveCompleted = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.Resolve(6);
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        resolveCompleted = true;
-    });
-
-    EXPECT_EQ(resolveCompleted, false);
-
-    auto result = co_await outcome.Resolve(4);
-    EXPECT_EQ(
-        result,
-        expectedOutcome);
-
-    EXPECT_EQ(resolveCompleted, true);
-
-    result = co_await outcome.GetOutcome();
-    EXPECT_EQ(
-        result,
-        expectedOutcome);
-
-    co_await scope.join();
-}
-
-ASYNC_TEST(DelayedMemoryTableOperationOutcomeTests, Resolve_later_transaction_sequence_number_after_GetOutcome_waits_for_abort_from_earlier_Resolve)
-{
-    DelayedMemoryTableOperationOutcome outcome(5);
-    Phantom::Coroutines::async_scope<> scope;
-
-    MemoryTableOperationOutcome expectedOutcome
-    {
-        OperationOutcome::Aborted,
-        ToSequenceNumber(0),
-    };
-
-    bool resolveCompleted = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.Resolve(6);
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        resolveCompleted = true;
-    });
-
-    bool getOutcomeComplete = false;
-    scope.spawn([&]() -> reusable_task<>
-    {
-        auto result = co_await outcome.GetOutcome();
-        EXPECT_EQ(
-            result,
-            expectedOutcome);
-        getOutcomeComplete = true;
-    });
-
-    EXPECT_EQ(resolveCompleted, false);
-    EXPECT_EQ(getOutcomeComplete, false);
-
-    auto result = co_await outcome.Resolve(4);
-    EXPECT_EQ(
-        result,
-        expectedOutcome);
-
-    EXPECT_EQ(resolveCompleted, true);
-    EXPECT_EQ(getOutcomeComplete, true);
-
-    co_await scope.join();
 }
 
 }

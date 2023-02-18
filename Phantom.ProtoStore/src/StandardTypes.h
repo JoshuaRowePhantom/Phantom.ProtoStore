@@ -92,7 +92,7 @@ class IMessageFactory;
 class IUnresolvedTransactionsTracker;
 class KeyComparer;
 class RowMerger;
-struct MemoryTableOperationOutcome;
+struct MemoryTableTransactionOutcome;
 
 enum class FlushBehavior
 {

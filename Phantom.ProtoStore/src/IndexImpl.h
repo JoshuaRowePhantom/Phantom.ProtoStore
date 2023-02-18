@@ -77,7 +77,7 @@ public:
         const ProtoValue& value,
         SequenceNumber writeSequenceNumber,
         const TransactionId* transactionId,
-        shared_ptr<DelayedMemoryTableOperationOutcome> delayedOperationOutcome
+        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) override;
 
     virtual task<> ReplayRow(
@@ -89,12 +89,12 @@ public:
     ) override;
 
     virtual operation_task<ReadResult> Read(
-        MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
+        shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
         const ReadRequest& readRequest
     ) override;
 
     virtual cppcoro::async_generator<OperationResult<EnumerateResult>> Enumerate(
-        MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber,
+        shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
         const EnumerateRequest& readRequest
     ) override;
 

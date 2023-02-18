@@ -457,8 +457,7 @@ struct UnresolvedTransaction
 enum class TransactionOutcome {
     Unknown = 0,
     Committed = 1,
-    ReadOnly = 2,
-    Aborted = 3,
+    Aborted = 2,
 };
 
 struct TransactionFailedResult
@@ -686,12 +685,6 @@ public:
     virtual async_generator<OperationResult<EnumerateResult>> Enumerate(
         const EnumerateRequest& enumerateRequest
     ) = 0;
-};
-
-enum class OperationOutcome {
-    Unknown = 0,
-    Committed = 1,
-    Aborted = 2,
 };
 
 enum class LoggedOperationDisposition {
