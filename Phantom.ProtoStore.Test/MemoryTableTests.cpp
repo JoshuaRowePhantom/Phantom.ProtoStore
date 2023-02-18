@@ -90,7 +90,7 @@ protected:
     };
 
     task<> EnumerateExpectedRows(
-        MemoryTableTransactionSequenceNumber sequenceNumber,
+        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome,
         uint64_t readSequenceNumber,
         vector<ExpectedRow> expectedRows,
         optional<string> keyLow = optional<string>(),
@@ -118,7 +118,7 @@ protected:
         }
 
         auto enumeration = memoryTable.Enumerate(
-            0,
+            delayedTransactionOutcome,
             ToSequenceNumber(readSequenceNumber),
             {
                 .Key = keyLowMessagePointer,
@@ -208,7 +208,7 @@ ASYNC_TEST_F(MemoryTableTests, Can_add_distinct_rows)
     co_await memoryTable.Join();
 }
 
-ASYNC_TEST_F(MemoryTableTests, Skips_aborted_rows)
+ASYNC_TEST_F(MemoryTableTests, Enumerate_skips_aborted_rows)
 {
     co_await AddRow(
         0,
@@ -228,7 +228,7 @@ ASYNC_TEST_F(MemoryTableTests, Skips_aborted_rows)
     );
 
     co_await EnumerateExpectedRows(
-        2,
+        nullptr,
         5,
         {
             {"key-1", "value-1", 5},
@@ -343,7 +343,7 @@ ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Committed_Row)
     co_await memoryTable.Join();
 }
 
-ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_commits_from_earlier_transaction)
+ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_commits)
 {
     auto delayedOutcome = co_await AddRow(
         0,
@@ -407,10 +407,10 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_co
     co_await scope.join();
 }
 
-ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that_aborts_from_earlier_transaction)
+ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that_aborts)
 {
     auto delayedOutcome = co_await AddRow(
-        0,
+        1,
         "key-1",
         "value-1",
         5,
@@ -437,7 +437,9 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         auto result = co_await memoryTable.AddRow(
             ToSequenceNumber(7),
             row2,
-            WithOutcome(1, TransactionOutcome::Committed, 7));
+            // This 0 is earlier than the 1 on the above AddRow,
+            // thus the above AddRow should be aborted.
+            WithOutcome(0, TransactionOutcome::Committed, 7));
 
         EXPECT_FALSE(
             result);
@@ -464,13 +466,12 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
     );
 
     co_await memoryTable.Join();
-    co_await scope.join();
 }
 
-ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that_aborts_from_later_transaction)
+ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_abort)
 {
-    auto delayedOutcome = co_await AddRow(
-        1,
+    auto delayedTransactionOutcome = co_await AddRow(
+        0,
         "key-1",
         "value-1",
         5,
@@ -478,52 +479,28 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         TransactionOutcome::Unknown
     );
 
-    StringKey key2;
-    key2.set_value("key-1");
-    StringValue value2;
-    value2.set_value("value-1-2");
-
-    MemoryTableRow row2
+    Phantom::Coroutines::async_scope<> scope;
+    bool completed = false;
+    scope.spawn([&]() -> reusable_task<>
     {
-        .Key = copy_unique(key2),
-        .WriteSequenceNumber = ToSequenceNumber(5),
-        .Value = copy_unique(value2),
-    };
+        co_await EnumerateExpectedRows(
+            0,
+            5,
+            {
+            });
+        completed = true;
+    });
 
-    auto result = co_await memoryTable.AddRow(
-        ToSequenceNumber(7),
-        row2,
-        // This 0 is earlier than the 1 on the above AddRow,
-        // thus the above AddRow should be aborted.
-        WithOutcome(0, TransactionOutcome::Committed, 7));
-
-    EXPECT_FALSE(
-        result);
-
-    auto outcome = delayedOutcome->BeginCommit(ToSequenceNumber(7));
-    EXPECT_EQ(outcome.Outcome, TransactionOutcome::Aborted);
-
-    co_await EnumerateExpectedRows(
-        0,
-        5,
-        {
-        }
-    );
-
-    co_await EnumerateExpectedRows(
-        0,
-        7,
-        {
-            {"key-1", "value-1-2", 7},
-        }
-    );
-
+    EXPECT_EQ(false, completed);
+    std::ignore = delayedTransactionOutcome->GetCompleter();
+    EXPECT_EQ(true, completed);
+    co_await scope.join();
     co_await memoryTable.Join();
 }
 
-ASYNC_TEST_F(MemoryTableTests, Enumerate_aborts_uncommitted_row_from_)
+ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_commit)
 {
-    co_await AddRow(
+    auto delayedTransactionOutcome = co_await AddRow(
         0,
         "key-1",
         "value-1",
@@ -532,27 +509,24 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_aborts_uncommitted_row_from_)
         TransactionOutcome::Unknown
     );
 
-    StringKey key2;
-    key2.set_value("key-1");
-    StringValue value2;
-    value2.set_value("value-1-2");
+    Phantom::Coroutines::async_scope<> scope;
+    bool completed = false;
+    scope.spawn([&]() -> reusable_task<>
+    {
+        co_await EnumerateExpectedRows(
+            0,
+            5,
+            {
+                { "key-1", "value-1", 5 }
+            });
+        completed = true;
+    });
 
-    co_await EnumerateExpectedRows(
-        0,
-        5,
-        {
-            {"key-1", "value-1", 5},
-        }
-    );
-
-    co_await EnumerateExpectedRows(
-        0,
-        6,
-        {
-            {"key-1", "value-1", 5},
-        }
-    );
-
+    EXPECT_EQ(false, completed);
+    delayedTransactionOutcome->BeginCommit(ToSequenceNumber(5));
+    std::ignore = delayedTransactionOutcome->GetCompleter();
+    EXPECT_EQ(true, completed);
+    co_await scope.join();
     co_await memoryTable.Join();
 }
 
