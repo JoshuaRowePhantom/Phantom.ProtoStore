@@ -498,7 +498,6 @@ class LocalTransaction
     ProtoStore& m_protoStore;
     Serialization::LogRecord m_logRecord;
     shared_ptr<DelayedMemoryTableTransactionOutcome> m_delayedOperationOutcome;
-    std::optional<DelayedMemoryTableTransactionOutcome::ScopedCompleter> m_memoryTableTransactionCompleter;
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
     shared_task<CommitResult> m_commitTask;
@@ -527,10 +526,17 @@ public:
         m_initialWriteSequenceNumber(initialWriteSequenceNumber),
         m_delayedOperationOutcome(std::make_shared<DelayedMemoryTableTransactionOutcome>(
             transactionSequenceNumber
-            )),
-        m_memoryTableTransactionCompleter(m_delayedOperationOutcome->GetCompleter())
+            ))
     {
         m_commitTask = DelayedCommit();
+    }
+
+    ~LocalTransaction()
+    {
+        if (m_delayedOperationOutcome)
+        {
+            m_delayedOperationOutcome->Complete();
+        }
     }
 
     Serialization::LogRecord& LogRecord()
@@ -650,20 +656,26 @@ private:
         auto result = m_delayedOperationOutcome->BeginCommit(
             m_initialWriteSequenceNumber);
 
-        for (auto& addedRow : *m_logRecord.mutable_rows())
+        if (result.Outcome == TransactionOutcome::Committed)
         {
-            if (!addedRow.sequencenumber())
+            for (auto& addedRow : *m_logRecord.mutable_rows())
             {
-                addedRow.set_sequencenumber(
-                    ToUint64(result.WriteSequenceNumber));
+                if (!addedRow.sequencenumber())
+                {
+                    addedRow.set_sequencenumber(
+                        ToUint64(result.WriteSequenceNumber));
+                }
             }
+
+            co_await m_protoStore.WriteLogRecord(
+                m_logRecord);
         }
 
-        co_await m_protoStore.WriteLogRecord(
-            m_logRecord);
+        m_delayedOperationOutcome->Complete();
 
         co_return CommitResult
         {
+            .Outcome = result.Outcome,
         };
     }
 };
@@ -714,7 +726,7 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
 )
 {
     LocalTransaction transaction(
-        m_memoryTableTransactionSequenceNumber.fetch_add(2, std::memory_order_seq_cst) + 1,
+        m_memoryTableTransactionSequenceNumber.fetch_add(1, std::memory_order_relaxed),
         *this,
         ToSequenceNumber(readSequenceNumber),
         ToSequenceNumber(thisWriteSequenceNumber));
@@ -724,7 +736,15 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
     TransactionOutcome outcome = TransactionOutcome::Committed;
     if (result)
     {
-        co_await transaction.Commit();
+        auto commitResult = co_await transaction.Commit();
+        if (!commitResult)
+        {
+            outcome = TransactionOutcome::Aborted;
+        }
+        else
+        {
+            outcome = commitResult->Outcome;
+        }
     }
     else
     {

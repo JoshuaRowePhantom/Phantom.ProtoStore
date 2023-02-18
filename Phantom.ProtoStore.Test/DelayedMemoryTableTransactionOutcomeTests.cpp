@@ -8,7 +8,7 @@ namespace Phantom::ProtoStore
 ASYNC_TEST(DelayedMemoryTableTransactionOutcomeTests, Completer_aborts_transaction_that_isnt_committed)
 {
     auto delayedOutcome = std::make_shared<DelayedMemoryTableTransactionOutcome>(0);
-    std::ignore = delayedOutcome->GetCompleter();
+    delayedOutcome->Complete();
     auto outcome = co_await delayedOutcome->GetOutcome();
     MemoryTableTransactionOutcome expectedOutcome
     {
@@ -23,7 +23,7 @@ ASYNC_TEST(DelayedMemoryTableTransactionOutcomeTests, Completer_commits_transact
 {
     auto delayedOutcome = std::make_shared<DelayedMemoryTableTransactionOutcome>(0);
     delayedOutcome->BeginCommit(ToSequenceNumber(5));
-    std::ignore = delayedOutcome->GetCompleter();
+    delayedOutcome->Complete();
     auto outcome = co_await delayedOutcome->GetOutcome();
     MemoryTableTransactionOutcome expectedOutcome
     {
@@ -59,7 +59,7 @@ ASYNC_TEST(DelayedMemoryTableTransactionOutcomeTests, ResolveTargetTransaction_w
     EXPECT_EQ(outcome1, expectedOutcome1);
     EXPECT_EQ(false, complete);
 
-    std::ignore = delayedOutcome1->GetCompleter();
+    delayedOutcome1->Complete();
     EXPECT_EQ(true, complete);
 
     co_await asyncScope.join();
@@ -158,25 +158,25 @@ ASYNC_TEST(DelayedMemoryTableTransactionOutcomeTests, ResolveTargetTransaction_a
     EXPECT_EQ(false, complete3);
     EXPECT_EQ(false, complete4);
 
-    std::ignore = delayedOutcome1->GetCompleter();
+    delayedOutcome1->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(false, complete3);
     EXPECT_EQ(false, complete4);
 
-    std::ignore = delayedOutcome2->GetCompleter();
+    delayedOutcome2->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(true, complete3);
     EXPECT_EQ(false, complete4);
 
-    std::ignore = delayedOutcome3->GetCompleter();
+    delayedOutcome3->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(true, complete3);
     EXPECT_EQ(true, complete4);
 
-    std::ignore = delayedOutcome4->GetCompleter();
+    delayedOutcome4->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(true, complete3);
@@ -278,25 +278,25 @@ ASYNC_TEST(DelayedMemoryTableTransactionOutcomeTests, ResolveTargetTransaction_a
     EXPECT_EQ(false, complete3);
     EXPECT_EQ(false, complete4);
 
-    std::ignore = delayedOutcome1->GetCompleter();
+    delayedOutcome1->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(false, complete3);
     EXPECT_EQ(false, complete4);
 
-    std::ignore = delayedOutcome2->GetCompleter();
+    delayedOutcome2->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(true, complete3);
     EXPECT_EQ(false, complete4);
 
-    std::ignore = delayedOutcome3->GetCompleter();
+    delayedOutcome3->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(true, complete3);
     EXPECT_EQ(true, complete4);
 
-    std::ignore = delayedOutcome4->GetCompleter();
+    delayedOutcome4->Complete();
     EXPECT_EQ(true, complete1);
     EXPECT_EQ(true, complete2);
     EXPECT_EQ(true, complete3);

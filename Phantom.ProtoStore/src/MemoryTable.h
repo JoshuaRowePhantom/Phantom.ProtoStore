@@ -70,23 +70,13 @@ class DelayedMemoryTableTransactionOutcome
     shared_task<MemoryTableTransactionOutcome> ResolveTargetTransactionImpl(
         shared_ptr<DelayedMemoryTableTransactionOutcome> targetTransaction);
 
-    void Complete();
 
 public:
     DelayedMemoryTableTransactionOutcome(
         MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber
     );
 
-    class ScopedCompleter
-    {
-        friend class DelayedMemoryTableTransactionOutcome;
-        DelayedMemoryTableTransactionOutcome& m_delayedTransactionOutcome;
-        ScopedCompleter(DelayedMemoryTableTransactionOutcome&);
-    public:
-        ~ScopedCompleter();
-    };
-
-    ScopedCompleter GetCompleter();
+    void Complete();
     shared_task<MemoryTableTransactionOutcome> GetOutcome();
 
     task<MemoryTableTransactionOutcome> ResolveTargetTransaction(

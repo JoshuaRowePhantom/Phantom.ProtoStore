@@ -36,12 +36,12 @@ protected:
             transactionSequenceNumber);
         if (outcome != TransactionOutcome::Unknown)
         {
-            auto completer = delayedOutcome->GetCompleter();
             if (outcome == TransactionOutcome::Committed)
             {
                 delayedOutcome->BeginCommit(
                     ToSequenceNumber(writeSequenceNumber));
             }
+            delayedOutcome->Complete();
         }
 
         return delayedOutcome;
@@ -384,7 +384,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_co
 
     EXPECT_EQ(false, completed);
     delayedOutcome->BeginCommit(ToSequenceNumber(5));
-    std::ignore = delayedOutcome->GetCompleter();
+    delayedOutcome->Complete();
     EXPECT_EQ(true, completed);
 
     co_await EnumerateExpectedRows(
@@ -426,7 +426,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
     MemoryTableRow row2
     {
         .Key = copy_unique(key2),
-        .WriteSequenceNumber = ToSequenceNumber(5),
+        .WriteSequenceNumber = ToSequenceNumber(7),
         .Value = copy_unique(value2),
     };
 
@@ -435,7 +435,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
     scope.spawn([&]() -> reusable_task<>
     {
         auto result = co_await memoryTable.AddRow(
-            ToSequenceNumber(7),
+            ToSequenceNumber(3),
             row2,
             // This 0 is earlier than the 1 on the above AddRow,
             // thus the above AddRow should be aborted.
@@ -447,7 +447,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
     });
 
     EXPECT_EQ(false, completed);
-    std::ignore = delayedOutcome->GetCompleter();
+    delayedOutcome->Complete();
     EXPECT_EQ(true, completed);
 
     co_await EnumerateExpectedRows(
@@ -492,7 +492,7 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_abort)
     });
 
     EXPECT_EQ(false, completed);
-    std::ignore = delayedTransactionOutcome->GetCompleter();
+    delayedTransactionOutcome->Complete();
     EXPECT_EQ(true, completed);
     co_await scope.join();
     co_await memoryTable.Join();
@@ -524,7 +524,7 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_commit
 
     EXPECT_EQ(false, completed);
     delayedTransactionOutcome->BeginCommit(ToSequenceNumber(5));
-    std::ignore = delayedTransactionOutcome->GetCompleter();
+    delayedTransactionOutcome->Complete();
     EXPECT_EQ(true, completed);
     co_await scope.join();
     co_await memoryTable.Join();

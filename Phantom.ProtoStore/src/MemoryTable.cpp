@@ -99,11 +99,22 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         row.WriteSequenceNumber,
         TransactionOutcome::Unknown);
 
-    auto [iterator, succeeded] = m_skipList.insert(
-        move(insertionKey));
+    decltype(m_skipList)::iterator iterator;
+    bool succeeded = false;
 
-    if (!succeeded)
+    while (!succeeded)
     {
+        auto insertionResult = m_skipList.insert(
+            move(insertionKey));
+
+        iterator = insertionResult.first;
+        succeeded = insertionResult.second;
+        
+        if (succeeded)
+        {
+            break;
+        }
+
         // Do a cursory check to see what the outcome was.
         // We expect that most transactions commit.  The outcome is likely to be "Committed".
         // The cursory check for this is better than acquiring the mutex.
@@ -120,17 +131,40 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
             co_return ToSequenceNumber(previousMemoryTableWriteSequenceNumber);
         }
 
-        // We'll need to lock the entry so that we can resolve it
-        // and update it in place.
         auto lock = co_await iterator->Mutex.scoped_lock_async();
-
-        // The cursory check shows the result is either Aborted or Unknown.
-        // If unknown, force resolution of the transaction.
-        if (previousTransactionOutcome == TransactionOutcome::Unknown)
+        auto targetTransactionOutcome = iterator->DelayedTransactionOutcome;
+        
+        if (!targetTransactionOutcome)
         {
+            previousMemoryTableWriteSequenceNumber = iterator->WriteSequenceNumber.load(
+                std::memory_order_acquire);
+
+            previousTransactionOutcome = GetTransactionOutcome(
+                previousMemoryTableWriteSequenceNumber);
+        
+            assert(previousTransactionOutcome != TransactionOutcome::Unknown);
+        }
+        else
+        {
+            // Don't lock while actually resolving.
+            lock.unlock();
+
+            // Now we'll resolve whatever transaction might be there.
+            // It might be different from the cursory check.
             auto resolution = co_await delayedTransactionOutcome->ResolveTargetTransaction(
-                iterator->DelayedTransactionOutcome);
+                targetTransactionOutcome);
             previousTransactionOutcome = resolution.Outcome;
+
+            // Now reacquire the lock. 
+            lock = co_await iterator->Mutex.scoped_lock_async();
+            // There may have been another transaction
+            // that resolved and updated the row, so we have to check for that.
+            if (iterator->DelayedTransactionOutcome != targetTransactionOutcome)
+            {
+                // Some other transaction updated the row.
+                // Start over.
+                continue;
+            }
         }
 
         // Now we might discover there's a committed transaction.
@@ -141,8 +175,9 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
 
         assert(previousTransactionOutcome == TransactionOutcome::Aborted);
 
-        // Oh jolly joy!  The previous write aborted, so this one
-        // can proceed.
+        // Jolly Joy! The previous transaction aborted,
+        // and was the last transaction to touch this row. We are therefore
+        // allowed to update this row.
         iterator->Row.WriteSequenceNumber = row.WriteSequenceNumber;
         iterator->Row.Value = std::move(row.Value);
         iterator->DelayedTransactionOutcome = delayedTransactionOutcome;
@@ -156,6 +191,8 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
 
         // We now allow other potential resolvers to resolve.
         lock.unlock();
+        succeeded = true;
+        break;
     }
 
     m_unresolvedRowCount.fetch_add(
@@ -196,11 +233,9 @@ task<> MemoryTable::UpdateOutcome(
         co_return;
     }
 
-    memoryTableValue.Row.WriteSequenceNumber = outcome.WriteSequenceNumber;
-
     // After this point, 
     memoryTableValue.WriteSequenceNumber.store(
-        ToMemoryTableOutcomeAndSequenceNumber(outcome.WriteSequenceNumber, outcome.Outcome),
+        ToMemoryTableOutcomeAndSequenceNumber(memoryTableValue.Row.WriteSequenceNumber, outcome.Outcome),
         std::memory_order_release
     );
 
@@ -619,19 +654,6 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     return comparisonResult;
 }
 
-
-DelayedMemoryTableTransactionOutcome::ScopedCompleter::ScopedCompleter(
-    DelayedMemoryTableTransactionOutcome& delayedTransactionOutcome)
-    :
-    m_delayedTransactionOutcome{ delayedTransactionOutcome }
-{
-}
-
-DelayedMemoryTableTransactionOutcome::ScopedCompleter::~ScopedCompleter()
-{
-    m_delayedTransactionOutcome.Complete();
-}
-
 DelayedMemoryTableTransactionOutcome::DelayedMemoryTableTransactionOutcome(
     MemoryTableTransactionSequenceNumber originatingTransactionSequenceNumber
 ) : m_originatingTransactionSequenceNumber(originatingTransactionSequenceNumber)
@@ -650,11 +672,6 @@ shared_task<MemoryTableTransactionOutcome> DelayedMemoryTableTransactionOutcome:
 shared_task<MemoryTableTransactionOutcome> DelayedMemoryTableTransactionOutcome::GetOutcome()
 {
     return m_outcomeTask;
-}
-
-DelayedMemoryTableTransactionOutcome::ScopedCompleter DelayedMemoryTableTransactionOutcome::GetCompleter()
-{
-    return { *this };
 }
 
 MemoryTableTransactionOutcome DelayedMemoryTableTransactionOutcome::BeginCommit(
@@ -720,15 +737,9 @@ task<MemoryTableTransactionOutcome> DelayedMemoryTableTransactionOutcome::Resolv
     if (deadlockedTransaction.get() == this)
     {
         // We found ourself in the list of deadlocked transactions, meaning we are involved in a loop.
-        auto expectedOutcomeAndSequenceNumber = MemoryTableOutcomeAndSequenceNumber::Earliest;
-        auto abortedResult = MemoryTableOutcomeAndSequenceNumber::OutcomeAborted;
-        
-        latestTransaction->m_outcomeAndSequenceNumber.compare_exchange_strong(
-            expectedOutcomeAndSequenceNumber,
-            abortedResult
-        );
-
-        latestTransaction->m_resolvedSignal.set();
+        // Abort the most recent transaction in the deadlock list,
+        // preferring to allow older transactions to continue to do work.
+        latestTransaction->Complete();
     }
 
     auto result = co_await m_currentDeadlockDetectionResolutionTarget->GetOutcome();

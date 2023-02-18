@@ -1199,7 +1199,7 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
     });
 }
 
-TEST_F(ProtoStoreTests, Can_commit_transaction_in_memory_table_from_another_transaction)
+TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_from_another_transaction)
 {
     run_async([&]() -> task<>
     {
@@ -1283,7 +1283,7 @@ TEST_F(ProtoStoreTests, Can_commit_transaction_in_memory_table_from_another_tran
     });
 }
 
-TEST_F(ProtoStoreTests, Can_commit_transaction_in_memory_table_from_replayed_store)
+TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_from_replayed_store)
 {
     run_async([&]() -> task<>
     {

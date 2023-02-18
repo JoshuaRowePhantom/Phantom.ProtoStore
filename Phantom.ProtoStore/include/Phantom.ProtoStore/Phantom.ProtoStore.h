@@ -665,6 +665,8 @@ struct BeginTransactionRequest
 
 struct CommitResult
 {
+    TransactionOutcome Outcome;
+
     friend bool operator==(
         const CommitResult&,
         const CommitResult&
