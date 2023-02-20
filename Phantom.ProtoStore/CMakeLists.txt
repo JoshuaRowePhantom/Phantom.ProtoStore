@@ -89,6 +89,12 @@ PROTOBUF_GENERATE(
     include/Phantom.ProtoStore/ProtoStore.proto
 )
 
+flatbuffers_generate_headers(
+    TARGET Phantom.ProtoStore.FlatBuffers
+    INCLUDE_PREFIX ./src ./include
+    SCHEMAS
+    src/ProtoStoreInternal.fbs)
+
 target_compile_definitions(
     Phantom.ProtoStore
     PUBLIC
@@ -100,6 +106,8 @@ target_link_libraries(
     PUBLIC
     Phantom.Coroutines.cppcoro
     protobuf::libprotobuf
+    flatbuffers::flatbuffers
     PRIVATE
+    Phantom.ProtoStore.FlatBuffers
     Phantom.System
 )

@@ -1,0 +1,33 @@
+namespace Phantom.ProtoStore.FlatBuffers;
+
+
+table DatabaseHeaderExtentName {
+    HeaderCopyNumber:uint64;
+};
+
+table IndexExtentName {
+    PartitionNumber:uint64;
+    IndexNumber:uint64;
+    Level:uint64;
+    IndexName:string;
+}
+
+table LogExtentName {
+    LogExtentSequenceNumber:uint64;
+}
+
+union ExtentName {
+    IndexDataExtentName:IndexExtentName;
+    IndexHeaderExtentName:IndexExtentName;
+    DatabaseHeaderExtentName:DatabaseHeaderExtentName;
+    LogExtentName:LogExtentName;
+}
+
+table Header {
+    Version:uint32;
+    LogAlignment:uint32;
+    LogReplayExtentNames:[LogExtentName];
+    Epoch:uint64;
+    NextIndexNumber:uint64;
+    NextPartitionNumber:uint64;
+}
