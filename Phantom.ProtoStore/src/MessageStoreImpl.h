@@ -21,7 +21,7 @@ namespace Phantom::ProtoStore
             shared_ptr<IReadableExtent> extent,
             shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
 
-        virtual task<ReadMessageResult> Read(
+        virtual task<ReadProtoMessageResult> Read(
             ExtentOffset extentOffset,
             Message& message
         ) override;
@@ -67,7 +67,7 @@ namespace Phantom::ProtoStore
         SequentialMessageReader(
             shared_ptr<RandomMessageReader> randomMessageReader);
 
-        virtual task<ReadMessageResult> Read(
+        virtual task<ReadProtoMessageResult> Read(
             Message& message
         ) override;
     };

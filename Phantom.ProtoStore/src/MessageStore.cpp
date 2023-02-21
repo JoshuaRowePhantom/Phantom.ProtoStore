@@ -18,7 +18,7 @@ namespace Phantom::ProtoStore
         m_checksumAlgorithmFactory(checksumAlgorithmFactory)
     {}
 
-    task<ReadMessageResult> RandomMessageReader::Read(
+    task<ReadProtoMessageResult> RandomMessageReader::Read(
         ExtentOffset extentOffset,
         Message& message
     )
@@ -98,7 +98,7 @@ namespace Phantom::ProtoStore
             throw range_error("Checksum failed.");
         }
 
-        co_return ReadMessageResult
+        co_return ReadProtoMessageResult
         {
             .DataRange =
             {
@@ -249,7 +249,7 @@ namespace Phantom::ProtoStore
     {
     }
 
-    task<ReadMessageResult> SequentialMessageReader::Read(
+    task<ReadProtoMessageResult> SequentialMessageReader::Read(
         Message& message
     )
     {

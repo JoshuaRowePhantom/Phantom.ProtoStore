@@ -7,7 +7,7 @@
 
 namespace Phantom::ProtoStore
 {
-    struct ReadMessageResult
+    struct ReadProtoMessageResult
     {
         ExtentOffsetRange DataRange;
     };
@@ -24,7 +24,7 @@ namespace Phantom::ProtoStore
     class IRandomMessageReader
     {
     public:
-        virtual task<ReadMessageResult> Read(
+        virtual task<ReadProtoMessageResult> Read(
             ExtentOffset extentOffset,
             Message& message) = 0;
     };
@@ -41,7 +41,7 @@ namespace Phantom::ProtoStore
     class ISequentialMessageReader
     {
     public:
-        virtual task<ReadMessageResult> Read(
+        virtual task<ReadProtoMessageResult> Read(
             Message& message
         ) = 0;
     };
