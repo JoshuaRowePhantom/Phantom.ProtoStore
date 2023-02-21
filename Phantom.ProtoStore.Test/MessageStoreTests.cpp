@@ -188,11 +188,14 @@ namespace Phantom::ProtoStore
             {
                 auto writableExtent = co_await extentStore->OpenExtentForWrite(MakeLogExtentName(0));
                 auto writeBuffer = co_await writableExtent->CreateWriteBuffer();
-                co_await writeBuffer->Write(expectedEndOfMessage - 1, 1);
+                auto rawData = co_await writeBuffer->Write(expectedEndOfMessage - 1, 1);
+                google::protobuf::io::ArrayOutputStream outputStream(
+                    rawData.data().data(),
+                    rawData.data().size());
 
                 {
                     google::protobuf::io::CodedOutputStream corruptingOutputStream(
-                        writeBuffer->Stream());
+                        &outputStream);
 
                     corruptingOutputStream.WriteRaw(
                         &corruptedLastChecksumByte,

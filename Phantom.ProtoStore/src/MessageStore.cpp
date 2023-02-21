@@ -210,15 +210,20 @@ namespace Phantom::ProtoStore
         auto messageSize = writeMessageResult.MessageRange.End - writeMessageResult.MessageRange.Beginning;
         auto writeBuffer = co_await m_extent->CreateWriteBuffer();
 
-        co_await writeBuffer->Write(
+        auto rawData = co_await writeBuffer->Write(
             writeMessageResult.DataRange.Beginning,
             writeBufferSize);
+
+        google::protobuf::io::ArrayOutputStream stream(
+            rawData.data().data(),
+            rawData.data().size()
+        );
 
         auto checksumVersion = checksum->Version();
 
         {
             CodedOutputStream messageHeaderOutputStream(
-                writeBuffer->Stream());
+                &stream);
 
             messageHeaderOutputStream.WriteLittleEndian32(
                 static_cast<google::protobuf::uint32>(messageSize));
@@ -229,7 +234,7 @@ namespace Phantom::ProtoStore
 
         {
             ChecksummingZeroCopyOutputStream checksummingOutputStream(
-                writeBuffer->Stream(),
+                &stream,
                 checksum.get());
 
             message.SerializeToZeroCopyStream(
@@ -240,7 +245,7 @@ namespace Phantom::ProtoStore
 
         {
             CodedOutputStream checksumOutputStream(
-                writeBuffer->Stream());
+                &stream);
 
             checksumOutputStream.WriteRaw(
                 checksum->Computed().data(),

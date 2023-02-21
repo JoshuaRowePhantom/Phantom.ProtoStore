@@ -18,11 +18,10 @@ class IWriteBuffer
 public:
     // Begin writing at some location.
     // No other methods should be called until this is called.
-    virtual task<> Write(
+    virtual task<WritableRawData> Write(
         ExtentOffset offset,
         size_t count) = 0;
 
-    virtual ZeroCopyOutputStream* Stream() = 0;
     // Commit the data to be flushed later.  The task will complete 
     // quickly but it's possible that no IO was done.
     virtual task<> Commit() = 0;

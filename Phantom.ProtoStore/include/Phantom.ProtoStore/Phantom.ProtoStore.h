@@ -301,8 +301,10 @@ struct RawLabel;
 using MessageSpan = Labeled<std::span<const std::byte>, MessageLabel>;
 using EnvelopeSpan = Labeled<std::span<const std::byte>, EnvelopeLabel>;
 using RawSpan = Labeled<std::span<const std::byte>, RawLabel>;
+using WritableRawSpan = Labeled<std::span<std::byte>, RawLabel>;
 
 using RawData = DataReference<RawSpan>;
+using WritableRawData = DataReference<WritableRawSpan>;
 
 struct StoredFlatMessage
 {

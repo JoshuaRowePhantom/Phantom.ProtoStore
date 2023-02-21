@@ -10,6 +10,7 @@ namespace Phantom::ProtoStore
 {
 using google::protobuf::io::CodedOutputStream;
 using google::protobuf::io::CodedInputStream;
+using google::protobuf::io::ArrayOutputStream;
 
 TEST(MemoryMappedFileExtentStoreTests, OpenExtentForRead_succeeds_on_NonExistentExtent)
 {
@@ -54,10 +55,13 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForRead_can_read_data_written_b
         vector<uint8_t> expectedData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         auto writeExtent = co_await store->OpenExtentForWrite(MakeLogExtentName(0));
         auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
-        co_await writeBuffer->Write(0, expectedData.size());
+        auto rawData = co_await writeBuffer->Write(0, expectedData.size());
+        google::protobuf::io::ArrayOutputStream outputStream(
+            rawData.data().data(),
+            rawData.data().size());
 
         {
-            CodedOutputStream writeStream(writeBuffer->Stream());
+            CodedOutputStream writeStream(&outputStream);
             writeStream.WriteRaw(
                 expectedData.data(),
                 expectedData.size());
@@ -96,30 +100,39 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_gro
         auto writeExtent = co_await store->OpenExtentForWrite(MakeLogExtentName(0));
         
         auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
-        co_await writeBuffer1->Write(0, writeData1.size());
+        auto rawData1 = co_await writeBuffer1->Write(0, writeData1.size());
+        google::protobuf::io::ArrayOutputStream outputStream1(
+            rawData1.data().data(),
+            rawData1.data().size());
 
         auto writeBuffer2 = co_await writeExtent->CreateWriteBuffer();
-        co_await writeBuffer2->Write(writeData1.size(), writeData2.size());
+        auto rawData2 = co_await writeBuffer2->Write(writeData1.size(), writeData2.size());
+        google::protobuf::io::ArrayOutputStream outputStream2(
+            rawData2.data().data(),
+            rawData2.data().size());
 
         auto writeBuffer3 = co_await writeExtent->CreateWriteBuffer();
-        co_await writeBuffer3->Write(writeData1.size() + writeData2.size(), writeData3.size());
+        auto rawData3 = co_await writeBuffer3->Write(writeData1.size() + writeData2.size(), writeData3.size());
+        google::protobuf::io::ArrayOutputStream outputStream3(
+            rawData3.data().data(),
+            rawData3.data().size());
 
         {
-            CodedOutputStream writeStream(writeBuffer1->Stream());
+            CodedOutputStream writeStream(&outputStream1);
             writeStream.WriteRaw(
                 writeData1.data(),
                 writeData1.size());
         }
 
         {
-            CodedOutputStream writeStream(writeBuffer2->Stream());
+            CodedOutputStream writeStream(&outputStream2);
             writeStream.WriteRaw(
                 writeData2.data(),
                 writeData2.size());
         }
 
         {
-            CodedOutputStream writeStream(writeBuffer3->Stream());
+            CodedOutputStream writeStream(&outputStream3);
             writeStream.WriteRaw(
                 writeData3.data(),
                 writeData3.size());
@@ -161,10 +174,13 @@ TEST(MemoryMappedFileExtentStoreTests, DeleteExtent_erases_the_content)
         {
             auto writeExtent = co_await store->OpenExtentForWrite(MakeLogExtentName(0));
             auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
-            co_await writeBuffer->Write(0, writeData.size());
+            auto rawData = co_await writeBuffer->Write(0, writeData.size());
+            google::protobuf::io::ArrayOutputStream outputStream(
+                rawData.data().data(),
+                rawData.data().size());
 
             {
-                CodedOutputStream writeStream(writeBuffer->Stream());
+                CodedOutputStream writeStream(&outputStream);
                 writeStream.WriteRaw(
                     writeData.data(),
                     writeData.size());

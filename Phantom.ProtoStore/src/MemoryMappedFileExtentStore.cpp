@@ -65,12 +65,9 @@ public:
 
     // Begin writing at some location.
     // No other methods should be called until this is called.
-    virtual task<> Write(
+    virtual task<WritableRawData> Write(
         ExtentOffset offset,
         size_t count
-    ) override;
-
-    virtual ZeroCopyOutputStream* Stream(
     ) override;
 
     // Commit the data to be flushed later.  The task will complete 
@@ -219,7 +216,7 @@ MemoryMappedWriteBuffer::MemoryMappedWriteBuffer(
 {
 }
 
-task<> MemoryMappedWriteBuffer::Write(
+task<WritableRawData> MemoryMappedWriteBuffer::Write(
     ExtentOffset extentOffset,
     size_t size
 )
@@ -240,11 +237,15 @@ task<> MemoryMappedWriteBuffer::Write(
     m_stream.emplace(
         data,
         size32);
-}
 
-ZeroCopyOutputStream* MemoryMappedWriteBuffer::Stream()
-{
-    return &*m_stream;
+    co_return
+    {
+        m_mappedRegion,
+        {
+            static_cast<byte*>(data),
+            size
+        }
+    };
 }
 
 task<> MemoryMappedWriteBuffer::Commit()

@@ -35,25 +35,28 @@ namespace Phantom::ProtoStore
                 public IWriteBuffer
             {
                 Extent* m_extent;
-                optional<WriteOperation> m_currentWriteOperation;
-                optional<google::protobuf::io::ArrayOutputStream> m_outputStream;
+                std::shared_ptr<WriteOperation> m_currentWriteOperation;
 
-                void StartWriteOperation(
+                WritableRawData StartWriteOperation(
                     size_t offset,
                     size_t count)
                 {
                     assert(!m_currentWriteOperation);
 
-                    m_currentWriteOperation = WriteOperation
-                    {
-                        offset,
-                        vector<uint8_t>(count),
-                    };
+                    m_currentWriteOperation = std::make_shared<WriteOperation>(WriteOperation
+                        {
+                            offset,
+                            vector<uint8_t>(count),
+                        });
 
-                    m_outputStream.emplace(
-                        m_currentWriteOperation->m_bytes.data(),
-                        static_cast<int>(m_currentWriteOperation->m_bytes.size()),
-                        3);
+                    return WritableRawData
+                    {
+                        m_currentWriteOperation,
+                        {
+                            reinterpret_cast<byte*>(m_currentWriteOperation->m_bytes.data()),
+                            m_currentWriteOperation->m_bytes.size()
+                        }
+                    };
                 }
 
             public:
@@ -62,12 +65,6 @@ namespace Phantom::ProtoStore
                     :
                     m_extent(extent)
                 {
-                }
-
-                virtual google::protobuf::io::ZeroCopyOutputStream* Stream() override
-                {
-                    assert(m_currentWriteOperation);
-                    return &*m_outputStream;
                 }
 
                 virtual task<> Flush() override
@@ -89,18 +86,17 @@ namespace Phantom::ProtoStore
                         co_await m_extent->Write(
                             move(*m_currentWriteOperation));
                         m_currentWriteOperation.reset();
-                        m_outputStream.reset();
                     }
                     co_return;
                 }
 
-                virtual task<> Write(
+                virtual task<WritableRawData> Write(
                     ExtentOffset offset,
                     size_t count)
                 {
                     co_await Commit();
 
-                    StartWriteOperation(
+                    co_return StartWriteOperation(
                         offset,
                         count);
                 }
