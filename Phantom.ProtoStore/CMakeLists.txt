@@ -92,6 +92,7 @@ PROTOBUF_GENERATE(
 flatbuffers_generate_headers(
     TARGET Phantom.ProtoStore.FlatBuffers
     INCLUDE_PREFIX ./src ./include
+    FLAGS --reflect-names --gen-name-strings --gen-compare --cpp-std c++17 --gen-object-api --scoped-enums --gen-mutable
     SCHEMAS
     src/ProtoStoreInternal.fbs)
 
