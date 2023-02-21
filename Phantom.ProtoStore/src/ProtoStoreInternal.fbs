@@ -39,16 +39,22 @@ table DatabaseHeader {
     next_partition_number : uint64;
 }
 
-enum ChecksumVersion : byte {
+enum ExtentFormatVersion : uint8 {
     V1 = 1
 }
 
+// An ExtentHeader is written as a rooted size-prefixed table to the start
+// of an extent.
 table ExtentHeader {
-    checksum_version : ChecksumVersion = 1;
+    extent_version : ExtentFormatVersion = V1;
+    extent_name : ExtentName;
 }
 
+// MessageHeader_V1 is used in ExtentFormatVersion_V1
 struct MessageHeader_V1
 {
-    checksum : uint32;
+    crc32 : uint32;
     message_size : uint32;
 }
+
+file_identifier "PSEX";

@@ -56,8 +56,8 @@ TEST(MemoryExtentStoreTests, OpenExtentForRead_can_read_data_written_by_OpenExte
         auto readBuffer = co_await readExtent->Read(0, expectedData.size());
         
         google::protobuf::io::ArrayInputStream stream(
-            readBuffer.span().data(),
-            readBuffer.span().size()
+            readBuffer.data().data(),
+            readBuffer.data().size()
         );
 
         CodedInputStream readStream(
@@ -111,8 +111,8 @@ TEST(MemoryExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_grow)
         auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
         auto readBuffer = co_await readExtent->Read(0, expectedData.size());
         CodedInputStream readStream(
-            reinterpret_cast<const uint8_t*>(readBuffer.span().data()),
-            readBuffer.span().size());
+            reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
+            readBuffer.data().size());
         std::basic_string<uint8_t> actualData(expectedData.size(), '3');
         readStream.ReadRaw(
             actualData.data(),

@@ -33,7 +33,7 @@ public:
         ExtentName extentName
     );
 
-    virtual task<DataReference> Read(
+    virtual task<RawData> Read(
         ExtentOffset,
         size_t
     ) override;
@@ -190,7 +190,7 @@ MemoryMappedReadableExtent::MemoryMappedReadableExtent(
 {
 }
 
-task<DataReference> MemoryMappedReadableExtent::Read(
+task<RawData> MemoryMappedReadableExtent::Read(
     ExtentOffset offset,
     size_t size
 )
@@ -204,7 +204,7 @@ task<DataReference> MemoryMappedReadableExtent::Read(
         throw std::range_error("size");
     }
 
-    co_return DataReference(
+    co_return RawData(
         shared_from_this(),
         {
             reinterpret_cast<const byte*>(m_mappedRegion.get_address()) + offset,

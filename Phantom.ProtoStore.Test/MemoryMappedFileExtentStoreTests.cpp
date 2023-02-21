@@ -67,8 +67,8 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForRead_can_read_data_written_b
         auto readExtent = co_await store->OpenExtentForRead(MakeLogExtentName(0));
         auto readBuffer = co_await readExtent->Read(0, expectedData.size());
         CodedInputStream readStream(
-            reinterpret_cast<const uint8_t*>(readBuffer.span().data()),
-            readBuffer.span().size());
+            reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
+            readBuffer.data().size());
         vector<uint8_t> actualData(expectedData.size());
         readStream.ReadRaw(
             actualData.data(),
@@ -134,8 +134,8 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_gro
         auto readExtent = co_await store->OpenExtentForRead(MakeLogExtentName(0));
         auto readBuffer = co_await readExtent->Read(0, expectedData.size());
         CodedInputStream readStream(
-            reinterpret_cast<const uint8_t*>(readBuffer.span().data()),
-            readBuffer.span().size());
+            reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
+            readBuffer.data().size());
         std::basic_string<uint8_t> actualData(expectedData.size(), '0');
         readStream.ReadRaw(
             actualData.data(),

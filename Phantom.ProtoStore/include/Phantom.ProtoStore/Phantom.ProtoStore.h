@@ -24,6 +24,11 @@
 
 namespace Phantom::ProtoStore
 {
+namespace FlatBuffers
+{
+enum class ExtentFormatVersion : uint8_t;
+}
+
 using cppcoro::async_generator;
 
 template<
@@ -219,10 +224,13 @@ struct CreateIndexRequest
         ) = default;
 };
 
+template<
+    typename Data
+>
 class DataReference
 {
     std::shared_ptr<void> m_dataHolder;
-    std::span<const std::byte> m_span;
+    Data m_data;
 
 public:
     DataReference(
@@ -232,10 +240,10 @@ public:
 
     DataReference(
         std::shared_ptr<void> dataHolder,
-        std::span<const std::byte> span
+        Data data
     ) noexcept :
         m_dataHolder { std::move(dataHolder) },
-        m_span{ span }
+        m_data{ std::move(data) }
     {}
 
     DataReference(
@@ -246,9 +254,9 @@ public:
         DataReference&& other
     ) : 
         m_dataHolder { std::move(other.m_dataHolder) },
-        m_span{ std::move(other.m_span) }
+        m_data{ std::move(other.m_data) }
     {
-        other.m_span = {};
+        other.m_data = {};
     }
 
     DataReference& operator=(const DataReference& other) = default;
@@ -258,38 +266,71 @@ public:
         if (&other != this)
         {
             m_dataHolder = std::move(other.m_dataHolder);
-            m_span = other.m_span;
+            m_data = other.m_data;
             other.m_dataHolder = nullptr;
-            other.m_span = {};
+            other.m_data = {};
         }
 
         return *this;
     }
 
-    std::span<const std::byte> span() const noexcept
+    operator bool() const noexcept
+        requires std::convertible_to<Data, bool>
     {
-        return m_span;
+        return static_cast<bool>(m_data);
     }
 
-    explicit operator bool() const noexcept
+    const Data& data() const noexcept
     {
-        return m_span.data();
+        return m_data;
     }
+};
+
+template<
+    typename Base,
+    typename Label
+> struct Labeled : public Base
+{
+    using Base::Base;
+};
+
+struct MessageLabel;
+struct EnvelopeLabel;
+struct RawLabel;
+
+using MessageSpan = Labeled<std::span<const std::byte>, MessageLabel>;
+using EnvelopeSpan = Labeled<std::span<const std::byte>, EnvelopeLabel>;
+using RawSpan = Labeled<std::span<const std::byte>, RawLabel>;
+
+using RawData = DataReference<RawSpan>;
+
+struct StoredFlatMessage
+{
+    // The format version of the extent the message was stored in.
+    FlatBuffers::ExtentFormatVersion ExtentFormatVersion;
+    
+    // The message body itself.
+    MessageSpan Message;
+    // The full header + message
+    EnvelopeSpan Envelope;
 };
 
 template<
     typename Table
 > class FlatMessage
 {
-    DataReference m_dataReference;
+    DataReference<StoredFlatMessage> m_storedFlatMessage;
     Table* m_table;
 
 public:
+    FlatMessage()
+    {}
+
     explicit FlatMessage(
-        DataReference dataReference,
+        StoredFlatMessage storedFlatMessage,
         Table* table
     ) :
-        m_dataReference{ std::move(dataReference) },
+        m_storedFlatMessage{ std::move(storedFlatMessage) },
         m_table { table }
     {}
 
@@ -300,7 +341,7 @@ public:
     FlatMessage(
         FlatMessage&& other
     ) :
-        m_dataReference{ std::move(other.m_dataReference) },
+        m_storedFlatMessage{ std::move(other.m_storedFlatMessage) },
         m_table{ std::move(other.m_table) }
     {
         other.m_table = {};
@@ -312,18 +353,18 @@ public:
     {
         if (&other != this)
         {
-            m_dataReference = std::move(other.m_dataReference);
+            m_storedFlatMessage = std::move(other.m_storedFlatMessage);
             m_table = other.m_table;
-            other.m_dataReference = nullptr;
+            other.m_storedFlatMessage = nullptr;
             other.m_table = {};
         }
 
         return *this;
     }
 
-    const DataReference& data() const noexcept
+    const StoredFlatMessage& data() const noexcept
     {
-        return m_dataReference;
+        return m_storedFlatMessage;
     }
 
     const Table* get() const noexcept
@@ -334,6 +375,11 @@ public:
     explicit operator bool() const noexcept
     {
         return m_table;
+    }
+
+    const Table* operator->() const noexcept
+    {
+        return get();
     }
 };
 

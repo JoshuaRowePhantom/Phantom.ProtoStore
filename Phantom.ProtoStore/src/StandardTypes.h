@@ -160,7 +160,8 @@ struct DatabaseHeaderBuilder;
 struct ExtentHeader;
 struct ExtentHeaderBuilder;
 struct MessageHeader_V1;
-enum ExtentName : uint8_t;
+enum class ExtentName : uint8_t;
+enum class ExtentFormatVersion : uint8_t;
 }
 
 class SerializationTypes

@@ -176,8 +176,8 @@ namespace Phantom::ProtoStore
                 auto readBuffer = co_await readableExtent->Read(expectedEndOfMessage - 1, 1);
 
                 google::protobuf::io::CodedInputStream inputStream(
-                    reinterpret_cast<const uint8_t*>(readBuffer.span().data()),
-                    readBuffer.span().size());
+                    reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
+                    readBuffer.data().size());
                 inputStream.ReadRaw(
                     &lastChecksumByte,
                     sizeof(lastChecksumByte));

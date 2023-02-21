@@ -107,7 +107,7 @@ namespace Phantom::ProtoStore
                 }
             };
 
-            task<DataReference> Read(
+            task<RawData> Read(
                 ExtentOffset offset,
                 size_t count
             )
@@ -123,7 +123,7 @@ namespace Phantom::ProtoStore
                     throw std::range_error("count");
                 }
 
-                co_return DataReference(
+                co_return RawData(
                     m_bytes,
                     {
                         reinterpret_cast<const byte*>(m_bytes->data() + offset),

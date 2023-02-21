@@ -18,6 +18,13 @@ namespace Phantom::ProtoStore
         m_checksumAlgorithmFactory(checksumAlgorithmFactory)
     {}
 
+    task<StoredFlatMessage> RandomMessageReader::ReadFlatMessage(
+        ExtentOffset extentOffset
+    )
+    {
+        throw 0;
+    }
+
     task<ReadProtoMessageResult> RandomMessageReader::Read(
         ExtentOffset extentOffset,
         Message& message
@@ -35,8 +42,8 @@ namespace Phantom::ProtoStore
             messageHeaderReadBufferSize);
 
         CodedInputStream messageHeaderInputStream(
-            reinterpret_cast<const uint8_t*>(messageHeaderBuffer.span().data()),
-            messageHeaderBuffer.span().size());
+            reinterpret_cast<const uint8_t*>(messageHeaderBuffer.data().data()),
+            messageHeaderBuffer.data().size());
 
         google::protobuf::uint32 messageSize;
 
@@ -63,8 +70,8 @@ namespace Phantom::ProtoStore
             messageSize + checksum->SizeInBytes());
 
         google::protobuf::io::ArrayInputStream messageStream(
-            messageBuffer.span().data(),
-            messageBuffer.span().size()
+            messageBuffer.data().data(),
+            messageBuffer.data().size()
         );
 
         {
@@ -164,6 +171,15 @@ namespace Phantom::ProtoStore
         return result;
     }
 
+    task<StoredFlatMessage> RandomMessageWriter::WriteFlatMessage(
+        ExtentOffset extentOffset,
+        StoredFlatMessage message,
+        FlushBehavior flushBehavior
+    )
+    {
+        throw 0;
+    }
+
     task<WriteMessageResult> RandomMessageWriter::Write(
         ExtentOffset extentOffset,
         const Message& message,
@@ -249,6 +265,12 @@ namespace Phantom::ProtoStore
     {
     }
 
+    task<StoredFlatMessage> SequentialMessageReader::ReadFlatMessage(
+    )
+    {
+        throw 0;
+    }
+
     task<ReadProtoMessageResult> SequentialMessageReader::Read(
         Message& message
     )
@@ -269,6 +291,14 @@ namespace Phantom::ProtoStore
         m_randomMessageWriter(randomMessageWriter),
         m_currentOffset(0)
     {}
+
+    task<StoredFlatMessage> SequentialMessageWriter::WriteFlatMessage(
+        StoredFlatMessage flatMessage,
+        FlushBehavior flushBehavior
+    )
+    {
+        throw 0;
+    }
 
     task<WriteMessageResult> SequentialMessageWriter::Write(
         const Message& message,

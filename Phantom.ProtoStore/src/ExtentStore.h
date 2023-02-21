@@ -7,7 +7,7 @@ namespace Phantom::ProtoStore
 class IReadableExtent
 {
 public:
-    virtual task<DataReference> Read(
+    virtual task<RawData> Read(
         ExtentOffset,
         size_t
     ) = 0;

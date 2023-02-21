@@ -8,54 +8,38 @@ namespace Phantom::ProtoStore
 {
 TEST(DataReferenceTest, Can_create_default_instance)
 {
-    DataReference dataReference;
-    EXPECT_EQ(true, !dataReference);
-    EXPECT_EQ(false, static_cast<bool>(dataReference));
-    EXPECT_EQ(0, dataReference.span().size());
-    EXPECT_EQ(nullptr, dataReference.span().data());
+    RawData rawData;
+    EXPECT_EQ(0, rawData.data().size());
+    EXPECT_EQ(nullptr, rawData.data().data());
 }
 
 TEST(DataReferenceTest, Can_create_non_default_instance_with_no_controlling_allocation)
 {
     std::array<std::byte, 10> data;
-    DataReference dataReference(nullptr, data);
-    EXPECT_EQ(false, !dataReference);
-    EXPECT_EQ(true, static_cast<bool>(dataReference));
-    EXPECT_EQ(10, dataReference.span().size());
-    EXPECT_EQ(&data[0], dataReference.span().data());
+    RawData rawData(nullptr, data);
+    EXPECT_EQ(10, rawData.data().size());
+    EXPECT_EQ(&data[0], rawData.data().data());
 
-    auto copy = dataReference;
-    EXPECT_EQ(false, !copy);
-    EXPECT_EQ(true, static_cast<bool>(copy));
-    EXPECT_EQ(10, copy.span().size());
-    EXPECT_EQ(&data[0], copy.span().data());
+    auto copy = rawData;
+    EXPECT_EQ(10, copy.data().size());
+    EXPECT_EQ(&data[0], copy.data().data());
 
-    DataReference copy2;
-    copy2 = dataReference;
-    EXPECT_EQ(false, !copy2);
-    EXPECT_EQ(true, static_cast<bool>(copy2));
-    EXPECT_EQ(10, copy2.span().size());
-    EXPECT_EQ(&data[0], copy2.span().data());
+    RawData copy2;
+    copy2 = rawData;
+    EXPECT_EQ(10, copy2.data().size());
+    EXPECT_EQ(&data[0], copy2.data().data());
 
-    DataReference move1 = std::move(dataReference);
-    EXPECT_EQ(true, !dataReference);
-    EXPECT_EQ(false, static_cast<bool>(dataReference));
-    EXPECT_EQ(0, dataReference.span().size());
-    EXPECT_EQ(nullptr, dataReference.span().data());
-    EXPECT_EQ(false, !move1);
-    EXPECT_EQ(true, static_cast<bool>(move1));
-    EXPECT_EQ(10, move1.span().size());
-    EXPECT_EQ(&data[0], move1.span().data());
+    RawData move1 = std::move(rawData);
+    EXPECT_EQ(0, rawData.data().size());
+    EXPECT_EQ(nullptr, rawData.data().data());
+    EXPECT_EQ(10, move1.data().size());
+    EXPECT_EQ(&data[0], move1.data().data());
 
-    DataReference move2 = std::move(move1);
-    EXPECT_EQ(true, !move1);
-    EXPECT_EQ(false, static_cast<bool>(move1));
-    EXPECT_EQ(0, move1.span().size());
-    EXPECT_EQ(nullptr, move1.span().data());
-    EXPECT_EQ(false, !move2);
-    EXPECT_EQ(true, static_cast<bool>(move2));
-    EXPECT_EQ(10, move2.span().size());
-    EXPECT_EQ(&data[0], move2.span().data());
+    RawData move2 = std::move(move1);
+    EXPECT_EQ(0, move1.data().size());
+    EXPECT_EQ(nullptr, move1.data().data());
+    EXPECT_EQ(10, move2.data().size());
+    EXPECT_EQ(&data[0], move2.data().data());
 }
 
 TEST(DataReferenceTest, Can_create_non_default_instance_with_controlling_allocation)
@@ -71,41 +55,27 @@ TEST(DataReferenceTest, Can_create_non_default_instance_with_controlling_allocat
     auto dataPtr = std::make_shared<data>(std::array<std::byte, 10>(), statistics.tracker());
     std::span<const std::byte> span = dataPtr->m_data;
 
-    DataReference dataReference(std::move(dataPtr), dataPtr->m_data);
-    EXPECT_EQ(false, !dataReference);
-    EXPECT_EQ(true, static_cast<bool>(dataReference));
-    EXPECT_EQ(span.data(), dataReference.span().data());
+    RawData rawData(std::move(dataPtr), dataPtr->m_data);
+    EXPECT_EQ(span.data(), rawData.data().data());
 
-    auto copy = dataReference;
-    EXPECT_EQ(false, !copy);
-    EXPECT_EQ(true, static_cast<bool>(copy));
-    EXPECT_EQ(span.data(), dataReference.span().data());
+    auto copy = rawData;
+    EXPECT_EQ(span.data(), rawData.data().data());
 
-    DataReference copy2;
-    copy2 = dataReference;
-    EXPECT_EQ(false, !copy2);
-    EXPECT_EQ(true, static_cast<bool>(copy2));
-    EXPECT_EQ(span.data(), copy2.span().data());
-    EXPECT_EQ(span.data(), dataReference.span().data());
+    RawData copy2;
+    copy2 = rawData;
+    EXPECT_EQ(span.data(), copy2.data().data());
+    EXPECT_EQ(span.data(), rawData.data().data());
 
-    DataReference move1 = std::move(dataReference);
-    EXPECT_EQ(true, !dataReference);
-    EXPECT_EQ(false, static_cast<bool>(dataReference));
-    EXPECT_EQ(nullptr, dataReference.span().data());
-    EXPECT_EQ(0, dataReference.span().size());
-    EXPECT_EQ(false, !move1);
-    EXPECT_EQ(true, static_cast<bool>(move1));
-    EXPECT_EQ(span.data(), move1.span().data());
+    RawData move1 = std::move(rawData);
+    EXPECT_EQ(nullptr, rawData.data().data());
+    EXPECT_EQ(0, rawData.data().size());
+    EXPECT_EQ(span.data(), move1.data().data());
     EXPECT_EQ(1, statistics.instance_count);
 
-    DataReference move2 = std::move(move1);
-    EXPECT_EQ(true, !move1);
-    EXPECT_EQ(false, static_cast<bool>(move1));
-    EXPECT_EQ(nullptr, move1.span().data());
-    EXPECT_EQ(0, move1.span().size());
-    EXPECT_EQ(false, !move2);
-    EXPECT_EQ(true, static_cast<bool>(move2));
-    EXPECT_EQ(span.data(), move2.span().data());
+    RawData move2 = std::move(move1);
+    EXPECT_EQ(nullptr, move1.data().data());
+    EXPECT_EQ(0, move1.data().size());
+    EXPECT_EQ(span.data(), move2.data().data());
 
     move2 = nullptr;
     EXPECT_EQ(1, statistics.instance_count);
@@ -113,6 +83,15 @@ TEST(DataReferenceTest, Can_create_non_default_instance_with_controlling_allocat
     EXPECT_EQ(1, statistics.instance_count);
     copy2 = nullptr;
     EXPECT_EQ(0, statistics.instance_count);
+}
+
+TEST(DataReferenceTest, Can_convert_to_bool)
+{
+    DataReference<bool> dataReference1 = { nullptr, true };
+    DataReference<bool> dataReference2 = { nullptr, false };
+
+    EXPECT_EQ(true, !!dataReference1);
+    EXPECT_EQ(false, !!dataReference2);
 }
 
 }

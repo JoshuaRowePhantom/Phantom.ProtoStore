@@ -21,6 +21,10 @@ namespace Phantom::ProtoStore
             shared_ptr<IReadableExtent> extent,
             shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
 
+        virtual task<StoredFlatMessage> ReadFlatMessage(
+            ExtentOffset extentOffset
+        ) override;
+
         virtual task<ReadProtoMessageResult> Read(
             ExtentOffset extentOffset,
             Message& message
@@ -50,6 +54,12 @@ namespace Phantom::ProtoStore
             FlushBehavior flushBehavior
         );
 
+        virtual task<StoredFlatMessage> WriteFlatMessage(
+            ExtentOffset extentOffset,
+            StoredFlatMessage message,
+            FlushBehavior flushBehavior
+        ) override;
+
         virtual task<WriteMessageResult> Write(
             ExtentOffset extentOffset,
             const Message& message,
@@ -67,6 +77,9 @@ namespace Phantom::ProtoStore
         SequentialMessageReader(
             shared_ptr<RandomMessageReader> randomMessageReader);
 
+        virtual task<StoredFlatMessage> ReadFlatMessage(
+        ) override;
+
         virtual task<ReadProtoMessageResult> Read(
             Message& message
         ) override;
@@ -81,6 +94,11 @@ namespace Phantom::ProtoStore
     public:
         SequentialMessageWriter(
             shared_ptr<RandomMessageWriter> randomMessageWriter);
+
+        virtual task<StoredFlatMessage> WriteFlatMessage(
+            StoredFlatMessage flatMessage,
+            FlushBehavior flushBehavior
+        ) override;
 
         virtual task<WriteMessageResult> Write(
             const Message& message, 

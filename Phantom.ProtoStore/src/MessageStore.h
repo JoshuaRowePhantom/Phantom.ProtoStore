@@ -24,23 +24,38 @@ namespace Phantom::ProtoStore
     class IRandomMessageReader
     {
     public:
+        virtual task<StoredFlatMessage> ReadFlatMessage(
+            ExtentOffset extentOffset
+        ) = 0;
+
         virtual task<ReadProtoMessageResult> Read(
             ExtentOffset extentOffset,
-            Message& message) = 0;
+            Message& message
+        ) = 0;
     };
 
     class IRandomMessageWriter
     {
     public:
+        virtual task<StoredFlatMessage> WriteFlatMessage(
+            ExtentOffset extentOffset,
+            StoredFlatMessage message,
+            FlushBehavior flushBehavior
+        ) = 0;
+
         virtual task<WriteMessageResult> Write(
             ExtentOffset extentOffset,
             const Message& message,
-            FlushBehavior flushBehavior) = 0;
+            FlushBehavior flushBehavior
+        ) = 0;
     };
 
     class ISequentialMessageReader
     {
     public:
+        virtual task<StoredFlatMessage> ReadFlatMessage(
+        ) = 0;
+
         virtual task<ReadProtoMessageResult> Read(
             Message& message
         ) = 0;
@@ -49,6 +64,11 @@ namespace Phantom::ProtoStore
     class ISequentialMessageWriter
     {
     public:
+        virtual task<StoredFlatMessage> WriteFlatMessage(
+            StoredFlatMessage flatMessage,
+            FlushBehavior flushBehavior
+        ) = 0;
+
         virtual task<WriteMessageResult> Write(
             const Message& message,
             FlushBehavior flushBehavior
