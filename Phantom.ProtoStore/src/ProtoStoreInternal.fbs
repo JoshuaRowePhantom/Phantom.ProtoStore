@@ -1,6 +1,5 @@
 namespace Phantom.ProtoStore.FlatBuffers;
 
-
 table DatabaseHeaderExtentName {
     header_copy_number : uint64;
 }
@@ -31,11 +30,25 @@ union ExtentName {
     LogExtentName
 }
 
-table Header {
+table DatabaseHeader {
     version : uint32;
     log_alignment:uint32;
     log_replay_extent_names : [LogExtentName];
     epoch : uint64;
     next_index_number : uint64;
     next_partition_number : uint64;
+}
+
+enum ChecksumVersion : byte {
+    V1 = 1
+}
+
+table ExtentHeader {
+    checksum_version : ChecksumVersion = 1;
+}
+
+struct MessageHeader_V1
+{
+    checksum : uint32;
+    message_size : uint32;
 }

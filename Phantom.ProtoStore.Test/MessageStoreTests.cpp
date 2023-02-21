@@ -173,11 +173,11 @@ namespace Phantom::ProtoStore
             uint8_t lastChecksumByte;
             {
                 auto readableExtent = co_await extentStore->OpenExtentForRead(MakeLogExtentName(0));
-                auto readBuffer = co_await readableExtent->CreateReadBuffer();
-                co_await readBuffer->Read(expectedEndOfMessage - 1, 1);
+                auto readBuffer = co_await readableExtent->Read(expectedEndOfMessage - 1, 1);
 
                 google::protobuf::io::CodedInputStream inputStream(
-                    readBuffer->Stream());
+                    reinterpret_cast<const uint8_t*>(readBuffer.span().data()),
+                    readBuffer.span().size());
                 inputStream.ReadRaw(
                     &lastChecksumByte,
                     sizeof(lastChecksumByte));

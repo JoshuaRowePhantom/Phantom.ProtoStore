@@ -23,60 +23,12 @@ namespace Phantom::ProtoStore
             };
 
             cppcoro::async_mutex m_mutex;
-            shared_ptr<vector<uint8_t>> m_bytes;
+            std::shared_ptr<vector<uint8_t>> m_bytes;
             std::list<WriteOperation> m_pendingWriteOperations;
             Schedulers m_schedulers;
 
             // This is here for debugging purposes.
             ExtentName m_extentName;
-
-            class ReadBuffer
-                :
-                public IReadBuffer
-            {
-                Extent* m_extent;
-                shared_ptr<vector<uint8_t>> m_bytes;
-                optional<google::protobuf::io::ArrayInputStream> m_inputStream;
-
-            public:
-                ReadBuffer(
-                    Extent* extent)
-                    :
-                    m_extent(extent)
-                {
-                }
-
-                virtual task<> Read(
-                    ExtentOffset offset,
-                    size_t count
-                ) override
-                {
-                    m_inputStream.reset();
-
-                    m_bytes = co_await m_extent->Read(
-                        offset,
-                        count);
-                    
-                    if (m_bytes->size() < offset + count)
-                    {
-                        throw range_error("Read past end");
-                    }
-
-                    m_inputStream.emplace(
-                        m_bytes->data() + offset,
-                        static_cast<int>(count));
-                }
-
-                virtual google::protobuf::io::ZeroCopyInputStream* Stream() override
-                {
-                    return &*m_inputStream;
-                }
-
-                virtual void ReturnToPool()
-                {
-                    delete this;
-                }
-            };
 
             class WriteBuffer
                 :
@@ -155,24 +107,29 @@ namespace Phantom::ProtoStore
                 }
             };
 
-            virtual task<pooled_ptr<IReadBuffer>> CreateReadBuffer() override
-            {
-                pooled_ptr<IReadBuffer> readBuffer(new ReadBuffer(
-                    this));
-
-                co_return move(readBuffer);
-            }
-
-            task<shared_ptr<vector<uint8_t>>> Read(
+            task<DataReference> Read(
                 ExtentOffset offset,
                 size_t count
             )
             {
                 auto lock = co_await m_mutex.scoped_lock_async();
+                
+                if (offset > m_bytes->size())
+                {
+                    throw std::range_error("offset");
+                }
+                if (offset + count > m_bytes->size())
+                {
+                    throw std::range_error("count");
+                }
 
-                co_await m_schedulers.LockScheduler->schedule();
-
-                co_return m_bytes;
+                co_return DataReference(
+                    m_bytes,
+                    {
+                        reinterpret_cast<const byte*>(m_bytes->data() + offset),
+                        count
+                    }
+                );
             }
 
             virtual task<pooled_ptr<IWriteBuffer>> CreateWriteBuffer() override

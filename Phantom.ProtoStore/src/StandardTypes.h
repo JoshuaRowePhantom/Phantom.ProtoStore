@@ -143,6 +143,26 @@ class UnresolvedTransactionKey;
 class UnresolvedTransactionValue;
 }
 
+namespace FlatBuffers
+{
+struct DatabaseHeaderExtentName;
+struct DatabaseHeaderExtentNameBuilder;
+struct IndexExtentName;
+struct IndexExtentNameBuilder;
+struct IndexDataExtentName;
+struct IndexDataExtentNameBuilder;
+struct IndexHeaderExtentName;
+struct IndexHeaderExtentNameBuilder;
+struct LogExtentName;
+struct LogExtentNameBuilder;
+struct DatabaseHeader;
+struct DatabaseHeaderBuilder;
+struct ExtentHeader;
+struct ExtentHeaderBuilder;
+struct MessageHeader_V1;
+enum ExtentName : uint8_t;
+}
+
 class SerializationTypes
 {
 public:

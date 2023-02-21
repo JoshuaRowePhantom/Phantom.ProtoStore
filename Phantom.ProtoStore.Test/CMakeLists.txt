@@ -11,13 +11,17 @@ add_executable(
     "async_test.h"
     "BloomFilterTests.cpp" 
     "ChecksumTests.cpp" 
+    "DataReferenceTests.cpp"
+    "DelayedMemoryTableTransactionOutcomeTests.cpp" 
     "HeaderAccessorTests.cpp"
     "KeyComparerTests.cpp"
+    "lifetime_tracker.h"
     "MemoryExtentStoreTests.cpp"
     "MemoryMappedFileExtentStoreTests.cpp"
     "MemoryTableTests.cpp"
     "MessageStoreTests.cpp"
     "PartitionTests.cpp"
+    "ProtoStoreTest.proto"
     "ProtoStoreTests.cpp"
     "ProtoValueTests.cpp"
     "RowMergerTests.cpp"
@@ -25,8 +29,7 @@ add_executable(
     "SkipListTest.cpp"
     "StandardIncludes.cpp"
     "StandardIncludes.h"
-    ProtoStoreTest.proto
- "DelayedMemoryTableTransactionOutcomeTests.cpp")
+    )
     
 PROTOBUF_GENERATE(
     LANGUAGE cpp

@@ -219,6 +219,124 @@ struct CreateIndexRequest
         ) = default;
 };
 
+class DataReference
+{
+    std::shared_ptr<void> m_dataHolder;
+    std::span<const std::byte> m_span;
+
+public:
+    DataReference(
+        nullptr_t = nullptr
+    )
+    {}
+
+    DataReference(
+        std::shared_ptr<void> dataHolder,
+        std::span<const std::byte> span
+    ) noexcept :
+        m_dataHolder { std::move(dataHolder) },
+        m_span{ span }
+    {}
+
+    DataReference(
+        const DataReference&
+    ) = default;
+
+    DataReference(
+        DataReference&& other
+    ) : 
+        m_dataHolder { std::move(other.m_dataHolder) },
+        m_span{ std::move(other.m_span) }
+    {
+        other.m_span = {};
+    }
+
+    DataReference& operator=(const DataReference& other) = default;
+
+    auto& operator=(DataReference&& other)
+    {
+        if (&other != this)
+        {
+            m_dataHolder = std::move(other.m_dataHolder);
+            m_span = other.m_span;
+            other.m_dataHolder = nullptr;
+            other.m_span = {};
+        }
+
+        return *this;
+    }
+
+    std::span<const std::byte> span() const noexcept
+    {
+        return m_span;
+    }
+
+    explicit operator bool() const noexcept
+    {
+        return m_span.data();
+    }
+};
+
+template<
+    typename Table
+> class FlatMessage
+{
+    DataReference m_dataReference;
+    Table* m_table;
+
+public:
+    explicit FlatMessage(
+        DataReference dataReference,
+        Table* table
+    ) :
+        m_dataReference{ std::move(dataReference) },
+        m_table { table }
+    {}
+
+    FlatMessage(
+        const FlatMessage&
+    ) = default;
+
+    FlatMessage(
+        FlatMessage&& other
+    ) :
+        m_dataReference{ std::move(other.m_dataReference) },
+        m_table{ std::move(other.m_table) }
+    {
+        other.m_table = {};
+    }
+
+    FlatMessage& operator=(const FlatMessage& other) = default;
+
+    auto& operator=(FlatMessage&& other)
+    {
+        if (&other != this)
+        {
+            m_dataReference = std::move(other.m_dataReference);
+            m_table = other.m_table;
+            other.m_dataReference = nullptr;
+            other.m_table = {};
+        }
+
+        return *this;
+    }
+
+    const DataReference& data() const noexcept
+    {
+        return m_dataReference;
+    }
+
+    const Table* get() const noexcept
+    {
+        return m_table;
+    }
+
+    explicit operator bool() const noexcept
+    {
+        return m_table;
+    }
+};
+
 class ProtoValue
 {
     typedef std::variant<

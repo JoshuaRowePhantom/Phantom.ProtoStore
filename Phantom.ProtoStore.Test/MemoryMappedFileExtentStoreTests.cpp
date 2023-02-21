@@ -33,9 +33,8 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForRead_cannot_read_past_end_of
             "OpenExtentForRead_succeeds_on_NonExistentExtent",
             4096);
         auto extent = co_await store->OpenExtentForRead(MakeLogExtentName(0));
-        auto buffer = co_await extent->CreateReadBuffer();
         EXPECT_THROW(
-            (co_await buffer->Read(
+            (co_await extent->Read(
                 0,
                 1))
             ,
@@ -66,9 +65,10 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForRead_can_read_data_written_b
         co_await writeBuffer->Flush();
 
         auto readExtent = co_await store->OpenExtentForRead(MakeLogExtentName(0));
-        auto readBuffer = co_await readExtent->CreateReadBuffer();
-        co_await readBuffer->Read(0, expectedData.size());
-        CodedInputStream readStream(readBuffer->Stream());
+        auto readBuffer = co_await readExtent->Read(0, expectedData.size());
+        CodedInputStream readStream(
+            reinterpret_cast<const uint8_t*>(readBuffer.span().data()),
+            readBuffer.span().size());
         vector<uint8_t> actualData(expectedData.size());
         readStream.ReadRaw(
             actualData.data(),
@@ -132,9 +132,10 @@ TEST(MemoryMappedFileExtentStoreTests, OpenExtentForWrite_can_do_Flush_after_gro
         auto expectedData = writeData1 + writeData2 + writeData3;
 
         auto readExtent = co_await store->OpenExtentForRead(MakeLogExtentName(0));
-        auto readBuffer = co_await readExtent->CreateReadBuffer();
-        co_await readBuffer->Read(0, expectedData.size());
-        CodedInputStream readStream(readBuffer->Stream());
+        auto readBuffer = co_await readExtent->Read(0, expectedData.size());
+        CodedInputStream readStream(
+            reinterpret_cast<const uint8_t*>(readBuffer.span().data()),
+            readBuffer.span().size());
         std::basic_string<uint8_t> actualData(expectedData.size(), '0');
         readStream.ReadRaw(
             actualData.data(),
@@ -174,10 +175,9 @@ TEST(MemoryMappedFileExtentStoreTests, DeleteExtent_erases_the_content)
         co_await store->DeleteExtent(MakeLogExtentName(0));
 
         auto extent = co_await store->OpenExtentForRead(MakeLogExtentName(0));
-        auto readBuffer = co_await extent->CreateReadBuffer();
 
         EXPECT_THROW(
-            (co_await readBuffer->Read(
+            (co_await extent->Read(
                 0,
                 1))
             ,

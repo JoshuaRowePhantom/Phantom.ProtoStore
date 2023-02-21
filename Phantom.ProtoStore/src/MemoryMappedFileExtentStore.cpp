@@ -18,7 +18,8 @@ namespace Phantom::ProtoStore
 
 class MemoryMappedReadableExtent
     :
-    public IReadableExtent
+    public IReadableExtent,
+    public std::enable_shared_from_this<MemoryMappedReadableExtent>
 {
     mapped_region m_mappedRegion;
     // This is here for debugging purposes.
@@ -32,30 +33,9 @@ public:
         ExtentName extentName
     );
 
-    virtual task<pooled_ptr<IReadBuffer>> CreateReadBuffer(
-    ) override;
-};
-
-class MemoryMappedReadBuffer
-    :
-    public IReadBuffer
-{
-    MemoryMappedReadableExtent* m_extent;
-    std::optional<google::protobuf::io::ArrayInputStream> m_inputStream;
-
-public:
-    MemoryMappedReadBuffer(
-        MemoryMappedReadableExtent* memoryMappedReadableExtent);
-
-    virtual task<> Read(
-        ExtentOffset offset,
-        size_t count
-    ) override;
-
-    virtual ZeroCopyInputStream* Stream(
-    ) override;
-
-    virtual void ReturnToPool(
+    virtual task<DataReference> Read(
+        ExtentOffset,
+        size_t
     ) override;
 };
 
@@ -210,52 +190,26 @@ MemoryMappedReadableExtent::MemoryMappedReadableExtent(
 {
 }
 
-task<pooled_ptr<IReadBuffer>> MemoryMappedReadableExtent::CreateReadBuffer()
-{
-    co_return pooled_ptr<IReadBuffer>(
-        new MemoryMappedReadBuffer(this));
-}
-
-MemoryMappedReadBuffer::MemoryMappedReadBuffer(
-    MemoryMappedReadableExtent* extent
-) :
-    m_extent(extent)
-{
-}
-
-task<> MemoryMappedReadBuffer::Read(
+task<DataReference> MemoryMappedReadableExtent::Read(
     ExtentOffset offset,
-    size_t count
+    size_t size
 )
 {
-    if (offset + count > m_extent->m_mappedRegion.get_size())
+    if (offset > m_mappedRegion.get_size())
     {
-        throw std::range_error("out of range read");
+        throw std::range_error("offset");
+    }
+    if (offset + size > m_mappedRegion.get_size())
+    {
+        throw std::range_error("size");
     }
 
-    char* address = 
-        reinterpret_cast<char*>(
-            m_extent->m_mappedRegion.get_address())
-        + offset;
-
-    int countInt = static_cast<int>(count);
-    assert(countInt == count);
-
-    m_inputStream.emplace(
-        address,
-        countInt);
-
-    co_return;
-}
-
-ZeroCopyInputStream* MemoryMappedReadBuffer::Stream()
-{
-    return &*m_inputStream;
-}
-
-void MemoryMappedReadBuffer::ReturnToPool()
-{
-    delete this;
+    co_return DataReference(
+        shared_from_this(),
+        {
+            reinterpret_cast<const byte*>(m_mappedRegion.get_address()) + offset,
+            size
+        });
 }
 
 MemoryMappedWriteBuffer::MemoryMappedWriteBuffer(
