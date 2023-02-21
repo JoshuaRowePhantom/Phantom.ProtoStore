@@ -35,7 +35,6 @@ namespace Phantom::ProtoStore
                 public IWriteBuffer
             {
                 Extent* m_extent;
-                std::list<WriteOperation> m_writeOperations;
                 optional<WriteOperation> m_currentWriteOperation;
                 optional<google::protobuf::io::ArrayOutputStream> m_outputStream;
 
