@@ -65,12 +65,6 @@ using google::protobuf::io::ZeroCopyOutputStream;
 
 typedef google::protobuf::uint64 CheckpointNumber;
 
-struct ExtentOffsetRange
-{
-    ExtentOffset Beginning;
-    ExtentOffset End;
-};
-
 typedef string IndexName;
 typedef google::protobuf::uint64 IndexNumber;
 typedef google::protobuf::uint64 LevelNumber;

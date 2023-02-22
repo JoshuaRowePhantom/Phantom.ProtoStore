@@ -43,6 +43,13 @@ target_compile_definitions(
     "BOOST_ALL_NO_LIB=1"
 )
 
+flatbuffers_generate_headers(
+    TARGET Phantom.ProtoStore.Test.FlatBuffers
+    INCLUDE_PREFIX . ../Phantom.ProtoStore/src ../Phantom.ProtoStore/include
+    FLAGS --reflect-names --gen-name-strings --gen-compare --cpp-std c++17 --gen-object-api --scoped-enums --gen-mutable
+    SCHEMAS
+    ProtoStoreTest.fbs)
+
 target_link_libraries(
     Phantom.ProtoStore.Test
     "$<$<CONFIG:RelWithDebInfo>:mimalloc>")
@@ -51,6 +58,8 @@ target_link_libraries(
     Phantom.ProtoStore.Test
     Phantom.System
     Phantom.ProtoStore
+    Phantom.ProtoStore.FlatBuffers
+    Phantom.ProtoStore.Test.FlatBuffers
     GTest::gtest
     GTest::gtest_main
 )

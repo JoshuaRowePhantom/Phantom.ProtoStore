@@ -30,7 +30,7 @@ private:
         const Serialization::PartitionTreeEntry& treeEntry
     );
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         uint32_t level,
         bool createNewLevel);
 
@@ -67,10 +67,10 @@ public:
 
     uint32_t GetLevelCount();
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         uint32_t level);
 
-    task<WriteMessageResult> WriteRoot();
+    task<DataReference<StoredMessage>> WriteRoot();
 };
 
 class PartitionWriter : 
@@ -86,32 +86,32 @@ class PartitionWriter :
         string key,
         PartitionTreeEntryValue partitionTreeEntryValue);
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         const PartitionMessage& partitionMessage,
         FlushBehavior flushBehavior = FlushBehavior::DontFlush
     );
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         PartitionHeader partitionHeader
     );
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         PartitionRoot partitionRoot
     );
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         PartitionTreeNode partitionTreeNode
     );
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         PartitionBloomFilter partitionBloomFilter
     );
 
-    task<WriteMessageResult> Write(
+    task<DataReference<StoredMessage>> Write(
         string value
     );
 
-    task<WriteMessageResult> WriteLeftoverTreeEntries();
+    task<DataReference<StoredMessage>> WriteLeftoverTreeEntries();
 
     task<> FlushCompleteTreeNode(
         uint32_t level);

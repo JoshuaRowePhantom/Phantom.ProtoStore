@@ -49,7 +49,7 @@ bool PartitionTreeWriter::IsCurrentKey(
         && m_treeNodeStack[0].Message.partitiontreenode().treeentries(treeEntriesSize - 1).key() == key;
 }
 
-task<WriteMessageResult> PartitionTreeWriter::Write(
+task<DataReference<StoredMessage>> PartitionTreeWriter::Write(
     uint32_t level)
 {
     return Write(
@@ -57,7 +57,7 @@ task<WriteMessageResult> PartitionTreeWriter::Write(
         true);
 }
 
-task<WriteMessageResult> PartitionTreeWriter::Write(
+task<DataReference<StoredMessage>> PartitionTreeWriter::Write(
     uint32_t level,
     bool createNewLevel)
 {
@@ -84,7 +84,7 @@ task<WriteMessageResult> PartitionTreeWriter::Write(
         move(*lastChild.mutable_key())
     );
     higherLevelTreeEntry->mutable_child()->set_treenodeoffset(
-        writeMessageResult.DataRange.Beginning
+        writeMessageResult->DataRange.Beginning
     );
     higherLevelTreeEntry->mutable_child()->set_lowestwritesequencenumberforkey(
         GetLowestSequenceNumber(lastChild)
@@ -108,9 +108,9 @@ google::protobuf::uint64 PartitionTreeWriter::GetLowestSequenceNumber(
     return (treeEntry.valueset().values().end() - 1)->writesequencenumber();
 }
 
-task<WriteMessageResult> PartitionTreeWriter::WriteRoot()
+task<DataReference<StoredMessage>> PartitionTreeWriter::WriteRoot()
 {
-    WriteMessageResult result;
+    DataReference<StoredMessage> result;
     for (auto level = 0; level < m_treeNodeStack.size(); level++)
     {
         // Only write the node if it is non-empty
@@ -182,7 +182,7 @@ PartitionWriter::PartitionWriter(
     m_partitionTreeWriter(dataWriter)
 {}
 
-task<WriteMessageResult> PartitionWriter::Write(
+task<DataReference<StoredMessage>> PartitionWriter::Write(
     const PartitionMessage& partitionMessage,
     FlushBehavior flushBehavior
 )
@@ -193,7 +193,7 @@ task<WriteMessageResult> PartitionWriter::Write(
     );
 }
 
-task<WriteMessageResult> PartitionWriter::Write(
+task<DataReference<StoredMessage>> PartitionWriter::Write(
     PartitionHeader partitionHeader
 )
 {
@@ -210,7 +210,7 @@ task<WriteMessageResult> PartitionWriter::Write(
         FlushBehavior::Flush);
 }
 
-task<WriteMessageResult> PartitionWriter::Write(
+task<DataReference<StoredMessage>> PartitionWriter::Write(
     PartitionRoot partitionRoot
 )
 {
@@ -219,7 +219,7 @@ task<WriteMessageResult> PartitionWriter::Write(
     co_return co_await Write(message);
 }
 
-task<WriteMessageResult> PartitionWriter::Write(
+task<DataReference<StoredMessage>> PartitionWriter::Write(
     PartitionTreeNode partitionTreeNode
 )
 {
@@ -228,7 +228,7 @@ task<WriteMessageResult> PartitionWriter::Write(
     co_return co_await Write(message);
 }
 
-task<WriteMessageResult> PartitionWriter::Write(
+task<DataReference<StoredMessage>> PartitionWriter::Write(
     PartitionBloomFilter partitionBloomFilter
 )
 {
@@ -237,7 +237,7 @@ task<WriteMessageResult> PartitionWriter::Write(
     co_return co_await Write(message);
 }
 
-task<WriteMessageResult> PartitionWriter::Write(
+task<DataReference<StoredMessage>> PartitionWriter::Write(
     string value
 )
 {
@@ -314,7 +314,7 @@ task<> PartitionWriter::FlushCompleteTreeNode(
         level);
 }
 
-task<WriteMessageResult> PartitionWriter::WriteLeftoverTreeEntries()
+task<DataReference<StoredMessage>> PartitionWriter::WriteLeftoverTreeEntries()
 {
     return m_partitionTreeWriter.WriteRoot();
 }
@@ -422,7 +422,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
                 move(value));
 
             partitionTreeEntryValue.set_valueoffset(
-                largeValueWrite.DataRange.Beginning);
+                largeValueWrite->DataRange.Beginning);
         }
         else
         {
@@ -442,11 +442,11 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
 
     PartitionRoot partitionRoot;
     partitionRoot.set_roottreenodeoffset(
-        rootTreeNodeWriteResult.DataRange.Beginning);
+        rootTreeNodeWriteResult->DataRange.Beginning);
     partitionRoot.set_rowcount(
         result.rowsWritten);
     partitionRoot.set_bloomfilteroffset(
-        bloomFilterWriteResult.DataRange.Beginning
+        bloomFilterWriteResult->DataRange.Beginning
     );
     partitionRoot.set_earliestsequencenumber(
         ToUint64(earliestSequenceNumber));
@@ -458,7 +458,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
 
     PartitionHeader partitionHeader;
     partitionHeader.set_partitionrootoffset(
-        partitionRootWriteResult.DataRange.Beginning);
+        partitionRootWriteResult->DataRange.Beginning);
 
     co_await Write(
         move(partitionHeader));

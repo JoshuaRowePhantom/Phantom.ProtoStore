@@ -35,7 +35,7 @@ task<> DumpLog(
             DumpMessage(
                 "LogRecord",
                 message,
-                readMessageResult.DataRange.Beginning
+                readMessageResult->DataRange.Beginning
             );
         } while (true);
     }

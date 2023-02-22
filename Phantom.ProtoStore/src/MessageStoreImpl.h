@@ -9,151 +9,192 @@
 
 namespace Phantom::ProtoStore
 {
-    class RandomMessageReader
-        :
-        public IRandomMessageReader
-    {
-        const shared_ptr<IReadableExtent> m_extent;
-        const shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
-    public:
-        RandomMessageReader(
-            shared_ptr<IReadableExtent> extent,
-            shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
+class RandomMessageReaderWriterBase
+{
+public:
+    const shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
+    const FlatMessage<FlatBuffers::ExtentHeader> m_header;
 
-        virtual task<StoredFlatMessage> ReadFlatMessage(
-            ExtentOffset extentOffset
-        ) override;
+    static ExtentOffset align(
+        ExtentOffset base,
+        uint8_t alignment
+    );
+    static bool is_aligned(
+        ExtentOffset offset,
+        uint8_t alignment
+    );
+    static bool is_contained_within(
+        std::span<const byte> inner,
+        std::span<const byte> outer
+    );
 
-        virtual task<ReadProtoMessageResult> Read(
-            ExtentOffset extentOffset,
-            Message& message
-        ) override;
-    };
+    ExtentOffset to_underlying_extent_offset(
+        ExtentOffset
+    );
 
-    class RandomMessageWriter
-        :
-        public IRandomMessageWriter
-    {
-        const shared_ptr<IWritableExtent> m_extent;
-        const shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
-        const size_t m_checksumSize;
+    static uint32_t checksum_v1(
+        std::span<const byte>
+    );
 
-    public:
-        RandomMessageWriter(
-            shared_ptr<IWritableExtent> extent,
-            shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
+    RandomMessageReaderWriterBase(
+        FlatMessage<FlatBuffers::ExtentHeader> header,
+        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
+};
 
-        WriteMessageResult GetWriteMessageResult(
-            ExtentOffset extentOffset,
-            size_t messageSize);
+class RandomMessageReader
+    :
+    private RandomMessageReaderWriterBase,
+    public IRandomMessageReader
+{
+    const shared_ptr<IReadableExtent> m_extent;
 
-        task<> Write(
-            const WriteMessageResult& writeMessageResult,
-            const Message& message,
-            FlushBehavior flushBehavior
-        );
+public:
+    RandomMessageReader(
+        shared_ptr<IReadableExtent> extent,
+        FlatMessage<FlatBuffers::ExtentHeader> header,
+        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
 
-        virtual task<StoredFlatMessage> WriteFlatMessage(
-            ExtentOffset extentOffset,
-            StoredFlatMessage message,
-            FlushBehavior flushBehavior
-        ) override;
+    virtual task<DataReference<StoredMessage>> ReadFlatMessage(
+        ExtentOffset extentOffset
+    ) override;
 
-        virtual task<WriteMessageResult> Write(
-            ExtentOffset extentOffset,
-            const Message& message,
-            FlushBehavior flushBehavior
-        ) override;
-    };
+    virtual task< DataReference<StoredMessage>> Read(
+        ExtentOffset extentOffset,
+        Message& message
+    ) override;
+};
 
-    class SequentialMessageReader
-        :
-        public ISequentialMessageReader
-    {
-        const shared_ptr<RandomMessageReader> m_randomMessageReader;
-        ExtentOffset m_currentOffset;
-    public:
-        SequentialMessageReader(
-            shared_ptr<RandomMessageReader> randomMessageReader);
+class RandomMessageWriter
+    :
+    private RandomMessageReaderWriterBase,
+    public IRandomMessageWriter
+{
+    const shared_ptr<IWritableExtent> m_extent;
+    const uint8_t m_checksumSize;
 
-        virtual task<StoredFlatMessage> ReadFlatMessage(
-        ) override;
+    task<DataReference<StoredMessage>> WriteMessage(
+        ExtentOffset extentOffset,
+        std::span<const byte> messageV1Header,
+        uint8_t messageAlignment,
+        uint32_t messageSize,
+        FlushBehavior flushBehavior,
+        std::function<void(std::span<std::byte>)> fillMessageBuffer
+    );
 
-        virtual task<ReadProtoMessageResult> Read(
-            Message& message
-        ) override;
-    };
+public:
+    RandomMessageWriter(
+        shared_ptr<IWritableExtent> extent,
+        FlatMessage<FlatBuffers::ExtentHeader> header,
+        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
 
-    class SequentialMessageWriter
-        :
-        public ISequentialMessageWriter
-    {
-        const shared_ptr<RandomMessageWriter> m_randomMessageWriter;
-        std::atomic<ExtentOffset> m_currentOffset;
-    public:
-        SequentialMessageWriter(
-            shared_ptr<RandomMessageWriter> randomMessageWriter);
+    ExtentOffsetRange GetWriteRange(
+        ExtentOffset extentOffset,
+        uint8_t messageAlignment,
+        uint32_t messageSize);
 
-        virtual task<StoredFlatMessage> WriteFlatMessage(
-            StoredFlatMessage flatMessage,
-            FlushBehavior flushBehavior
-        ) override;
+    virtual task<DataReference<StoredMessage>> WriteFlatMessage(
+        ExtentOffset extentOffset,
+        const StoredMessage& message,
+        FlushBehavior flushBehavior
+    ) override;
 
-        virtual task<WriteMessageResult> Write(
-            const Message& message, 
-            FlushBehavior flushBehavior
-        ) override;
+    virtual task<DataReference<StoredMessage>> Write(
+        ExtentOffset extentOffset,
+        const Message& message,
+        FlushBehavior flushBehavior
+    ) override;
+};
 
-        virtual task<ExtentOffset> CurrentOffset(
-        ) override;
-    };
+class SequentialMessageReader
+    :
+    public ISequentialMessageReader
+{
+    const shared_ptr<RandomMessageReader> m_randomMessageReader;
+    ExtentOffset m_currentOffset;
+public:
+    SequentialMessageReader(
+        shared_ptr<RandomMessageReader> randomMessageReader);
 
-    class MessageStore
-        :
-        public IMessageStore
-    {
-        Schedulers m_schedulers;
-        const shared_ptr<IExtentStore> m_extentStore;
-        async_reader_writer_lock m_extentsLock;
-        std::unordered_map<ExtentName, shared_ptr<IReadableExtent>> m_readableExtents;
-        shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
+    virtual task<DataReference<StoredMessage>> ReadFlatMessage(
+    ) override;
 
-        task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-            const ExtentName& ExtentName);
+    virtual task<DataReference<StoredMessage>> Read(
+        Message& message
+    ) override;
+};
 
-        task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-            ExtentName ExtentName);
+class SequentialMessageWriter
+    :
+    public ISequentialMessageWriter
+{
+    const shared_ptr<RandomMessageWriter> m_randomMessageWriter;
+    std::atomic<ExtentOffset> m_currentOffset;
+public:
+    SequentialMessageWriter(
+        shared_ptr<RandomMessageWriter> randomMessageWriter);
 
-    public:
-        MessageStore(
-            Schedulers schedulers,
-            shared_ptr<IExtentStore> extentStore);
+    virtual task<DataReference<StoredMessage>> WriteFlatMessage(
+        const StoredMessage& flatMessage,
+        FlushBehavior flushBehavior
+    ) override;
 
-        // Inherited via IMessageStore
-        virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
-            const shared_ptr<IReadableExtent>& readableExtent
-        ) override;
+    virtual task< DataReference<StoredMessage>> Write(
+        const Message& message, 
+        FlushBehavior flushBehavior
+    ) override;
 
-        virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
-            ExtentName extentName
-        ) override;
+    virtual task<ExtentOffset> CurrentOffset(
+    ) override;
+};
 
-        virtual task<shared_ptr<IRandomMessageWriter>> OpenExtentForRandomWriteAccess(
-            ExtentName extentName
-        ) override;
+class MessageStore
+    :
+    public IMessageStore
+{
+    Schedulers m_schedulers;
+    const shared_ptr<IExtentStore> m_extentStore;
+    async_reader_writer_lock m_extentsLock;
+    std::unordered_map<ExtentName, shared_ptr<RandomMessageReader>> m_readableExtents;
+    shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
-        virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
-            const shared_ptr<IReadableExtent>& readableExtent
-        ) override;
+    task<shared_ptr<RandomMessageReader>> OpenExtentForRandomReadAccessImpl(
+        shared_ptr<IReadableExtent> readableExtent);
 
-        virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
-            ExtentName extentName
-        ) override;
+    task<shared_ptr<RandomMessageReader>> OpenExtentForRandomReadAccessImpl(
+        const ExtentName& ExtentName);
 
-        virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialWriteAccess(
-            ExtentName extentName
-        ) override;
-    };
+    task<shared_ptr<RandomMessageWriter>> OpenExtentForRandomWriteAccessImpl(
+        ExtentName ExtentName);
 
+public:
+    MessageStore(
+        Schedulers schedulers,
+        shared_ptr<IExtentStore> extentStore);
+
+    // Inherited via IMessageStore
+    virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
+        const shared_ptr<IReadableExtent>& readableExtent
+    ) override;
+
+    virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
+        ExtentName extentName
+    ) override;
+
+    virtual task<shared_ptr<IRandomMessageWriter>> OpenExtentForRandomWriteAccess(
+        ExtentName extentName
+    ) override;
+
+    virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
+        const shared_ptr<IReadableExtent>& readableExtent
+    ) override;
+
+    virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
+        ExtentName extentName
+    ) override;
+
+    virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialWriteAccess(
+        ExtentName extentName
+    ) override;
+};
 }

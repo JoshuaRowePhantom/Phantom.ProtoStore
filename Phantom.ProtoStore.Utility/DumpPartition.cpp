@@ -32,7 +32,7 @@ task<> DumpPartition(
         DumpMessage(
             "PartitionMessage",
             message,
-            readMessageResult.DataRange.Beginning
+            readMessageResult->DataRange.Beginning
         );
     } while (!message.has_partitionheader());
 

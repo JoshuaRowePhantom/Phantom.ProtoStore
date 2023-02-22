@@ -7,28 +7,14 @@
 
 namespace Phantom::ProtoStore
 {
-    struct ReadProtoMessageResult
-    {
-        ExtentOffsetRange DataRange;
-    };
-
-    struct WriteMessageResult
-    {
-        ExtentOffsetRange DataRange;
-        ExtentOffsetRange MessageLengthRange;
-        ExtentOffsetRange ChecksumAlgorithmRange;
-        ExtentOffsetRange MessageRange;
-        ExtentOffsetRange ChecksumRange;
-    };
-
     class IRandomMessageReader
     {
     public:
-        virtual task<StoredFlatMessage> ReadFlatMessage(
+        virtual task<DataReference<StoredMessage>> ReadFlatMessage(
             ExtentOffset extentOffset
         ) = 0;
 
-        virtual task<ReadProtoMessageResult> Read(
+        virtual task< DataReference<StoredMessage>> Read(
             ExtentOffset extentOffset,
             Message& message
         ) = 0;
@@ -37,13 +23,13 @@ namespace Phantom::ProtoStore
     class IRandomMessageWriter
     {
     public:
-        virtual task<StoredFlatMessage> WriteFlatMessage(
+        virtual task<DataReference<StoredMessage>> WriteFlatMessage(
             ExtentOffset extentOffset,
-            StoredFlatMessage message,
+            const StoredMessage& message,
             FlushBehavior flushBehavior
         ) = 0;
 
-        virtual task<WriteMessageResult> Write(
+        virtual task<DataReference<StoredMessage>> Write(
             ExtentOffset extentOffset,
             const Message& message,
             FlushBehavior flushBehavior
@@ -53,10 +39,10 @@ namespace Phantom::ProtoStore
     class ISequentialMessageReader
     {
     public:
-        virtual task<StoredFlatMessage> ReadFlatMessage(
+        virtual task<DataReference<StoredMessage>> ReadFlatMessage(
         ) = 0;
 
-        virtual task<ReadProtoMessageResult> Read(
+        virtual task< DataReference<StoredMessage>> Read(
             Message& message
         ) = 0;
     };
@@ -64,12 +50,12 @@ namespace Phantom::ProtoStore
     class ISequentialMessageWriter
     {
     public:
-        virtual task<StoredFlatMessage> WriteFlatMessage(
-            StoredFlatMessage flatMessage,
+        virtual task<DataReference<StoredMessage>> WriteFlatMessage(
+            const StoredMessage& flatMessage,
             FlushBehavior flushBehavior
         ) = 0;
 
-        virtual task<WriteMessageResult> Write(
+        virtual task<DataReference<StoredMessage>> Write(
             const Message& message,
             FlushBehavior flushBehavior
         ) = 0;

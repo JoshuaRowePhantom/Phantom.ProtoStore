@@ -40,6 +40,7 @@ table DatabaseHeader {
 }
 
 enum ExtentFormatVersion : uint8 {
+    None = 0,
     V1 = 1
 }
 
@@ -53,8 +54,23 @@ table ExtentHeader {
 // MessageHeader_V1 is used in ExtentFormatVersion_V1
 struct MessageHeader_V1
 {
+    // The crc32 of the message content bytes beginning
+    // at the first byte of the message and extending
+    // for the message size.
     crc32 : uint32;
-    message_size : uint32;
+    // The size and alignment of the message, with the following algorithm:
+    //  For all message sizes, round up to 4 byte boundary.
+    //  Minimum message alignment is 8.
+    //  Store message alignment in low 2 bits:
+    //  00 =  4
+    //  01 =  8
+    //  10 = 16
+    //  11 = 32
+    //  Message size is stored in high 30 bits.
+    //  To decode:
+    //      Alignment = 1 << ((message_size_and_alignment & 0x3) + 2)
+    //      Size = message_size_and_alignment & 0xfffffffc
+    message_size_and_alignment : uint32;
 }
 
 file_identifier "PSEX";

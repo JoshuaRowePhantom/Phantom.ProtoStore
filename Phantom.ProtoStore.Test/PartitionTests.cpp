@@ -69,7 +69,7 @@ protected:
         return protoValue.SerializeAsString();
     }
 
-    task<WriteMessageResult> WriteAlwaysHitBloomFilter(
+    task<DataReference<StoredMessage>> WriteAlwaysHitBloomFilter(
         const shared_ptr<ISequentialMessageWriter>& sequentialMessageWriter
     )
     {
@@ -84,7 +84,7 @@ protected:
     }
 
     task<> WriteBloomFilterAndRootAndHeader(
-        WriteMessageResult rootTreeNodeWriteResult,
+        DataReference<StoredMessage> rootTreeNodeWriteResult,
         size_t rowCount,
         SequenceNumber earliestSequenceNumber,
         SequenceNumber latestSequenceNumber,
@@ -97,8 +97,8 @@ protected:
 
         PartitionMessage partitionRootMessage;
         auto partitionRoot = partitionRootMessage.mutable_partitionroot();
-        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult.DataRange.Beginning);
-        partitionRoot->set_roottreenodeoffset(rootTreeNodeWriteResult.DataRange.Beginning);
+        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult->DataRange.Beginning);
+        partitionRoot->set_roottreenodeoffset(rootTreeNodeWriteResult->DataRange.Beginning);
         partitionRoot->set_rowcount(0);
         partitionRoot->set_earliestsequencenumber(
             ToUint64(earliestSequenceNumber));
@@ -111,7 +111,7 @@ protected:
 
         PartitionMessage partitionHeaderMessage;
         auto partitionHeader = partitionHeaderMessage.mutable_partitionheader();
-        partitionHeader->set_partitionrootoffset(partitionRootWriteResult.DataRange.Beginning);
+        partitionHeader->set_partitionrootoffset(partitionRootWriteResult->DataRange.Beginning);
 
         co_await dataSequentialMessageWriter->Write(
             partitionHeaderMessage,
@@ -620,8 +620,8 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
 
         PartitionMessage partitionRootMessage;
         auto partitionRoot = partitionRootMessage.mutable_partitionroot();
-        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult.DataRange.Beginning);
-        partitionRoot->set_roottreenodeoffset(treeMessageWriteResult.DataRange.Beginning);
+        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult->DataRange.Beginning);
+        partitionRoot->set_roottreenodeoffset(treeMessageWriteResult->DataRange.Beginning);
         partitionRoot->set_rowcount(0);
         partitionRoot->set_earliestsequencenumber(
             5);
@@ -634,7 +634,7 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
 
         PartitionMessage partitionHeaderMessage;
         auto partitionHeader = partitionHeaderMessage.mutable_partitionheader();
-        partitionHeader->set_partitionrootoffset(partitionRootWriteResult.DataRange.Beginning);
+        partitionHeader->set_partitionrootoffset(partitionRootWriteResult->DataRange.Beginning);
 
         co_await dataWriter->Write(
             partitionHeaderMessage,

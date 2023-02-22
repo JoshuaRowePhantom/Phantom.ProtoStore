@@ -21,6 +21,7 @@
 #include "Phantom.Coroutines/early_termination_task.h"
 #include "Phantom.Coroutines/expected_early_termination.h"
 #include "Phantom.Coroutines/reusable_task.h"
+#include "flatbuffers/flatbuffers.h"
 
 namespace Phantom::ProtoStore
 {
@@ -229,6 +230,11 @@ template<
 >
 class DataReference
 {
+    template<
+        typename Data
+    >
+    friend class DataReference;
+
     std::shared_ptr<void> m_dataHolder;
     Data m_data;
 
@@ -259,6 +265,19 @@ public:
         other.m_data = {};
     }
 
+    template<
+        typename Other
+    >
+    explicit DataReference(
+        DataReference<Other>&& other,
+        Data data
+    ) :
+        m_dataHolder{ std::move(other.m_dataHolder) },
+        m_data{ data }
+    {
+        other.m_data = Other{};
+    }
+
     DataReference& operator=(const DataReference& other) = default;
 
     auto& operator=(DataReference&& other)
@@ -284,99 +303,118 @@ public:
     {
         return m_data;
     }
+
+    const Data* operator->() const noexcept
+    {
+        return std::addressof(m_data);
+    }
+
+    const Data& operator*() const noexcept
+    {
+        return m_data;
+    }
 };
 
-template<
-    typename Base,
-    typename Label
-> struct Labeled : public Base
+using RawData = DataReference<std::span<const std::byte>>;
+using WritableRawData = DataReference<std::span<std::byte>>;
+
+typedef std::uint64_t ExtentOffset;
+
+struct ExtentOffsetRange
 {
-    using Base::Base;
+    ExtentOffset Beginning;
+    ExtentOffset End;
 };
 
-struct MessageLabel;
-struct EnvelopeLabel;
-struct RawLabel;
 
-using MessageSpan = Labeled<std::span<const std::byte>, MessageLabel>;
-using EnvelopeSpan = Labeled<std::span<const std::byte>, EnvelopeLabel>;
-using RawSpan = Labeled<std::span<const std::byte>, RawLabel>;
-using WritableRawSpan = Labeled<std::span<std::byte>, RawLabel>;
-
-using RawData = DataReference<RawSpan>;
-using WritableRawData = DataReference<WritableRawSpan>;
-
-struct StoredFlatMessage
+struct StoredMessage
 {
     // The format version of the extent the message was stored in.
     FlatBuffers::ExtentFormatVersion ExtentFormatVersion;
     
+    // The alignment requirement of the message in bytes.
+    uint8_t MessageAlignment = 0;
+
     // The message body itself.
-    MessageSpan Message;
-    // The full header + message
-    EnvelopeSpan Envelope;
+    std::span<const std::byte> Message;
+    // The header for the message.
+    std::span<const std::byte> Header;
+
+    // The range the message was stored in.
+    ExtentOffsetRange DataRange;
 };
 
 template<
     typename Table
 > class FlatMessage
 {
-    DataReference<StoredFlatMessage> m_storedFlatMessage;
-    Table* m_table;
+    DataReference<StoredMessage> m_storedMessage;
 
 public:
     FlatMessage()
     {}
 
     explicit FlatMessage(
-        StoredFlatMessage storedFlatMessage,
-        Table* table
+        DataReference<StoredMessage> storedMessage
     ) :
-        m_storedFlatMessage{ std::move(storedFlatMessage) },
-        m_table { table }
+        m_storedMessage{ std::move(storedMessage) }
     {}
 
-    FlatMessage(
-        const FlatMessage&
-    ) = default;
-
-    FlatMessage(
-        FlatMessage&& other
+    explicit FlatMessage(
+        uint8_t messageAlignment,
+        std::span<const std::byte> message
     ) :
-        m_storedFlatMessage{ std::move(other.m_storedFlatMessage) },
-        m_table{ std::move(other.m_table) }
+        m_storedMessage
     {
-        other.m_table = {};
-    }
-
-    FlatMessage& operator=(const FlatMessage& other) = default;
-
-    auto& operator=(FlatMessage&& other)
-    {
-        if (&other != this)
+        nullptr,
         {
-            m_storedFlatMessage = std::move(other.m_storedFlatMessage);
-            m_table = other.m_table;
-            other.m_storedFlatMessage = nullptr;
-            other.m_table = {};
-        }
-
-        return *this;
+            .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
+            .MessageAlignment = messageAlignment,
+            .Message = message,
+        },
+    }
+    {
     }
 
-    const StoredFlatMessage& data() const noexcept
+    explicit FlatMessage(
+        const flatbuffers::FlatBufferBuilder& builder
+    ) :
+        m_storedMessage
     {
-        return m_storedFlatMessage;
+        nullptr,
+        {
+            .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
+            .MessageAlignment = static_cast<uint8_t>(builder.GetBufferMinAlignment()),
+            .Message = 
+            { 
+                reinterpret_cast<const std::byte*>(builder.GetBufferPointer()), 
+                builder.GetSize() 
+            },
+        },
+    }
+    {
+    }
+
+    const StoredMessage& data() const noexcept
+    {
+        return *m_storedMessage;
     }
 
     const Table* get() const noexcept
     {
-        return m_table;
+        if (!*this)
+        {
+            return nullptr;
+        }
+
+        return flatbuffers::GetRoot<Table>(
+            m_storedMessage->Message.data()
+        );
     }
 
     explicit operator bool() const noexcept
     {
-        return m_table;
+        return m_storedMessage->Message.data();
     }
 
     const Table* operator->() const noexcept
@@ -1161,7 +1199,6 @@ enum class IntegrityCheckErrorCode
     Partition_NoContentInTreeEntry = 14,
 };
 
-typedef std::uint64_t ExtentOffset;
 struct ExtentLocation
 {
     ExtentName extentName;

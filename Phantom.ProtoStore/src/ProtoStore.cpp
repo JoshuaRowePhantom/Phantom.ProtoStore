@@ -305,15 +305,15 @@ task<> ProtoStore::WriteLogRecord(
     auto nextCheckpointLogOffset = m_nextCheckpointLogOffset.load(
         std::memory_order_relaxed);
 
-    if (writeMessageResult.DataRange.End == 0)
+    if (writeMessageResult->DataRange.End == 0)
     {
         m_nextCheckpointLogOffset.store(
             m_checkpointLogSize);
     }
-    else if (writeMessageResult.DataRange.End > nextCheckpointLogOffset
+    else if (writeMessageResult->DataRange.End > nextCheckpointLogOffset
         && m_nextCheckpointLogOffset.compare_exchange_weak(
             nextCheckpointLogOffset,
-            writeMessageResult.DataRange.End + m_checkpointLogSize))
+            writeMessageResult->DataRange.End + m_checkpointLogSize))
     {
         spawn(
             Checkpoint());

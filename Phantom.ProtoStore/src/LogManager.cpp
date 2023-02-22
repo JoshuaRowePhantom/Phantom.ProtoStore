@@ -174,7 +174,7 @@ bool LogManager::NeedToUpdateMaps(
     return false;
 }
 
-task<WriteMessageResult> LogManager::WriteLogRecord(
+task<DataReference<StoredMessage>> LogManager::WriteLogRecord(
     const LogRecord& logRecord
 )
 {

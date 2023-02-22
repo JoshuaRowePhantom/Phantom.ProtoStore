@@ -1,0 +1,5 @@
+namespace Phantom.ProtoStore.FlatBuffers;
+
+table ScalarTable {
+    item : uint32;
+}

@@ -74,7 +74,7 @@ public:
     task<task<>> FinishReplay(
         Header& header);
 
-    task<WriteMessageResult> WriteLogRecord(
+    task<DataReference<StoredMessage>> WriteLogRecord(
         const LogRecord& logRecord
     );
 
