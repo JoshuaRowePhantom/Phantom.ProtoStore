@@ -11,9 +11,19 @@ class IMessageStore;
 class IRandomMessageAccessor
 {
 public:
+    virtual task<DataReference<StoredMessage>> ReadMessage(
+        ExtentLocation location
+    ) = 0;
+
     virtual task<> ReadMessage(
         ExtentLocation location,
         Message& message
+    ) = 0;
+
+    virtual task<DataReference<StoredMessage>> WriteMessage(
+        ExtentLocation location,
+        const StoredMessage& storedMessage,
+        FlushBehavior flushBehavior
     ) = 0;
 
     virtual task<> WriteMessage(

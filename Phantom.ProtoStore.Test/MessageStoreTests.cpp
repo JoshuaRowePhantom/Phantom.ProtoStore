@@ -297,7 +297,7 @@ ASYNC_TEST(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it
     auto scalarOffset = FlatBuffers::CreateScalarTable(builder, &expectedMessage);
     builder.Finish(scalarOffset);
 
-    auto writeBuffer = co_await randomMessageWriter->WriteFlatMessage(
+    auto writeBuffer = co_await randomMessageWriter->Write(
         0,
         FlatMessage<FlatBuffers::ScalarTable>(builder).data(),
         FlushBehavior::Flush);
@@ -306,7 +306,7 @@ ASYNC_TEST(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it
 
     auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
 
-    auto flatMessage = FlatMessage<FlatBuffers::ScalarTable>(co_await randomMessageReader->ReadFlatMessage(
+    auto flatMessage = FlatMessage<FlatBuffers::ScalarTable>(co_await randomMessageReader->Read(
         0));
     FlatBuffers::ScalarTableT actualMessage;
     flatMessage->UnPackTo(&actualMessage);

@@ -10,7 +10,7 @@ namespace Phantom::ProtoStore
     class IRandomMessageReader
     {
     public:
-        virtual task<DataReference<StoredMessage>> ReadFlatMessage(
+        virtual task<DataReference<StoredMessage>> Read(
             ExtentOffset extentOffset
         ) = 0;
 
@@ -23,7 +23,7 @@ namespace Phantom::ProtoStore
     class IRandomMessageWriter
     {
     public:
-        virtual task<DataReference<StoredMessage>> WriteFlatMessage(
+        virtual task<DataReference<StoredMessage>> Write(
             ExtentOffset extentOffset,
             const StoredMessage& message,
             FlushBehavior flushBehavior
@@ -39,7 +39,7 @@ namespace Phantom::ProtoStore
     class ISequentialMessageReader
     {
     public:
-        virtual task<DataReference<StoredMessage>> ReadFlatMessage(
+        virtual task<DataReference<StoredMessage>> Read(
         ) = 0;
 
         virtual task< DataReference<StoredMessage>> Read(
@@ -50,7 +50,7 @@ namespace Phantom::ProtoStore
     class ISequentialMessageWriter
     {
     public:
-        virtual task<DataReference<StoredMessage>> WriteFlatMessage(
+        virtual task<DataReference<StoredMessage>> Write(
             const StoredMessage& flatMessage,
             FlushBehavior flushBehavior
         ) = 0;

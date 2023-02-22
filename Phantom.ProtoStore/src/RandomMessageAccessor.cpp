@@ -9,6 +9,17 @@ RandomMessageAccessor::RandomMessageAccessor(
     m_messageStore(move(messageStore))
 {}
 
+task<DataReference<StoredMessage>> RandomMessageAccessor::ReadMessage(
+    ExtentLocation location
+)
+{
+    auto extent = co_await m_messageStore->OpenExtentForRandomReadAccess(
+        location.extentName);
+
+    co_return co_await extent->Read(
+        location.extentOffset);
+}
+
 task<> RandomMessageAccessor::ReadMessage(
     ExtentLocation location,
     Message& message
@@ -20,6 +31,21 @@ task<> RandomMessageAccessor::ReadMessage(
     co_await extent->Read(
         location.extentOffset,
         message);
+}
+
+task<DataReference<StoredMessage>> RandomMessageAccessor::WriteMessage(
+    ExtentLocation location,
+    const StoredMessage& message,
+    FlushBehavior flushBehavior
+)
+{
+    auto extent = co_await m_messageStore->OpenExtentForRandomWriteAccess(
+        location.extentName);
+
+    co_return co_await extent->Write(
+        location.extentOffset,
+        message,
+        flushBehavior);
 }
 
 task<> RandomMessageAccessor::WriteMessage(

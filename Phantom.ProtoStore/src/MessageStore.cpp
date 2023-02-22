@@ -101,7 +101,7 @@ RandomMessageReader::RandomMessageReader(
     m_extent(std::move(extent))
 {}
 
-task<DataReference<StoredMessage>> RandomMessageReader::ReadFlatMessage(
+task<DataReference<StoredMessage>> RandomMessageReader::Read(
     ExtentOffset extentOffset
 )
 {
@@ -163,7 +163,7 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
     Message& message
 )
 {
-    auto flatMessage = co_await ReadFlatMessage(extentOffset);
+    auto flatMessage = co_await Read(extentOffset);
 
     google::protobuf::io::ArrayInputStream messageStream(
         flatMessage->Message.data(),
@@ -191,7 +191,7 @@ RandomMessageWriter::RandomMessageWriter(
 {
 }
 
-task<DataReference<StoredMessage>> RandomMessageWriter::WriteMessage(
+task<DataReference<StoredMessage>> RandomMessageWriter::Write(
     ExtentOffset extentOffset,
     std::span<const byte> messageV1Header,
     uint8_t messageAlignment,
@@ -326,13 +326,13 @@ ExtentOffsetRange RandomMessageWriter::GetWriteRange(
     };
 }
 
-task<DataReference<StoredMessage>> RandomMessageWriter::WriteFlatMessage(
+task<DataReference<StoredMessage>> RandomMessageWriter::Write(
     ExtentOffset extentOffset,
     const StoredMessage& message,
     FlushBehavior flushBehavior
 )
 {
-    return WriteMessage(
+    return Write(
         extentOffset,
         message.Header,
         message.MessageAlignment,
@@ -354,7 +354,7 @@ task< DataReference<StoredMessage>> RandomMessageWriter::Write(
     FlushBehavior flushBehavior
 )
 {
-    co_return co_await WriteMessage(
+    co_return co_await Write(
         extentOffset,
         {},
         1,
@@ -378,10 +378,10 @@ SequentialMessageReader::SequentialMessageReader(
 {
 }
 
-task<DataReference<StoredMessage>> SequentialMessageReader::ReadFlatMessage(
+task<DataReference<StoredMessage>> SequentialMessageReader::Read(
 )
 {
-    auto storedMessage = co_await m_randomMessageReader->ReadFlatMessage(
+    auto storedMessage = co_await m_randomMessageReader->Read(
         m_currentOffset);
     m_currentOffset = storedMessage->DataRange.End;
     co_return std::move(storedMessage);
@@ -391,7 +391,7 @@ task<DataReference<StoredMessage>> SequentialMessageReader::Read(
     Message& message
 )
 {
-    auto readResult = co_await ReadFlatMessage();
+    auto readResult = co_await Read();
     google::protobuf::io::ArrayInputStream stream(
         readResult->Message.data(),
         readResult->Message.size()
@@ -410,7 +410,7 @@ SequentialMessageWriter::SequentialMessageWriter(
     m_currentOffset(0)
 {}
 
-task<DataReference<StoredMessage>> SequentialMessageWriter::WriteFlatMessage(
+task<DataReference<StoredMessage>> SequentialMessageWriter::Write(
     const StoredMessage& flatMessage,
     FlushBehavior flushBehavior
 )
@@ -431,7 +431,7 @@ task<DataReference<StoredMessage>> SequentialMessageWriter::WriteFlatMessage(
         std::memory_order_relaxed
     ));
 
-    co_return co_await m_randomMessageWriter->WriteFlatMessage(
+    co_return co_await m_randomMessageWriter->Write(
         writeOffset,
         flatMessage,
         flushBehavior);

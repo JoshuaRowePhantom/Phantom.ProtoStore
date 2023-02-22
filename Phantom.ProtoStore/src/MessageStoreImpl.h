@@ -55,7 +55,7 @@ public:
         FlatMessage<FlatBuffers::ExtentHeader> header,
         shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
 
-    virtual task<DataReference<StoredMessage>> ReadFlatMessage(
+    virtual task<DataReference<StoredMessage>> Read(
         ExtentOffset extentOffset
     ) override;
 
@@ -73,7 +73,7 @@ class RandomMessageWriter
     const shared_ptr<IWritableExtent> m_extent;
     const uint8_t m_checksumSize;
 
-    task<DataReference<StoredMessage>> WriteMessage(
+    task<DataReference<StoredMessage>> Write(
         ExtentOffset extentOffset,
         std::span<const byte> messageV1Header,
         uint8_t messageAlignment,
@@ -93,7 +93,7 @@ public:
         uint8_t messageAlignment,
         uint32_t messageSize);
 
-    virtual task<DataReference<StoredMessage>> WriteFlatMessage(
+    virtual task<DataReference<StoredMessage>> Write(
         ExtentOffset extentOffset,
         const StoredMessage& message,
         FlushBehavior flushBehavior
@@ -116,7 +116,7 @@ public:
     SequentialMessageReader(
         shared_ptr<RandomMessageReader> randomMessageReader);
 
-    virtual task<DataReference<StoredMessage>> ReadFlatMessage(
+    virtual task<DataReference<StoredMessage>> Read(
     ) override;
 
     virtual task<DataReference<StoredMessage>> Read(
@@ -134,7 +134,7 @@ public:
     SequentialMessageWriter(
         shared_ptr<RandomMessageWriter> randomMessageWriter);
 
-    virtual task<DataReference<StoredMessage>> WriteFlatMessage(
+    virtual task<DataReference<StoredMessage>> Write(
         const StoredMessage& flatMessage,
         FlushBehavior flushBehavior
     ) override;
