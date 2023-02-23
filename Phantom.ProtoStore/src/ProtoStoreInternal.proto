@@ -6,15 +6,6 @@ import "Phantom.ProtoStore/ProtoStore.proto";
 
 package Phantom.ProtoStore.Serialization;
 
-message Header {
-    uint32 Version = 1;
-    uint32 LogAlignment = 2;
-    repeated ExtentName LogReplayExtentNames = 3;
-    uint64 Epoch = 5;
-    uint64 NextIndexNumber = 6;
-    uint64 NextPartitionNumber = 7;
-}
-
 message LoggedRowWrite {
     uint64 IndexNumber = 1;
     bytes Key = 2;

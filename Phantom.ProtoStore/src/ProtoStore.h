@@ -17,6 +17,7 @@
 #include "Phantom.System/encompassing_pending_task.h"
 #include "IndexMerger.h"
 #include "ExtentName.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {
@@ -37,7 +38,7 @@ class ProtoStore
 
     std::optional<LogManager> m_logManager;
     
-    Header m_header;
+    std::unique_ptr<FlatBuffers::DatabaseHeaderT> m_header;
 
     uint64_t m_checkpointLogSize;
 
@@ -142,7 +143,8 @@ class ProtoStore
     ) override;
 
     task<> Replay(
-        ExtentName logExtent);
+        const ExtentName& logExtent,
+        const LogExtentNameT* fbLogExtent);
 
     task<> Replay(
         const LogRecord& logRecord);
@@ -176,7 +178,7 @@ class ProtoStore
     task<> SwitchToNewLog();
 
     task<> UpdateHeader(
-        std::function<task<>(Header&)> modifier
+        std::function<task<>(FlatBuffers::DatabaseHeaderT*)> modifier
     );
 
     task<> Checkpoint(

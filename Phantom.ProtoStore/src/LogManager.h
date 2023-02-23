@@ -53,7 +53,7 @@ class LogManager : SerializationTypes
     );
 
     task<task<>> DelayedOpenNewLogWriter(
-        Header& header);
+        DatabaseHeaderT* header);
 
     task<> DeleteExtents();
     task<> OpenNewLogWriter();
@@ -63,23 +63,23 @@ public:
         Schedulers schedulers,
         shared_ptr<IExtentStore> logExtentStore,
         shared_ptr<IMessageStore> logMessageStore,
-        const Header& header
+        const DatabaseHeaderT* header
     );
 
     task<> Replay(
-        ExtentName logExtentName,
+        const LogExtentNameT* logExtentName,
         const LogRecord& logRecord
     );
 
     task<task<>> FinishReplay(
-        Header& header);
+        DatabaseHeaderT* header);
 
     task<DataReference<StoredMessage>> WriteLogRecord(
         const LogRecord& logRecord
     );
 
     task<task<>> Checkpoint(
-        Header& header
+        DatabaseHeaderT* header
     );
 };
 }

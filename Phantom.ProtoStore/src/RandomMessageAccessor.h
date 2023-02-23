@@ -23,7 +23,7 @@ public:
     virtual task<DataReference<StoredMessage>> WriteMessage(
         ExtentLocation location,
         const StoredMessage& storedMessage,
-        FlushBehavior flushBehavior
+        FlushBehavior flushBehavior = FlushBehavior::Flush
     ) = 0;
 
     virtual task<> WriteMessage(

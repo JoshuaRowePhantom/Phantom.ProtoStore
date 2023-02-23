@@ -100,7 +100,6 @@ class MessageDescription;
 
 namespace Serialization
 {
-class Header;
 class LogRecord;
 class IndexesByNameKey;
 class IndexesByNameValue;
@@ -148,8 +147,10 @@ struct IndexDataExtentNameBuilder;
 struct IndexHeaderExtentName;
 struct IndexHeaderExtentNameBuilder;
 struct LogExtentName;
+struct LogExtentNameT;
 struct LogExtentNameBuilder;
 struct DatabaseHeader;
+struct DatabaseHeaderT;
 struct DatabaseHeaderBuilder;
 struct ExtentHeader;
 struct ExtentHeaderBuilder;
@@ -161,7 +162,6 @@ enum class ExtentFormatVersion : uint8_t;
 class SerializationTypes
 {
 public:
-    using Header = Serialization::Header;
     using LogRecord = Serialization::LogRecord;
     using IndexesByNameKey = Serialization::IndexesByNameKey;
     using IndexesByNameValue = Serialization::IndexesByNameValue;
@@ -195,6 +195,18 @@ public:
     using LoggedPartitionsData = Serialization::LoggedPartitionsData;
     using UnresolvedTransactionKey = Serialization::UnresolvedTransactionKey;
     using UnresolvedTransactionValue = Serialization::UnresolvedTransactionValue;
+
+    using LogExtentName = FlatBuffers::LogExtentName;
+    using LogExtentNameT = FlatBuffers::LogExtentNameT;
+    using LogExtentNameBuilder = FlatBuffers::LogExtentNameBuilder;
+    using DatabaseHeader = FlatBuffers::DatabaseHeader;
+    using DatabaseHeaderT = FlatBuffers::DatabaseHeaderT;
+    using DatabaseHeaderBuilder = FlatBuffers::DatabaseHeaderBuilder;
+
+    template<
+        typename T
+    >
+    using Offset = flatbuffers::Offset<T>;
 };
 
 using TransactionId = std::string;

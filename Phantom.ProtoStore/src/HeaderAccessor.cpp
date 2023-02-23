@@ -1,7 +1,6 @@
 #include "HeaderAccessorImpl.h"
 #include "RandomMessageAccessor.h"
-#include "Phantom.ProtoStore/ProtoStore.pb.h"
-#include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal_generated.h"
 #include "ExtentName.h"
 
 namespace Phantom::ProtoStore
@@ -33,18 +32,21 @@ HeaderAccessor::HeaderAccessor(
 {
 }
 
-task<bool> HeaderAccessor::ReadHeader(
+task<std::unique_ptr<FlatBuffers::DatabaseHeaderT>> HeaderAccessor::ReadHeader(
     ExtentLocation location,
-    Serialization::Header& header,
     bool throwOnError)
 {
     try
     {
-        co_await m_messageAccessor->ReadMessage(
-            location,
-            header);
+        auto storedMessage = co_await m_messageAccessor->ReadMessage(
+            location);
 
-        co_return true;
+        FlatMessage<FlatBuffers::DatabaseHeader> headerMessage
+        {
+            std::move(storedMessage) 
+        };
+
+        co_return headerMessage->UnPack();
     }
     catch (...)
     {
@@ -53,65 +55,69 @@ task<bool> HeaderAccessor::ReadHeader(
             throw;
         }
 
-        co_return false;
+        co_return nullptr;
     }
 }
 
-task<> HeaderAccessor::ReadHeader(
-    Serialization::Header& header)
+task<std::unique_ptr<FlatBuffers::DatabaseHeaderT>> HeaderAccessor::ReadHeader()
 {
-    Serialization::Header location1Header;
-
-    if (!co_await ReadHeader(
+    auto location1Header = co_await ReadHeader(
         m_headerLocation1,
-        location1Header,
-        false))
-    {
-        co_await ReadHeader(
-            m_headerLocation2,
-            header,
-            true);
+        false);
 
+    if (!location1Header)
+    {
         m_currentLocation = m_headerLocation2;
         m_nextLocation = m_headerLocation1;
 
-        co_return;
+        co_return co_await ReadHeader(
+            m_headerLocation2,
+            true);
     }
 
-    Serialization::Header location2Header;
-
-    if (!co_await ReadHeader(
+    auto location2Header = co_await ReadHeader(
         m_headerLocation2,
-        location2Header,
-        false))
+        false);
+
+    if (!location2Header)
     {
-        header = move(location1Header);
         m_currentLocation = m_headerLocation1;
         m_nextLocation = m_headerLocation2;
 
-        co_return;
+        co_return std::move(location1Header);
     }
 
-    if (location1Header.epoch() > location2Header.epoch())
+    if (location1Header->epoch > location2Header->epoch)
     {
-        header = move(location1Header);
         m_currentLocation = m_headerLocation1;
         m_nextLocation = m_headerLocation2;
+
+        co_return std::move(location1Header);
     }
     else
     {
-        header = move(location2Header);
         m_currentLocation = m_headerLocation2;
         m_nextLocation = m_headerLocation1;
+
+        co_return std::move(location2Header);
     }
 }
 
 task<> HeaderAccessor::WriteHeader(
-    const Serialization::Header& header)
+    const FlatBuffers::DatabaseHeaderT* header)
 {
-    co_await m_messageAccessor->WriteMessage(
+    flatbuffers::FlatBufferBuilder builder;
+    builder.Finish(
+        FlatBuffers::DatabaseHeader::Pack(
+            builder,
+            header));
+
+    FlatMessage<FlatBuffers::DatabaseHeader> databaseHeader{ builder };
+
+    auto result = co_await m_messageAccessor->WriteMessage(
         m_nextLocation,
-        header);
+        databaseHeader.data(),
+        FlushBehavior::Flush);
 
     std::swap(
         m_currentLocation,

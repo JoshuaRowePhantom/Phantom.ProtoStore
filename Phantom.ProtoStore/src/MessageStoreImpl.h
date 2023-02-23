@@ -6,6 +6,7 @@
 #include "MessageStore.h"
 #include "Checksum.h"
 #include "Phantom.System/async_reader_writer_lock.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {

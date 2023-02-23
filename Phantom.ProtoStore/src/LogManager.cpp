@@ -3,6 +3,7 @@
 #include "ExtentStore.h"
 #include "MessageStore.h"
 #include "Phantom.Coroutines/suspend_result.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {
@@ -24,7 +25,7 @@ LogManager::LogManager(
     Schedulers schedulers,
     shared_ptr<IExtentStore> logExtentStore,
     shared_ptr<IMessageStore> logMessageStore,
-    const Header& header
+    const DatabaseHeaderT* header
 )
     :
     m_schedulers(schedulers),
@@ -33,9 +34,9 @@ LogManager::LogManager(
     m_nextLogExtentSequenceNumber(0),
     m_currentLogExtentSequenceNumber(0)
 {
-    for (auto& logReplayExtentName : header.logreplayextentnames())
+    for (auto& logReplayExtentName : header->log_replay_extent_names)
     {
-        auto logExtentSequenceNumber = logReplayExtentName.logextentname().logextentsequencenumber();
+        auto logExtentSequenceNumber = logReplayExtentName->log_extent_sequence_number;
 
         m_existingLogExtentSequenceNumbers.insert(
             logExtentSequenceNumber);
@@ -47,11 +48,11 @@ LogManager::LogManager(
 }
 
 task<> LogManager::Replay(
-    ExtentName extentName,
+    const LogExtentNameT* extentName,
     const LogRecord& logRecord
 )
 {
-    auto logExtentSequenceNumber = extentName.logextentname().logextentsequencenumber();
+    auto logExtentSequenceNumber = extentName->log_extent_sequence_number;
 
     for (const auto& rowRecord : logRecord.rows())
     {
@@ -124,7 +125,7 @@ task<> LogManager::Replay(
 }
 
 task<task<>> LogManager::FinishReplay(
-    Header& header
+    DatabaseHeaderT* header
 )
 {
     co_return co_await DelayedOpenNewLogWriter(
@@ -210,11 +211,11 @@ task<DataReference<StoredMessage>> LogManager::WriteLogRecord(
             goto RetryWithReadLock;
         }
 
-        auto extentName = MakeLogExtentName(
-            m_currentLogExtentSequenceNumber);
+        LogExtentNameT logExtentName;
+        logExtentName.log_extent_sequence_number = m_currentLogExtentSequenceNumber;
 
         co_await Replay(
-            extentName,
+            &logExtentName,
             logRecord);
 
         auto writeResult = co_await m_logMessageWriter->Write(
@@ -226,7 +227,7 @@ task<DataReference<StoredMessage>> LogManager::WriteLogRecord(
 }
 
 task<task<>> LogManager::Checkpoint(
-    Header& header
+    DatabaseHeaderT* header
 )
 {
     std::unordered_set<LogExtentSequenceNumber> logExtentSequenceNumbersToDelete;
@@ -292,7 +293,7 @@ task<task<>> LogManager::Checkpoint(
 }
 
 task<task<>> LogManager::DelayedOpenNewLogWriter(
-    Header& header
+    DatabaseHeaderT* header
 )
 {
     auto newExtentName = MakeLogExtentName(
@@ -303,14 +304,16 @@ task<task<>> LogManager::DelayedOpenNewLogWriter(
     m_existingLogExtentSequenceNumbers.insert(
         m_nextLogExtentSequenceNumber);
 
-    header.mutable_logreplayextentnames()->Clear();
+    header->log_replay_extent_names.clear();
 
     for (auto existingExtentSequenceNumber : m_existingLogExtentSequenceNumbers)
     {
-        ExtentName extentName;
-        extentName.mutable_logextentname()->set_logextentsequencenumber(
-            existingExtentSequenceNumber);
-        *header.add_logreplayextentnames() = move(extentName);
+        header->log_replay_extent_names.emplace_back(
+            std::make_unique<FlatBuffers::LogExtentNameT>(
+                FlatBuffers::LogExtentNameT
+            {
+                .log_extent_sequence_number = existingExtentSequenceNumber
+            }));
     }
 
     co_return OpenNewLogWriter();
@@ -382,8 +385,11 @@ task<> LogManager::OpenNewLogWriter()
     firstLogRecord.mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata()->CopyFrom(
         m_latestLoggedPartitionsData);
 
+    LogExtentNameT fbLogExtentName;
+    fbLogExtentName.log_extent_sequence_number = m_currentLogExtentSequenceNumber;
+
     co_await Replay(
-        logExtentName,
+        &fbLogExtentName,
         firstLogRecord);
 
     co_await m_logMessageWriter->Write(

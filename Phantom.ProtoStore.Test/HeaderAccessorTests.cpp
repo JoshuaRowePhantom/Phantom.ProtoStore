@@ -4,14 +4,14 @@
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.ProtoStore/src/RandomMessageAccessor.h"
-#include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 using google::protobuf::util::MessageDifferencer;
 
 namespace Phantom::ProtoStore
 {
 
-using namespace Serialization;
+using namespace FlatBuffers;
 
 TEST(HeaderAccessorTests, Throws_exception_when_no_valid_header)
 {
@@ -28,10 +28,8 @@ TEST(HeaderAccessorTests, Throws_exception_when_no_valid_header)
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header header;
         EXPECT_THROW(
-            co_await headerAccessor->ReadHeader(
-                header),
+            co_await headerAccessor->ReadHeader(),
             range_error);
     });
 }
@@ -48,23 +46,22 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_no_valid_location2
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location1Header;
-        location1Header.set_epoch(1);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 1;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation1,
-            location1Header
+            FlatMessage{ &location1Header }.data(),
+            FlushBehavior::Flush
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(
+        EXPECT_EQ(
             location1Header,
-            actualHeader));
+            *actualHeader);
     });
 }
 
@@ -80,36 +77,37 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location1)
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location1Header;
-        location1Header.set_epoch(1);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 1;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation1,
-            location1Header
+            FlatMessage{ &location1Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        Header location2Header;
-        location2Header.set_epoch(2);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 2;
         co_await headerAccessor->WriteHeader(
-            location2Header);
+            &location2Header);
 
-        Header actualLocation1Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation1,
-            actualLocation1Header);
-        Header actualLocation2Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation2,
-            actualLocation2Header);
+        auto actualLocation1Header = FlatMessage<DatabaseHeader>
+        { 
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation1) 
+        }->UnPack();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        auto actualLocation2Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation2)
+        }->UnPack();
+
+        EXPECT_EQ(*actualLocation1Header, location1Header);
+        EXPECT_EQ(*actualLocation2Header, location2Header);
     });
 }
 
@@ -125,23 +123,21 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_no_valid_location1
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location2Header;
-        location2Header.set_epoch(1);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 1;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation2,
-            location2Header
+            FlatMessage{ &location2Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(
+        EXPECT_EQ(
             location2Header,
-            actualHeader));
+            *actualHeader);
     });
 }
 
@@ -157,36 +153,37 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location2)
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location2Header;
-        location2Header.set_epoch(1);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 1;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation2,
-            location2Header
+            FlatMessage{ &location2Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        Header location1Header;
-        location1Header.set_epoch(2);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 2;
         co_await headerAccessor->WriteHeader(
-            location1Header);
+            &location1Header);
 
-        Header actualLocation1Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation1,
-            actualLocation1Header);
-        Header actualLocation2Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation2,
-            actualLocation2Header);
+        auto actualLocation1Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation1)
+        }->UnPack();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        auto actualLocation2Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation2)
+        }->UnPack();
+
+        EXPECT_EQ(*actualLocation1Header, location1Header);
+        EXPECT_EQ(*actualLocation2Header, location2Header);
     });
 }
 
@@ -202,30 +199,28 @@ TEST(HeaderAccessorTests, Can_read_header_from_location2_when_location1_is_older
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location1Header;
-        location1Header.set_epoch(1);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 1;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation1,
-            location1Header
+            FlatMessage{ &location1Header }.data()
         );
 
-        Header location2Header;
-        location2Header.set_epoch(2);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 2;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation2,
-            location2Header
+            FlatMessage{ &location2Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(
+        EXPECT_EQ(
             location2Header,
-            actualHeader));
+            *actualHeader);
     });
 }
 
@@ -241,43 +236,44 @@ TEST(HeaderAccessorTests, Can_write_to_location1_when_valid_location1_is_older)
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location1Header;
-        location1Header.set_epoch(1);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 1;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation1,
-            location1Header
+            FlatMessage{ &location1Header }.data()
         );
 
-        Header location2Header;
-        location2Header.set_epoch(2);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 2;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation2,
-            location2Header
+            FlatMessage{ &location2Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        Header newHeader;
-        newHeader.set_epoch(4);
+        DatabaseHeaderT newHeader;
+        newHeader.epoch = 4;
         co_await headerAccessor->WriteHeader(
-            newHeader);
+            &newHeader);
 
-        Header actualLocation1Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation1,
-            actualLocation1Header);
-        Header actualLocation2Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation2,
-            actualLocation2Header);
+        auto actualLocation1Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation1)
+        }->UnPack();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, newHeader));
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        auto actualLocation2Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation2)
+        }->UnPack();
+
+        EXPECT_EQ(*actualLocation1Header, newHeader);
+        EXPECT_EQ(*actualLocation2Header, location2Header);
     });
 }
 
@@ -293,30 +289,28 @@ TEST(HeaderAccessorTests, Can_read_header_from_location1_when_location2_is_older
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location1Header;
-        location1Header.set_epoch(3);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 3;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation1,
-            location1Header
+            FlatMessage{ &location1Header }.data()
         );
 
-        Header location2Header;
-        location2Header.set_epoch(2);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 2;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation2,
-            location2Header
+            FlatMessage{ &location2Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(
+        EXPECT_EQ(
             location1Header,
-            actualHeader));
+            *actualHeader);
     });
 }
 
@@ -332,43 +326,44 @@ TEST(HeaderAccessorTests, Can_write_to_location2_when_valid_location2_is_older)
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location1Header;
-        location1Header.set_epoch(3);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 3;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation1,
-            location1Header
+            FlatMessage{ &location1Header }.data()
         );
 
-        Header location2Header;
-        location2Header.set_epoch(2);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 2;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation2,
-            location2Header
+            FlatMessage{ &location2Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        Header newHeader;
-        newHeader.set_epoch(4);
+        DatabaseHeaderT newHeader;
+        newHeader.epoch = 4;
         co_await headerAccessor->WriteHeader(
-            newHeader);
+            &newHeader);
 
-        Header actualLocation1Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation1,
-            actualLocation1Header);
-        Header actualLocation2Header;
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation2,
-            actualLocation2Header);
+        auto actualLocation1Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation1)
+        }->UnPack();
 
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, newHeader));
+        auto actualLocation2Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation2)
+        }->UnPack();
+
+        EXPECT_EQ(*actualLocation1Header, location1Header);
+        EXPECT_EQ(*actualLocation2Header, newHeader);
     });
 }
 
@@ -384,75 +379,88 @@ TEST(HeaderAccessorTests, Can_alternate_write_request_locations)
         auto randomMessageAccessor = MakeRandomMessageAccessor(
             messageStore);
 
-        Header location1Header;
-        location1Header.set_epoch(1);
+        DatabaseHeaderT location1Header;
+        location1Header.epoch = 1;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation1,
-            location1Header
+            FlatMessage{ &location1Header }.data()
         );
 
-        Header location2Header;
-        location2Header.set_epoch(2);
+        DatabaseHeaderT location2Header;
+        location2Header.epoch = 2;
         co_await randomMessageAccessor->WriteMessage(
             DefaultHeaderLocation2,
-            location2Header
+            FlatMessage{ &location2Header }.data()
         );
 
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        Header actualHeader;
-        co_await headerAccessor->ReadHeader(
-            actualHeader);
+        auto actualHeader = co_await headerAccessor->ReadHeader();
 
-        Header newHeader;
-        newHeader.set_epoch(3);
+        DatabaseHeaderT newHeader;
+        newHeader.epoch = 3;
         co_await headerAccessor->WriteHeader(
-            newHeader);
+            &newHeader);
 
-        Header actualLocation1Header;
-        Header actualLocation2Header;
+        DatabaseHeaderT ;
+        DatabaseHeaderT ;
 
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation1,
-            actualLocation1Header);
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation2,
-            actualLocation2Header);
+        auto actualLocation1Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation1)
+        }->UnPack();
+
+        auto actualLocation2Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation2)
+        }->UnPack();
 
         location1Header = newHeader;
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_EQ(*actualLocation1Header, location1Header);
+        EXPECT_EQ(*actualLocation2Header, location2Header);
 
-        newHeader.set_epoch(4);
+        newHeader.epoch = 4;
         co_await headerAccessor->WriteHeader(
-            newHeader);
+            &newHeader);
 
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation1,
-            actualLocation1Header);
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation2,
-            actualLocation2Header);
+        actualLocation1Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation1)
+        }->UnPack();
+
+        actualLocation2Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation2)
+        }->UnPack();
 
         location2Header = newHeader;
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_EQ(*actualLocation1Header, location1Header);
+        EXPECT_EQ(*actualLocation2Header, location2Header);
 
-        newHeader.set_epoch(5);
+        newHeader.epoch = 5;
         co_await headerAccessor->WriteHeader(
-            newHeader);
+            &newHeader);
 
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation1,
-            actualLocation1Header);
-        co_await randomMessageAccessor->ReadMessage(
-            DefaultHeaderLocation2,
-            actualLocation2Header);
+        actualLocation1Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation1)
+        }->UnPack();
+
+        actualLocation2Header = FlatMessage<DatabaseHeader>
+        {
+            co_await randomMessageAccessor->ReadMessage(
+                DefaultHeaderLocation2)
+        }->UnPack();
 
         location1Header = newHeader;
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation1Header, location1Header));
-        EXPECT_TRUE(MessageDifferencer::Equals(actualLocation2Header, location2Header));
+        EXPECT_EQ(*actualLocation1Header, location1Header);
+        EXPECT_EQ(*actualLocation2Header, location2Header);
     });
 }
 

@@ -345,6 +345,10 @@ struct StoredMessage
 };
 
 template<
+    typename T
+> concept IsNativeTable = std::derived_from<T, flatbuffers::NativeTable>;
+
+template<
     typename Table
 > class FlatMessage
 {
@@ -385,14 +389,37 @@ public:
         {
             .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
             .MessageAlignment = static_cast<uint8_t>(builder.GetBufferMinAlignment()),
-            .Message = 
-            { 
-                reinterpret_cast<const std::byte*>(builder.GetBufferPointer()), 
-                builder.GetSize() 
-            },
+            .Message = as_bytes(builder.GetBufferSpan())
         },
     }
     {
+    }
+
+    explicit FlatMessage(
+        const typename Table::NativeTableType* table
+    )
+    {
+        flatbuffers::FlatBufferBuilder builder;
+        auto rootOffset = Table::Pack(
+            builder,
+            table);
+        builder.Finish(rootOffset);
+
+        StoredMessage storedMessage =
+        {
+            .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
+            .MessageAlignment = static_cast<uint8_t>(builder.GetBufferMinAlignment()),
+            .Message = as_bytes(builder.GetBufferSpan())
+        };
+
+        size_t size;
+        size_t offset;
+
+        m_storedMessage =
+        {
+            std::shared_ptr<uint8_t[]>{ builder.ReleaseRaw(size, offset) },
+            storedMessage,
+        };
     }
 
     const StoredMessage& data() const noexcept
@@ -422,6 +449,10 @@ public:
         return get();
     }
 };
+
+template<
+    IsNativeTable NativeTable
+> FlatMessage(const NativeTable*) -> FlatMessage<typename NativeTable::TableType>;
 
 class ProtoValue
 {

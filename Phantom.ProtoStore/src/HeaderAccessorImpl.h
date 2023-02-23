@@ -16,9 +16,8 @@ class HeaderAccessor
     ExtentLocation m_currentLocation;
     ExtentLocation m_nextLocation;
 
-    task<bool> ReadHeader(
+    task<unique_ptr<FlatBuffers::DatabaseHeaderT>> ReadHeader(
         ExtentLocation location,
-        Serialization::Header& header,
         bool throwOnError);
 
 public:
@@ -27,12 +26,11 @@ public:
         ExtentLocation headerLocation1,
         ExtentLocation headerLocation2);
 
-    virtual task<> ReadHeader(
-        Serialization::Header& header
+    virtual task<unique_ptr<FlatBuffers::DatabaseHeaderT>> ReadHeader(
     ) override;
 
     virtual task<> WriteHeader(
-        const Serialization::Header& header
+        const FlatBuffers::DatabaseHeaderT* header
     ) override;
 };
 

@@ -49,21 +49,20 @@ task<> ProtoStore::Create(
 {
     m_schedulers = createRequest.Schedulers;
 
-    Header header;
-    header.set_version(1);
-    header.set_epoch(1);
-    header.set_logalignment(static_cast<google::protobuf::uint32>(
-        createRequest.LogAlignment));
-    header.set_nextpartitionnumber(1);
-    header.set_nextindexnumber(1000);
+    auto header = std::make_unique<FlatBuffers::DatabaseHeaderT>();
+    header->version = 1,
+    header->log_alignment = createRequest.LogAlignment,
+    header->epoch = 0,
+    header->next_index_number = 1000,
+    header->next_partition_number = 0,
 
     // Write both copies of the header,
     // so that ordinary open operations don't get a range_error exception
     // when reopening.
     co_await m_headerAccessor->WriteHeader(
-        header);
+        header.get());
     co_await m_headerAccessor->WriteHeader(
-        header);
+        header.get());
 
     co_await Open(
         createRequest);
@@ -77,13 +76,12 @@ task<> ProtoStore::Open(
     m_checkpointLogSize = openRequest.CheckpointLogSize;
     m_nextCheckpointLogOffset.store(m_checkpointLogSize);
 
-    co_await m_headerAccessor->ReadHeader(
-        m_header);
+    m_header = co_await m_headerAccessor->ReadHeader();
 
     m_nextPartitionNumber.store(
-        m_header.nextpartitionnumber());
+        m_header->next_partition_number);
     m_nextIndexNumber.store(
-        m_header.nextindexnumber());
+        m_header->next_index_number);
 
     {
         IndexesByNumberKey indexesByNumberKey;
@@ -213,7 +211,7 @@ task<> ProtoStore::Open(
         m_schedulers,
         m_extentStore,
         m_messageStore,
-        m_header);
+        m_header.get());
 
     // The first log record for the partitions index will be the actual
     // partitions to use, but the very first time a store is opened
@@ -224,14 +222,15 @@ task<> ProtoStore::Open(
 
     co_await ReplayPartitionsForOpenedIndexes();
 
-    for (auto logReplayExtentName : m_header.logreplayextentnames())
+    for (auto& logReplayExtentName : m_header->log_replay_extent_names)
     {
         co_await Replay(
-            logReplayExtentName);
+            MakeLogExtentName(logReplayExtentName->log_extent_sequence_number),
+            logReplayExtentName.get());
     }
 
     auto postUpdateHeaderTask = co_await m_logManager->FinishReplay(
-        m_header);
+        m_header.get());
 
     co_await UpdateHeader([](auto) -> task<> { co_return; });
 
@@ -271,27 +270,22 @@ task<> ProtoStore::ReplayPartitionsForIndex(
 }
 
 task<> ProtoStore::UpdateHeader(
-    std::function<task<>(Header&)> modifier
+    std::function<task<>(FlatBuffers::DatabaseHeaderT*)> modifier
 )
 {
     auto lock = co_await m_headerMutex.scoped_lock_async();
         
-    auto nextEpoch = m_header.epoch() + 1;
+    auto nextEpoch = m_header->epoch + 1;
     
     co_await modifier(
-        m_header);
+        m_header.get());
 
-    m_header.set_epoch(
-        nextEpoch);
-
-    m_header.set_nextindexnumber(
-        m_nextIndexNumber.load());
-
-    m_header.set_nextpartitionnumber(
-        m_nextPartitionNumber.load());
+    m_header->epoch = nextEpoch;
+    m_header->next_index_number = m_nextIndexNumber.load();
+    m_header->next_partition_number = m_nextPartitionNumber.load();
 
     co_await m_headerAccessor->WriteHeader(
-        m_header);
+        m_header.get());
 }
 
 task<> ProtoStore::WriteLogRecord(
@@ -321,11 +315,12 @@ task<> ProtoStore::WriteLogRecord(
 }
 
 task<> ProtoStore::Replay(
-    ExtentName extentName
+    const ExtentName& logExtent,
+    const LogExtentNameT* extentName
 )
 {
     auto logReader = co_await m_messageStore->OpenExtentForSequentialReadAccess(
-        extentName
+        logExtent
     );
 
     while (true)
@@ -1129,7 +1124,7 @@ task<> ProtoStore::SwitchToNewLog()
 {
     task<> postUpdateHeaderTask;
 
-    co_await UpdateHeader([this, &postUpdateHeaderTask](auto& header) -> task<>
+    co_await UpdateHeader([this, &postUpdateHeaderTask](auto header) -> task<>
     {
         postUpdateHeaderTask = co_await m_logManager->Checkpoint(
             header);

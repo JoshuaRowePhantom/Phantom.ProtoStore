@@ -8,12 +8,11 @@ namespace Phantom::ProtoStore
 class IHeaderAccessor
 {
 public:
-    virtual task<> ReadHeader(
-        Serialization::Header& header
+    virtual task<unique_ptr<FlatBuffers::DatabaseHeaderT>> ReadHeader(
     ) = 0;
 
     virtual task<> WriteHeader(
-        const Serialization::Header& header
+        const FlatBuffers::DatabaseHeaderT* header
     ) = 0;
 };
 
