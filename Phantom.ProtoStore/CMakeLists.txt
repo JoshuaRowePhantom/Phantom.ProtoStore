@@ -66,7 +66,7 @@ add_library (
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
     "src/ProtoStoreInternal.proto"
     "include/Phantom.ProtoStore/ProtoStore.proto"
-    )
+     "src/CanonicalProtoKey.h" "src/CanonicalProtoKey.cpp")
     
 
 target_include_directories(

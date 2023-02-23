@@ -3,6 +3,7 @@
 #include "StandardTypes.h"
 #include <compare>
 #include <concepts>
+#include <unordered_map>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
@@ -29,6 +30,18 @@ public:
 
 private:
     const google::protobuf::Descriptor* m_messageDescriptor;
+    using MessageSortOrderMap = std::unordered_map<const google::protobuf::Descriptor*, SortOrder>;
+    using FieldSortOrderMap = std::unordered_map<const google::protobuf::FieldDescriptor*, SortOrder>;
+
+    MessageSortOrderMap m_messageSortOrder;
+    FieldSortOrderMap m_fieldSortOrder;
+
+    static MessageSortOrderMap GetMessageSortOrders(
+        const google::protobuf::Descriptor*,
+        MessageSortOrderMap source = {});
+    static FieldSortOrderMap GetFieldSortOrders(
+        const google::protobuf::Descriptor*,
+        FieldSortOrderMap source = {});
 
     template<IsOrderedBy<std::weak_ordering> T>
     std::weak_ordering CompareValues(
@@ -120,10 +133,15 @@ private:
         compare_tag<T> = compare_tag<T>()
     ) const;
 
-    std::weak_ordering ApplySortOrder(
+    static std::weak_ordering ApplySortOrder(
         SortOrder sortOrder,
         std::weak_ordering value
-    ) const;
+    );
+
+    static SortOrder CombineSortOrder(
+        SortOrder sortOrder1,
+        SortOrder sortOrder2
+    );
 
 public:
     KeyComparer(
@@ -138,6 +156,16 @@ public:
         const google::protobuf::Message* value1,
         const google::protobuf::Message* value2
     ) const;
+
+    std::weak_ordering Compare(
+        std::span<const byte> value1,
+        std::span<const byte> value2
+    ) const;
+
+    std::weak_ordering operator()(
+        std::span<const byte> value1,
+        std::span<const byte> value2
+        ) const; 
 };
 
 struct KeyAndSequenceNumberComparerArgument
