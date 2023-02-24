@@ -96,7 +96,7 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         readSequenceNumber);
 
     auto memoryTableWriteSequenceNumber = ToMemoryTableOutcomeAndSequenceNumber(
-        row.WriteSequenceNumber,
+        SequenceNumber(row.ValueMessage->sequence_number()),
         TransactionOutcome::Unknown);
 
     decltype(m_skipList)::iterator iterator;
@@ -178,12 +178,11 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         // Jolly Joy! The previous transaction aborted,
         // and was the last transaction to touch this row. We are therefore
         // allowed to update this row.
-        iterator->Row.WriteSequenceNumber = row.WriteSequenceNumber;
-        iterator->Row.Value = std::move(row.Value);
+        iterator->Row.ValueMessage = std::move(row.ValueMessage);
         iterator->DelayedTransactionOutcome = delayedTransactionOutcome;
 
         memoryTableWriteSequenceNumber = ToOutcomeUnknownSubsequentInsertion(
-            row.WriteSequenceNumber);
+            SequenceNumber(iterator->Row.ValueMessage->sequence_number()));
 
         iterator->WriteSequenceNumber.store(
             memoryTableWriteSequenceNumber,
@@ -235,7 +234,9 @@ task<> MemoryTable::UpdateOutcome(
 
     // After this point, 
     memoryTableValue.WriteSequenceNumber.store(
-        ToMemoryTableOutcomeAndSequenceNumber(memoryTableValue.Row.WriteSequenceNumber, outcome.Outcome),
+        ToMemoryTableOutcomeAndSequenceNumber(
+            SequenceNumber(memoryTableValue.Row.ValueMessage->sequence_number()),
+            outcome.Outcome),
         std::memory_order_release
     );
 
@@ -309,7 +310,7 @@ row_generator MemoryTable::Enumerate(
 
         // No matter what, the next key to enumerate will be at least as large
         // as the current key.
-        enumerationKey.KeyLow = memoryTableValue.Row.Key.get();
+        enumerationKey.KeyLow = memoryTableValue.GetKeyBytes();
 
         // The rowTransactionOutcome value needs to be acquired
         // before reading the sequence number for return determination.
@@ -381,12 +382,16 @@ row_generator MemoryTable::Enumerate(
             {
                 // The row resolved as Committed and the write sequence number is good.
                 // Yield it to the caller.
-                co_yield ResultRow
+                co_yield DataReference<ResultRow>
                 {
-                    .Key = memoryTableValue.Row.Key.get(),
-                    .WriteSequenceNumber = memoryTableValue.Row.WriteSequenceNumber,
-                    .Value = memoryTableValue.Row.Value.get(),
-                    .TransactionId = memoryTableValue.Row.TransactionId ? &*(memoryTableValue.Row.TransactionId) : nullptr,
+                    DataReference<StoredMessage>(memoryTableValue.Row.ValueMessage),
+                    ResultRow
+                    {
+                        .Key = memoryTableValue.GetKeyBytes(),
+                        .Value = memoryTableValue.GetValueBytes(),
+                        .WriteSequenceNumber = memoryTableValue.GetWriteSequenceNumber(),
+                        .TransactionId = memoryTableValue.GetTransactionIdBytes(),
+                    }
                 };
 
                 // Change the enumeration key to be exclusive so that we'll
@@ -453,12 +458,16 @@ row_generator MemoryTable::Checkpoint()
 
         if (outcome == TransactionOutcome::Committed)
         {
-            co_yield ResultRow
+            co_yield DataReference<ResultRow>
             {
-                .Key = iterator->Row.Key.get(),
-                .WriteSequenceNumber = iterator->Row.WriteSequenceNumber,
-                .Value = iterator->Row.Value.get(),
-                .TransactionId = iterator->Row.TransactionId ? &*(iterator->Row.TransactionId) : nullptr,
+                DataReference<StoredMessage>(iterator->Row.ValueMessage),
+                ResultRow
+                {
+                    .Key = iterator->GetKeyBytes(),
+                    .Value = iterator->GetValueBytes(),
+                    .WriteSequenceNumber = iterator->GetWriteSequenceNumber(),
+                    .TransactionId = iterator->GetTransactionIdBytes(),
+                }
             };
         }
     }
@@ -472,12 +481,11 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     WriteSequenceNumber
 {
     ToMemoryTableOutcomeAndSequenceNumber(
-        other.Row.WriteSequenceNumber,
+        ToSequenceNumber(other.Row.ValueMessage->sequence_number()),
         TransactionOutcome::Committed)
 }
 {
-    assert(Row.Key.get());
-    auto writeSequenceNumber = Row.WriteSequenceNumber;
+    assert(Row.KeyMessage.get());
 }
 
 MemoryTable::MemoryTableValue::MemoryTableValue(
@@ -488,12 +496,12 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     WriteSequenceNumber 
     {
         ToMemoryTableOutcomeAndSequenceNumber(
-            other.Row.WriteSequenceNumber,
+            ToSequenceNumber(other.Row.ValueMessage->sequence_number()),
             TransactionOutcome::Unknown)
     },
     DelayedTransactionOutcome{ other.DelayedTransactionOutcome }
 {
-    assert(Row.Key.get());
+    assert(Row.KeyMessage.get());
 }
 
 MemoryTable::ReplayInsertionKey::ReplayInsertionKey(
@@ -527,8 +535,8 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     ) const
 {
     auto comparisonResult = (*m_keyComparer)(
-        key1.Row.Key.get(),
-        key2.Row.Key.get());
+        key1.GetKeyBytes(),
+        key2.GetKeyBytes());
 
     return comparisonResult;
 }
@@ -539,19 +547,19 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     ) const
 {
     auto comparisonResult = (*m_keyComparer)(
-        key1.Row.Key.get(),
-        key2.Row.Key.get());
+        key1.GetKeyBytes(),
+        get_byte_span(key2.Row.KeyMessage->key()));
 
     if (comparisonResult != std::weak_ordering::equivalent)
     {
         return comparisonResult;
     }
 
-    auto sequenceNumber = key1.Row.WriteSequenceNumber;
+    auto sequenceNumber = ToSequenceNumber(key1.WriteSequenceNumber.load(std::memory_order_acquire));
 
     if (sequenceNumber > key2.ReadSequenceNumber
         ||
-        sequenceNumber >= key2.Row.WriteSequenceNumber)
+        sequenceNumber >= ToSequenceNumber(key2.Row.ValueMessage->sequence_number()))
     {
         // By returning equivalent here, the SkipList
         // won't insert the row.
@@ -572,8 +580,8 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         std::weak_ordering::greater
         :
         (*m_keyComparer)(
-            key1.Row.Key.get(),
-            key2.KeyLow);
+            key1.GetKeyBytes(),
+            *key2.KeyLow);
 
     if (comparisonResult == std::weak_ordering::equivalent
         &&
@@ -587,7 +595,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         return comparisonResult;
     }
 
-    auto sequenceNumber = key1.Row.WriteSequenceNumber;
+    auto sequenceNumber = key1.GetWriteSequenceNumber();
 
     if (comparisonResult == std::weak_ordering::equivalent
         &&
@@ -617,12 +625,12 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     ) const
 {
     auto comparisonResult =
-        !key2.Key
+        !key2.Key.data()
         ?
         std::weak_ordering::less
         :
         (*m_keyComparer)(
-            key1.Row.Key.get(),
+            key1.GetKeyBytes(),
             key2.Key);
 
     if (comparisonResult == std::weak_ordering::equivalent
@@ -642,13 +650,13 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
 {
     auto comparisonResult =
         (*m_keyComparer)(
-            key1.Row.Key.get(),
-            key2.Row.Key.get()
+            key1.GetKeyBytes(),
+            get_byte_span(key2.Row.KeyMessage->key())
             );
 
     if (comparisonResult == std::weak_ordering::equivalent)
     {
-        comparisonResult = key2.Row.WriteSequenceNumber <=> key1.Row.WriteSequenceNumber;
+        comparisonResult = ToSequenceNumber(key2.Row.ValueMessage->sequence_number()) <=> key1.GetWriteSequenceNumber();
     }
 
     return comparisonResult;

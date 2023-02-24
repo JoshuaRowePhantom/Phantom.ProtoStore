@@ -15,6 +15,8 @@ using namespace google::protobuf;
 
 const Serialization::PlaceholderKey KeyMinMessage = [] { Serialization::PlaceholderKey key; key.set_iskeymin(true); return key; }();
 const Serialization::PlaceholderKey KeyMaxMessage = [] { Serialization::PlaceholderKey key; key.set_iskeymax(true); return key; }();
+const std::span<const byte> KeyMinSpan = as_bytes(KeyMinMessage);
+const std::span<const byte> KeyMaxSpan = as_bytes(KeyMaxMessage);
 
 KeyComparer::KeyComparer(
     const Descriptor* messageDescriptor)
@@ -612,6 +614,34 @@ std::weak_ordering KeyComparer::Compare(
     std::span<const byte> value2
 ) const
 {
+    if (value1.data() == KeyMinSpan.data())
+    {
+        if (value2.data() == KeyMinSpan.data())
+        {
+            return std::weak_ordering::equivalent;
+        }
+        return std::weak_ordering::less;
+    }
+
+    if (value2.data() == KeyMinSpan.data())
+    {
+        return std::weak_ordering::greater;
+    }
+
+    if (value1.data() == KeyMaxSpan.data())
+    {
+        if (value2.data() == KeyMaxSpan.data())
+        {
+            return std::weak_ordering::equivalent;
+        }
+        return std::weak_ordering::greater;
+    }
+
+    if (value2.data() == KeyMaxSpan.data())
+    {
+        return std::weak_ordering::less;
+    }
+
     using google::protobuf::internal::WireFormatLite;
 
     google::protobuf::io::CodedInputStream coded1(

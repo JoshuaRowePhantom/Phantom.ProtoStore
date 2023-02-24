@@ -26,9 +26,9 @@ public:
     // If the partition has a deleted row, it should be returned,
     // so that the WriteSequenceNumber of the delete can be compared
     // with the WriteSequenceNumber the same key from other sources.
-    virtual async_generator<ResultRow> Read(
+    virtual row_generator Read(
         SequenceNumber readSequenceNumber,
-        const Message* key,
+        std::span<const byte> key,
         ReadValueDisposition readValueDisposition
     ) = 0;
 
@@ -38,7 +38,7 @@ public:
     // If the partition has a deleted row, it should be returned,
     // so that the WriteSequenceNumber of the delete can be compared
     // with the WriteSequenceNumber the same key from other sources.
-    virtual async_generator<ResultRow> Enumerate(
+    virtual row_generator Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high,
@@ -47,7 +47,7 @@ public:
 
     // Begin enumerating from the requested checkpoint start key,
     // returning all versions of all rows.
-    virtual cppcoro::async_generator<ResultRow> Checkpoint(
+    virtual row_generator Checkpoint(
         optional<PartitionCheckpointStartKey> startKey
     ) = 0;
 
@@ -58,7 +58,7 @@ public:
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
         SequenceNumber writeSequenceNumber,
-        const Message* key
+        std::span<const byte> key
     ) = 0;
 
     virtual task<IntegrityCheckErrorList> CheckIntegrity(

@@ -98,19 +98,14 @@ task<ExtentOffset> Partition::GetApproximateDataSize()
     co_return m_partitionHeader.partitionrootoffset();
 }
 
-cppcoro::async_generator<ResultRow> Partition::Read(
+row_generator Partition::Read(
     SequenceNumber readSequenceNumber,
-    const Message* key,
+    std::span<const byte> key,
     ReadValueDisposition readValueDisposition
 )
 {
-    std::string serializedKey;
-    key->SerializeToString(
-        &serializedKey
-    );
-
     if (!m_bloomFilter->test(
-        serializedKey))
+        key))
     {
         co_return;
     }
@@ -135,7 +130,7 @@ cppcoro::async_generator<ResultRow> Partition::Read(
     }
 }
 
-cppcoro::async_generator<ResultRow> Partition::Enumerate(
+row_generator Partition::Enumerate(
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high,
@@ -165,7 +160,7 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     }
 }
 
-cppcoro::async_generator<ResultRow> Partition::Checkpoint(
+row_generator Partition::Checkpoint(
     std::optional<PartitionCheckpointStartKey> startKey
 )
 {
@@ -173,13 +168,13 @@ cppcoro::async_generator<ResultRow> Partition::Checkpoint(
 
     KeyRangeEnd low =
     {
-        .Key = &KeyMinMessage,
+        .Key = KeyMinSpan,
         .Inclusivity = Inclusivity::Inclusive,
     };
 
     KeyRangeEnd high =
     {
-        .Key = &KeyMaxMessage,
+        .Key = KeyMaxSpan,
         .Inclusivity = Inclusivity::Inclusive,
     };
 
@@ -556,7 +551,7 @@ SequenceNumber Partition::GetLatestSequenceNumber()
 task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
     SequenceNumber readSequenceNumber,
     SequenceNumber writeSequenceNumber,
-    const Message* key
+    std::span<const byte> key
 )
 {
     auto generator = Read(

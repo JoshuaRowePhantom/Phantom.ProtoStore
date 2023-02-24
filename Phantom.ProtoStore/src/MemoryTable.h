@@ -4,21 +4,20 @@
 #include <cppcoro/async_generator.hpp>
 #include "Phantom.Coroutines/async_manual_reset_event.h"
 #include "Phantom.Coroutines/async_reader_writer_lock.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {
 
 struct MemoryTableRow
 {
-    unique_ptr<const Message> Key;
-    SequenceNumber WriteSequenceNumber;
-    unique_ptr<const Message> Value;
-    std::optional<TransactionId> TransactionId;
+    FlatMessage<FlatBuffers::LoggedRowWrite> KeyMessage;
+    FlatMessage<FlatBuffers::LoggedRowWrite> ValueMessage;
 };
 
 struct KeyRangeEnd
 {
-    const Message* Key;
+    std::span<const byte> Key;
     Inclusivity Inclusivity;
 };
 

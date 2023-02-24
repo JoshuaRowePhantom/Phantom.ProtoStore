@@ -16,7 +16,7 @@ row_generator RowMerger::Merge(
     row_generators rowSources
 )
 {
-    std::vector<cppcoro::async_generator<ResultRow>> capturedRowSources;
+    std::vector<cppcoro::async_generator<DataReference<ResultRow>>> capturedRowSources;
     for (auto& rowSource : rowSources)
     {
         capturedRowSources.emplace_back(
@@ -24,13 +24,13 @@ row_generator RowMerger::Merge(
     }
 
     auto comparator = [this](
-        const ResultRow& row1,
-        const ResultRow& row2
+        const DataReference<ResultRow>& row1,
+        const DataReference<ResultRow>& row2
         )
     {
         auto keyOrdering = m_keyComparer->Compare(
-            row1.Key,
-            row2.Key
+            row1->Key,
+            row2->Key
         );
 
         if (keyOrdering == std::weak_ordering::less)
@@ -43,10 +43,10 @@ row_generator RowMerger::Merge(
             return false;
         }
 
-        return row1.WriteSequenceNumber > row2.WriteSequenceNumber;
+        return row1->WriteSequenceNumber > row2->WriteSequenceNumber;
     };
 
-    auto result = merge_sorted_generators<ResultRow>(
+    auto result = merge_sorted_generators<DataReference<ResultRow>>(
         capturedRowSources.begin(),
         capturedRowSources.end(),
         comparator);
@@ -66,25 +66,21 @@ row_generator RowMerger::Enumerate(
     auto mergeEnumeration = Merge(
         move(rowSources));
 
-    optional<string> previousKey;
-    string currentKey;
+    DataReference<ResultRow> previousRow;
 
     for (auto iterator = co_await mergeEnumeration.begin();
         iterator != mergeEnumeration.end();
         co_await ++iterator)
     {
-        (*iterator).Key->SerializeToString(
-            &currentKey
-        );
-
-        if (previousKey == currentKey)
+        if (previousRow->Key.data()
+            && std::ranges::equal(previousRow->Key, (*iterator)->Key))
         {
             continue;
         }
+        
+        previousRow = *iterator;
 
-        previousKey = move(currentKey);
-
-        if (!(*iterator).Value)
+        if (!(*iterator)->Value.data())
         {
             continue;
         }

@@ -129,20 +129,20 @@ public:
     virtual task<ExtentOffset> GetApproximateDataSize(
     ) override;
 
-    virtual cppcoro::async_generator<ResultRow> Read(
+    virtual row_generator Read(
         SequenceNumber readSequenceNumber,
-        const Message* key,
+        std::span<const byte> key,
         ReadValueDisposition readValueDisposition
     ) override;
 
-    virtual cppcoro::async_generator<ResultRow> Enumerate(
+    virtual row_generator Enumerate(
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high,
         ReadValueDisposition readValueDisposition
     ) override;
 
-    virtual cppcoro::async_generator<ResultRow> Checkpoint(
+    virtual row_generator Checkpoint(
         optional<PartitionCheckpointStartKey> startKey
     ) override;
 
@@ -152,7 +152,7 @@ public:
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
         SequenceNumber writeSequenceNumber,
-        const Message* key
+        std::span<const byte> key
     ) override;
 
     virtual task<IntegrityCheckErrorList> CheckIntegrity(

@@ -2,6 +2,7 @@
 
 #include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {
@@ -12,7 +13,16 @@ class IInternalTransaction
     public SerializationTypes
 {
 public:
-    virtual LogRecord& LogRecord(
+    virtual void BuildLogRecord(
+        LogEntry logEntry,
+        std::function<Offset<void>(flatbuffers::FlatBufferBuilder&)> builder
+    ) = 0;
+
+    virtual operation_task<FlatMessage<LoggedRowWrite>> AddRowInternal(
+        const WriteOperationMetadata& writeOperationMetadata,
+        ProtoIndex protoIndex,
+        const ProtoValue& key,
+        const ProtoValue& value
     ) = 0;
 
     virtual LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions(

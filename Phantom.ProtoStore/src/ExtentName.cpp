@@ -1,40 +1,41 @@
 #include "StandardTypes.h"
 #include "ExtentName.h"
 #include <boost/functional/hash.hpp>
-
-std::size_t std::hash<Phantom::ProtoStore::ExtentName>::operator()(
-    const Phantom::ProtoStore::ExtentName& extentName) const noexcept
-{
-    using boost::hash_combine;
-    size_t hash = 0;
-    hash_combine(hash, extentName.has_databaseheaderextentname());
-    hash_combine(hash, extentName.has_indexdataextentname());
-    hash_combine(hash, extentName.has_indexheaderextentname());
-    hash_combine(hash, extentName.has_logextentname());
-
-    if (extentName.has_databaseheaderextentname())
-    {
-        hash_combine(hash, extentName.databaseheaderextentname().headercopynumber());
-    }
-    if (extentName.has_indexdataextentname())
-    {
-        hash_combine(hash, extentName.indexdataextentname().indexnumber());
-        hash_combine(hash, extentName.indexdataextentname().partitionnumber());
-    }
-    if (extentName.has_indexheaderextentname())
-    {
-        hash_combine(hash, extentName.indexheaderextentname().indexnumber());
-        hash_combine(hash, extentName.indexheaderextentname().partitionnumber());
-    }
-    if (extentName.has_logextentname())
-    {
-        hash_combine(hash, extentName.logextentname().logextentsequencenumber());
-    }
-    return hash;
-}
+//
+//std::size_t std::hash<Phantom::ProtoStore::FlatBuffers::ExtentNameT>::operator()(
+//    const Phantom::ProtoStore::FlatBuffers::ExtentNameT& extentName) const noexcept
+//{
+//    using boost::hash_combine;
+//    size_t hash = 0;
+//    hash_combine(hash, extentName.has_databaseheaderextentname());
+//    hash_combine(hash, extentName.has_indexdataextentname());
+//    hash_combine(hash, extentName.has_indexheaderextentname());
+//    hash_combine(hash, extentName.has_logextentname());
+//
+//    if (extentName.has_databaseheaderextentname())
+//    {
+//        hash_combine(hash, extentName.databaseheaderextentname().headercopynumber());
+//    }
+//    if (extentName.has_indexdataextentname())
+//    {
+//        hash_combine(hash, extentName.indexdataextentname().indexnumber());
+//        hash_combine(hash, extentName.indexdataextentname().partitionnumber());
+//    }
+//    if (extentName.has_indexheaderextentname())
+//    {
+//        hash_combine(hash, extentName.indexheaderextentname().indexnumber());
+//        hash_combine(hash, extentName.indexheaderextentname().partitionnumber());
+//    }
+//    if (extentName.has_logextentname())
+//    {
+//        hash_combine(hash, extentName.logextentname().logextentsequencenumber());
+//    }
+//    return hash;
+//}
 
 namespace Phantom::ProtoStore
 {
+/*
 bool operator==(
     const ExtentName& left,
     const ExtentName& right
@@ -61,7 +62,7 @@ bool operator==(
                 )
             : true
             );
-}
+}*/
 
 ExtentName MakeDatabaseHeaderExtentName(
     uint64_t copyNumber)

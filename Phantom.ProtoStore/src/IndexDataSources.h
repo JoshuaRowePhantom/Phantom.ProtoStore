@@ -9,26 +9,26 @@ class IIndexDataSources : public SerializationTypes
 {
 public:
     virtual task<> Replay(
-        const LoggedRowWrite& rowWrite
+        FlatMessage<LoggedRowWrite> rowWrite
     ) = 0;
 
     virtual task<> Replay(
-        const LoggedCheckpoint& loggedCheckpoint
+        const LoggedCheckpoint* loggedCheckpoint
     ) = 0;
 
     virtual task<> FinishReplay(
     ) = 0;
 
-    virtual task<LoggedCheckpoint> StartCheckpoint(
+    virtual task<LoggedCheckpointT> StartCheckpoint(
     ) = 0;
 
     virtual task<WriteRowsResult> Checkpoint(
-        const LoggedCheckpoint& loggedCheckpoint,
+        const LoggedCheckpointT& loggedCheckpoint,
         shared_ptr<IPartitionWriter> partitionWriter
     ) = 0;
 
     virtual task<> UpdatePartitions(
-        const LoggedCheckpoint& loggedCheckpoint,
+        const LoggedCheckpointT& loggedCheckpoint,
         vector<shared_ptr<IPartition>> partitions
     ) = 0;
 };

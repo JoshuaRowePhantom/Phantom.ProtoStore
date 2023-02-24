@@ -57,36 +57,20 @@ const IndexName& Index::GetIndexName() const
 
 operation_task<CheckpointNumber> Index::AddRow(
     SequenceNumber readSequenceNumber,
-    const ProtoValue& key,
-    const ProtoValue& value,
-    SequenceNumber writeSequenceNumber,
-    const TransactionId* transactionId,
+    FlatMessage<LoggedRowWrite> loggedRowWrite,
     shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome)
 {
-    unique_ptr<Message> keyMessage(
-        m_keyFactory->GetPrototype()->New());
-    key.unpack<>(keyMessage.get());
-
-    unique_ptr<Message> valueMessage;
-    if (value)
-    {
-        valueMessage.reset(
-            m_valueFactory->GetPrototype()->New());
-        value.unpack<>(valueMessage.get());
-    }
-
     MemoryTableRow row
     {
-        .Key = move(keyMessage),
-        .WriteSequenceNumber = writeSequenceNumber,
-        .Value = move(valueMessage),
-        .TransactionId = transactionId ? std::optional { *transactionId } : std::optional<TransactionId>{},
+        .KeyMessage = loggedRowWrite,
+        .ValueMessage = loggedRowWrite,
     };
 
     shared_ptr<IMemoryTable> activeMemoryTable;
     CheckpointNumber activeCheckpointNumber;
     MemoryTablesEnumeration inactiveMemoryTables;
     PartitionsEnumeration partitions;
+    auto writeSequenceNumber = ToSequenceNumber(loggedRowWrite->sequence_number());
 
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
     
@@ -128,7 +112,7 @@ operation_task<CheckpointNumber> Index::AddRow(
         auto conflictingSequenceNumber = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             writeSequenceNumber,
-            row.Key.get());
+            get_byte_span(row.KeyMessage->key()));
 
         if (conflictingSequenceNumber.has_value())
         {
@@ -151,28 +135,13 @@ operation_task<CheckpointNumber> Index::AddRow(
 
 task<> Index::ReplayRow(
     shared_ptr<IMemoryTable> memoryTable,
-    const string& key,
-    const string& value,
-    SequenceNumber writeSequenceNumber,
-    const TransactionId* transactionId
+    FlatMessage<LoggedRowWrite> loggedRowWrite
 )
 {
-    unique_ptr<Message> keyMessage(
-        m_keyFactory->GetPrototype()->New());
-    keyMessage->ParseFromString(
-        key);
-
-    unique_ptr<Message> valueMessage(
-        m_valueFactory->GetPrototype()->New());
-    valueMessage->ParseFromString(
-        value);
-
     MemoryTableRow row
     {
-        .Key = move(keyMessage),
-        .WriteSequenceNumber = writeSequenceNumber,
-        .Value = move(valueMessage),
-        .TransactionId = transactionId ? std::optional{ *transactionId } : std::optional<TransactionId>{},
+        .KeyMessage = loggedRowWrite,
+        .ValueMessage = loggedRowWrite,
     };
 
     co_await memoryTable->ReplayRow(
@@ -233,7 +202,7 @@ operation_task<ReadResult> Index::Read(
         memoryTablesEnumeration,
         partitionsEnumeration);
 
-    auto enumerateAllItemsLambda = [&]() -> cppcoro::generator<cppcoro::async_generator<ResultRow>>
+    auto enumerateAllItemsLambda = [&]() -> row_generators
     {
         for (auto& memoryTable : *memoryTablesEnumeration)
         {

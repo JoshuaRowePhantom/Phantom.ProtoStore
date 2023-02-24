@@ -17,6 +17,7 @@
 #include <cppcoro/task.hpp>
 #include <cppcoro/shared_task.hpp>
 #include "Phantom.System/pooled_ptr.h"
+#include <flatbuffers/flatbuffers.h>
 #include <Phantom.ProtoStore/Phantom.ProtoStore.h>
 
 namespace google::protobuf
@@ -105,15 +106,6 @@ class IndexesByNameKey;
 class IndexesByNameValue;
 class IndexesByNumberKey;
 class IndexesByNumberValue;
-class LoggedRowWrite;
-class LoggedCheckpoint;
-class LoggedAction;
-class LoggedCreateIndex;
-class LoggedCreateDataExtent;
-class LoggedCreatePartition;
-class LoggedUpdatePartitions;
-class LoggedCommitExtent;
-class LoggedUnresolvedTransactions;
 class PartitionHeader;
 class PartitionRoot;
 class PartitionBloomFilter;
@@ -155,27 +147,84 @@ struct DatabaseHeaderBuilder;
 struct ExtentHeader;
 struct ExtentHeaderBuilder;
 struct MessageHeader_V1;
-enum class ExtentName : uint8_t;
+struct LogRecord;
+enum class LogEntry : uint8_t;
+struct LoggedRowWrite;
+struct LoggedCheckpoint;
+struct LoggedCheckpointT;
+struct LoggedAction;
+struct LoggedCreateIndex;
+struct LoggedCreateExtent;
+struct LoggedCreatePartition;
+struct LoggedUpdatePartitions;
+struct LoggedCommitExtent;
+struct LoggedDeleteExtentPendingPartitionsUpdated;
+struct LoggedUnresolvedTransactions;
+struct LoggedPartitionsData;
+struct LoggedPartitionsDataT;
 enum class ExtentFormatVersion : uint8_t;
+
+struct ExtentName;
+struct ExtentNameT;
+std::weak_ordering operator<=>(
+    const ExtentNameT&,
+    const ExtentNameT&
+    );
+
+struct DatabaseHeaderExtentNameT;
+std::weak_ordering operator<=>(
+    const DatabaseHeaderExtentNameT&,
+    const DatabaseHeaderExtentNameT&
+    );
+
+struct IndexDataExtentNameT;
+std::weak_ordering operator<=>(
+    const IndexDataExtentNameT&,
+    const IndexDataExtentNameT&
+    );
+
+struct IndexExtentNameT;
+std::weak_ordering operator<=>(
+    const IndexExtentNameT&,
+    const IndexExtentNameT&
+    );
+
+struct IndexHeaderExtentNameT;
+std::weak_ordering operator<=>(
+    const IndexHeaderExtentNameT&,
+    const IndexHeaderExtentNameT&
+    );
+
+struct LogExtentNameT;
+std::weak_ordering operator<=>(
+    const LogExtentNameT&,
+    const LogExtentNameT&
+    );
 }
 
 class SerializationTypes
 {
 public:
-    using LogRecord = Serialization::LogRecord;
+    using uoffset_t = flatbuffers::uoffset_t;
     using IndexesByNameKey = Serialization::IndexesByNameKey;
     using IndexesByNameValue = Serialization::IndexesByNameValue;
     using IndexesByNumberKey = Serialization::IndexesByNumberKey;
     using IndexesByNumberValue = Serialization::IndexesByNumberValue;
-    using LoggedRowWrite = Serialization::LoggedRowWrite;
-    using LoggedCheckpoint = Serialization::LoggedCheckpoint;
-    using LoggedAction = Serialization::LoggedAction;
-    using LoggedCreateIndex = Serialization::LoggedCreateIndex;
-    using LoggedCreateDataExtent = Serialization::LoggedCreateDataExtent;
-    using LoggedCreatePartition = Serialization::LoggedCreatePartition;
-    using LoggedUpdatePartitions = Serialization::LoggedUpdatePartitions;
-    using LoggedCommitExtent = Serialization::LoggedCommitExtent;
-    using LoggedUnresolvedTransactions = Serialization::LoggedUnresolvedTransactions;
+    using LogRecord = FlatBuffers::LogRecord;
+    using LogEntry = FlatBuffers::LogEntry;
+    using LoggedRowWrite = FlatBuffers::LoggedRowWrite;
+    using LoggedCheckpoint = FlatBuffers::LoggedCheckpoint;
+    using LoggedCheckpointT = FlatBuffers::LoggedCheckpointT;
+    using LoggedAction = FlatBuffers::LoggedAction;
+    using LoggedCreateIndex = FlatBuffers::LoggedCreateIndex;
+    using LoggedCreateExtent = FlatBuffers::LoggedCreateExtent;
+    using LoggedCreatePartition = FlatBuffers::LoggedCreatePartition;
+    using LoggedUpdatePartitions = FlatBuffers::LoggedUpdatePartitions;
+    using LoggedCommitExtent = FlatBuffers::LoggedCommitExtent;
+    using LoggedDeleteExtentPendingPartitionsUpdated = FlatBuffers::LoggedDeleteExtentPendingPartitionsUpdated;
+    using LoggedUnresolvedTransactions = FlatBuffers::LoggedUnresolvedTransactions;
+    using LoggedPartitionsData = FlatBuffers::LoggedPartitionsData;
+    using LoggedPartitionsDataT = FlatBuffers::LoggedPartitionsDataT;
     using PartitionHeader = Serialization::PartitionHeader;
     using PartitionRoot = Serialization::PartitionRoot;
     using PartitionBloomFilter = Serialization::PartitionBloomFilter;
@@ -192,13 +241,14 @@ public:
     using MergeProgressValue = Serialization::MergeProgressValue;
     using PlaceholderKey = Serialization::PlaceholderKey;
     using PartitionMessage = Serialization::PartitionMessage;
-    using LoggedPartitionsData = Serialization::LoggedPartitionsData;
     using UnresolvedTransactionKey = Serialization::UnresolvedTransactionKey;
     using UnresolvedTransactionValue = Serialization::UnresolvedTransactionValue;
 
-    using LogExtentName = FlatBuffers::LogExtentName;
-    using LogExtentNameT = FlatBuffers::LogExtentNameT;
-    using LogExtentNameBuilder = FlatBuffers::LogExtentNameBuilder;
+    //using ExtentName = FlatBuffers::ExtentName;
+    //using ExtentNameT = FlatBuffers::ExtentNameT;
+    //using LogExtentName = FlatBuffers::LogExtentName;
+    //using LogExtentNameT = FlatBuffers::LogExtentNameT;
+    //using LogExtentNameBuilder = FlatBuffers::LogExtentNameBuilder;
     using DatabaseHeader = FlatBuffers::DatabaseHeader;
     using DatabaseHeaderT = FlatBuffers::DatabaseHeaderT;
     using DatabaseHeaderBuilder = FlatBuffers::DatabaseHeaderBuilder;
@@ -209,19 +259,24 @@ public:
     using Offset = flatbuffers::Offset<T>;
 };
 
+class ExtentName;
 using TransactionId = std::string;
 typedef ExtentName MergeId;
-
+using GlobalTransactionNumber = uint64_t;
 
 struct ResultRow
 {
-    const Message* Key;
+    std::span<const byte> Key;
+    std::span<const byte> Value;
     SequenceNumber WriteSequenceNumber;
-    const Message* Value = nullptr;
-    const TransactionId* TransactionId = nullptr;
+    std::span<const byte> TransactionId;
 };
 
-typedef cppcoro::async_generator<ResultRow> row_generator;
+std::span<const byte> get_byte_span(
+    const flatbuffers::Vector<int8_t>*
+);
+
+typedef cppcoro::async_generator<DataReference<ResultRow>> row_generator;
 typedef row_generator::iterator row_generator_iterator;
 typedef cppcoro::generator<row_generator> row_generators;
 

@@ -146,13 +146,25 @@ task<> IndexMerger::RestartIncompleteMerge(
             BeginTransactionRequest{},
             [&](auto operation) -> status_task<>
         {
-            co_await m_protoStore->LogCommitExtent(
-                operation->LogRecord(),
-                headerExtentName);
+            operation->BuildLogRecord(
+                LogEntry::LoggedCommitExtent,
+                [&](auto& builder)
+            {
+                return FlatBuffers::CreateLoggedCommitExtent(
+                    builder,
+                    CreateExtentName(builder, headerExtentName)
+                ).Union();
+            });
 
-            co_await m_protoStore->LogCommitExtent(
-                operation->LogRecord(),
-                dataExtentName);
+            operation->BuildLogRecord(
+                LogEntry::LoggedCommitExtent,
+                [&](auto& builder)
+            {
+                return FlatBuffers::CreateLoggedCommitExtent(
+                    builder,
+                    CreateExtentName(builder, dataExtentName)
+                ).Union();
+            });
 
             if (!isCompleteMerge)
             {
@@ -222,10 +234,11 @@ task<> IndexMerger::WriteMergeProgress(
     MergesValue mergesValue;
     mergesValue.CopyFrom(incompleteMerge.Merge.Value);
     
-    (*writeRowsResult.resumptionRow).Key->SerializeToString(
-        mergesValue.mutable_resumekey()->mutable_key());
+    mergesValue.mutable_resumekey()->mutable_key()->assign(
+        reinterpret_cast<const char*>((*writeRowsResult.resumptionRow)->Key.data()),
+        (*writeRowsResult.resumptionRow)->Key.size());
     mergesValue.mutable_resumekey()->set_writesequencenumber(
-        ToUint64((*writeRowsResult.resumptionRow).WriteSequenceNumber));
+        ToUint64((*writeRowsResult.resumptionRow)->WriteSequenceNumber));
     
     co_await operation->AddRow(
         WriteOperationMetadata
@@ -361,37 +374,57 @@ task<> IndexMerger::WriteMergeCompletion(
         completePartitionsValue.set_checkpointnumber(
             incompleteMerge.Merge.Value.checkpointnumber());
 
-        co_await operation->AddRow(
+        auto loggedRowWrite = co_await operation->AddRowInternal(
             WriteOperationMetadata{},
             partitionsIndex,
             &completePartitionsKey,
             &completePartitionsValue);
+        if (!loggedRowWrite) { std::move(loggedRowWrite).error().throw_exception(); }
 
         // This is magic.
         // AddRow doesn't return anything, but we know it adds a row to the log record with a checkpoint number.
         // We grab that value here so we can specify it as the time when the extents can be deleted.
-        partitionsTableCheckpointNumber = (operation->LogRecord().rows().end() - 1)->checkpointnumber();
+        partitionsTableCheckpointNumber = (*loggedRowWrite)->checkpoint_number();
     }
     
     // Mark the table as needing reload of its partitions.
-    operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions()->set_indexnumber(
-        incompleteMerge.Merge.Key.indexnumber());
+    operation->BuildLogRecord(
+        LogEntry::LoggedUpdatePartitions,
+        [&](auto& builder)
+    {
+        return FlatBuffers::CreateLoggedUpdatePartitions(
+            builder,
+            incompleteMerge.Merge.Key.indexnumber()
+        ).Union();
+    });
 
     // Mark all the old partitions' extents as deleted.
     for (auto& headerExtentName : incompleteMerge.Merge.Value.sourceheaderextentnames())
     {
-        co_await m_protoStore->LogDeleteExtentPendingPartitionsUpdated(
-            operation->LogRecord(),
-            headerExtentName,
-            partitionsTableCheckpointNumber);
+        operation->BuildLogRecord(
+            LogEntry::LoggedDeleteExtentPendingPartitionsUpdated,
+            [&](auto& builder)
+        {
+            return FlatBuffers::CreateLoggedDeleteExtentPendingPartitionsUpdated(
+                builder,
+                CreateExtentName(builder, headerExtentName),
+                partitionsTableCheckpointNumber
+            ).Union();
+        });
 
         auto dataExtentName = MakePartitionDataExtentName(
             headerExtentName);
 
-        co_await m_protoStore->LogDeleteExtentPendingPartitionsUpdated(
-            operation->LogRecord(),
-            dataExtentName,
-            partitionsTableCheckpointNumber);
+        operation->BuildLogRecord(
+            LogEntry::LoggedDeleteExtentPendingPartitionsUpdated,
+            [&](auto& builder)
+        {
+            return FlatBuffers::CreateLoggedDeleteExtentPendingPartitionsUpdated(
+                builder,
+                CreateExtentName(builder, dataExtentName),
+                partitionsTableCheckpointNumber
+            ).Union();
+        });
     }
 }
 
@@ -400,10 +433,8 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
     ExtentName headerExtentName,
     const IncompleteMerge& incompleteMerge)
 {
-    auto loggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
 
-    loggedPartitionsData->set_partitionstablecheckpointnumber(
-        std::numeric_limits<CheckpointNumber>::max());
+    auto partitions_table_checkpoint_number = std::numeric_limits<CheckpointNumber>::max();
 
     std::unordered_set<ExtentName> partitionHeaderExtentNames;
     auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
@@ -414,11 +445,11 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
         partitionHeaderExtentNames.insert(
             get<0>(existingPartition).headerextentname());
 
-        loggedPartitionsData->set_partitionstablecheckpointnumber(
+        partitions_table_checkpoint_number =
             std::max(
-                loggedPartitionsData->partitionstablecheckpointnumber(),
+                partitions_table_checkpoint_number,
                 get<PartitionsValue>(existingPartition).checkpointnumber()
-            ));
+            );
     }
 
     for (auto sourcePartition : incompleteMerge.Merge.Value.sourceheaderextentnames())
@@ -436,10 +467,25 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
     partitionHeaderExtentNames.insert(
         headerExtentName);
 
-    for (auto partitionHeaderExtentName : partitionHeaderExtentNames)
+    operation->BuildLogRecord(
+        LogEntry::LoggedPartitionsData,
+        [&](auto& builder) -> Offset<void>
     {
-        *loggedPartitionsData->add_headerextentnames() = move(partitionHeaderExtentName);
-    }
+        std::vector<Offset<FlatBuffers::ExtentName>> headerExtentNameOffsets;
+        for (auto partitionHeaderExtentName : partitionHeaderExtentNames)
+        {
+            headerExtentNameOffsets.push_back(
+                CreateExtentName(
+                    builder,
+                    partitionHeaderExtentName));
+        }
+
+        return FlatBuffers::CreateLoggedPartitionsDataDirect(
+            builder,
+            &headerExtentNameOffsets,
+            partitions_table_checkpoint_number
+        ).Union();
+    });
 }
 
 async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges()

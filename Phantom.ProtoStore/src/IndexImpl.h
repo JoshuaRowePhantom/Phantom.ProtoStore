@@ -11,8 +11,7 @@ namespace Phantom::ProtoStore
 {
 
 class Index
-    : public IIndex,
-    SerializationTypes
+    : public IIndex
 {
     const IndexName m_indexName;
     const IndexNumber m_indexNumber;
@@ -73,19 +72,13 @@ public:
 
     virtual operation_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
-        const ProtoValue& key,
-        const ProtoValue& value,
-        SequenceNumber writeSequenceNumber,
-        const TransactionId* transactionId,
+        FlatMessage<LoggedRowWrite> loggedRowWrite,
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) override;
 
     virtual task<> ReplayRow(
         shared_ptr<IMemoryTable> memoryTable,
-        const string& key,
-        const string& value,
-        SequenceNumber writeSequenceNumber,
-        const TransactionId* transactionId
+        FlatMessage<LoggedRowWrite> loggedRowWrite
     ) override;
 
     virtual operation_task<ReadResult> Read(

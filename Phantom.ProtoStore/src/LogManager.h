@@ -4,6 +4,7 @@
 #include "ProtoStoreInternal.pb.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "MessageStore.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {
@@ -32,15 +33,15 @@ class LogManager : SerializationTypes
     std::set<LogExtentSequenceNumber> m_existingLogExtentSequenceNumbers;
     std::set<LogExtentSequenceNumber> m_logExtentSequenceNumbersToRemove;
     std::unordered_set<LogExtentUsage, LogExtentUsageHasher> m_logExtentUsage;
-    std::unordered_map<ExtentName, LogExtentSequenceNumber> m_uncommittedExtentToLogExtentSequenceNumber;
+    std::map<FlatBuffers::ExtentNameT, LogExtentSequenceNumber> m_uncommittedExtentToLogExtentSequenceNumber;
     // For each log extent, maps the log extent sequence number to the lowest partitions data checkpoint number
     // referenced by the log extent.
     std::unordered_map<LogExtentSequenceNumber, CheckpointNumber> m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber;
     // For each partitions table checkpoint number, records the extents to delete when
     // that checkpoint number becomes the lowest available.
-    std::multimap<CheckpointNumber, ExtentName> m_partitionsCheckpointNumberToExtentsToDelete;
+    std::multimap<CheckpointNumber, FlatBuffers::ExtentNameT> m_partitionsCheckpointNumberToExtentsToDelete;
     optional<LogExtentSequenceNumber> m_partitionsDataLogExtentSequenceNumber;
-    LoggedPartitionsData m_latestLoggedPartitionsData;
+    LoggedPartitionsDataT m_latestLoggedPartitionsData;
 
     shared_ptr<ISequentialMessageWriter> m_logMessageWriter;
     LogExtentSequenceNumber m_currentLogExtentSequenceNumber;
@@ -49,7 +50,7 @@ class LogManager : SerializationTypes
 
     bool NeedToUpdateMaps(
         LogExtentSequenceNumber logExtentName,
-        const LogRecord& logRecord
+        const LogRecord* logRecord
     );
 
     task<task<>> DelayedOpenNewLogWriter(
@@ -67,15 +68,15 @@ public:
     );
 
     task<> Replay(
-        const LogExtentNameT* logExtentName,
-        const LogRecord& logRecord
+        const FlatBuffers::LogExtentNameT* logExtentName,
+        const LogRecord* logRecord
     );
 
     task<task<>> FinishReplay(
         DatabaseHeaderT* header);
 
-    task<DataReference<StoredMessage>> WriteLogRecord(
-        const LogRecord& logRecord
+    task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecord(
+        const FlatMessage<FlatBuffers::LogRecord>& logRecord
     );
 
     task<task<>> Checkpoint(

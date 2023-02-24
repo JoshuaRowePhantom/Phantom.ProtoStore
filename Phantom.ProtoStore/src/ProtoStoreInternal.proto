@@ -1,88 +1,9 @@
 syntax = "proto3";
 
 import "google/protobuf/descriptor.proto";
-import "google/protobuf/any.proto";
 import "Phantom.ProtoStore/ProtoStore.proto";
 
 package Phantom.ProtoStore.Serialization;
-
-message LoggedRowWrite {
-    uint64 IndexNumber = 1;
-    bytes Key = 2;
-    bytes Value = 3;
-    uint64 SequenceNumber = 4;
-    uint64 CheckpointNumber = 5;
-    oneof HasTransactionId {
-        string TransactionId = 6;
-    }
-}
-
-message LoggedAction {
-    oneof LoggedActionType {
-        google.protobuf.Any ArbitraryAction = 1;
-        LoggedCheckpoint LoggedCheckpoints = 2;
-        LoggedCreateExtent LoggedCreateExtent = 3;
-        LoggedDeleteExtentPendingPartitionsUpdated LoggedDeleteExtentPendingPartitionsUpdated = 4;
-        LoggedCommitExtent LoggedCommitExtent = 5;
-        LoggedCreateIndex LoggedCreateIndex = 6;
-        LoggedUpdatePartitions LoggedUpdatePartitions = 7;
-        LoggedPartitionsData LoggedPartitionsData = 8;
-        LoggedCreatePartition LoggedCreatePartition = 9;
-        LoggedUnresolvedTransactions LoggedUnresolvedTransactions = 10;
-    }
-}
-
-message LoggedCreateIndex {
-    uint64 IndexNumber = 1;
-}
-
-message LoggedCreateExtent {
-    ExtentName ExtentName = 1;
-}
-
-message LoggedDeleteExtentPendingPartitionsUpdated {
-    ExtentName ExtentName = 1;
-    uint64 PartitionsTableCheckpointNumber = 2;
-}
-
-message LoggedCommitExtent {
-    ExtentName ExtentName = 1;
-}
-
-message LoggedCheckpoint {
-    uint64 IndexNumber = 1;
-    repeated uint64 CheckpointNumber = 2;
-}
-
-message LoggedUpdatePartitions {
-    uint64 IndexNumber = 1;
-}
-
-message LoggedPartitionsData {
-    repeated ExtentName HeaderExtentNames = 1;
-    uint64 PartitionsTableCheckpointNumber = 2;
-}
-
-message LoggedCreatePartition {
-    uint64 PartitionNumber = 1;
-}
-
-message LoggedUnresolvedTransactions {
-    PartitionsKey Partition = 1;
-    repeated string UnresolvedTransactions = 2;
-}
-
-message LogRecordExtras {
-    repeated LoggedAction LoggedActions = 1;
-}
-
-message LogRecord {
-    uint32 Alignment = 1;
-    // Most log records are for rows, so put them right in the message.
-    repeated LoggedRowWrite Rows = 2;
-    // Most log records don't have extras, so put them in another message.
-    LogRecordExtras Extras = 3;
-}
 
 message InternalKeyPrefixMetadata {
 }

@@ -21,6 +21,8 @@ concept IsOrderedBy = requires (T t)
 
 extern const Serialization::PlaceholderKey KeyMinMessage;
 extern const Serialization::PlaceholderKey KeyMaxMessage;
+extern const std::span<const byte> KeyMinSpan;
+extern const std::span<const byte> KeyMaxSpan;
 
 class KeyComparer
 {

@@ -96,11 +96,16 @@ class MemoryTable
         // The outcome of the owning operation.
         // It must only be checked while the Mutex is held.
         shared_ptr<DelayedMemoryTableTransactionOutcome> DelayedTransactionOutcome;
+
+        std::span<const byte> GetKeyBytes() const;
+        std::span<const byte> GetValueBytes() const;
+        std::span<const byte> GetTransactionIdBytes() const;
+        SequenceNumber GetWriteSequenceNumber() const;
     };
 
     struct EnumerationKey
     {
-        const Message* KeyLow;
+        std::optional<std::span<const byte>> KeyLow;
         Inclusivity KeyLowInclusivity;
         SequenceNumber ReadSequenceNumber;
         optional<SequenceNumber> SequenceNumberToSkipForKeyLow;
@@ -189,7 +194,7 @@ public:
         MemoryTableRow& row
     ) override;
 
-    virtual async_generator<ResultRow> Enumerate(
+    virtual row_generator Enumerate(
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low, 
@@ -199,7 +204,7 @@ public:
     virtual SequenceNumber GetLatestSequenceNumber(
     ) override;
 
-    virtual cppcoro::async_generator<ResultRow> Checkpoint(
+    virtual row_generator Checkpoint(
     ) override;
 };
 

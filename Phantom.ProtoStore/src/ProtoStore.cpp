@@ -491,7 +491,12 @@ class LocalTransaction
     public IInternalTransaction
 {
     ProtoStore& m_protoStore;
-    Serialization::LogRecord m_logRecord;
+    flatbuffers::FlatBufferBuilder m_logRecordBuilder;
+    
+    std::vector<FlatBuffers::LogEntry> m_logEntryTypes;
+    std::vector<flatbuffers::Offset<void>> m_logEntries;
+
+    GlobalTransactionNumber m_globalTransactionNumber;
     shared_ptr<DelayedMemoryTableTransactionOutcome> m_delayedOperationOutcome;
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
@@ -510,17 +515,19 @@ class LocalTransaction
 
 public:
     LocalTransaction(
-        MemoryTableTransactionSequenceNumber transactionSequenceNumber,
+        GlobalTransactionNumber globalTransactionNumber,
+        MemoryTableTransactionSequenceNumber memoryTableTransactionSequenceNumber,
         ProtoStore& protoStore,
         SequenceNumber readSequenceNumber,
         SequenceNumber initialWriteSequenceNumber
     )
     :
+        m_globalTransactionNumber(globalTransactionNumber),
         m_protoStore(protoStore),
         m_readSequenceNumber(readSequenceNumber),
         m_initialWriteSequenceNumber(initialWriteSequenceNumber),
         m_delayedOperationOutcome(std::make_shared<DelayedMemoryTableTransactionOutcome>(
-            transactionSequenceNumber
+            memoryTableTransactionSequenceNumber
             ))
     {
         m_commitTask = DelayedCommit();
@@ -534,9 +541,14 @@ public:
         }
     }
 
-    Serialization::LogRecord& LogRecord()
+    virtual void BuildLogRecord(
+        LogEntry logEntry,
+        std::function<Offset<void>(flatbuffers::FlatBufferBuilder&)> builder
+    ) override
     {
-        return m_logRecord;
+        auto result = builder(m_logRecordBuilder);
+        m_logEntryTypes.push_back(logEntry);
+        m_logEntries.push_back(result);
     }
 
     std::vector<FailedResult>& Failures()
@@ -554,7 +566,7 @@ public:
         return operation_task<>();
     }
 
-    virtual operation_task<> AddRow(
+    virtual operation_task<FlatMessage<LoggedRowWrite>> AddRowInternal(
         const WriteOperationMetadata& writeOperationMetadata, 
         ProtoIndex protoIndex,
         const ProtoValue& key,
@@ -606,6 +618,21 @@ public:
         co_return{};
     }
 
+    virtual operation_task<> AddRow(
+        const WriteOperationMetadata& writeOperationMetadata,
+        ProtoIndex protoIndex,
+        const ProtoValue& key,
+        const ProtoValue& value
+    ) override
+    {
+        co_await co_await AddRowInternal(
+            writeOperationMetadata,
+            protoIndex,
+            key,
+            value
+        );
+    }
+
     virtual operation_task<> ResolveTransaction(
         const WriteOperationMetadata& writeOperationMetadata, 
         TransactionOutcome outcome
@@ -653,6 +680,13 @@ private:
 
         if (result.Outcome == TransactionOutcome::Committed)
         {
+
+            FlatBuffers::CreateLogRecordDirect(
+                m_logRecordBuilder,
+                &m_logEntryTypes,
+                &m_logEntries
+            );
+
             for (auto& addedRow : *m_logRecord.mutable_rows())
             {
                 if (!addedRow.sequencenumber())

@@ -23,11 +23,16 @@ table LogExtentName {
     log_extent_sequence_number : uint64;
 }
 
-union ExtentName {
+union ExtentNameUnion {
     IndexHeaderExtentName,
     IndexDataExtentName,
     DatabaseHeaderExtentName,
     LogExtentName
+}
+
+table ExtentName
+{
+    extent_name : ExtentNameUnion;
 }
 
 table DatabaseHeader {
@@ -152,7 +157,7 @@ union LogEntry
     LoggedCreatePartition
 }
 
-table LogMessage
+table LogRecord
 {
     log_entry : [LogEntry];
 }

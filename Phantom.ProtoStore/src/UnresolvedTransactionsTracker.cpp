@@ -68,18 +68,18 @@ public:
         const LogRecord& logRecord
     ) override
     {
-        if (logRecord.has_extras())
-        {
-            for (const auto& loggedUnresolvedTransaction : logRecord.extras().loggedactions())
-            {
-                if (loggedUnresolvedTransaction.has_loggedunresolvedtransactions())
-                {
-                    for (const auto& transactionId : loggedUnresolvedTransaction.loggedunresolvedtransactions().unresolvedtransactions())
-                    {
-                    }
-                }
-            }
-        }
+        //if (logRecord.has_extras())
+        //{
+        //    for (const auto& loggedUnresolvedTransaction : logRecord.extras().loggedactions())
+        //    {
+        //        if (loggedUnresolvedTransaction.has_loggedunresolvedtransactions())
+        //        {
+        //            for (const auto& transactionId : loggedUnresolvedTransaction.loggedunresolvedtransactions().unresolvedtransactions())
+        //            {
+        //            }
+        //        }
+        //    }
+        //}
 
         co_return;
     }

@@ -1,6 +1,7 @@
 #include "IndexDataSourcesImpl.h"
 #include "Index.h"
 #include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {
@@ -17,17 +18,17 @@ IndexDataSources::IndexDataSources(
 }
 
 task<> IndexDataSources::Replay(
-    const LoggedRowWrite& rowWrite
+    FlatMessage<LoggedRowWrite> rowWrite
 )
 {
-    auto memoryTable = m_replayedMemoryTables[rowWrite.checkpointnumber()];
+    auto memoryTable = m_replayedMemoryTables[rowWrite->checkpoint_number()];
     if (!memoryTable)
     {
-        memoryTable = m_replayedMemoryTables[rowWrite.checkpointnumber()] = m_makeMemoryTable();
+        memoryTable = m_replayedMemoryTables[rowWrite->checkpoint_number()] = m_makeMemoryTable();
         
         m_currentCheckpointNumber = std::max(
             m_currentCheckpointNumber,
-            rowWrite.checkpointnumber() + 1
+            rowWrite->checkpoint_number() + 1
         );
 
         co_await UpdateIndexDataSources();
@@ -35,18 +36,15 @@ task<> IndexDataSources::Replay(
 
     co_await m_index->ReplayRow(
         memoryTable,
-        rowWrite.key(),
-        rowWrite.value(),
-        ToSequenceNumber(rowWrite.sequencenumber()),
-        rowWrite.has_transactionid() ? &rowWrite.transactionid() : nullptr
+        std::move(rowWrite)
     );
 }
 
 task<> IndexDataSources::Replay(
-    const LoggedCheckpoint& loggedCheckpoint
+    const LoggedCheckpoint* loggedCheckpoint
 )
 {
-    for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
+    for (auto checkpointNumber : *loggedCheckpoint->checkpoint_number())
     {
         m_replayedMemoryTables.erase(
             checkpointNumber);
@@ -60,25 +58,25 @@ task<> IndexDataSources::FinishReplay()
     co_await UpdateIndexDataSources();
 }
 
-task<Serialization::LoggedCheckpoint> IndexDataSources::StartCheckpoint()
+task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
 {
     auto lock = co_await m_dataSourcesLock.scoped_lock_async();
 
-    LoggedCheckpoint loggedCheckpoint;
+    FlatBuffers::LoggedCheckpointT loggedCheckpoint;
 
-    loggedCheckpoint.set_indexnumber(
-        m_index->GetIndexNumber());
+    loggedCheckpoint.index_number =
+        m_index->GetIndexNumber();
 
     for (auto replayedMemoryTable : m_replayedMemoryTables)
     {
-        loggedCheckpoint.add_checkpointnumber(
+        loggedCheckpoint.checkpoint_number.push_back(
             replayedMemoryTable.first
         );
         m_checkpointingMemoryTables[replayedMemoryTable.first] = replayedMemoryTable.second;
     }
     m_replayedMemoryTables.clear();
 
-    loggedCheckpoint.add_checkpointnumber(m_currentCheckpointNumber);
+    loggedCheckpoint.checkpoint_number.push_back(m_currentCheckpointNumber);
     m_checkpointingMemoryTables[m_currentCheckpointNumber] = m_activeMemoryTable;
 
     m_currentCheckpointNumber++;
@@ -87,7 +85,7 @@ task<Serialization::LoggedCheckpoint> IndexDataSources::StartCheckpoint()
     co_await UpdateIndexDataSources();
 
     // Only return the loggedCheckpoint if there are in fact rows to checkpoint.
-    for (auto checkpoint : loggedCheckpoint.checkpointnumber())
+    for (auto checkpoint : loggedCheckpoint.checkpoint_number)
     {
         if (co_await m_checkpointingMemoryTables[checkpoint]->GetRowCount() > 0)
         {
@@ -97,18 +95,18 @@ task<Serialization::LoggedCheckpoint> IndexDataSources::StartCheckpoint()
 
     // If there are no rows to checkpoint, return an empty LoggedCheckpoint,
     // and forget about the empty memory tables.
-    for (auto checkpoint : loggedCheckpoint.checkpointnumber())
+    for (auto checkpoint : loggedCheckpoint.checkpoint_number)
     {
         co_await m_checkpointingMemoryTables[checkpoint]->Join();
         m_checkpointingMemoryTables.erase(
             checkpoint);
     }
 
-    co_return LoggedCheckpoint();
+    co_return FlatBuffers::LoggedCheckpointT();
 }
 
 task<WriteRowsResult> IndexDataSources::Checkpoint(
-    const LoggedCheckpoint& loggedCheckpoint,
+    const LoggedCheckpointT& loggedCheckpoint,
     shared_ptr<IPartitionWriter> partitionWriter)
 {
 
@@ -117,7 +115,7 @@ task<WriteRowsResult> IndexDataSources::Checkpoint(
     {
         auto lock = co_await m_dataSourcesLock.scoped_lock_async();
 
-        for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
+        for (auto checkpointNumber : loggedCheckpoint.checkpoint_number)
         {
             auto memoryTable = m_checkpointingMemoryTables[checkpointNumber];
             assert(memoryTable);
@@ -133,7 +131,7 @@ task<WriteRowsResult> IndexDataSources::Checkpoint(
 }
 
 task<> IndexDataSources::UpdatePartitions(
-    const LoggedCheckpoint& loggedCheckpoint,
+    const LoggedCheckpointT& loggedCheckpoint,
     vector<shared_ptr<IPartition>> partitions) 
 {
     // Copy the old data sources so that we can release them outside the lock.
@@ -143,7 +141,7 @@ task<> IndexDataSources::UpdatePartitions(
     {
         auto lock = co_await m_dataSourcesLock.scoped_lock_async();
 
-        for (auto checkpointNumber : loggedCheckpoint.checkpointnumber())
+        for (auto checkpointNumber : loggedCheckpoint.checkpoint_number)
         {
             m_checkpointingMemoryTables.erase(checkpointNumber);
         }

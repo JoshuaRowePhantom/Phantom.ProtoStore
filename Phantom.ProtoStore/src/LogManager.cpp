@@ -48,76 +48,101 @@ LogManager::LogManager(
 }
 
 task<> LogManager::Replay(
-    const LogExtentNameT* extentName,
-    const LogRecord& logRecord
+    const FlatBuffers::LogExtentNameT* extentName,
+    const LogRecord* logRecord
 )
 {
     auto logExtentSequenceNumber = extentName->log_extent_sequence_number;
 
-    for (const auto& rowRecord : logRecord.rows())
+    for (uoffset_t logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); ++logEntryIndex)
     {
-        LogExtentUsage logExtentUsage =
+        switch (logRecord->log_entry_type()->Get(logEntryIndex))
         {
-            .LogExtentSequenceNumber = logExtentSequenceNumber,
-            .IndexNumber = rowRecord.indexnumber(),
-            .CheckpointNumber = rowRecord.checkpointnumber(),
-        };
-
-        m_logExtentUsage.insert(
-            logExtentUsage);
-    }
-
-    for (const auto& loggedAction : logRecord.extras().loggedactions())
-    {
-        if (loggedAction.has_loggedcreateextent())
+        case LogEntry::LoggedRowWrite:
         {
-            m_uncommittedExtentToLogExtentSequenceNumber[loggedAction.loggedcreateextent().extentname()] = logExtentSequenceNumber;
+            auto loggedRowWrite = logRecord->log_entry()->GetAs<LoggedRowWrite>(logEntryIndex);
+
+            LogExtentUsage logExtentUsage =
+            {
+                .LogExtentSequenceNumber = logExtentSequenceNumber,
+                .IndexNumber = loggedRowWrite->index_number(),
+                .CheckpointNumber = loggedRowWrite->checkpoint_number(),
+            };
+
+            m_logExtentUsage.insert(
+                logExtentUsage);
+            break;
         }
-        if (loggedAction.has_loggeddeleteextentpendingpartitionsupdated())
+
+        case LogEntry::LoggedCreateExtent:
         {
+            auto loggedCreateExtent = logRecord->log_entry()->GetAs<LoggedCreateExtent>(logEntryIndex);
+            FlatBuffers::ExtentNameT createdExtent;
+            loggedCreateExtent->extent_name()->UnPackTo(&createdExtent);
+            m_uncommittedExtentToLogExtentSequenceNumber[createdExtent] = logExtentSequenceNumber;
+            break;
+        }
+
+        case LogEntry::LoggedDeleteExtentPendingPartitionsUpdated:
+        {
+            auto loggedDeleteExtentPendingPartitionsUpdated = logRecord->log_entry()->GetAs<LoggedDeleteExtentPendingPartitionsUpdated>(logEntryIndex);
+            FlatBuffers::ExtentNameT extentToDeletePendingPartitionsUpdated;
+            loggedDeleteExtentPendingPartitionsUpdated->extent_name()->UnPackTo(
+                &extentToDeletePendingPartitionsUpdated);
+
             m_partitionsCheckpointNumberToExtentsToDelete.emplace(
-                loggedAction.loggeddeleteextentpendingpartitionsupdated().partitionstablecheckpointnumber(),
-                loggedAction.loggeddeleteextentpendingpartitionsupdated().extentname());
+                loggedDeleteExtentPendingPartitionsUpdated->partitions_table_checkpoint_number(),
+                extentToDeletePendingPartitionsUpdated);
+            break;
         }
-        if (loggedAction.has_loggedcommitextent())
+
+        case LogEntry::LoggedCommitExtent:
         {
-            m_uncommittedExtentToLogExtentSequenceNumber.erase(loggedAction.loggedcommitextent().extentname());
+            auto loggedCommitExtent = logRecord->log_entry()->GetAs<LoggedCommitExtent>(logEntryIndex);
+            FlatBuffers::ExtentNameT committedExtent;
+            m_uncommittedExtentToLogExtentSequenceNumber.erase(committedExtent);
+            break;
         }
-        if (loggedAction.has_loggedcheckpoints())
+
+        case LogEntry::LoggedCheckpoint:
         {
-            auto& loggedCheckpoint = loggedAction.loggedcheckpoints();
-            auto& logExtentUsage = m_logExtentUsage;
+            auto loggedCheckpoint = logRecord->log_entry()->GetAs<LoggedCheckpoint>(logEntryIndex);
 
             auto loggedCheckpointNumbers = std::set(
-                loggedCheckpoint.checkpointnumber().cbegin(),
-                loggedCheckpoint.checkpointnumber().cend());
+                loggedCheckpoint->checkpoint_number()->cbegin(),
+                loggedCheckpoint->checkpoint_number()->cend());
 
             std::erase_if(
                 m_logExtentUsage,
                 [&](const LogExtentUsage& logExtentUsage)
             {
                 return
-                    logExtentUsage.IndexNumber == loggedCheckpoint.indexnumber()
-                    && loggedCheckpointNumbers.contains(logExtentUsage.CheckpointNumber);
+                logExtentUsage.IndexNumber == loggedCheckpoint->index_number()
+                && loggedCheckpointNumbers.contains(logExtentUsage.CheckpointNumber);
             });
+            break;
         }
-        if (loggedAction.has_loggedpartitionsdata())
+
+        case LogEntry::LoggedPartitionsData:
         {
+            auto loggedPartitionsData = logRecord->log_entry()->GetAs<LoggedPartitionsData>(logEntryIndex);
             m_partitionsDataLogExtentSequenceNumber = logExtentSequenceNumber;
-            m_latestLoggedPartitionsData = loggedAction.loggedpartitionsdata();
+            loggedPartitionsData->UnPackTo(&m_latestLoggedPartitionsData);
 
             if (m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber.contains(logExtentSequenceNumber))
             {
                 m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber[logExtentSequenceNumber] = std::min(
                     m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber[logExtentSequenceNumber],
-                    loggedAction.loggedpartitionsdata().partitionstablecheckpointnumber()
+                    loggedPartitionsData->partitions_table_checkpoint_number()
                 );
             }
             else
             {
                 m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber[logExtentSequenceNumber] =
-                    loggedAction.loggedpartitionsdata().partitionstablecheckpointnumber();
+                    loggedPartitionsData->partitions_table_checkpoint_number();
             }
+
+        }
         }
     }
 
@@ -134,49 +159,43 @@ task<task<>> LogManager::FinishReplay(
 
 bool LogManager::NeedToUpdateMaps(
     LogExtentSequenceNumber logExtentSequenceNumber,
-    const LogRecord& logRecord
+    const LogRecord* logRecord
 )
 {
-    for (const auto& rowRecord : logRecord.rows())
+    for(int logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); logEntryIndex++)
     {
-        LogExtentUsage logExtentUsage =
+        switch (logRecord->log_entry_type()->Get(logEntryIndex))
         {
-            .LogExtentSequenceNumber = logExtentSequenceNumber,
-            .IndexNumber = rowRecord.indexnumber(),
-            .CheckpointNumber = rowRecord.checkpointnumber(),
-        };
+        case LogEntry::LoggedCreateExtent:
+        case LogEntry::LoggedDeleteExtentPendingPartitionsUpdated:
+        case LogEntry::LoggedCommitExtent:
+        case LogEntry::LoggedCheckpoint:
+            return true;
 
-        if (!m_logExtentUsage.contains(logExtentUsage))
+        case LogEntry::LoggedRowWrite:
         {
-            return true;
-        }
-    }
+            auto loggedRowWrite = logRecord->log_entry()->GetAs<LoggedRowWrite>(logEntryIndex);
 
-    for (const auto& loggedAction : logRecord.extras().loggedactions())
-    {
-        if (loggedAction.has_loggedcreateextent())
-        {
-            return true;
+            LogExtentUsage logExtentUsage =
+            {
+                .LogExtentSequenceNumber = logExtentSequenceNumber,
+                .IndexNumber = loggedRowWrite->index_number(),
+                .CheckpointNumber = loggedRowWrite->checkpoint_number(),
+            };
+
+            if (!m_logExtentUsage.contains(logExtentUsage))
+            {
+                return true;
+            }
         }
-        if (loggedAction.has_loggeddeleteextentpendingpartitionsupdated())
-        {
-            return true;
-        }
-        if (loggedAction.has_loggedcommitextent())
-        {
-            return true;
-        }
-        if (loggedAction.has_loggedcheckpoints())
-        {
-            return true;
         }
     }
 
     return false;
 }
 
-task<DataReference<StoredMessage>> LogManager::WriteLogRecord(
-    const LogRecord& logRecord
+task<FlatMessage<FlatBuffers::LogRecord>> LogManager::WriteLogRecord(
+    const FlatMessage<FlatBuffers::LogRecord>& logRecord
 )
 {
     RetryWithReadLock:
@@ -190,10 +209,10 @@ task<DataReference<StoredMessage>> LogManager::WriteLogRecord(
 
         if (!NeedToUpdateMaps(
             m_currentLogExtentSequenceNumber,
-            logRecord))
+            logRecord.get()))
         {
             auto writeResult = co_await m_logMessageWriter->Write(
-                logRecord,
+                logRecord.data(),
                 FlushBehavior::Flush);
 
             co_return writeResult;
@@ -206,20 +225,20 @@ task<DataReference<StoredMessage>> LogManager::WriteLogRecord(
 
         if (!NeedToUpdateMaps(
             m_currentLogExtentSequenceNumber,
-            logRecord))
+            logRecord.get()))
         {
             goto RetryWithReadLock;
         }
 
-        LogExtentNameT logExtentName;
+        FlatBuffers::LogExtentNameT logExtentName;
         logExtentName.log_extent_sequence_number = m_currentLogExtentSequenceNumber;
 
         co_await Replay(
             &logExtentName,
-            logRecord);
+            logRecord.get());
 
         auto writeResult = co_await m_logMessageWriter->Write(
-            logRecord,
+            logRecord.data(),
             FlushBehavior::Flush);
 
         co_return writeResult;
@@ -359,7 +378,7 @@ task<> LogManager::DeleteExtents()
             m_partitionsCheckpointNumberToExtentsToDelete.erase(
                 m_partitionsCheckpointNumberToExtentsToDelete.begin());
             co_await m_logExtentStore->DeleteExtent(
-                extentName);
+                MakeExtentName(extentName));
         }
     }
 
@@ -381,19 +400,23 @@ task<> LogManager::OpenNewLogWriter()
     // Writing the last partitions checkpoint as the very first record
     // ensures that all replay actions will have a set of partitions
     // to start from.
-    LogRecord firstLogRecord;
-    firstLogRecord.mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata()->CopyFrom(
-        m_latestLoggedPartitionsData);
+    FlatBuffers::LogRecordT firstLogRecord;
+    FlatBuffers::LogEntryUnion firstLogEntry;
+    firstLogEntry.Set(m_latestLoggedPartitionsData);
+    firstLogRecord.log_entry.push_back(
+        std::move(firstLogEntry)
+    );
+    FlatMessage flatFirstLogRecord{ &firstLogRecord };
 
-    LogExtentNameT fbLogExtentName;
+    FlatBuffers::LogExtentNameT fbLogExtentName;
     fbLogExtentName.log_extent_sequence_number = m_currentLogExtentSequenceNumber;
 
     co_await Replay(
         &fbLogExtentName,
-        firstLogRecord);
+        flatFirstLogRecord.get());
 
     co_await m_logMessageWriter->Write(
-        firstLogRecord,
+        flatFirstLogRecord.data(),
         FlushBehavior::Flush);
 
     co_await DeleteExtents();

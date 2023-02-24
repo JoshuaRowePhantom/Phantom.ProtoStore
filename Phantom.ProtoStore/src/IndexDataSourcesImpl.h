@@ -33,26 +33,26 @@ public:
     );
 
     virtual task<> Replay(
-        const LoggedRowWrite& rowWrite
+        FlatMessage<LoggedRowWrite> rowWrite
     ) override;
 
     virtual task<> Replay(
-        const LoggedCheckpoint& loggedCheckpoint
+        const LoggedCheckpoint* loggedCheckpoint
     ) override;
 
     virtual task<> FinishReplay(
     ) override;
 
-    virtual task<LoggedCheckpoint> StartCheckpoint(
+    virtual task<FlatBuffers::LoggedCheckpointT> StartCheckpoint(
     ) override;
 
     virtual task<WriteRowsResult> Checkpoint(
-        const LoggedCheckpoint& loggedCheckpoint,
+        const LoggedCheckpointT& loggedCheckpoint,
         shared_ptr<IPartitionWriter> partitionWriter
     ) override;
 
     virtual task<> UpdatePartitions(
-        const LoggedCheckpoint& loggedCheckpoint,
+        const LoggedCheckpointT& loggedCheckpoint,
         vector<shared_ptr<IPartition>> partitions
     ) override;
 };

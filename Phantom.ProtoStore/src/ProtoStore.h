@@ -131,20 +131,9 @@ class ProtoStore
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
-    virtual task<> LogCommitExtent(
-        LogRecord& logRecord,
-        ExtentName extentName
-    ) override;
-
-    virtual task<> LogDeleteExtentPendingPartitionsUpdated(
-        LogRecord& logRecord,
-        ExtentName extentName,
-        CheckpointNumber partitionsTableCheckpointNumber
-    ) override;
-
     task<> Replay(
         const ExtentName& logExtent,
-        const LogExtentNameT* fbLogExtent);
+        const FlatBuffers::LogExtentNameT* fbLogExtent);
 
     task<> Replay(
         const LogRecord& logRecord);
@@ -172,8 +161,8 @@ class ProtoStore
     task<> ReplayPartitionsForIndex(
         const IndexEntry& indexEntry);
 
-    task<> WriteLogRecord(
-        const LogRecord& logRecord);
+    task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecord(
+        const StoredMessage& logRecord);
 
     task<> SwitchToNewLog();
 
