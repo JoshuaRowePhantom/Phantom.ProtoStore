@@ -365,6 +365,7 @@ template<
 > class FlatMessage
 {
     DataReference<StoredMessage> m_storedMessage;
+    const Table* m_table;
 
 public:
     FlatMessage()
@@ -374,6 +375,17 @@ public:
         DataReference<StoredMessage> storedMessage
     ) :
         m_storedMessage{ std::move(storedMessage) }
+    {}
+
+    template<
+        typename Other
+    >
+    explicit FlatMessage(
+        const FlatMessage<Other>& other,
+        const Table* table
+    ) :
+        m_storedMessage{ other.m_storedMessage },
+        m_table{ table }
     {}
 
     explicit FlatMessage(
@@ -388,6 +400,11 @@ public:
             .MessageAlignment = messageAlignment,
             .Message = message,
         },
+    },
+        m_table 
+    {
+        flatbuffers::GetRoot<Table>(
+            m_storedMessage->Message.data())
     }
     {
     }
@@ -403,6 +420,11 @@ public:
             .MessageAlignment = static_cast<uint8_t>(builder.GetBufferMinAlignment()),
             .Message = as_bytes(builder.GetBufferSpan())
         },
+    },
+        m_table
+    {
+        flatbuffers::GetRoot<Table>(
+            m_storedMessage->Message.data())
     }
     {
     }
@@ -432,6 +454,9 @@ public:
             std::shared_ptr<uint8_t[]>{ builder.ReleaseRaw(size, offset) },
             storedMessage,
         };
+
+        m_table = flatbuffers::GetRoot<Table>(
+            m_storedMessage->Message.data());
     }
 
     const StoredMessage& data() const noexcept
@@ -441,19 +466,12 @@ public:
 
     const Table* get() const noexcept
     {
-        if (!*this)
-        {
-            return nullptr;
-        }
-
-        return flatbuffers::GetRoot<Table>(
-            m_storedMessage->Message.data()
-        );
+        return m_table;
     }
 
     explicit operator bool() const noexcept
     {
-        return m_storedMessage->Message.data();
+        return m_table;
     }
 
     const Table* operator->() const noexcept
@@ -470,6 +488,11 @@ public:
 template<
     IsNativeTable NativeTable
 > FlatMessage(const NativeTable*) -> FlatMessage<typename NativeTable::TableType>;
+
+template<
+    typename Table,
+    typename Other
+> FlatMessage(const FlatMessage<Other>&, const Table*) -> FlatMessage<Table>;
 
 class ProtoValue
 {

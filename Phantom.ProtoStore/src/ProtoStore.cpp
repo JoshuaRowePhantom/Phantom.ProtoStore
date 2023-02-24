@@ -229,6 +229,8 @@ task<> ProtoStore::Open(
             logReplayExtentName.get());
     }
 
+    m_replayedWrites = {};
+
     auto postUpdateHeaderTask = co_await m_logManager->FinishReplay(
         m_header.get());
 
@@ -265,7 +267,7 @@ task<> ProtoStore::ReplayPartitionsForIndex(
         headerExtentNames);
 
     co_await indexEntry.DataSources->UpdatePartitions(
-        LoggedCheckpoint(),
+        LoggedCheckpointT(),
         partitions);
 }
 
@@ -288,35 +290,9 @@ task<> ProtoStore::UpdateHeader(
         m_header.get());
 }
 
-task<> ProtoStore::WriteLogRecord(
-    const LogRecord& logRecord
-)
-{
-    auto writeMessageResult = co_await m_logManager->WriteLogRecord(
-        logRecord
-    );
-
-    auto nextCheckpointLogOffset = m_nextCheckpointLogOffset.load(
-        std::memory_order_relaxed);
-
-    if (writeMessageResult->DataRange.End == 0)
-    {
-        m_nextCheckpointLogOffset.store(
-            m_checkpointLogSize);
-    }
-    else if (writeMessageResult->DataRange.End > nextCheckpointLogOffset
-        && m_nextCheckpointLogOffset.compare_exchange_weak(
-            nextCheckpointLogOffset,
-            writeMessageResult->DataRange.End + m_checkpointLogSize))
-    {
-        spawn(
-            Checkpoint());
-    }
-}
-
 task<> ProtoStore::Replay(
     const ExtentName& logExtent,
-    const LogExtentNameT* extentName
+    const FlatBuffers::LogExtentNameT* extentName
 )
 {
     auto logReader = co_await m_messageStore->OpenExtentForSequentialReadAccess(
@@ -327,17 +303,15 @@ task<> ProtoStore::Replay(
     {
         try
         {
-            LogRecord logRecord;
-            co_await logReader->Read(
-                logRecord);
+            FlatMessage<LogRecord> logRecordMessage{ co_await logReader->Read() };
 
             co_await m_logManager->Replay(
                 extentName,
-                logRecord
+                logRecordMessage.get()
             );
 
             co_await Replay(
-                logRecord);
+                logRecordMessage);
         }
         catch (std::range_error)
         {
@@ -347,61 +321,86 @@ task<> ProtoStore::Replay(
 }
 
 task<> ProtoStore::Replay(
-    const LogRecord& logRecord)
+    const FlatMessage<LogRecord>& logRecord)
 {
-    for (auto& loggedRowWrite : logRecord.rows())
+    for(auto logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); logEntryIndex++)
     {
-        auto indexEntry = co_await GetIndexEntryInternal(
-            loggedRowWrite.indexnumber(),
-            DoReplayPartitions);
+        auto getMessage = [&]<typename T>(tag<T>)
+        {
+            return FlatMessage{ logRecord, logRecord->log_entry()->GetAs<T>(logEntryIndex) };
+        };
 
-        co_await indexEntry->DataSources->Replay(
-            loggedRowWrite);
-    }
+        switch (logRecord->log_entry_type()->Get(logEntryIndex))
+        {
+        case LogEntry::LoggedRowWrite:
+            co_await Replay(getMessage(tag<LoggedRowWrite>()));
+            break;
 
-    for (auto& loggedAction : logRecord.extras().loggedactions())
-    {
-        co_await Replay(
-            loggedAction);
+        case LogEntry::LoggedCreateIndex:
+            co_await Replay(getMessage(tag<LoggedCreateIndex>()));
+            break;
+
+        case LogEntry::LoggedPartitionsData:
+            co_await Replay(getMessage(tag<LoggedPartitionsData>()));
+            break;
+
+        case LogEntry::LoggedCreatePartition:
+            co_await Replay(getMessage(tag<LoggedPartitionsData>()));
+            break;
+
+        case LogEntry::LoggedCommitLocalTransaction:
+            co_await Replay(getMessage(tag<LoggedCommitLocalTransaction>()));
+            break;
+        }
     }
 }
 
 task<> ProtoStore::Replay(
-    const LoggedAction& loggedAction
+    const FlatMessage<LoggedRowWrite>& logRecord
 )
 {
-    if (loggedAction.has_loggedcreateindex())
-    {
-        co_await Replay(
-            loggedAction.loggedcreateindex()
-        );
-    }
+    m_localTransactionNumber = std::max(
+        m_localTransactionNumber.load(std::memory_order_relaxed),
+        logRecord->local_transaction_id() + 1);
 
-    if (loggedAction.has_loggedcheckpoints())
-    {
-        co_await Replay(
-            loggedAction.loggedcheckpoints());
-    }
-
-    if (loggedAction.has_loggedpartitionsdata())
-    {
-        co_await Replay(
-            loggedAction.loggedpartitionsdata());
-    }
-}
-
-task<> ProtoStore::Replay(
-    const LoggedCreateIndex& logRecord)
-{
-    if (m_nextIndexNumber.load() <= logRecord.indexnumber())
-    {
-        m_nextIndexNumber.store(logRecord.indexnumber() + 1);
-    }
+    m_replayedWrites[logRecord->local_transaction_id()][logRecord->write_id()] = logRecord;
     co_return;
 }
 
 task<> ProtoStore::Replay(
-    const LoggedPartitionsData& logRecord)
+    const FlatMessage<LoggedCommitLocalTransaction>& logRecord
+)
+{
+    m_localTransactionNumber = std::max(
+        m_localTransactionNumber.load(std::memory_order_relaxed),
+        logRecord->local_transaction_id() + 1);
+
+    auto& writes = m_replayedWrites[logRecord->local_transaction_id()];
+    for (auto write_id : *logRecord->write_id())
+    {
+        auto& write = writes.at(write_id);
+        
+        auto index = co_await GetIndexEntryInternal(
+            write->index_number(),
+            DoReplayPartitions);
+
+        co_await index->DataSources->Replay(
+            write);
+    }
+    m_replayedWrites.erase(logRecord->local_transaction_id());
+}
+
+task<> ProtoStore::Replay(
+    const FlatMessage<LoggedCreateIndex>& logRecord)
+{
+    m_nextIndexNumber = std::max(
+        m_nextIndexNumber.load(),
+        logRecord->index_number() + 1);
+    co_return;
+}
+
+task<> ProtoStore::Replay(
+    const FlatMessage<LoggedPartitionsData>& logRecord)
 {
     auto replayPartitionsActivePartitions = vector(
         logRecord.headerextentnames().begin(),
@@ -412,18 +411,12 @@ task<> ProtoStore::Replay(
         replayPartitionsActivePartitions);
 
     co_await m_partitionsIndex.DataSources->UpdatePartitions(
-        LoggedCheckpoint(),
+        LoggedCheckpointT(),
         partitions);
 
     // If DataSources changed its partitions list, 
     // then all other indexes may have changed.
     co_await ReplayPartitionsForOpenedIndexes();
-}
-
-task<> ProtoStore::Replay(
-    const LoggedCheckpoint& logRecord)
-{
-    co_return;
 }
 
 task<> ProtoStore::Replay(
@@ -495,8 +488,10 @@ class LocalTransaction
     
     std::vector<FlatBuffers::LogEntry> m_logEntryTypes;
     std::vector<flatbuffers::Offset<void>> m_logEntries;
+    uint32_t m_nextWriteId = 1;
+    std::vector<uint32_t> m_writeIdsToCommit;
 
-    GlobalTransactionNumber m_globalTransactionNumber;
+    LocalTransactionNumber m_localTransactionNumber;
     shared_ptr<DelayedMemoryTableTransactionOutcome> m_delayedOperationOutcome;
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
@@ -515,14 +510,14 @@ class LocalTransaction
 
 public:
     LocalTransaction(
-        GlobalTransactionNumber globalTransactionNumber,
+        LocalTransactionNumber localTransactionNumber,
         MemoryTableTransactionSequenceNumber memoryTableTransactionSequenceNumber,
         ProtoStore& protoStore,
         SequenceNumber readSequenceNumber,
         SequenceNumber initialWriteSequenceNumber
     )
     :
-        m_globalTransactionNumber(globalTransactionNumber),
+        m_localTransactionNumber(localTransactionNumber),
         m_protoStore(protoStore),
         m_readSequenceNumber(readSequenceNumber),
         m_initialWriteSequenceNumber(initialWriteSequenceNumber),
@@ -579,43 +574,101 @@ public:
             m_readSequenceNumber);
         auto writeSequenceNumber = writeOperationMetadata.WriteSequenceNumber.value_or(
             m_initialWriteSequenceNumber);
+        auto writeId = m_nextWriteId++;
+
+        FlatMessage<LoggedRowWrite> loggedRowWrite;
+
+        auto createLoggedRowWrite = [&](CheckpointNumber checkpointNumber) -> task<FlatMessage<LoggedRowWrite>>
+        {
+            auto unownedKey = key.pack_unowned();
+            auto unownedValue = value.pack_unowned();
+
+            auto keySpan = get_uint8_t_span(unownedKey.as_bytes_if());
+            auto valueSpan = get_uint8_t_span(unownedValue.as_bytes_if());
+
+            flatbuffers::FlatBufferBuilder loggedRowWriteBuilder;
+
+            Offset<flatbuffers::Vector<int8_t>> keyOffset = loggedRowWriteBuilder.CreateVector<int8_t>(
+                keySpan);
+
+            Offset<flatbuffers::Vector<int8_t>> valueOffset;
+            Offset<flatbuffers::Vector<int8_t>> transactionIdOffset;
+
+            if (valueSpan.data())
+            {
+                valueOffset = loggedRowWriteBuilder.CreateVector<int8_t>(
+                    valueSpan);
+            }
+            if (writeOperationMetadata.TransactionId)
+            {
+                transactionIdOffset = loggedRowWriteBuilder.CreateVector<int8_t>(
+                    get_byte_span(*writeOperationMetadata.TransactionId));
+            }
+
+            auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(
+                loggedRowWriteBuilder,
+                protoIndex.m_index->GetIndexNumber(),
+                ToUint64(writeSequenceNumber),
+                checkpointNumber,
+                keyOffset,
+                valueOffset,
+                transactionIdOffset,
+                m_localTransactionNumber,
+                writeId
+            ).Union();
+
+            auto logEntryType = LogEntry::LoggedRowWrite;
+            auto logEntryTypeOffset = loggedRowWriteBuilder.CreateVector(
+                &logEntryType,
+                1);
+
+            auto logEntryOffset = loggedRowWriteBuilder.CreateVector(
+                &loggedRowWriteOffset,
+                1);
+
+            auto logRecordOffset = FlatBuffers::CreateLogRecord(
+                loggedRowWriteBuilder,
+                logEntryTypeOffset,
+                logEntryOffset);
+
+            loggedRowWriteBuilder.Finish(
+                logRecordOffset);
+
+            FlatMessage<LogRecord> logRecord(loggedRowWriteBuilder);
+
+            logRecord = co_await m_protoStore.m_logManager->WriteLogRecord(
+                std::move(logRecord));
+
+            co_return loggedRowWrite = FlatMessage<LoggedRowWrite>
+            {
+                std::move(logRecord),
+                logRecord->log_entry()->GetAs<LoggedRowWrite>(0),
+            };
+        };
 
         auto checkpointNumber = co_await index->AddRow(
             readSequenceNumber,
-            key,
-            value,
-            writeSequenceNumber,
-            writeOperationMetadata.TransactionId,
+            createLoggedRowWrite,
             m_delayedOperationOutcome
         );
+
         if (!checkpointNumber)
         {
             m_failures.push_back(checkpointNumber.error());
             co_return std::unexpected{ checkpointNumber.error() };
         }
 
-        auto loggedRowWrite = m_logRecord.add_rows();
-        if (writeOperationMetadata.WriteSequenceNumber.has_value())
-        {
-            loggedRowWrite->set_sequencenumber(ToUint64(*writeOperationMetadata.WriteSequenceNumber));
-        }
-        loggedRowWrite->set_indexnumber(protoIndex.m_index->GetIndexNumber());
-        key.pack(
-            loggedRowWrite->mutable_key());
-        value.pack(
-            loggedRowWrite->mutable_value());
-        loggedRowWrite->set_checkpointnumber(
-            *checkpointNumber);
+        m_writeIdsToCommit.push_back(writeId);
 
-        if (writeOperationMetadata.TransactionId)
-        {
-            co_await m_protoStore.m_unresolvedTransactionsTracker->LogUnresolvedTransaction(
-                this,
-                *loggedRowWrite
-            );
-        }
+        //if (writeOperationMetadata.TransactionId)
+        //{
+        //    co_await m_protoStore.m_unresolvedTransactionsTracker->LogUnresolvedTransaction(
+        //        this,
+        //        *loggedRowWrite
+        //    );
+        //}
 
-        co_return{};
+        co_return loggedRowWrite;
     }
 
     virtual operation_task<> AddRow(
@@ -680,24 +733,26 @@ private:
 
         if (result.Outcome == TransactionOutcome::Committed)
         {
+            BuildLogRecord(
+                LogEntry::LoggedCommitLocalTransaction,
+                [&](auto& builder)
+            {
+                return FlatBuffers::CreateLoggedCommitLocalTransactionDirect(
+                    builder,
+                    &m_writeIdsToCommit,
+                    m_localTransactionNumber,
+                    ToUint64(result.WriteSequenceNumber)
+                ).Union();
+            });
 
-            FlatBuffers::CreateLogRecordDirect(
+            auto logRecordOffset = FlatBuffers::CreateLogRecordDirect(
                 m_logRecordBuilder,
                 &m_logEntryTypes,
                 &m_logEntries
             );
 
-            for (auto& addedRow : *m_logRecord.mutable_rows())
-            {
-                if (!addedRow.sequencenumber())
-                {
-                    addedRow.set_sequencenumber(
-                        ToUint64(result.WriteSequenceNumber));
-                }
-            }
-
-            co_await m_protoStore.WriteLogRecord(
-                m_logRecord);
+            co_await m_protoStore.m_logManager->WriteLogRecord(
+                FlatMessage<LogRecord>{ m_logRecordBuilder });
         }
 
         m_delayedOperationOutcome->Complete();
@@ -755,6 +810,7 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
 )
 {
     LocalTransaction transaction(
+        m_localTransactionNumber.fetch_add(1, std::memory_order_relaxed),
         m_memoryTableTransactionSequenceNumber.fetch_add(1, std::memory_order_relaxed),
         *this,
         ToSequenceNumber(readSequenceNumber),
@@ -1173,7 +1229,7 @@ task<> ProtoStore::Checkpoint(
 {
     auto loggedCheckpoint = co_await indexEntry.DataSources->StartCheckpoint();
 
-    if (!loggedCheckpoint.checkpointnumber_size())
+    if (!loggedCheckpoint.checkpoint_number.size())
     {
         co_return;
     }
@@ -1199,17 +1255,35 @@ task<> ProtoStore::Checkpoint(
 
     co_await InternalExecuteTransaction(
         BeginTransactionRequest{},
-        [&](auto operation) -> status_task<>
+        [&](IInternalTransaction* operation) -> status_task<>
     {
-        co_await LogCommitExtent(
-            operation->LogRecord(),
-            headerExtentName
-        );
+        operation->BuildLogRecord(
+            LogEntry::LoggedCommitExtent,
+            [&](auto& builder)
+        {
+            auto headerExtentNameOffset = CreateExtentName(
+                builder,
+                headerExtentName);
 
-        co_await LogCommitExtent(
-            operation->LogRecord(),
-            dataExtentName
-        );
+            return FlatBuffers::CreateLoggedCommitExtent(
+                builder,
+                headerExtentNameOffset
+            ).Union();
+        });
+
+        operation->BuildLogRecord(
+            LogEntry::LoggedCommitExtent,
+            [&](auto& builder)
+        {
+            auto dataExtentNameOffset = CreateExtentName(
+                builder,
+                dataExtentName);
+
+            return FlatBuffers::CreateLoggedCommitExtent(
+                builder,
+                dataExtentNameOffset
+            ).Union();
+        });
 
         auto addedLoggedCheckpoint = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
         auto addedLoggedUpdatePartitions = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();

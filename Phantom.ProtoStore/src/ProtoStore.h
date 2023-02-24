@@ -48,6 +48,7 @@ class ProtoStore
     std::atomic<IndexNumber> m_nextIndexNumber;
     std::atomic<PartitionNumber> m_nextPartitionNumber;
     std::atomic<MemoryTableTransactionSequenceNumber> m_memoryTableTransactionSequenceNumber = 1;
+    std::atomic<LocalTransactionNumber> m_localTransactionNumber = 1;
 
     cppcoro::async_mutex m_headerMutex;
     async_reader_writer_lock m_indexesByNumberLock;
@@ -85,6 +86,8 @@ class ProtoStore
         const string& indexName,
         SequenceNumber sequenceNumber
     );
+
+    std::unordered_map<LocalTransactionNumber, std::unordered_map<uint32_t, FlatMessage<LoggedRowWrite>>> m_replayedWrites;
 
     const bool DoReplayPartitions = true;
     const bool DontReplayPartitions = false;
@@ -136,7 +139,13 @@ class ProtoStore
         const FlatBuffers::LogExtentNameT* fbLogExtent);
 
     task<> Replay(
-        const LogRecord& logRecord);
+        const FlatMessage<LoggedRowWrite>& logRecord);
+
+    task<> Replay(
+        const FlatMessage<LoggedCommitLocalTransaction>& logRecord);
+
+    task<> Replay(
+        const FlatMessage<LogRecord>& logRecord);
 
     task<> Replay(
         const LoggedUpdatePartitions& logRecord);
@@ -145,24 +154,18 @@ class ProtoStore
         const LoggedAction& logRecord);
 
     task<> Replay(
-        const LoggedCreateIndex& logRecord);
-
-    task<> Replay(
-        const LoggedCheckpoint& logRecord);
+        const FlatMessage<LoggedCreateIndex>& logRecord);
 
     task<> Replay(
         const LoggedCreatePartition& logRecord);
 
     task<> Replay(
-        const LoggedPartitionsData& logRecord);
+        const FlatMessage<LoggedPartitionsData>& logRecord);
 
     task<> ReplayPartitionsForOpenedIndexes();
 
     task<> ReplayPartitionsForIndex(
         const IndexEntry& indexEntry);
-
-    task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecord(
-        const StoredMessage& logRecord);
 
     task<> SwitchToNewLog();
 

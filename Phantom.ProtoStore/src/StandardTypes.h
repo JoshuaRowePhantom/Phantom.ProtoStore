@@ -150,6 +150,7 @@ struct MessageHeader_V1;
 struct LogRecord;
 enum class LogEntry : uint8_t;
 struct LoggedRowWrite;
+struct LoggedCommitLocalTransaction;
 struct LoggedCheckpoint;
 struct LoggedCheckpointT;
 struct LoggedAction;
@@ -213,6 +214,7 @@ public:
     using LogRecord = FlatBuffers::LogRecord;
     using LogEntry = FlatBuffers::LogEntry;
     using LoggedRowWrite = FlatBuffers::LoggedRowWrite;
+    using LoggedCommitLocalTransaction = FlatBuffers::LoggedCommitLocalTransaction;
     using LoggedCheckpoint = FlatBuffers::LoggedCheckpoint;
     using LoggedCheckpointT = FlatBuffers::LoggedCheckpointT;
     using LoggedAction = FlatBuffers::LoggedAction;
@@ -262,7 +264,7 @@ public:
 class ExtentName;
 using TransactionId = std::string;
 typedef ExtentName MergeId;
-using GlobalTransactionNumber = uint64_t;
+using LocalTransactionNumber = uint64_t;
 
 struct ResultRow
 {
@@ -291,6 +293,7 @@ std::span<const uint8_t> get_uint8_t_span(
 typedef cppcoro::async_generator<ResultRow> row_generator;
 typedef row_generator::iterator row_generator_iterator;
 typedef cppcoro::generator<row_generator> row_generators;
+template<typename T> struct tag {};
 
 template<
     typename TKey,

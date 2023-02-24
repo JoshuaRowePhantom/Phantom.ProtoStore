@@ -76,7 +76,8 @@ public:
         DatabaseHeaderT* header);
 
     task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecord(
-        const FlatMessage<FlatBuffers::LogRecord>& logRecord
+        const FlatMessage<FlatBuffers::LogRecord>& logRecord,
+        FlushBehavior flushBehavior = FlushBehavior::Flush
     );
 
     task<task<>> Checkpoint(

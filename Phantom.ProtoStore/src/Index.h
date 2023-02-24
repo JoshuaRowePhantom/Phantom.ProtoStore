@@ -10,9 +10,11 @@ namespace Phantom::ProtoStore
 class IIndex : public SerializationTypes
 {
 public:
+    using CreateLoggedRowWrite = std::function<task<FlatMessage<LoggedRowWrite>>(CheckpointNumber)>;
+
     virtual operation_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
-        FlatMessage<LoggedRowWrite> loggedRowWrite,
+        CreateLoggedRowWrite loggedRowWrite,
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) = 0;
 

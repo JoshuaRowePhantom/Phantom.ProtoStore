@@ -57,22 +57,19 @@ const IndexName& Index::GetIndexName() const
 
 operation_task<CheckpointNumber> Index::AddRow(
     SequenceNumber readSequenceNumber,
-    FlatMessage<LoggedRowWrite> loggedRowWrite,
+    CreateLoggedRowWrite createLoggedRowWrite,
     shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome)
 {
-    MemoryTableRow row
-    {
-        .KeyMessage = loggedRowWrite,
-        .ValueMessage = loggedRowWrite,
-    };
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+
+    MemoryTableRow row;
+    row.KeyMessage = co_await createLoggedRowWrite(m_activeCheckpointNumber);;
+    row.ValueMessage = row.KeyMessage;
 
     shared_ptr<IMemoryTable> activeMemoryTable;
-    CheckpointNumber activeCheckpointNumber;
     MemoryTablesEnumeration inactiveMemoryTables;
     PartitionsEnumeration partitions;
-    auto writeSequenceNumber = ToSequenceNumber(loggedRowWrite->sequence_number());
-
-    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+    auto writeSequenceNumber = ToSequenceNumber(row.ValueMessage->sequence_number());
     
     auto makeWriteConflict = [&](SequenceNumber conflictingSequenceNumber)
     {

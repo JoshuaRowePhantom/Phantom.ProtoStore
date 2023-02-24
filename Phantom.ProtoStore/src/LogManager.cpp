@@ -195,7 +195,8 @@ bool LogManager::NeedToUpdateMaps(
 }
 
 task<FlatMessage<FlatBuffers::LogRecord>> LogManager::WriteLogRecord(
-    const FlatMessage<FlatBuffers::LogRecord>& logRecord
+    const FlatMessage<FlatBuffers::LogRecord>& logRecord,
+    FlushBehavior flushBehavior
 )
 {
     RetryWithReadLock:
@@ -213,7 +214,7 @@ task<FlatMessage<FlatBuffers::LogRecord>> LogManager::WriteLogRecord(
         {
             auto writeResult = co_await m_logMessageWriter->Write(
                 logRecord.data(),
-                FlushBehavior::Flush);
+                flushBehavior);
 
             co_return writeResult;
         }
@@ -239,7 +240,7 @@ task<FlatMessage<FlatBuffers::LogRecord>> LogManager::WriteLogRecord(
 
         auto writeResult = co_await m_logMessageWriter->Write(
             logRecord.data(),
-            FlushBehavior::Flush);
+            flushBehavior);
 
         co_return writeResult;
     }
@@ -388,6 +389,16 @@ task<> LogManager::DeleteExtents()
 task<> LogManager::OpenNewLogWriter()
 {
     auto lock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
+
+    // Ensure the previous log is flushed by writing an empty message.
+    if (m_logMessageWriter)
+    {
+        FlatBuffers::LogRecordT emptyMessage;
+
+        co_await m_logMessageWriter->Write(
+            FlatMessage<FlatBuffers::LogRecord>(&emptyMessage).data(),
+            FlushBehavior::Flush);
+    }
 
     m_currentLogExtentSequenceNumber = m_nextLogExtentSequenceNumber++;
     

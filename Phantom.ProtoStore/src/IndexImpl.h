@@ -70,9 +70,10 @@ public:
     virtual shared_ptr<IMessageFactory> GetValueFactory(
     ) override;
 
+
     virtual operation_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,
-        FlatMessage<LoggedRowWrite> loggedRowWrite,
+        CreateLoggedRowWrite loggedRowWrite,
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) override;
 

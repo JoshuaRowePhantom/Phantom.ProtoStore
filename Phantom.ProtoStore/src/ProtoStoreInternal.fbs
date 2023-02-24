@@ -87,11 +87,14 @@ table LoggedRowWrite
     value : [byte] (force_align: 32);
     distributed_transaction_id : [byte];
     local_transaction_id : uint64;
+    write_id : uint32;
 }
 
 table LoggedCommitLocalTransaction
 {
+    write_id : [uint32];
     local_transaction_id : uint64;
+    write_sequence_number : uint64;
 }
 
 table LoggedAbortLocalTransaction
