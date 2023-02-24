@@ -73,4 +73,88 @@ struct MessageHeader_V1
     message_size_and_alignment : uint32;
 }
 
+table LoggedRowWrite
+{
+    index_number : uint64;
+    sequence_number : uint64;
+    checkpoint_number : uint64;
+    key : [byte] (force_align: 32);
+    value : [byte] (force_align: 32);
+    distributed_transaction_id : [byte];
+    local_transaction_id : uint64;
+}
+
+table LoggedCommitLocalTransaction
+{
+    local_transaction_id : uint64;
+}
+
+table LoggedAbortLocalTransaction
+{
+    local_transaction_id : uint64;
+}
+
+table LoggedCreateIndex
+{
+    index_number : uint64;
+}
+
+table LoggedCreateExtent
+{
+    extent_name : ExtentName;
+}
+
+table LoggedCheckpoint
+{
+    index_number : uint64;
+    checkpoint_number : [uint64];
+}
+
+table LoggedCommitExtent
+{
+    extent_name : ExtentName;
+}
+
+table LoggedDeleteExtentPendingPartitionsUpdated
+{
+    extent_name : ExtentName;
+    partitions_table_checkpoint_number : uint64;
+}
+
+table LoggedUpdatePartitions
+{
+    index_number : uint64;
+}
+
+table LoggedPartitionsData
+{
+    header_extent_names : [ExtentName];
+    partitions_table_checkpoint_number : uint64;
+}
+
+table LoggedCreatePartition
+{
+    partition_number : uint64;
+}
+
+union LogEntry
+{
+    LoggedRowWrite,
+    LoggedCommitLocalTransaction,
+    LoggedAbortLocalTransaction,
+    LoggedCreateIndex,
+    LoggedCreateExtent,
+    LoggedCommitExtent,
+    LoggedCheckpoint,
+    LoggedDeleteExtentPendingPartitionsUpdated,
+    LoggedUpdatePartitions,
+    LoggedPartitionsData,
+    LoggedCreatePartition
+}
+
+table LogMessage
+{
+    log_entry : [LogEntry];
+}
+
 file_identifier "PSEX";
