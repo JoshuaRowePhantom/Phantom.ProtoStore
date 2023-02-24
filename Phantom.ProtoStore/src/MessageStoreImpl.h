@@ -1,12 +1,11 @@
 #pragma once
 
-#include "StandardTypes.h"
 #include "ExtentName.h"
-#include <cppcoro/async_mutex.hpp>
 #include "MessageStore.h"
-#include "Checksum.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "src/ProtoStoreInternal_generated.h"
+#include "StandardTypes.h"
+#include <cppcoro/async_mutex.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -14,7 +13,6 @@ namespace Phantom::ProtoStore
 class RandomMessageReaderWriterBase
 {
 public:
-    const shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
     const FlatMessage<FlatBuffers::ExtentHeader> m_header;
 
     static ExtentOffset align(
@@ -34,13 +32,8 @@ public:
         ExtentOffset
     );
 
-    static uint32_t checksum_v1(
-        std::span<const byte>
-    );
-
     RandomMessageReaderWriterBase(
-        FlatMessage<FlatBuffers::ExtentHeader> header,
-        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
+        FlatMessage<FlatBuffers::ExtentHeader> header);
 };
 
 class RandomMessageReader
@@ -53,8 +46,7 @@ class RandomMessageReader
 public:
     RandomMessageReader(
         shared_ptr<IReadableExtent> extent,
-        FlatMessage<FlatBuffers::ExtentHeader> header,
-        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
+        FlatMessage<FlatBuffers::ExtentHeader> header);
 
     virtual task<DataReference<StoredMessage>> Read(
         ExtentOffset extentOffset
@@ -72,7 +64,7 @@ class RandomMessageWriter
     public IRandomMessageWriter
 {
     const shared_ptr<IWritableExtent> m_extent;
-    const uint8_t m_checksumSize;
+    const uint8_t m_checksumSize = 4;
 
     task<DataReference<StoredMessage>> Write(
         ExtentOffset extentOffset,
@@ -86,8 +78,7 @@ class RandomMessageWriter
 public:
     RandomMessageWriter(
         shared_ptr<IWritableExtent> extent,
-        FlatMessage<FlatBuffers::ExtentHeader> header,
-        shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory);
+        FlatMessage<FlatBuffers::ExtentHeader> header);
 
     ExtentOffsetRange GetWriteRange(
         ExtentOffset extentOffset,
@@ -157,7 +148,6 @@ class MessageStore
     const shared_ptr<IExtentStore> m_extentStore;
     async_reader_writer_lock m_extentsLock;
     std::unordered_map<ExtentName, shared_ptr<RandomMessageReader>> m_readableExtents;
-    shared_ptr<IChecksumAlgorithmFactory> m_checksumAlgorithmFactory;
 
     task<shared_ptr<RandomMessageReader>> OpenExtentForRandomReadAccessImpl(
         shared_ptr<IReadableExtent> readableExtent);

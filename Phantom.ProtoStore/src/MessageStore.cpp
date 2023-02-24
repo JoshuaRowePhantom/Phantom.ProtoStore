@@ -1,11 +1,10 @@
-#include "StandardTypes.h"
 #include "Checksum.h"
-#include "MessageStoreImpl.h"
-#include "ExtentStore.h"
-#include <cppcoro/async_mutex.hpp>
 #include "ExtentName.h"
+#include "ExtentStore.h"
+#include "MessageStoreImpl.h"
 #include "src/ProtoStoreInternal_generated.h"
-#include <boost/crc.hpp>
+#include "StandardTypes.h"
+#include <cppcoro/async_mutex.hpp>
 
 namespace Phantom::ProtoStore
 {
@@ -13,12 +12,10 @@ using google::protobuf::io::CodedInputStream;
 using google::protobuf::io::CodedOutputStream;
 
 RandomMessageReaderWriterBase::RandomMessageReaderWriterBase(
-    FlatMessage<FlatBuffers::ExtentHeader> header,
-    shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory
+    FlatMessage<FlatBuffers::ExtentHeader> header
 )
     :
-    m_header(std::move(header)),
-    m_checksumAlgorithmFactory(std::move(checksumAlgorithmFactory))
+    m_header(std::move(header))
 {}
 
 ExtentOffset RandomMessageReaderWriterBase::align(
@@ -65,19 +62,6 @@ bool RandomMessageReaderWriterBase::is_contained_within(
         && less_equal(inner.data() + inner.size(), outer.data() + outer.size());
 }
 
-uint32_t RandomMessageReaderWriterBase::checksum_v1(
-    std::span<const byte> data
-)
-{
-    using crc_v1_type = boost::crc_optimal<32, 0x1EDC6F41, 0xffffffff, 0xffffffff, true, true>;
-    crc_v1_type crc;
-    crc.process_bytes(
-        data.data(),
-        data.size()
-    );
-    return crc.checksum();
-}
-
 ExtentOffset RandomMessageReaderWriterBase::to_underlying_extent_offset(
     ExtentOffset extentOffset
 )
@@ -90,13 +74,11 @@ ExtentOffset RandomMessageReaderWriterBase::to_underlying_extent_offset(
 
 RandomMessageReader::RandomMessageReader(
     shared_ptr<IReadableExtent> extent,
-    FlatMessage<FlatBuffers::ExtentHeader> header,
-    shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory)
+    FlatMessage<FlatBuffers::ExtentHeader> header)
     :
     RandomMessageReaderWriterBase
     {
         std::move(header),
-        std::move(checksumAlgorithmFactory)
     },
     m_extent(std::move(extent))
 {}
@@ -178,16 +160,14 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
 
 RandomMessageWriter::RandomMessageWriter(
     shared_ptr<IWritableExtent> extent,
-    FlatMessage<FlatBuffers::ExtentHeader> header,
-    shared_ptr<IChecksumAlgorithmFactory> checksumAlgorithmFactory)
+    FlatMessage<FlatBuffers::ExtentHeader> header)
     :
     RandomMessageReaderWriterBase
     {
-        std::move(header),
-        std::move(checksumAlgorithmFactory)
+        std::move(header)
     },
     m_extent(std::move(extent)),
-    m_checksumSize(m_checksumAlgorithmFactory->Create()->SizeInBytes())
+    m_checksumSize()
 {
 }
 
@@ -510,8 +490,7 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
                 std::move(envelopeBuffer),
                 std::move(storedHeader),
             }
-        },
-        m_checksumAlgorithmFactory);
+        });
 }
 
 task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAccessImpl(
@@ -545,8 +524,7 @@ MessageStore::MessageStore(
     shared_ptr<IExtentStore> extentStore)
     :
     m_schedulers(schedulers),
-    m_extentStore(move(extentStore)),
-    m_checksumAlgorithmFactory(MakeChecksumAlgorithmFactory())
+    m_extentStore(move(extentStore))
 {
 }
 
@@ -622,8 +600,7 @@ task<shared_ptr<RandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAcce
 
     co_return make_shared<RandomMessageWriter>(
         std::move(writableExtent),
-        std::move(flatMessage),
-        m_checksumAlgorithmFactory);
+        std::move(flatMessage));
 }
 
 task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequentialReadAccess(

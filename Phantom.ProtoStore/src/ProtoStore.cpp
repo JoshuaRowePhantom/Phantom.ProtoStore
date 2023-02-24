@@ -1,22 +1,22 @@
 #include "ExtentName.h"
-#include "StandardTypes.h"
-#include "ProtoStore.h"
-#include "MessageStore.h"
-#include "RandomMessageAccessor.h"
 #include "HeaderAccessor.h"
-#include "Schema.h"
-#include "ProtoStoreInternal.pb.h"
-#include "IndexImpl.h"
 #include "IndexDataSourcesImpl.h"
-#include "MemoryTableImpl.h"
-#include "Phantom.System/async_value_source.h"
-#include "PartitionImpl.h"
-#include "PartitionWriterImpl.h"
-#include <cppcoro/sync_wait.hpp>
+#include "IndexImpl.h"
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
+#include "MemoryTableImpl.h"
+#include "MessageStore.h"
+#include "PartitionImpl.h"
+#include "PartitionWriterImpl.h"
+#include "Phantom.System/async_value_source.h"
+#include "ProtoStore.h"
+#include "ProtoStoreInternal.pb.h"
+#include "RandomMessageAccessor.h"
+#include "Schema.h"
+#include "StandardTypes.h"
 #include "UnresolvedTransactionsTracker.h"
 #include <algorithm>
+#include <cppcoro/sync_wait.hpp>
 
 namespace Phantom::ProtoStore
 {

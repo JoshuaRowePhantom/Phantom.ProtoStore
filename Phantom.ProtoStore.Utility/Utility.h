@@ -1,20 +1,27 @@
-#include <queue>
-#include <iostream>
-#include <sstream>
-#include <vector>
+#include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
+#include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.System/async_utility.h"
 #include "Phantom.System/utility.h"
 #include "ProtoStoreInternal.pb.h"
-#include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
-#include "Phantom.ProtoStore/src/MessageStore.h"
+#include "src/ProtoStoreInternal_generated.h"
 #include <cppcoro/task.hpp>
+#include <iostream>
+#include <queue>
+#include <sstream>
+#include <vector>
 
 using namespace std;
 using namespace Phantom::ProtoStore;
 
 void DumpMessage(
-    string name,
-    Message& message,
+    const string& name,
+    const Message& message,
+    ExtentOffset offset
+);
+
+void DumpMessage(
+    const string& name,
+    const string& message,
     ExtentOffset offset
 );
 

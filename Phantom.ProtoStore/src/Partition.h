@@ -8,7 +8,7 @@ namespace Phantom::ProtoStore
 
 struct PartitionCheckpointStartKey
 {
-    Message* Key;
+    RawData Key;
     SequenceNumber WriteSequenceNumber;
 };
 

@@ -382,17 +382,7 @@ row_generator MemoryTable::Enumerate(
             {
                 // The row resolved as Committed and the write sequence number is good.
                 // Yield it to the caller.
-                co_yield DataReference<ResultRow>
-                {
-                    DataReference<StoredMessage>(memoryTableValue.Row.ValueMessage),
-                    ResultRow
-                    {
-                        .Key = memoryTableValue.GetKeyBytes(),
-                        .Value = memoryTableValue.GetValueBytes(),
-                        .WriteSequenceNumber = memoryTableValue.GetWriteSequenceNumber(),
-                        .TransactionId = memoryTableValue.GetTransactionIdBytes(),
-                    }
-                };
+                co_yield memoryTableValue.GetResultRow();
 
                 // Change the enumeration key to be exclusive so that we'll
                 // skip all lower sequence numbers for the same row.
@@ -458,17 +448,7 @@ row_generator MemoryTable::Checkpoint()
 
         if (outcome == TransactionOutcome::Committed)
         {
-            co_yield DataReference<ResultRow>
-            {
-                DataReference<StoredMessage>(iterator->Row.ValueMessage),
-                ResultRow
-                {
-                    .Key = iterator->GetKeyBytes(),
-                    .Value = iterator->GetValueBytes(),
-                    .WriteSequenceNumber = iterator->GetWriteSequenceNumber(),
-                    .TransactionId = iterator->GetTransactionIdBytes(),
-                }
-            };
+            co_yield iterator->GetResultRow();
         }
     }
 }
@@ -502,6 +482,27 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     DelayedTransactionOutcome{ other.DelayedTransactionOutcome }
 {
     assert(Row.KeyMessage.get());
+}
+
+ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
+{
+    auto valueMessageReference = DataReference<StoredMessage>(Row.ValueMessage);
+    auto valueBytes = GetValueBytes();
+    auto transactionIdBytes = GetTransactionIdBytes();
+
+    ResultRow resultRow;
+    resultRow.Key = RawData{ valueMessageReference, GetKeyBytes() };
+    resultRow.WriteSequenceNumber = GetWriteSequenceNumber();
+    if (valueBytes.data())
+    {
+        resultRow.Value = RawData{ valueMessageReference, valueBytes };
+    }
+    if (transactionIdBytes.data())
+    {
+        resultRow.TransactionId = RawData{ valueMessageReference, transactionIdBytes };
+    }
+
+    return std::move(resultRow);
 }
 
 MemoryTable::ReplayInsertionKey::ReplayInsertionKey(

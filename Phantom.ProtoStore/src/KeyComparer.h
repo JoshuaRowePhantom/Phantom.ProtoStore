@@ -21,8 +21,8 @@ concept IsOrderedBy = requires (T t)
 
 extern const Serialization::PlaceholderKey KeyMinMessage;
 extern const Serialization::PlaceholderKey KeyMaxMessage;
-extern const std::span<const byte> KeyMinSpan;
-extern const std::span<const byte> KeyMaxSpan;
+extern const std::span<const std::byte> KeyMinSpan;
+extern const std::span<const std::byte> KeyMaxSpan;
 
 class KeyComparer
 {
@@ -172,11 +172,11 @@ public:
 
 struct KeyAndSequenceNumberComparerArgument
 {
-    const Message* Key;
+    std::span<const std::byte> Key;
     SequenceNumber SequenceNumber;
 
     KeyAndSequenceNumberComparerArgument(
-        const Message* key,
+        std::span<const std::byte> key,
         Phantom::ProtoStore::SequenceNumber sequenceNumber
     ) :
         Key(key),
@@ -241,12 +241,12 @@ public:
 
 struct KeyRangeComparerArgument
 {
-    const Message* Key;
+    std::span<const std::byte> Key;
     SequenceNumber SequenceNumber;
     Inclusivity Inclusivity;
 
     KeyRangeComparerArgument(
-        const Message* key,
+        std::span<const std::byte> key,
         Phantom::ProtoStore::SequenceNumber sequenceNumber,
         Phantom::ProtoStore::Inclusivity inclusivity
     ) :

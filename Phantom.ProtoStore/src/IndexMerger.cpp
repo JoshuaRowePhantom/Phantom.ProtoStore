@@ -1,15 +1,15 @@
+#include "ExtentName.h"
+#include "Index.h"
 #include "IndexMerger.h"
-#include "Phantom.System/utility.h"
-#include "ProtoStoreInternal.pb.h"
+#include "InternalProtoStore.h"
 #include "Partition.h"
 #include "PartitionWriterImpl.h"
-#include "Index.h"
-#include "Schema.h"
+#include "Phantom.System/utility.h"
+#include "ProtoStoreInternal.pb.h"
 #include "RowMerger.h"
-#include "InternalProtoStore.h"
-#include "ExtentName.h"
-#include <unordered_set>
+#include "Schema.h"
 #include <algorithm>
+#include <unordered_set>
 
 namespace Phantom::ProtoStore
 {
@@ -77,14 +77,9 @@ task<> IndexMerger::RestartIncompleteMerge(
 
     if (incompleteMerge.Merge.Value.has_resumekey())
     {
-        startKeyMessage.reset(
-            index->GetKeyFactory()->GetPrototype()->New());
-        startKeyMessage->ParseFromString(
-            incompleteMerge.Merge.Value.resumekey().key());
-        
         partitionCheckpointStartKey =
         {
-            .Key = startKeyMessage.get(),
+            .Key = RawData(nullptr, as_bytes(std::span{ incompleteMerge.Merge.Value.resumekey().key() })),
             .WriteSequenceNumber = ToSequenceNumber(
                 incompleteMerge.Merge.Value.resumekey().writesequencenumber()),
         };
@@ -234,11 +229,12 @@ task<> IndexMerger::WriteMergeProgress(
     MergesValue mergesValue;
     mergesValue.CopyFrom(incompleteMerge.Merge.Value);
     
+    auto keySpan = get_char_span(*(*writeRowsResult.resumptionRow).Key);
     mergesValue.mutable_resumekey()->mutable_key()->assign(
-        reinterpret_cast<const char*>((*writeRowsResult.resumptionRow)->Key.data()),
-        (*writeRowsResult.resumptionRow)->Key.size());
+        keySpan.data(),
+        keySpan.size());
     mergesValue.mutable_resumekey()->set_writesequencenumber(
-        ToUint64((*writeRowsResult.resumptionRow)->WriteSequenceNumber));
+        ToUint64((*writeRowsResult.resumptionRow).WriteSequenceNumber));
     
     co_await operation->AddRow(
         WriteOperationMetadata

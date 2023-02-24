@@ -101,6 +101,8 @@ class MemoryTable
         std::span<const byte> GetValueBytes() const;
         std::span<const byte> GetTransactionIdBytes() const;
         SequenceNumber GetWriteSequenceNumber() const;
+
+        ResultRow GetResultRow() const;
     };
 
     struct EnumerationKey

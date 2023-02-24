@@ -2,12 +2,24 @@
 #include "Utility.h"
 
 void DumpMessage(
-    string name,
-    Message& message,
+    const string& name,
+    const Message& message,
     ExtentOffset offset
 )
 {
-    cout << name << " @ [" << offset << "]\n" << message.DebugString() << "\n";
+    DumpMessage(
+        name,
+        message.DebugString(),
+        offset);
+}
+
+void DumpMessage(
+    const string& name,
+    const string& message,
+    ExtentOffset offset
+)
+{
+    cout << name << " @ [" << offset << "]\n" << message << "\n";
 }
 
 void PrintUsage()

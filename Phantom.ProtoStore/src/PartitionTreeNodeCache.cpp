@@ -11,7 +11,8 @@ PartitionTreeNodeCacheEntry::PartitionTreeNodeCacheEntry(
     shared_ptr<IRandomMessageAccessor> messageAccessor,
     ExtentLocation messageLocation
 ) :
-    m_keyFactory(keyFactory)
+    m_keyFactory(keyFactory),
+    m_arena(std::make_shared<google::protobuf::Arena>())
 {
     m_readTreeNodeTask = ReadTreeNodeInternal(
         messageAccessor,
@@ -19,12 +20,12 @@ PartitionTreeNodeCacheEntry::PartitionTreeNodeCacheEntry(
 }
 
 
-shared_task<const Serialization::PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNodeInternal(
+shared_task<> PartitionTreeNodeCacheEntry::ReadTreeNodeInternal(
     shared_ptr<IRandomMessageAccessor> messageAccessor,
     ExtentLocation messageLocation)
 {
     auto treeNodeMessage = google::protobuf::Arena::CreateMessage<PartitionMessage>(
-        &m_arena);
+        m_arena.get());
 
     co_await messageAccessor->ReadMessage(
         messageLocation,
@@ -34,55 +35,41 @@ shared_task<const Serialization::PartitionTreeNode*> PartitionTreeNodeCacheEntry
     assert(treeNodeMessage->has_partitiontreenode());
     auto treeNode = treeNodeMessage->mutable_partitiontreenode();
 
-    m_keys.resize(treeNode->treeentries_size());
-    for (size_t index = 0; index < treeNode->treeentries_size(); index++)
+    m_treeNode = { m_arena, treeNode };
+}
+
+DataReference<const Serialization::PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNode() const
+{
+    return m_treeNode;
+}
+
+RawData PartitionTreeNodeCacheEntry::GetKey(
+    size_t index
+) const
+{
+    auto key = as_bytes(std::span{ (*m_treeNode)->treeentries().Get(index).key() });
+    return RawData
     {
-        m_keys[index] = GetKeyInternal(
-            index);
-    }
-
-    co_return treeNode;
+        m_treeNode,
+        key
+    };
 }
 
-shared_task<const Message*> PartitionTreeNodeCacheEntry::GetKeyInternal(
-    size_t index)
+PartitionTreeNodeCacheEntry::iterator_type PartitionTreeNodeCacheEntry::begin() const
 {
-    auto treeNode = co_await m_readTreeNodeTask;
-    auto key = m_keyFactory->GetPrototype()->New(&m_arena);
-    key->ParseFromString(treeNode->treeentries(index).key());
-
-    co_return key;
-}
-
-shared_task<const Serialization::PartitionTreeNode*> PartitionTreeNodeCacheEntry::ReadTreeNode() const
-{
-    return m_readTreeNodeTask;
-}
-
-task<const Message*> PartitionTreeNodeCacheEntry::GetKey(
-    size_t index)
-{
-    co_await m_readTreeNodeTask;
-    co_return co_await m_keys[index];
-}
-
-task<PartitionTreeNodeCacheEntry::iterator_type> PartitionTreeNodeCacheEntry::begin() const
-{
-    co_return iterator_type(
+    return iterator_type(
         this,
-        co_await ReadTreeNode(),
+        *m_treeNode,
         0
     );
 }
 
-task<PartitionTreeNodeCacheEntry::iterator_type> PartitionTreeNodeCacheEntry::end() const
+PartitionTreeNodeCacheEntry::iterator_type PartitionTreeNodeCacheEntry::end() const
 {
-    auto treeNode = co_await ReadTreeNode();
-
-    co_return iterator_type(
+    return iterator_type(
         this,
-        treeNode,
-        treeNode->treeentries_size());
+        *m_treeNode,
+        (*m_treeNode)->treeentries_size());
 }
 
 PartitionTreeNodeCache::PartitionTreeNodeCache(
@@ -125,6 +112,7 @@ task<shared_ptr<PartitionTreeNodeCacheEntry>> PartitionTreeNodeCache::GetPartiti
 
     if (cacheEntryFindResult1.second == std::weak_ordering::equivalent)
     {
+        co_await cacheEntryFindResult1.first->second->m_readTreeNodeTask;
         co_return cacheEntryFindResult1.first->second;
     }
 
@@ -133,6 +121,7 @@ task<shared_ptr<PartitionTreeNodeCacheEntry>> PartitionTreeNodeCache::GetPartiti
 
     if (cacheEntryFindResult2.second == std::weak_ordering::equivalent)
     {
+        co_await cacheEntryFindResult2.first->second->m_readTreeNodeTask;
         co_return cacheEntryFindResult2.first->second;
     }
 
@@ -147,6 +136,7 @@ task<shared_ptr<PartitionTreeNodeCacheEntry>> PartitionTreeNodeCache::GetPartiti
         cacheEntry,
         cacheEntryFindResult1.first);
 
+    co_await insertionResult.first->second->m_readTreeNodeTask;
     co_return insertionResult.first->second;
 }
 
@@ -184,7 +174,7 @@ PartitionTreeNodeCacheEntry::iterator_type& PartitionTreeNodeCacheEntry::iterato
         m_value = value_type
         {
             &m_treeNode->treeentries(m_index),
-            &m_cacheEntry->m_keys[m_index],
+            m_cacheEntry->GetKey(m_index),
         };
     }
     return *this;

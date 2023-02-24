@@ -178,22 +178,13 @@ operation_task<ReadResult> Index::Read(
     const ReadRequest& readRequest
 )
 {
-    unique_ptr<Message> unpackedKey;
+    ProtoValue unowningKey = readRequest.Key.pack_unowned();
 
     KeyRangeEnd keyLow
     {
-        .Key = readRequest.Key.as_message_if(),
+        .Key = unowningKey.as_bytes_if(),
         .Inclusivity = Inclusivity::Inclusive,
     };
-
-    if (!keyLow.Key)
-    {
-        unpackedKey.reset(
-            m_keyFactory->GetPrototype()->New());
-        readRequest.Key.unpack(
-            unpackedKey.get());
-        keyLow.Key = unpackedKey.get();
-    }
 
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
@@ -232,39 +223,34 @@ operation_task<ReadResult> Index::Read(
     {
         ResultRow& resultRow = *iterator;
 
-        if (resultRow.TransactionId)
-        {
-            auto transactionOutcome = co_await m_unresolvedTransactionsTracker->GetTransactionOutcome(
-                *resultRow.TransactionId
-            );
+        //if (resultRow->TransactionId.data())
+        //{
+        //    auto transactionOutcome = co_await m_unresolvedTransactionsTracker->GetTransactionOutcome(
+        //        resultRow->TransactionId
+        //    );
 
-            if (transactionOutcome == TransactionOutcome::Unknown)
-            {
-                co_return MakeUnresolvedTransactionFailedResult(
-                    *resultRow.TransactionId);
-            }
-            else if (transactionOutcome == TransactionOutcome::Aborted)
-            {
-                continue;
-            }
-        }
+        //    if (transactionOutcome == TransactionOutcome::Unknown)
+        //    {
+        //        co_return MakeUnresolvedTransactionFailedResult(
+        //            *resultRow.TransactionId);
+        //    }
+        //    else if (transactionOutcome == TransactionOutcome::Aborted)
+        //    {
+        //        continue;
+        //    }
+        //}
 
-        if (!resultRow.Value)
+        if (!resultRow.Value->data())
         {
             break;
         }
 
-        unique_ptr<Message> value(resultRow.Value->New());
-        value->CopyFrom(*resultRow.Value);
-
-        ReadResult readResult
+        co_return ReadResult
         {
             .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-            .Value = move(value),
+            .Value = std::move(resultRow.Value),
             .ReadStatus = ReadStatus::HasValue,
         };
-        
-        co_return readResult;
     }
 
     co_return ReadResult
@@ -278,45 +264,23 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
     const EnumerateRequest& enumerateRequest
 )
 {
-    unique_ptr<Message> unpackedKeyLow;
-    unique_ptr<Message> unpackedKeyHigh;
+    ProtoValue unowningKeyLow = enumerateRequest.KeyLow.pack_unowned();
+    ProtoValue unowningKeyHigh = enumerateRequest.KeyHigh.pack_unowned();
 
     KeyRangeEnd keyLow
     {
-        .Key = enumerateRequest.KeyLow.as_message_if(),
+        .Key = unowningKeyLow.as_bytes_if(),
         .Inclusivity = enumerateRequest.KeyLowInclusivity,
     };
 
-    if (!keyLow.Key
-        &&
-        enumerateRequest.KeyLow.has_value())
-    {
-        unpackedKeyLow.reset(
-            m_keyFactory->GetPrototype()->New());
-        enumerateRequest.KeyLow.unpack(
-            unpackedKeyLow.get());
-        keyLow.Key = unpackedKeyLow.get();
-    }
-
     KeyRangeEnd keyHigh
     {
-        .Key = enumerateRequest.KeyHigh.as_message_if(),
+        .Key = unowningKeyHigh.as_bytes_if(),
         .Inclusivity = enumerateRequest.KeyHighInclusivity,
     };
 
-    if (!keyHigh.Key
-        &&
-        enumerateRequest.KeyHigh.has_value())
-    {
-        unpackedKeyHigh.reset(
-            m_keyFactory->GetPrototype()->New());
-        enumerateRequest.KeyHigh.unpack(
-            unpackedKeyHigh.get());
-        keyHigh.Key = unpackedKeyHigh.get();
-    }
-
-    assert(keyLow.Key);
-    assert(keyHigh.Key);
+    assert(keyLow.Key.data());
+    assert(keyHigh.Key.data());
 
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
@@ -355,15 +319,15 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
         co_await ++iterator)
     {
         auto& resultRow = *iterator;
-        
+
         co_yield EnumerateResult
         {
             {
                 .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-                .Value = resultRow.Value,
+                .Value = std::move(resultRow.Value),
                 .ReadStatus = ReadStatus::HasValue,
             },
-            resultRow.Key,
+            std::move(resultRow.Key),
         };
     }
 }

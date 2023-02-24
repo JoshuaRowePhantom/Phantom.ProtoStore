@@ -22,4 +22,5 @@ target_link_libraries(
     Phantom.ProtoStore.Utility
     Phantom.System
     Phantom.ProtoStore
+    Phantom.ProtoStore.FlatBuffers
 )

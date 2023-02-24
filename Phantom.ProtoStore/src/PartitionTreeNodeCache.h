@@ -11,18 +11,17 @@ namespace Phantom::ProtoStore
 class PartitionTreeNodeCacheEntry : 
     public SerializationTypes
 {
-    google::protobuf::Arena m_arena;
-    shared_ptr<IMessageFactory> m_keyFactory;
+    friend class PartitionTreeNodeCache;
 
-    shared_task<const PartitionTreeNode*> m_readTreeNodeTask;
-    std::vector<shared_task<const Message*>> m_keys;
+    std::shared_ptr<google::protobuf::Arena> m_arena;
+    shared_ptr<IMessageFactory> m_keyFactory;
+    DataReference<const Serialization::PartitionTreeNode*> m_treeNode;
+
+    shared_task<> m_readTreeNodeTask;
     
-    shared_task<const PartitionTreeNode*> ReadTreeNodeInternal(
+    shared_task<> ReadTreeNodeInternal(
         shared_ptr<IRandomMessageAccessor> messageAccessor,
         ExtentLocation messageLocation);
-
-    shared_task<const Message*> GetKeyInternal(
-        size_t index);
 
 public:
     PartitionTreeNodeCacheEntry(
@@ -34,13 +33,13 @@ public:
     struct value_type
     {
         const PartitionTreeEntry* TreeEntry;
-        const shared_task<const Message*>* Key;
+        RawData Key;
     };
 
     class iterator_type
     {
         static PartitionTreeEntry EmptyTreeEntry;
-        static shared_task<const Message*> EmptyKeyTask;
+        static shared_task<RawData> EmptyKeyTask;
 
         const PartitionTreeNodeCacheEntry* m_cacheEntry;
         const PartitionTreeNode* m_treeNode;
@@ -74,12 +73,13 @@ public:
         const value_type& operator*() const;
     };
 
-    task<iterator_type> begin() const;
-    task<iterator_type> end() const;
+    iterator_type begin() const;
+    iterator_type end() const;
 
-    shared_task<const PartitionTreeNode*> ReadTreeNode() const;
-    task<const Message*> GetKey(
-        size_t index);
+    DataReference<const Serialization::PartitionTreeNode*> ReadTreeNode() const;
+    RawData GetKey(
+        size_t index
+    ) const;
 };
 
 class PartitionTreeNodeCache

@@ -1,21 +1,30 @@
+#include "Checksum.h"
+#include "KeyComparer.h"
+#include "KeyComparer.h"
 #include "PartitionImpl.h"
-#include "RandomMessageAccessor.h"
-#include "ProtoStoreInternal.pb.h"
-#include "Schema.h"
-#include "KeyComparer.h"
-#include <compare>
-#include <algorithm>
 #include "PartitionTreeNodeCache.h"
-#include "KeyComparer.h"
 #include "Phantom.System/async_utility.h"
+#include "ProtoStoreInternal.pb.h"
+#include "RandomMessageAccessor.h"
+#include "Schema.h"
+#include <algorithm>
+#include <compare>
 
+#include <boost/crc.hpp>
 namespace Phantom::ProtoStore
 {
+
+size_t Partition::hash::operator()(const auto& value) const
+{
+    return checksum_v1(
+        as_bytes(std::span{ value })
+    );
+}
 
 struct Partition::EnumerateLastReturnedKey
 {
     shared_ptr<PartitionTreeNodeCacheEntry> CacheEntry;
-    const Message* Key = nullptr;
+    RawData Key;
 };
 
 Partition::Partition(
@@ -180,7 +189,7 @@ row_generator Partition::Checkpoint(
 
     if (startKey)
     {
-        low.Key = startKey->Key;
+        low.Key = *startKey->Key;
         readSequenceNumber = startKey->WriteSequenceNumber;
     }
 
@@ -216,7 +225,7 @@ struct Partition::FindTreeEntryKeyLessThanComparer
     ) : m_keyComparer(keyComparer)
     {}
 
-    task<bool> operator()(
+    bool operator()(
         const PartitionTreeNodeCacheEntry::iterator_type::value_type& cacheEntry,
         const KeyRangeComparerArgument& key
         )
@@ -226,7 +235,7 @@ struct Partition::FindTreeEntryKeyLessThanComparer
 
         KeyAndSequenceNumberComparerArgument cacheEntryKey
         {
-            co_await *(cacheEntry.Key),
+            *cacheEntry.Key,
             ToSequenceNumber(
                 cacheEntry.TreeEntry->has_child()
                     ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
@@ -234,10 +243,10 @@ struct Partition::FindTreeEntryKeyLessThanComparer
             )
         };
 
-        co_return comparer(cacheEntryKey, key);
+        return comparer(cacheEntryKey, key);
     }
 
-    task<bool> operator()(
+    bool operator()(
         const KeyRangeComparerArgument& key,
         const PartitionTreeNodeCacheEntry::iterator_type::value_type& cacheEntry
         )
@@ -247,7 +256,7 @@ struct Partition::FindTreeEntryKeyLessThanComparer
 
         KeyAndSequenceNumberComparerArgument cacheEntryKey
         {
-            co_await *(cacheEntry.Key),
+            *cacheEntry.Key,
             ToSequenceNumber(
                 cacheEntry.TreeEntry->has_child()
                     ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
@@ -255,11 +264,11 @@ struct Partition::FindTreeEntryKeyLessThanComparer
             )
         };
 
-        co_return comparer(key, cacheEntryKey);
+        return comparer(key, cacheEntryKey);
     }
 };
 
-task<int> Partition::FindLowTreeEntryIndex(
+int Partition::FindLowTreeEntryIndex(
     const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
     const PartitionTreeNode* treeNode,
     SequenceNumber readSequenceNumber,
@@ -275,17 +284,17 @@ task<int> Partition::FindLowTreeEntryIndex(
         low.Inclusivity,
     };
 
-    auto lowerBound = co_await async_lower_bound(
-        co_await partitionTreeNodeCacheEntry->begin(),
-        co_await partitionTreeNodeCacheEntry->end(),
+    auto lowerBound = std::lower_bound(
+        partitionTreeNodeCacheEntry->begin(),
+        partitionTreeNodeCacheEntry->end(),
         key,
         FindTreeEntryKeyLessThanComparer { *m_keyComparer }
     );
 
-    co_return lowerBound - co_await partitionTreeNodeCacheEntry->begin();
+    return lowerBound - partitionTreeNodeCacheEntry->begin();
 }
 
-task<int> Partition::FindHighTreeEntryIndex(
+int Partition::FindHighTreeEntryIndex(
     const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
     const PartitionTreeNode* treeNode,
     SequenceNumber readSequenceNumber,
@@ -304,14 +313,14 @@ task<int> Partition::FindHighTreeEntryIndex(
         high.Inclusivity == Inclusivity::Inclusive ? Inclusivity::Exclusive : Inclusivity::Inclusive,
     };
 
-    auto lowerBound = co_await async_lower_bound(
-        co_await partitionTreeNodeCacheEntry->begin(),
-        co_await partitionTreeNodeCacheEntry->end(),
+    auto lowerBound = std::lower_bound(
+        partitionTreeNodeCacheEntry->begin(),
+        partitionTreeNodeCacheEntry->end(),
         key,
         FindTreeEntryKeyLessThanComparer{ *m_keyComparer }
     );
 
-    co_return lowerBound - co_await partitionTreeNodeCacheEntry->begin();
+    return lowerBound - partitionTreeNodeCacheEntry->begin();
 }
 
 int Partition::FindMatchingValueIndexByWriteSequenceNumber(
@@ -353,7 +362,7 @@ int Partition::FindMatchingValueIndexByWriteSequenceNumber(
     ) - valueSet.values().begin();
 }
 
-cppcoro::async_generator<ResultRow> Partition::Enumerate(
+row_generator Partition::Enumerate(
     ExtentLocation treeNodeLocation,
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
@@ -363,24 +372,24 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
     EnumerateLastReturnedKey& lastReturnedKey
 )
 {
-    auto cacheEntry = co_await m_partitionTreeNodeCache.GetPartitionTreeNodeCacheEntry(
+    shared_ptr<PartitionTreeNodeCacheEntry> cacheEntry = co_await m_partitionTreeNodeCache.GetPartitionTreeNodeCacheEntry(
         treeNodeLocation);
 
-    auto treeNode = co_await cacheEntry->ReadTreeNode();
+    DataReference<const Serialization::PartitionTreeNode*> treeNode = cacheEntry->ReadTreeNode();
 
 //#ifndef NDEBUG
 //    auto treeNodeString = treeNode->DebugString();
 //#endif
 
-    int lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
+    int lowTreeEntryIndex = FindLowTreeEntryIndex(
         cacheEntry,
-        treeNode,
+        *treeNode,
         readSequenceNumber,
         low);
 
-    int highTreeEntryIndex = co_await FindHighTreeEntryIndex(
+    int highTreeEntryIndex = FindHighTreeEntryIndex(
         cacheEntry,
-        treeNode,
+        *treeNode,
         readSequenceNumber,
         high);
 
@@ -388,15 +397,15 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
 
     while (
         (
-            treeNode->level() == 0 && lowTreeEntryIndex < highTreeEntryIndex
+            (*treeNode)->level() == 0 && lowTreeEntryIndex < highTreeEntryIndex
             ||
-            treeNode->level() > 0 && lowTreeEntryIndex <= highTreeEntryIndex
+            (*treeNode)->level() > 0 && lowTreeEntryIndex <= highTreeEntryIndex
         )
         &&
-        lowTreeEntryIndex < treeNode->treeentries_size())
+        lowTreeEntryIndex < (*treeNode)->treeentries_size())
     {
-        auto& treeNodeEntry = treeNode->treeentries(lowTreeEntryIndex);
-        auto key = co_await cacheEntry->GetKey(lowTreeEntryIndex);
+        auto& treeNodeEntry = (*treeNode)->treeentries(lowTreeEntryIndex);
+        auto key = cacheEntry->GetKey(lowTreeEntryIndex);
 
         if (treeNodeEntry.has_child())
         {
@@ -429,11 +438,11 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             // so set low to that key.
             if (enumerateBehavior == EnumerateBehavior::PointInTimeRead
                 &&
-                childEnumerateLastReturnedKey.Key)
+                childEnumerateLastReturnedKey.Key->data())
             {
                 low =
                 {
-                    childEnumerateLastReturnedKey.Key,
+                    *childEnumerateLastReturnedKey.Key,
                     Inclusivity::Exclusive,
                 };
 
@@ -446,8 +455,6 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
         }
         else
         {
-            unique_ptr<Message> value;
-
             // We're looking at a matching tree entry, now we need to find the right value
             // based on the write sequence number.
             const PartitionTreeEntryValue* treeEntryValue;
@@ -464,6 +471,8 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
                 treeEntryValue = nullptr;
             }
 
+            RawData value;
+
             // The node matched, and we might have a value to return;
             // except we might have found a tree entry whose values are all newer
             // than the read sequence number.
@@ -473,56 +482,55 @@ cppcoro::async_generator<ResultRow> Partition::Enumerate(
             }
             else
             {
-                if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
+                // At this point, we have a key that is in the tree entry.
+                // We'd like to return a DataReference<ResultRow> pointing at the minimal
+                // set of things.
+                // If the value is also in the tree entry, we can return a DataReference
+                // to the tree entry.
+                // Otherwise we need to return a composite tree entry.
+                if (readValueDisposition == ReadValueDisposition::DontReadValue)
                 {
-                    PartitionMessage message;
+                } else if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
+                {
+                    auto message = std::make_shared<PartitionMessage>();
                     co_await m_messageAccessor->ReadMessage(
                         {
                             .extentName = m_dataExtentName,
                             .extentOffset = treeEntryValue->valueoffset(),
                         },
-                        message);
+                        *message);
 
-                    assert(message.PartitionMessageType_case() == PartitionMessage::kValue);
+                    assert(message->PartitionMessageType_case() == PartitionMessage::kValue);
 
-                    value.reset(m_valueFactory->GetPrototype()->New());
-                    value->ParseFromString(
-                        message.value());
-                }
-                else if (readValueDisposition == ReadValueDisposition::DontReadValue)
-                {
-                    value.reset();
+                    value = { message, as_bytes(std::span{ message->value() }) };
                 }
                 else if (PartitionTreeEntryValue::kValue == treeEntryValue->PartitionTreeEntryValue_case())
                 {
-                    value.reset(m_valueFactory->GetPrototype()->New());
-                    value->ParseFromString(
-                        treeEntryValue->value());
+                    value = { cacheEntry, as_bytes(std::span{ treeEntryValue->value()}) };
                 }
                 else
                 {
                     assert(PartitionTreeEntryValue::kDeleted == treeEntryValue->PartitionTreeEntryValue_case());
-                    value.reset();
                 }
 
                 co_yield ResultRow
                 {
                     .Key = key,
                     .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->writesequencenumber()),
-                    .Value = value.get(),
+                    .Value = std::move(value),
                 };
 
                 if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)
                 {
                     low =
                     {
-                        key,
+                        *key,
                         Inclusivity::Exclusive,
                     };
 
-                    lowTreeEntryIndex = co_await FindLowTreeEntryIndex(
+                    lowTreeEntryIndex = FindLowTreeEntryIndex(
                         cacheEntry,
-                        treeNode,
+                        *treeNode,
                         readSequenceNumber,
                         low);
 
@@ -746,13 +754,19 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     }
 
     KeyAndSequenceNumberComparer keyAndSequenceNumberComparer(*m_keyComparer);
+    
+    std::string currentKeyString;
+    currentKey->SerializeToString(&currentKeyString);
 
     // If there is a min key, ensure the tree entry is above that value.
+    std::string minKeyExclusiveString;
     if (minKeyExclusive)
     {
+        minKeyExclusive->SerializeToString(&minKeyExclusiveString);
+
         auto keyComparisonResult = keyAndSequenceNumberComparer(
-            { minKeyExclusive, minKeyExclusiveLowestSequenceNumber },
-            { currentKey, currentLowestSequenceNumber });
+            { get_byte_span(minKeyExclusiveString), minKeyExclusiveLowestSequenceNumber },
+            { get_byte_span(currentKeyString), currentLowestSequenceNumber });
 
         if (keyComparisonResult != std::weak_ordering::greater)
         {
@@ -765,11 +779,14 @@ task<> Partition::CheckChildTreeEntryIntegrity(
 
     // There is always a max key.
     // Ensure the tree entry is below that value.
-    // if (maxKeyExclusive)
+    // if (maxKeyInclusive)
+    std::string maxKeyInclusiveString;
+    maxKeyInclusive->SerializeToString(&maxKeyInclusiveString);
+
     {
         auto maxKeyComparisonResult = keyAndSequenceNumberComparer(
-            { currentKey, currentLowestSequenceNumber },
-            { maxKeyInclusive, maxKeyInclusiveLowestSequenceNumber });
+            { get_byte_span(currentKeyString), currentLowestSequenceNumber },
+            { get_byte_span(maxKeyInclusiveString), maxKeyInclusiveLowestSequenceNumber});
 
         if (maxKeyComparisonResult == std::weak_ordering::greater)
         {

@@ -386,18 +386,18 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
 
         auto& row = *result.resumptionRow;
      
-        if (row->WriteSequenceNumber > latestSequenceNumber)
+        if (row.WriteSequenceNumber > latestSequenceNumber)
         {
-            latestSequenceNumber = row->WriteSequenceNumber;
+            latestSequenceNumber = row.WriteSequenceNumber;
         }
-        if (row->WriteSequenceNumber < earliestSequenceNumber)
+        if (row.WriteSequenceNumber < earliestSequenceNumber)
         {
-            earliestSequenceNumber = row->WriteSequenceNumber;
+            earliestSequenceNumber = row.WriteSequenceNumber;
         }
 
         std::string keyString(
-            reinterpret_cast<const char*>(row->Key.data()),
-            row->Key.size()
+            reinterpret_cast<const char*>(row.Key->data()),
+            row.Key->size()
         );
 
         bloomFilter.add(
@@ -406,17 +406,19 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
         PartitionTreeEntryValue partitionTreeEntryValue;
 
         partitionTreeEntryValue.set_writesequencenumber(
-            ToUint64(row->WriteSequenceNumber));
+            ToUint64(row.WriteSequenceNumber));
 
-        if (!row->Value.data())
+        auto valueSpan = *row.Value;
+
+        if (!valueSpan.data())
         {
             partitionTreeEntryValue.set_deleted(true);
         }
-        else if (row->Value.size() > m_parameters.MaxEmbeddedValueSize)
+        else if (valueSpan.size() > m_parameters.MaxEmbeddedValueSize)
         {
             string value(
-                reinterpret_cast<const char*>(row->Value.data()),
-                row->Value.size());
+                reinterpret_cast<const char*>(valueSpan.data()),
+                valueSpan.size());
 
             auto largeValueWrite = co_await Write(
                 move(value));
@@ -427,8 +429,8 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
         else
         {
             partitionTreeEntryValue.mutable_value()->assign(
-                reinterpret_cast<const char*>(row->Value.data()),
-                row->Value.size());
+                reinterpret_cast<const char*>(valueSpan.data()),
+                valueSpan.size());
         }
 
         co_await AddValueToTreeEntry(

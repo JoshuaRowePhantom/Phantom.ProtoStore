@@ -273,9 +273,21 @@ public:
         Data data
     ) :
         m_dataHolder{ std::move(other.m_dataHolder) },
-        m_data{ data }
+        m_data{ std::move(data) }
     {
         other.m_data = Other{};
+    }
+
+    template<
+        typename Other
+    >
+    explicit DataReference(
+        const DataReference<Other>& other,
+        Data data
+    ) :
+        m_dataHolder{ other.m_dataHolder },
+        m_data{ std::move(data) }
+    {
     }
 
     DataReference& operator=(const DataReference& other) = default;
@@ -464,7 +476,8 @@ class ProtoValue
     typedef std::variant<
         std::monostate,
         std::span<const std::byte>,
-        std::string
+        std::string,
+        RawData
     > message_data_type;
 
     typedef std::variant<
@@ -478,88 +491,47 @@ public:
     message_data_type message_data;
     message_type message;
 
-    ProtoValue()
-    {}
+    ProtoValue();
 
     ProtoValue(
-        std::unique_ptr<Message>&& other)
-    {
-        if (other)
-        {
-            message = move(other);
-        }
-    }
+        std::unique_ptr<Message>&& other);
 
     ProtoValue(
-        std::string bytes)
-        :
-        message_data(move(bytes))
-    {
-    }
+        std::string bytes);
 
     ProtoValue(
-        std::span<const std::byte> bytes)
-        :
-        message_data(bytes)
-    {
-    }
+        std::span<const std::byte> bytes);
 
     ProtoValue(
-        const Message* other)
-    {
-        if (other)
-        {
-            message = other;
-        }
-    }
+        RawData bytes);
+
+    ProtoValue(
+        const Message* other);
+
+    ProtoValue(
+        ProtoValue&&);
+
+    ~ProtoValue();
 
     static ProtoValue KeyMin();
     static ProtoValue KeyMax();
 
-    explicit operator bool() const
-    {
-        return has_value();
-    }
+    explicit operator bool() const;
+    bool operator !() const;
+    bool has_value() const;
 
-    bool operator !() const
-    {
-        return message.index() == 0
-            && message_data.index() == 0;
-    }
-
-    bool has_value() const
-    {
-        return message.index() != 0
-            || message_data.index() != 0;
-    }
-
-    const Message* as_message_if() const
-    {
-        {
-            auto source = std::get_if<const Message*>(&message);
-            if (source)
-            {
-                return *source;
-            }
-        }
-
-        {
-            auto source = std::get_if<unique_ptr<const Message>>(&message);
-            if (source)
-            {
-                return source->get();
-            }
-        }
-
-        return nullptr;
-    }
+    const Message* as_message_if() const;
 
     template<
         typename TMessage
     > const TMessage* cast_if() const
     {
         auto message = as_message_if();
-        if (message
+        if constexpr (std::same_as<Message, TMessage>)
+        {
+            return message;
+        }
+        else if (message
             &&
             message->GetDescriptor() == TMessage::descriptor())
         {
@@ -569,108 +541,22 @@ public:
         return nullptr;
     }
 
-    template<
-        typename TMessage = Message
-    > void unpack(
-        TMessage* destination
-    ) const
-    {
-        {
-            auto source = std::get_if<const Message*>(&message);
-            if (source)
-            {
-                destination->CopyFrom(**source);
-                return;
-            }
-        }
-
-        {
-            auto source = std::get_if<unique_ptr<const Message>>(&message);
-            if (source)
-            {
-                destination->CopyFrom(**source);
-                return;
-            }
-        }
-
-        {
-            auto source = std::get_if<std::string>(&message_data);
-            if (source)
-            {
-                destination->ParseFromString(
-                    *source
-                );
-                return;
-            }
-        }
-
-        {
-            auto source = std::get_if<std::span<const std::byte>>(&message_data);
-            if (source)
-            {
-                destination->ParseFromArray(
-                    source->data(),
-                    source->size_bytes()
-                );
-                return;
-            }
-        }
-
-        destination->Clear();
-    }
+    void unpack(
+        Message* destination
+    ) const;
 
     bool pack(
         std::string* destination
-    ) const
-    {
-        {
-            auto source = std::get_if<std::string>(&message_data);
-            if (source)
-            {
-                *destination = *source;
-                return true;
-            }
-        }
+    ) const;
 
-        {
-            auto source = std::get_if<std::span<const std::byte>>(&message_data);
-            if (source)
-            {
-                destination->resize(source->size());
-                std::copy(
-                    source->begin(),
-                    source->end(),
-                    reinterpret_cast<std::byte*>(destination->data())
-                );
-                return true;
-            }
-        }
+    ProtoValue pack_unowned() const;
 
-        {
-            auto source = std::get_if<const Message*>(&message);
-            if (source)
-            {
-                (*source)->SerializeToString(
-                    destination);
-                return true;
-            }
-        }
-
-        {
-            auto source = std::get_if<unique_ptr<const Message>>(&message);
-            if (source)
-            {
-                (*source)->SerializeToString(
-                    destination);
-                return true;
-            }
-        }
-
-        return false;
-    }
+    std::span<const std::byte> as_bytes_if() const;
 
     bool IsKeyMin() const;
     bool IsKeyMax() const;
+
+    ProtoValue& operator=(ProtoValue&&);
 };
 
 struct WriteConflict

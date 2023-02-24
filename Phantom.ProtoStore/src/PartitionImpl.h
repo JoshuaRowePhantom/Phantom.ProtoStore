@@ -31,7 +31,11 @@ class Partition
     PartitionBloomFilter m_partitionBloomFilter;
     PartitionRoot m_partitionRoot;
 
-    typedef BloomFilter<std::hash<string>, char, span<const char>> BloomFilterVersion1;
+    struct hash
+    {
+        size_t operator()(const auto& value) const;
+    };
+    typedef BloomFilter<SeedingPrngBloomFilterHashFunction<hash>, char, span<const char>> BloomFilterVersion1;
     optional<BloomFilterVersion1> m_bloomFilter;
 
     shared_task<> m_openTask;
@@ -49,7 +53,7 @@ class Partition
 
     struct EnumerateLastReturnedKey;
 
-    cppcoro::async_generator<ResultRow> Enumerate(
+    row_generator Enumerate(
         ExtentLocation treeNodeLocation,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
@@ -63,20 +67,20 @@ class Partition
         const PartitionTreeEntryValueSet& valueSet,
         SequenceNumber readSequenceNumber);
 
-    task<int> FindTreeEntry(
+    int FindTreeEntry(
         const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
         const PartitionTreeNode* treeNode,
         const FindTreeEntryKey& key
     );
 
-    task<int> FindLowTreeEntryIndex(
+    int FindLowTreeEntryIndex(
         const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
         const PartitionTreeNode* treeNode,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low
     );
 
-    task<int> FindHighTreeEntryIndex(
+    int FindHighTreeEntryIndex(
         const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
         const PartitionTreeNode* treeNode,
         SequenceNumber readSequenceNumber,
