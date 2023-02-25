@@ -384,7 +384,7 @@ public:
         const FlatMessage<Other>& other,
         const Table* table
     ) :
-        m_storedMessage{ other.m_storedMessage },
+        m_storedMessage{ other },
         m_table{ table }
     {}
 

@@ -31,6 +31,14 @@ ExtentName MakeExtentName(
     const FlatBuffers::ExtentNameT& extentName
 );
 
+ExtentName MakeExtentName(
+    const FlatBuffers::ExtentName& extentName
+); 
+
+FlatBuffers::ExtentNameT MakeExtentName(
+    const ExtentName& extentName
+);
+
 flatbuffers::Offset<FlatBuffers::ExtentName> CreateExtentName(
     flatbuffers::FlatBufferBuilder&,
     const ExtentName&

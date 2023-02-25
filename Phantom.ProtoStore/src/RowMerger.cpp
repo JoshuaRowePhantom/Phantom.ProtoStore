@@ -16,7 +16,7 @@ row_generator RowMerger::Merge(
     row_generators rowSources
 )
 {
-    std::vector<cppcoro::async_generator<DataReference<ResultRow>>> capturedRowSources;
+    std::vector<row_generator> capturedRowSources;
     for (auto& rowSource : rowSources)
     {
         capturedRowSources.emplace_back(

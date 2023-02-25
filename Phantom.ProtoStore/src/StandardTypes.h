@@ -290,6 +290,10 @@ std::span<const uint8_t> get_uint8_t_span(
     std::span<const std::byte>
 );
 
+std::span<const int8_t> get_int8_t_span(
+    std::span<const std::byte>
+);
+
 typedef cppcoro::async_generator<ResultRow> row_generator;
 typedef row_generator::iterator row_generator_iterator;
 typedef cppcoro::generator<row_generator> row_generators;

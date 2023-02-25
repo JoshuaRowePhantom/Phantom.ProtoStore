@@ -96,11 +96,16 @@ std::weak_ordering compare(
 )
 {
     std::weak_ordering result = std::weak_ordering::equivalent;
-    
+    auto do_comparison = [&](auto&& comparer)
+    {
+        result = compare(left, right, std::forward<decltype(comparer)>(comparer));
+        return result == std::weak_ordering::equivalent;
+    };
+
     (
         ...
         &&
-        ((result = compare(left, right, std::forward<Comparers>(comparers))) == std::weak_ordering::equivalent)
+        do_comparison(comparers)
     );
 
     return result;

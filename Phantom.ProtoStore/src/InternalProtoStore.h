@@ -18,6 +18,23 @@ public:
         std::function<Offset<void>(flatbuffers::FlatBufferBuilder&)> builder
     ) = 0;
 
+    template<
+        IsNativeTable NativeTable
+    > void BuildLogRecord(
+        const NativeTable& nativeTable
+    )
+    {
+        BuildLogRecord(
+            FlatBuffers::LogEntryUnionTraits<NativeTable>::enum_value,
+            [&](auto& builder)
+        {
+            return NativeTable::TableType::Pack(
+                builder,
+                &nativeTable
+            ).Union();
+        });
+    }
+
     virtual operation_task<FlatMessage<LoggedRowWrite>> AddRowInternal(
         const WriteOperationMetadata& writeOperationMetadata,
         ProtoIndex protoIndex,
@@ -25,8 +42,8 @@ public:
         const ProtoValue& value
     ) = 0;
 
-    virtual LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions(
-    ) = 0;
+    //virtual LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions(
+    //) = 0;
 };
 
 typedef std::function<status_task<>(IInternalTransaction*)> InternalTransactionVisitor;
@@ -64,17 +81,6 @@ public:
     virtual operation_task<TransactionSucceededResult> InternalExecuteTransaction(
         const BeginTransactionRequest beginRequest,
         InternalTransactionVisitor visitor
-    ) = 0;
-
-    virtual task<> LogCommitExtent(
-        LogRecord& logRecord,
-        ExtentName extentName
-    ) = 0;
-
-    virtual task<> LogDeleteExtentPendingPartitionsUpdated(
-        LogRecord& logRecord,
-        ExtentName extentName,
-        CheckpointNumber partitionsTableCheckpointNumber
     ) = 0;
 
     virtual task<shared_ptr<IIndex>> GetIndex(

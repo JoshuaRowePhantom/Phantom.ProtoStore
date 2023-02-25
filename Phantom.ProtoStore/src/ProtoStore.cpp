@@ -12,6 +12,7 @@
 #include "ProtoStore.h"
 #include "ProtoStoreInternal.pb.h"
 #include "RandomMessageAccessor.h"
+#include "src/ProtoStoreInternal_generated.h"
 #include "Schema.h"
 #include "StandardTypes.h"
 #include "UnresolvedTransactionsTracker.h"
@@ -351,6 +352,10 @@ task<> ProtoStore::Replay(
         case LogEntry::LoggedCommitLocalTransaction:
             co_await Replay(getMessage(tag<LoggedCommitLocalTransaction>()));
             break;
+
+        case LogEntry::LoggedUpdatePartitions:
+            co_await Replay(getMessage(tag<LoggedUpdatePartitions>()));
+            break;
         }
     }
 }
@@ -402,13 +407,19 @@ task<> ProtoStore::Replay(
 task<> ProtoStore::Replay(
     const FlatMessage<LoggedPartitionsData>& logRecord)
 {
-    auto replayPartitionsActivePartitions = vector(
-        logRecord.headerextentnames().begin(),
-        logRecord.headerextentnames().end());
+    std::vector<ExtentName> headerExtentNames;
+
+    std::ranges::transform(
+        *logRecord->header_extent_names(),
+        std::back_inserter(headerExtentNames),
+        [&](const auto& extentName)
+    {
+        return MakeExtentName(*extentName);
+    });
 
     auto partitions = co_await OpenPartitionsForIndex(
         m_partitionsIndex.Index,
-        replayPartitionsActivePartitions);
+        headerExtentNames);
 
     co_await m_partitionsIndex.DataSources->UpdatePartitions(
         LoggedCheckpointT(),
@@ -420,23 +431,22 @@ task<> ProtoStore::Replay(
 }
 
 task<> ProtoStore::Replay(
-    const LoggedCreatePartition& logRecord)
+    const FlatMessage<LoggedCreatePartition>& logRecord)
 {
-    if (m_nextPartitionNumber.load() <= logRecord.partitionnumber())
-    {
-        m_nextPartitionNumber.store(
-            logRecord.partitionnumber() + 1);
-    }
+    m_nextPartitionNumber = std::max(
+        m_nextPartitionNumber.load(),
+        logRecord->partition_number() + 1);
+
     co_return;
 }
 
 task<> ProtoStore::Replay(
-    const LoggedUpdatePartitions& logRecord)
+    const FlatMessage<LoggedUpdatePartitions>& logRecord)
 {
-    if (m_indexesByNumber.contains(logRecord.indexnumber()))
+    if (m_indexesByNumber.contains(logRecord->index_number()))
     {
         co_await ReplayPartitionsForIndex(
-            m_indexesByNumber[logRecord.indexnumber()]
+            m_indexesByNumber[logRecord->index_number()]
         );
     }
 }
@@ -496,17 +506,6 @@ class LocalTransaction
     SequenceNumber m_readSequenceNumber;
     SequenceNumber m_initialWriteSequenceNumber;
     shared_task<CommitResult> m_commitTask;
-    std::vector<FailedResult> m_failures;
-
-    LoggedUnresolvedTransactions* m_loggedUnresolvedTransactions = nullptr;
-    LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions()
-    {
-        if (!m_loggedUnresolvedTransactions)
-        {
-            m_loggedUnresolvedTransactions = m_logRecord.mutable_extras()->add_loggedactions()->mutable_loggedunresolvedtransactions();
-        }
-        return *m_loggedUnresolvedTransactions;
-    }
 
 public:
     LocalTransaction(
@@ -546,11 +545,6 @@ public:
         m_logEntries.push_back(result);
     }
 
-    std::vector<FailedResult>& Failures()
-    {
-        return m_failures;
-    }
-
     // Inherited via ITransaction
     virtual operation_task<> AddLoggedAction(
         const WriteOperationMetadata& writeOperationMetadata, 
@@ -583,8 +577,8 @@ public:
             auto unownedKey = key.pack_unowned();
             auto unownedValue = value.pack_unowned();
 
-            auto keySpan = get_uint8_t_span(unownedKey.as_bytes_if());
-            auto valueSpan = get_uint8_t_span(unownedValue.as_bytes_if());
+            auto keySpan = get_int8_t_span(unownedKey.as_bytes_if());
+            auto valueSpan = get_int8_t_span(unownedValue.as_bytes_if());
 
             flatbuffers::FlatBufferBuilder loggedRowWriteBuilder;
 
@@ -602,7 +596,7 @@ public:
             if (writeOperationMetadata.TransactionId)
             {
                 transactionIdOffset = loggedRowWriteBuilder.CreateVector<int8_t>(
-                    get_byte_span(*writeOperationMetadata.TransactionId));
+                    get_int8_t_span(get_byte_span(*writeOperationMetadata.TransactionId)));
             }
 
             auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(
@@ -654,7 +648,6 @@ public:
 
         if (!checkpointNumber)
         {
-            m_failures.push_back(checkpointNumber.error());
             co_return std::unexpected{ checkpointNumber.error() };
         }
 
@@ -684,6 +677,7 @@ public:
             key,
             value
         );
+        co_return{};
     }
 
     virtual operation_task<> ResolveTransaction(
@@ -853,7 +847,6 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
                 .ErrorDetails = TransactionFailedResult
                 {
                     .TransactionOutcome = outcome,
-                    .Failures = std::move(transaction.Failures()),
                 },
             },
         };
@@ -1285,28 +1278,34 @@ task<> ProtoStore::Checkpoint(
             ).Union();
         });
 
-        auto addedLoggedCheckpoint = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedcheckpoints();
-        auto addedLoggedUpdatePartitions = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedupdatepartitions();
+        operation->BuildLogRecord(
+            loggedCheckpoint);
 
-        auto highestCheckpointNumber = loggedCheckpoint.checkpointnumber(0);
-        for (auto checkpointIndex = 1; checkpointIndex < loggedCheckpoint.checkpointnumber_size(); checkpointIndex++)
+        FlatBuffers::LoggedUpdatePartitionsT loggedUpdatePartitions;
+        loggedUpdatePartitions.index_number = indexEntry.IndexNumber;
+
+        operation->BuildLogRecord(
+            loggedUpdatePartitions);
+
+        auto highestCheckpointNumber = loggedCheckpoint.checkpoint_number[0];
+        for (auto checkpointIndex = 1; checkpointIndex < loggedCheckpoint.checkpoint_number.size(); checkpointIndex++)
         {
             highestCheckpointNumber =
                 std::max(
                     highestCheckpointNumber,
-                    loggedCheckpoint.checkpointnumber(checkpointIndex)
+                    loggedCheckpoint.checkpoint_number[checkpointIndex]
                 );
         }
 
-        LoggedPartitionsData* addedLoggedPartitionsData = nullptr;
+        std::optional<LoggedPartitionsDataT> addedLoggedPartitionsData;
         if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
         {
-            addedLoggedPartitionsData = operation->LogRecord().mutable_extras()->add_loggedactions()->mutable_loggedpartitionsdata();
+            addedLoggedPartitionsData = LoggedPartitionsDataT();
 
             // Set the checkpoint number of the added logged partitions data to be the greatest
             // checkpoint number being written.
-            addedLoggedPartitionsData->set_partitionstablecheckpointnumber(
-                highestCheckpointNumber);
+            addedLoggedPartitionsData->partitions_table_checkpoint_number =
+                highestCheckpointNumber;
         }
 
         PartitionsKey partitionsKey;
@@ -1335,18 +1334,19 @@ task<> ProtoStore::Checkpoint(
 
                 if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
                 {
-                    *addedLoggedPartitionsData->add_headerextentnames() =
-                        existingHeaderExtentName;
+                    addedLoggedPartitionsData->header_extent_names.push_back(
+                        std::make_unique<FlatBuffers::ExtentNameT>(MakeExtentName(existingHeaderExtentName)));
                 }
 
                 headerExtentNames.push_back(
                     move(existingHeaderExtentName));
             }
 
-            addedLoggedCheckpoint->CopyFrom(
-                loggedCheckpoint);
-            addedLoggedUpdatePartitions->set_indexnumber(
-                indexEntry.IndexNumber);
+            if (addedLoggedPartitionsData)
+            {
+                operation->BuildLogRecord(
+                    *addedLoggedPartitionsData);
+            }
 
             co_await operation->AddRow(
                 WriteOperationMetadata(),
@@ -1464,22 +1464,32 @@ task<> ProtoStore::AllocatePartitionExtents(
     out_partitionDataExtentName = MakePartitionDataExtentName(
         out_partitionHeaderExtentName);
 
-    LogRecord logRecord;
-    *logRecord.mutable_extras()
-        ->add_loggedactions()
-        ->mutable_loggedcreateextent()
-        ->mutable_extentname() = out_partitionHeaderExtentName;
-    *logRecord.mutable_extras()
-        ->add_loggedactions()
-        ->mutable_loggedcreateextent()
-        ->mutable_extentname() = out_partitionDataExtentName;
-    logRecord.mutable_extras()
-        ->add_loggedactions()
-        ->mutable_loggedcreatepartition()
-        ->set_partitionnumber(partitionNumber);
+    FlatBuffers::LogRecordT logRecord;
 
-    co_await WriteLogRecord(
-        logRecord);
+    FlatBuffers::LoggedCreateExtentT createHeaderExtent;
+    createHeaderExtent.extent_name = std::make_unique<FlatBuffers::ExtentNameT>();
+    *createHeaderExtent.extent_name = MakeExtentName(out_partitionHeaderExtentName);
+    FlatBuffers::LogEntryUnion createHeaderExtentUnion;
+    createHeaderExtentUnion.Set(std::move(createHeaderExtent));
+    logRecord.log_entry.push_back(std::move(createHeaderExtentUnion));
+
+    FlatBuffers::LoggedCreateExtentT createDataExtent;
+    createDataExtent.extent_name = std::make_unique<FlatBuffers::ExtentNameT>();
+    *createDataExtent.extent_name = MakeExtentName(out_partitionDataExtentName);
+    FlatBuffers::LogEntryUnion createDataExtentUnion;
+    createDataExtentUnion.Set(std::move(createDataExtent));
+    logRecord.log_entry.push_back(std::move(createDataExtentUnion));
+
+    FlatBuffers::LoggedCreatePartitionT createPartition;
+    createPartition.partition_number = partitionNumber;
+    FlatBuffers::LogEntryUnion createPartitionUnion;
+    createPartitionUnion.Set(std::move(createPartition));
+    logRecord.log_entry.push_back(std::move(createPartitionUnion));
+
+    FlatMessage<FlatBuffers::LogRecord> logRecordMessage{ &logRecord };
+
+    co_await m_logManager->WriteLogRecord(
+        logRecordMessage);
 }
 
 task<> ProtoStore::OpenPartitionWriter(
@@ -1553,39 +1563,6 @@ shared_ptr<IIndex> ProtoStore::GetPartitionsIndex()
 shared_ptr<IIndex> ProtoStore::GetUnresolvedTransactionsIndex()
 {
     return m_unresolvedTransactionIndex.Index;
-}
-
-task<> ProtoStore::LogCommitExtent(
-    LogRecord& logRecord,
-    ExtentName extentName
-)
-{
-    *logRecord
-        .mutable_extras()
-        ->add_loggedactions()
-        ->mutable_loggedcommitextent()
-        ->mutable_extentname() = move(extentName);
-
-    co_return;
-}
-
-task<> ProtoStore::LogDeleteExtentPendingPartitionsUpdated(
-    LogRecord& logRecord,
-    ExtentName extentName,
-    CheckpointNumber partitionsTableCheckpointNumber
-)
-{
-    auto loggedDeleteExtentPendingPartitionsUpdated = logRecord
-        .mutable_extras()
-        ->add_loggedactions()
-        ->mutable_loggeddeleteextentpendingpartitionsupdated();
-
-    *loggedDeleteExtentPendingPartitionsUpdated
-        ->mutable_extentname() = move(extentName);
-    loggedDeleteExtentPendingPartitionsUpdated->set_partitionstablecheckpointnumber(
-        partitionsTableCheckpointNumber);
-
-    co_return;
 }
 
 Schedulers Schedulers::Default()

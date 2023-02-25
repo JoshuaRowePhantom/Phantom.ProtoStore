@@ -148,7 +148,7 @@ class ProtoStore
         const FlatMessage<LogRecord>& logRecord);
 
     task<> Replay(
-        const LoggedUpdatePartitions& logRecord);
+        const FlatMessage<LoggedUpdatePartitions>& logRecord);
 
     task<> Replay(
         const LoggedAction& logRecord);
@@ -157,7 +157,7 @@ class ProtoStore
         const FlatMessage<LoggedCreateIndex>& logRecord);
 
     task<> Replay(
-        const LoggedCreatePartition& logRecord);
+        const FlatMessage<LoggedCreatePartition>& logRecord);
 
     task<> Replay(
         const FlatMessage<LoggedPartitionsData>& logRecord);
