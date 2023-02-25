@@ -469,6 +469,11 @@ public:
         return m_table;
     }
 
+    const Table& operator*() const noexcept
+    {
+        return *m_table;
+    }
+
     explicit operator bool() const noexcept
     {
         return m_table;
@@ -529,7 +534,8 @@ public:
         RawData bytes);
 
     ProtoValue(
-        const Message* other);
+        const Message* other,
+        bool pack = false);
 
     ProtoValue(
         ProtoValue&&);

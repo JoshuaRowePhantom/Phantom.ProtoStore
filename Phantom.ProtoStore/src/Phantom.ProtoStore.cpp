@@ -42,24 +42,35 @@ ProtoValue::ProtoValue(
 
 ProtoValue::ProtoValue(
     std::span<const std::byte> bytes)
-    :
-    message_data(bytes)
 {
+    if (bytes.data())
+    {
+        message_data = bytes;
+    }
 }
 
 ProtoValue::ProtoValue(
     RawData bytes)
-    :
-    message_data(std::move(bytes))
 {
+    if (bytes->data())
+    {
+        message_data = std::move(bytes);
+    }
 }
 
 ProtoValue::ProtoValue(
-    const Message* other)
+    const Message* other,
+    bool pack)
 {
     if (other)
     {
         message = other;
+        if (pack)
+        {
+            message_data = std::string{};
+            other->SerializeToString(
+                &get<std::string>(message_data));
+        }
     }
 }
 
