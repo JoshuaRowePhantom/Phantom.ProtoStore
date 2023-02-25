@@ -8,6 +8,11 @@ std::span<const byte> get_byte_span(
     const flatbuffers::Vector<int8_t>* value
 )
 {
+    if (!value)
+    {
+        return {};
+    }
+
     return std::span
     {
         reinterpret_cast<const byte*>(value->data()),
@@ -224,14 +229,14 @@ std::weak_ordering operator<=>(
 }
 
 std::weak_ordering operator<=>(
-    const FlatBuffers::IndexHeaderExtentName& left,
-    const FlatBuffers::IndexHeaderExtentName& right
+    const FlatBuffers::IndexHeaderExtentNameT& left,
+    const FlatBuffers::IndexHeaderExtentNameT& right
     )
 {
     return compare(
         left,
         right,
-        &FlatBuffers::IndexHeaderExtentName::index_extent_name
+        &FlatBuffers::IndexHeaderExtentNameT::index_extent_name
     );
 }
 
