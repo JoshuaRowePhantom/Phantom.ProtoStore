@@ -86,7 +86,7 @@ task<size_t> MemoryTable::GetRowCount()
 
 task<std::optional<SequenceNumber>> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
-    MemoryTableRow& row,
+    FlatMessage<FlatBuffers::LoggedRowWrite> row,
     shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
 )
 {
@@ -96,7 +96,7 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         readSequenceNumber);
 
     auto memoryTableWriteSequenceNumber = ToMemoryTableOutcomeAndSequenceNumber(
-        SequenceNumber(row.ValueMessage->sequence_number()),
+        SequenceNumber(row->sequence_number()),
         TransactionOutcome::Unknown);
 
     decltype(m_skipList)::iterator iterator;
@@ -178,11 +178,11 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         // Jolly Joy! The previous transaction aborted,
         // and was the last transaction to touch this row. We are therefore
         // allowed to update this row.
-        iterator->Row.ValueMessage = std::move(row.ValueMessage);
+        iterator->ValueMessage = std::move(row);
         iterator->DelayedTransactionOutcome = delayedTransactionOutcome;
 
         memoryTableWriteSequenceNumber = ToOutcomeUnknownSubsequentInsertion(
-            SequenceNumber(iterator->Row.ValueMessage->sequence_number()));
+            SequenceNumber(iterator->ValueMessage->sequence_number()));
 
         iterator->WriteSequenceNumber.store(
             memoryTableWriteSequenceNumber,
@@ -235,7 +235,7 @@ task<> MemoryTable::UpdateOutcome(
     // After this point, 
     memoryTableValue.WriteSequenceNumber.store(
         ToMemoryTableOutcomeAndSequenceNumber(
-            SequenceNumber(memoryTableValue.Row.ValueMessage->sequence_number()),
+            memoryTableValue.GetWriteSequenceNumber(),
             outcome.Outcome),
         std::memory_order_release
     );
@@ -260,7 +260,7 @@ task<> MemoryTable::UpdateOutcome(
 }
 
 task<> MemoryTable::ReplayRow(
-    MemoryTableRow& row
+    FlatMessage<FlatBuffers::LoggedRowWrite> row
 )
 {
     ReplayInsertionKey replayKey(
@@ -457,49 +457,54 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     ReplayInsertionKey&& other
 )
     :
-    Row{ move(other.Row) },
+    KeyMessage{ move(other.Row) },
     WriteSequenceNumber
 {
     ToMemoryTableOutcomeAndSequenceNumber(
-        ToSequenceNumber(other.Row.ValueMessage->sequence_number()),
+        ToSequenceNumber(KeyMessage->sequence_number()),
         TransactionOutcome::Committed)
 }
 {
-    assert(Row.KeyMessage.get());
+    assert(KeyMessage.get());
 }
 
 MemoryTable::MemoryTableValue::MemoryTableValue(
     InsertionKey&& other
 )
     :
-    Row { move(other.Row) },
+    KeyMessage{ move(other.Row) },
     WriteSequenceNumber 
     {
         ToMemoryTableOutcomeAndSequenceNumber(
-            ToSequenceNumber(other.Row.ValueMessage->sequence_number()),
+            ToSequenceNumber(KeyMessage->sequence_number()),
             TransactionOutcome::Unknown)
     },
     DelayedTransactionOutcome{ other.DelayedTransactionOutcome }
 {
-    assert(Row.KeyMessage.get());
+    assert(KeyMessage.get());
 }
 
 ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
 {
-    auto valueMessageReference = DataReference<StoredMessage>(Row.ValueMessage);
+    auto* valueMessage = &KeyMessage;
+    if (ValueMessage)
+    {
+        valueMessage = &ValueMessage;
+    }
+
     auto valueBytes = GetValueBytes();
     auto transactionIdBytes = GetTransactionIdBytes();
 
     ResultRow resultRow;
-    resultRow.Key = RawData{ valueMessageReference, GetKeyBytes() };
+    resultRow.Key = RawData{ DataReference<StoredMessage>(KeyMessage), GetKeyBytes() };
     resultRow.WriteSequenceNumber = GetWriteSequenceNumber();
     if (valueBytes.data())
     {
-        resultRow.Value = RawData{ valueMessageReference, valueBytes };
+        resultRow.Value = RawData{ DataReference<StoredMessage>(*valueMessage), valueBytes };
     }
     if (transactionIdBytes.data())
     {
-        resultRow.TransactionId = RawData{ valueMessageReference, transactionIdBytes };
+        resultRow.TransactionId = RawData{ DataReference<StoredMessage>(*valueMessage), transactionIdBytes };
     }
 
     return std::move(resultRow);
@@ -508,32 +513,53 @@ ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
 
 std::span<const byte> MemoryTable::MemoryTableValue::GetKeyBytes() const
 {
-    return get_byte_span(Row.ValueMessage->key());
+    return get_byte_span(ValueMessage->key());
 }
 
 std::span<const byte> MemoryTable::MemoryTableValue::GetValueBytes() const
 {
-    return get_byte_span(Row.ValueMessage->value());
+    if (ValueMessage)
+    {
+        return get_byte_span(ValueMessage->value());
+    }
+    else
+    {
+        return get_byte_span(KeyMessage->value());
+    }
 }
 
 std::span<const byte> MemoryTable::MemoryTableValue::GetTransactionIdBytes() const
 {
-    return get_byte_span(Row.ValueMessage->distributed_transaction_id());
+    if (ValueMessage)
+    {
+        return get_byte_span(ValueMessage->distributed_transaction_id());
+    }
+    else
+    {
+        return get_byte_span(KeyMessage->distributed_transaction_id());
+    }
 }
 
 SequenceNumber MemoryTable::MemoryTableValue::GetWriteSequenceNumber() const
 {
-    return ToSequenceNumber(Row.ValueMessage->sequence_number());
+    if (ValueMessage)
+    {
+        return ToSequenceNumber(ValueMessage->sequence_number());
+    }
+    else
+    {
+        return ToSequenceNumber(KeyMessage->sequence_number());
+    }
 }
 
 MemoryTable::ReplayInsertionKey::ReplayInsertionKey(
-    MemoryTableRow& row
+    MemoryTable::Row& row
 ) :
     Row(row)
 {}
 
 MemoryTable::InsertionKey::InsertionKey(
-    MemoryTableRow& row,
+    MemoryTable::Row& row,
     shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
     SequenceNumber readSequenceNumber)
     :
@@ -546,7 +572,7 @@ MemoryTable::InsertionKey::InsertionKey(
 MemoryTable::InsertionKey& MemoryTable::InsertionKey::InsertionKey::operator=(
     MemoryTableValue&& memoryTableValue)
 {
-    Row = move(memoryTableValue.Row);
+    Row = move(memoryTableValue.KeyMessage);
     return *this;
 }
 
@@ -570,7 +596,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
 {
     auto comparisonResult = (*m_keyComparer)(
         key1.GetKeyBytes(),
-        get_byte_span(key2.Row.KeyMessage->key()));
+        get_byte_span(key2.Row->key()));
 
     if (comparisonResult != std::weak_ordering::equivalent)
     {
@@ -581,7 +607,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
 
     if (sequenceNumber > key2.ReadSequenceNumber
         ||
-        sequenceNumber >= ToSequenceNumber(key2.Row.ValueMessage->sequence_number()))
+        sequenceNumber >= ToSequenceNumber(key2.Row->sequence_number()))
     {
         // By returning equivalent here, the SkipList
         // won't insert the row.
@@ -673,12 +699,12 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     auto comparisonResult =
         (*m_keyComparer)(
             key1.GetKeyBytes(),
-            get_byte_span(key2.Row.KeyMessage->key())
+            get_byte_span(key2.Row->key())
             );
 
     if (comparisonResult == std::weak_ordering::equivalent)
     {
-        comparisonResult = ToSequenceNumber(key2.Row.ValueMessage->sequence_number()) <=> key1.GetWriteSequenceNumber();
+        comparisonResult = ToSequenceNumber(key2.Row->sequence_number()) <=> key1.GetWriteSequenceNumber();
     }
 
     return comparisonResult;

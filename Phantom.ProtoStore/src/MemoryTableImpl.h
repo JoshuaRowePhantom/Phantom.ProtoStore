@@ -23,15 +23,15 @@ class MemoryTable
     struct ReplayInsertionKey
     {
         ReplayInsertionKey(
-            MemoryTableRow& row);
+            Row& row);
 
-        MemoryTableRow& Row;
+        Row Row;
     };
 
     struct InsertionKey
     {
         InsertionKey(
-            MemoryTableRow& row,
+            Row& row,
             shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
             SequenceNumber readSequenceNumber);
 
@@ -48,7 +48,7 @@ class MemoryTable
         InsertionKey& operator=(
             MemoryTableValue&& memoryTableValue);
 
-        MemoryTableRow& Row;
+        Row& Row;
         shared_ptr<DelayedMemoryTableTransactionOutcome>& DelayedTransactionOutcome;
         SequenceNumber ReadSequenceNumber;
     };
@@ -87,11 +87,13 @@ class MemoryTable
         cppcoro::async_mutex Mutex;
 
         // This contains owning copies of the row data.
-        // .Value must not be read unless TransactionOutcome indicates Committed
+        // .ValueMessage must not be used unless TransactionOutcome indicates Committed
         // or the Mutex is acquired.
         // The Key in it must never be replaced, as it is used in a thread-unsafe way
         // after the skip list node is created.
-        MemoryTableRow Row;
+        // When reading, if ValueMessage is null then use the KeyMessage.
+        Row KeyMessage;
+        Row ValueMessage;
 
         // The outcome of the owning operation.
         // It must only be checked while the Mutex is held.
@@ -188,12 +190,12 @@ public:
 
     virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
-        MemoryTableRow& row,
+        Row row,
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) override;
 
     virtual task<> ReplayRow(
-        MemoryTableRow& row
+        Row row
     ) override;
 
     virtual row_generator Enumerate(

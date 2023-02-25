@@ -61,6 +61,12 @@ protected:
         StringValue rowValue;
         rowValue.set_value(value);
 
+        FlatBuffers::LoggedRowWriteT loggedRowWrite;
+        if (transactionId)
+        {
+            loggedRowWrite.distributed_transaction_id = std::vector<int8_t>(get_int8_t_span(get_byte_span(*transactionId)));
+        }
+
         MemoryTableRow row
         {
             .Key = copy_unique(rowKey),

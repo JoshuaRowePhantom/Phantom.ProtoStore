@@ -430,6 +430,26 @@ public:
     }
 
     explicit FlatMessage(
+        std::shared_ptr<flatbuffers::FlatBufferBuilder> builder
+    ) :
+        m_storedMessage
+    {
+        builder,
+        {
+            .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
+            .MessageAlignment = static_cast<uint8_t>(builder->GetBufferMinAlignment()),
+            .Message = as_bytes(builder->GetBufferSpan())
+        },
+    },
+        m_table
+    {
+        flatbuffers::GetRoot<Table>(
+            m_storedMessage->Message.data())
+    }
+    {
+    }
+
+    explicit FlatMessage(
         const typename Table::NativeTableType* table
     )
     {

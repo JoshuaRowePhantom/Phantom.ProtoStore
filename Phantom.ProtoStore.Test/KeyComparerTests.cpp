@@ -13,18 +13,11 @@ void DoKeyComparerTest(
     KeyComparer keyComparer(
         T::GetDescriptor());
 
-    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(&lesser, &greater));
-    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(&greater, &lesser));
-    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(&lesser, &lesser));
-    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(&greater, &greater));
+    ProtoValue lesserProto(&lesser, true);
+    ProtoValue greaterProto(&greater, true);
 
-    std::string lesserString;
-    std::string greaterString;
-    lesser.SerializeToString(&lesserString);
-    greater.SerializeToString(&greaterString);
-
-    auto lesserSpan = as_bytes(std::span<char>{ lesserString });
-    auto greaterSpan = as_bytes(std::span<char>{ greaterString });
+    auto lesserSpan = lesserProto.as_bytes_if();
+    auto greaterSpan = greaterProto.as_bytes_if();
 
     EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserSpan, greaterSpan));
     EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(greaterSpan, lesserSpan));
@@ -377,9 +370,12 @@ TEST(KeyAndSequenceNumberComparerTests, Uses_key_order_first)
     lesser.set_int32_value(0);
     greater.set_int32_value(1);
 
+    ProtoValue lesserProtoValue(&lesser, true);
+    ProtoValue greaterProtoValue(&greater, true);
+
     DoKeyAndSequenceNumberComparerTest<TestKey>(
-        KeyAndSequenceNumberComparerArgument { &lesser, SequenceNumber::Earliest },
-        KeyAndSequenceNumberComparerArgument { &greater, SequenceNumber::Latest }
+        KeyAndSequenceNumberComparerArgument { lesserProtoValue.as_bytes_if(), SequenceNumber::Earliest},
+        KeyAndSequenceNumberComparerArgument { greaterProtoValue.as_bytes_if(), SequenceNumber::Latest}
         );
 }
 
@@ -389,9 +385,11 @@ TEST(KeyAndSequenceNumberComparerTests, Uses_sequence_number_second)
 
     lesser.set_int32_value(0);
 
+    ProtoValue lesserProtoValue(&lesser, true);
+
     DoKeyAndSequenceNumberComparerTest<TestKey>(
-        KeyAndSequenceNumberComparerArgument{ &lesser, SequenceNumber::Latest },
-        KeyAndSequenceNumberComparerArgument{ &lesser, SequenceNumber::Earliest }
+        KeyAndSequenceNumberComparerArgument{ lesserProtoValue.as_bytes_if(), SequenceNumber::Latest },
+        KeyAndSequenceNumberComparerArgument{ lesserProtoValue.as_bytes_if(), SequenceNumber::Earliest }
         );
 }
 
@@ -403,9 +401,12 @@ TEST(KeyRangeComparerTests, Uses_key_order_first)
     lesser.set_int32_value(0);
     greater.set_int32_value(1);
 
+    ProtoValue lesserProtoValue(&lesser, true);
+    ProtoValue greaterProtoValue(&greater, true);
+
     DoKeyRangeComparerTestNotEquivalent<TestKey>(
-        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive),
-        KeyAndSequenceNumberComparerArgument(&greater, SequenceNumber::Latest)
+        KeyRangeComparerArgument(lesserProtoValue.as_bytes_if(), SequenceNumber::Earliest, Inclusivity::Inclusive),
+        KeyAndSequenceNumberComparerArgument(greaterProtoValue.as_bytes_if(), SequenceNumber::Latest)
         );
 }
 
@@ -417,22 +418,26 @@ TEST(KeyRangeComparerTests, Uses_Inclusivity)
     lesser.set_int32_value(0);
     greater.set_int32_value(0);
 
+    ProtoValue lesserProtoValue(&lesser, true);
+    ProtoValue greaterProtoValue(&greater, true);
+
     DoKeyRangeComparerTestNotEquivalent<TestKey>(
-        KeyAndSequenceNumberComparerArgument(&lesser, SequenceNumber::Earliest),
-        KeyRangeComparerArgument(&greater, SequenceNumber::Earliest, Inclusivity::Exclusive)
+        KeyAndSequenceNumberComparerArgument(lesserProtoValue.as_bytes_if(), SequenceNumber::Earliest),
+        KeyRangeComparerArgument(greaterProtoValue.as_bytes_if(), SequenceNumber::Earliest, Inclusivity::Exclusive)
         );
 }
 
 TEST(KeyRangeComparerTests, Uses_sequence_number_second)
 {
     TestKey lesser;
-    TestKey greater;
 
     lesser.set_int32_value(0);
 
+    ProtoValue lesserProtoValue(&lesser, true);
+
     DoKeyRangeComparerTestNotEquivalent<TestKey>(
-        KeyAndSequenceNumberComparerArgument(&lesser, SequenceNumber::Latest),
-        KeyRangeComparerArgument(&lesser, SequenceNumber::Earliest, Inclusivity::Inclusive)
+        KeyAndSequenceNumberComparerArgument(lesserProtoValue.as_bytes_if(), SequenceNumber::Latest),
+        KeyRangeComparerArgument(lesserProtoValue.as_bytes_if(), SequenceNumber::Earliest, Inclusivity::Inclusive)
         );
 }
 

@@ -372,9 +372,6 @@ TEST(RandomReaderWriterTest, ReportedOffsets_are_at_end_of_message_plus_checksum
         MessageStoreTestMessage expectedMessage;
         expectedMessage.set_string_value("hello world!");
 
-        auto checksumAlgorithmFactory = MakeChecksumAlgorithmFactory();
-        auto checksumAlgorithm = checksumAlgorithmFactory->Create();
-
         size_t offset = 500;
         size_t expectedEndOfMessage = 524;
 
@@ -414,9 +411,6 @@ TEST(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error)
     {
         MessageStoreTestMessage expectedMessage;
         expectedMessage.set_string_value("hello world!");
-
-        auto checksumAlgorithmFactory = MakeChecksumAlgorithmFactory();
-        auto checksumAlgorithm = checksumAlgorithmFactory->Create();
 
         size_t offset = 500;
         size_t expectedEndOfMessage = 524;

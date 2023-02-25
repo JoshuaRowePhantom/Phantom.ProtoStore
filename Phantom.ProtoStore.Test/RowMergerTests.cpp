@@ -47,11 +47,14 @@ protected:
                         stringValue.set_value(*get<1>(testRow));
                     }
 
+                    ProtoValue stringKeyProto{ &stringKey, true };
+                    ProtoValue stringValueProto { &stringValue, true };
+
                     ResultRow resultRow =
                     {
-                        .Key = &stringKey,
+                        .Key = { nullptr, stringKeyProto.as_bytes_if() },
                         .WriteSequenceNumber = ToSequenceNumber(get<2>(testRow)),
-                        .Value = get<1>(testRow) ? &stringValue : nullptr,
+                        .Value = { nullptr, stringValueProto.as_bytes_if() },
                     };
 
                     co_yield resultRow;
@@ -76,13 +79,19 @@ protected:
                 rowMergerIterator != rowMergerEnumeration.end();
                 co_await ++rowMergerIterator)
             {
-                auto key = static_cast<const StringKey*>((*rowMergerIterator).Key);
-                auto value = static_cast<const StringValue*>((*rowMergerIterator).Value);
+                ProtoValue keyProto(rowMergerIterator->Key);
+                ProtoValue valueProto(rowMergerIterator->Value);
+                StringKey key;
+                StringValue value;
+
+                keyProto.unpack(&key);
+                valueProto.unpack(&value);
+
                 auto writeSequenceNumber = (*rowMergerIterator).WriteSequenceNumber;
 
                 auto testRow = std::make_tuple(
-                    key->value(),
-                    !value ? optional<string>() : value->value(),
+                    key.value(),
+                    !valueProto ? optional<string>() : value.value(),
                     ToUint64(writeSequenceNumber));
 
                 actualMergedTestRows.push_back(testRow);

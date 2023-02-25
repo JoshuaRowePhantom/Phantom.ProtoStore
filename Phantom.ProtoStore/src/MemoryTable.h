@@ -9,12 +9,6 @@
 namespace Phantom::ProtoStore
 {
 
-struct MemoryTableRow
-{
-    FlatMessage<FlatBuffers::LoggedRowWrite> KeyMessage;
-    FlatMessage<FlatBuffers::LoggedRowWrite> ValueMessage;
-};
-
 struct KeyRangeEnd
 {
     std::span<const byte> Key;
@@ -92,6 +86,8 @@ class IMemoryTable
     public virtual IJoinable
 {
 public:
+    using Row = FlatMessage<FlatBuffers::LoggedRowWrite>;
+
     virtual task<size_t> GetRowCount(
     ) = 0;
 
@@ -100,13 +96,13 @@ public:
     // Otherwise, the content of the row are std::move'd into the memory table.
     virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
-        MemoryTableRow& row,
+        Row row,
         shared_ptr<DelayedMemoryTableTransactionOutcome> outcome
     ) = 0;
 
     // Add the specified row, unconditionally.
     virtual task<> ReplayRow(
-        MemoryTableRow& row
+        Row row
     ) = 0;
 
     virtual row_generator Enumerate(

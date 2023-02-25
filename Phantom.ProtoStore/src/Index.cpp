@@ -62,14 +62,12 @@ operation_task<CheckpointNumber> Index::AddRow(
 {
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
 
-    MemoryTableRow row;
-    row.KeyMessage = co_await createLoggedRowWrite(m_activeCheckpointNumber);;
-    row.ValueMessage = row.KeyMessage;
+    auto row = co_await createLoggedRowWrite(m_activeCheckpointNumber);;
 
     shared_ptr<IMemoryTable> activeMemoryTable;
     MemoryTablesEnumeration inactiveMemoryTables;
     PartitionsEnumeration partitions;
-    auto writeSequenceNumber = ToSequenceNumber(row.ValueMessage->sequence_number());
+    auto writeSequenceNumber = ToSequenceNumber(row->sequence_number());
     
     auto makeWriteConflict = [&](SequenceNumber conflictingSequenceNumber)
     {
@@ -109,7 +107,7 @@ operation_task<CheckpointNumber> Index::AddRow(
         auto conflictingSequenceNumber = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             writeSequenceNumber,
-            get_byte_span(row.KeyMessage->key()));
+            get_byte_span(row->key()));
 
         if (conflictingSequenceNumber.has_value())
         {
@@ -119,7 +117,7 @@ operation_task<CheckpointNumber> Index::AddRow(
 
     auto conflictingSequenceNumber = co_await m_activeMemoryTable->AddRow(
         readSequenceNumber,
-        row, 
+        std::move(row),
         std::move(delayedTransactionOutcome));
 
     if (conflictingSequenceNumber.has_value())
@@ -135,14 +133,8 @@ task<> Index::ReplayRow(
     FlatMessage<LoggedRowWrite> loggedRowWrite
 )
 {
-    MemoryTableRow row
-    {
-        .KeyMessage = loggedRowWrite,
-        .ValueMessage = loggedRowWrite,
-    };
-
     co_await memoryTable->ReplayRow(
-        row);
+        std::move(loggedRowWrite));
 }
 
 std::unexpected<FailedResult> Index::MakeUnresolvedTransactionFailedResult(
