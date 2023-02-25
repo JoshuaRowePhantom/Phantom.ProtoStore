@@ -505,6 +505,27 @@ ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
     return std::move(resultRow);
 }
 
+
+std::span<const byte> MemoryTable::MemoryTableValue::GetKeyBytes() const
+{
+    return get_byte_span(Row.ValueMessage->key());
+}
+
+std::span<const byte> MemoryTable::MemoryTableValue::GetValueBytes() const
+{
+    return get_byte_span(Row.ValueMessage->value());
+}
+
+std::span<const byte> MemoryTable::MemoryTableValue::GetTransactionIdBytes() const
+{
+    return get_byte_span(Row.ValueMessage->distributed_transaction_id());
+}
+
+SequenceNumber MemoryTable::MemoryTableValue::GetWriteSequenceNumber() const
+{
+    return ToSequenceNumber(Row.ValueMessage->sequence_number());
+}
+
 MemoryTable::ReplayInsertionKey::ReplayInsertionKey(
     MemoryTableRow& row
 ) :
