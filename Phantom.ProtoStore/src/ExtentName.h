@@ -25,7 +25,7 @@ ExtentName MakePartitionHeaderExtentName(
     std::string indexName);
 
 ExtentName MakePartitionDataExtentName(
-    const ExtentName& partitionHeaderExtentName);
+    ExtentName partitionHeaderExtentName);
 
 ExtentName MakeExtentName(
     const FlatBuffers::ExtentNameT& extentName

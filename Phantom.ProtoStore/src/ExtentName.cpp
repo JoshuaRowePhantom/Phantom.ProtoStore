@@ -35,7 +35,7 @@
 
 namespace Phantom::ProtoStore
 {
-/*
+
 bool operator==(
     const ExtentName& left,
     const ExtentName& right
@@ -62,7 +62,7 @@ bool operator==(
                 )
             : true
             );
-}*/
+}
 
 ExtentName MakeDatabaseHeaderExtentName(
     uint64_t copyNumber)

@@ -1,7 +1,65 @@
 #include "StandardTypes.h"
 #include "src/ProtoStoreInternal_generated.h"
 
-namespace Phantom::ProtoStore::FlatBuffers
+namespace Phantom::ProtoStore
+{
+
+std::span<const byte> get_byte_span(
+    const flatbuffers::Vector<int8_t>* value
+)
+{
+    return std::span
+    {
+        reinterpret_cast<const byte*>(value->data()),
+        size_t(value->size())
+    };
+}
+
+std::span<const byte> get_byte_span(
+    const std::string& value
+)
+{
+    return std::span
+    {
+        reinterpret_cast<const byte*>(value.data()),
+        value.size()
+    };
+}
+
+std::span<const char> get_char_span(
+    std::span<const std::byte> value
+)
+{
+    return std::span
+    {
+        reinterpret_cast<const char*>(value.data()),
+        value.size()
+    };
+}
+
+std::span<const uint8_t> get_uint8_t_span(
+    std::span<const std::byte> value
+)
+{
+    return std::span
+    {
+        reinterpret_cast<const uint8_t*>(value.data()),
+        value.size()
+    };
+}
+
+std::span<const int8_t> get_int8_t_span(
+    std::span<const std::byte> value
+)
+{
+    return std::span
+    {
+        reinterpret_cast<const int8_t*>(value.data()),
+        value.size()
+    };
+}
+
+namespace FlatBuffers
 {
 
 template<
@@ -66,7 +124,7 @@ template<
 std::weak_ordering compare(
     const Object& left,
     const Object& right,
-    OtherObject Object::*primitiveField
+    OtherObject Object::* primitiveField
 )
 {
     return left.*primitiveField <=> right.*primitiveField;
@@ -106,7 +164,7 @@ std::weak_ordering compare(
         ...
         &&
         do_comparison(comparers)
-    );
+        );
 
     return result;
 }
@@ -187,6 +245,8 @@ std::weak_ordering operator<=>(
         right,
         &FlatBuffers::LogExtentNameT::log_extent_sequence_number
     );
+}
+
 }
 
 }
