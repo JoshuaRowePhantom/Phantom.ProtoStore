@@ -194,11 +194,11 @@ task<RawData> MemoryMappedReadableExtent::Read(
 {
     if (offset > m_mappedRegion.get_size())
     {
-        throw std::range_error("offset");
+        co_return{};
     }
     if (offset + size > m_mappedRegion.get_size())
     {
-        throw std::range_error("size");
+        co_return{};
     }
 
     co_return RawData(

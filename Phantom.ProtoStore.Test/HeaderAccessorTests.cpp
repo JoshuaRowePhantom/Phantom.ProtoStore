@@ -28,9 +28,7 @@ TEST(HeaderAccessorTests, Throws_exception_when_no_valid_header)
         auto headerAccessor = MakeHeaderAccessor(
             randomMessageAccessor);
 
-        EXPECT_THROW(
-            co_await headerAccessor->ReadHeader(),
-            range_error);
+        EXPECT_EQ(nullptr, co_await headerAccessor->ReadHeader());
     });
 }
 

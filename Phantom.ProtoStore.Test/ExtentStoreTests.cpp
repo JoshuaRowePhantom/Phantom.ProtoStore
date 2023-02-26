@@ -21,12 +21,9 @@ task<> ExtentStoreTests::OpenExtentForRead_cannot_read_past_end_of_zero_length_e
 )
 {
     auto extent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
-    EXPECT_THROW(
-        (co_await extent->Read(
-            0,
-            1))
-        ,
-        std::range_error);
+    EXPECT_EQ(nullptr, (co_await extent->Read(
+        0,
+        1))->data());
 }
 
 task<> ExtentStoreTests::OpenExtentForRead_can_read_data_written_by_OpenExtentForWrite(
@@ -140,13 +137,9 @@ task<> ExtentStoreTests::DeleteExtent_erases_the_content(
 
     auto extent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
 
-    EXPECT_THROW(
-        (co_await extent->Read(
-            0,
-            1))
-        ,
-        std::range_error);
-
+    EXPECT_EQ(nullptr, (co_await extent->Read(
+        0,
+        1))->data());
 }
 
 
@@ -176,12 +169,9 @@ task<> ExtentStoreTests::DeleteExtent_erases_the_content_while_a_DataReference_e
 
     auto extent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
 
-    EXPECT_THROW(
-        (co_await extent->Read(
-            0,
-            1))
-        ,
-        std::range_error);
+    EXPECT_EQ(nullptr, (co_await extent->Read(
+        0,
+        1))->data());
 
     EXPECT_TRUE(
         std::ranges::equal(
