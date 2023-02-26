@@ -1,3 +1,5 @@
+#pragma once
+
 #include <atomic>
 #include <cmath>
 #include <limits>
@@ -508,7 +510,7 @@ public:
             TBase::fetch_or(
                 TBase::element_at(bit_index / TBase::bits_per_element),
                 TBase::one << (bit_index % TBase::bits_per_element),
-                nextHash ? std::memory_order_relaxed : std::memory_order_release
+                std::memory_order_release
             );
         } while (nextHash);
     }
@@ -523,8 +525,6 @@ public:
             key,
             TBase::size_bits());
 
-        bool isFirst = true;
-
         do
         {
             auto bit_index = TBase::extract_bit_index(
@@ -533,13 +533,11 @@ public:
             if (!TBase::test_bit(
                 TBase::element_at(bit_index / TBase::bits_per_element),
                 TBase::one << (bit_index % TBase::bits_per_element),
-                isFirst ? std::memory_order_acquire : std::memory_order_relaxed
+                std::memory_order_acquire
             ))
             {
                 return false;
             }
-
-            isFirst = false;
 
         } while (TBase::next_hash(
             hash));
