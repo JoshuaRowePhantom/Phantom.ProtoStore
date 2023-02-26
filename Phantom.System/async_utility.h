@@ -40,7 +40,7 @@ template<
 > class [[nodiscard]] simple_awaitable
     : public std::suspend_never
 {
-    T&& m_t;
+    T m_t;
 public:
     simple_awaitable(
         T&& t
@@ -86,7 +86,7 @@ template<
 {
     return as_awaitable(
         std::invoke(
-            callable,
+            std::forward<TCallable>(callable),
             std::forward<TArgs>(args)...)
     );
 }
