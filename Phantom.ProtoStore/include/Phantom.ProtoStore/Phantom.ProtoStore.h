@@ -354,6 +354,11 @@ struct StoredMessage
 
     // The range the message was stored in.
     ExtentOffsetRange DataRange;
+
+    operator bool() const
+    {
+        return Message.data();
+    }
 };
 
 template<

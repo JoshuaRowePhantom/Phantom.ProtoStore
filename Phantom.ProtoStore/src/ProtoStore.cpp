@@ -79,6 +79,11 @@ task<> ProtoStore::Open(
 
     m_header = co_await m_headerAccessor->ReadHeader();
 
+    if (!m_header)
+    {
+        throw std::range_error("Invalid database");
+    }
+
     m_nextPartitionNumber.store(
         m_header->next_partition_number);
     m_nextIndexNumber.store(

@@ -373,7 +373,7 @@ task<DataReference<StoredMessage>> SequentialMessageReader::Read(
 {
     auto storedMessage = co_await m_randomMessageReader->Read(
         m_currentOffset);
-    if (!storedMessage->Message.data())
+    if (!storedMessage)
     {
         co_return{};
     }
@@ -471,6 +471,12 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
     auto extentHeaderSizeBuffer = co_await readableExtent->Read(
         0,
         sizeof(flatbuffers::uoffset_t));
+
+    if (!extentHeaderSizeBuffer->data())
+    {
+        co_return{};
+    }
+
     auto extentHeaderSize = *reinterpret_cast<const flatbuffers::uoffset_t*>(extentHeaderSizeBuffer->data());
     auto envelopeBuffer = co_await readableExtent->Read(
         0,

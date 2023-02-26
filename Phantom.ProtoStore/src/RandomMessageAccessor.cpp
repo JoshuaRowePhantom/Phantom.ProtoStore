@@ -16,6 +16,11 @@ task<DataReference<StoredMessage>> RandomMessageAccessor::ReadMessage(
     auto extent = co_await m_messageStore->OpenExtentForRandomReadAccess(
         location.extentName);
 
+    if (!extent)
+    {
+        co_return{};
+    }
+
     co_return co_await extent->Read(
         location.extentOffset);
 }

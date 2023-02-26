@@ -36,27 +36,20 @@ task<std::unique_ptr<FlatBuffers::DatabaseHeaderT>> HeaderAccessor::ReadHeader(
     ExtentLocation location,
     bool throwOnError)
 {
-    try
+    auto storedMessage = co_await m_messageAccessor->ReadMessage(
+        location);
+
+    if (!storedMessage)
     {
-        auto storedMessage = co_await m_messageAccessor->ReadMessage(
-            location);
-
-        FlatMessage<FlatBuffers::DatabaseHeader> headerMessage
-        {
-            std::move(storedMessage) 
-        };
-
-        co_return headerMessage->UnPack();
+        co_return{};
     }
-    catch (...)
+
+    FlatMessage<FlatBuffers::DatabaseHeader> headerMessage
     {
-        if (throwOnError)
-        {
-            throw;
-        }
+        std::move(storedMessage) 
+    };
 
-        co_return nullptr;
-    }
+    co_return headerMessage->UnPack();
 }
 
 task<std::unique_ptr<FlatBuffers::DatabaseHeaderT>> HeaderAccessor::ReadHeader()
