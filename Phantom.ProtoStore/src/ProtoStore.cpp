@@ -748,6 +748,9 @@ private:
                 &m_logEntries
             );
 
+            m_logRecordBuilder.Finish(
+                logRecordOffset);
+
             co_await m_protoStore.m_logManager->WriteLogRecord(
                 FlatMessage<LogRecord>{ m_logRecordBuilder });
         }
@@ -1010,7 +1013,8 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
         readResult.error().throw_exception();
     }
 
-    auto indexesByNumberValue = readResult->Value.cast_if<IndexesByNumberValue>();
+    IndexesByNumberValue indexesByNumberValue;
+    readResult->Value.unpack(&indexesByNumberValue);
     
     // Look for the index using a write lock, and create the index if it doesn't exist.
     {
@@ -1024,7 +1028,7 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
 
         auto indexEntry = MakeIndex(
             indexesByNumberKey,
-            *indexesByNumberValue);
+            indexesByNumberValue);
 
         if (doReplayPartitions)
         {
