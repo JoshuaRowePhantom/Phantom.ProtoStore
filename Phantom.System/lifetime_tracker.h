@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <memory>
 
-namespace Phantom::ProtoStore
+namespace Phantom
 {
 
 class lifetime_tracker;

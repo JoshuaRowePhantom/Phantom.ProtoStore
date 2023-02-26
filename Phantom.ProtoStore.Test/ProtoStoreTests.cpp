@@ -5,6 +5,8 @@
 #include <cppcoro/single_consumer_event.hpp>
 #include <cppcoro/async_scope.hpp>
 #include <cppcoro/static_thread_pool.hpp>
+#define NOMINMAX
+#include "Windows.h"
 
 using namespace std;
 
@@ -1403,7 +1405,7 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
 std::atomic<long> Perf2_running_items(0);
 std::vector<shared_task<>> performanceTasks;
 
-ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
+ASYNC_TEST_F(ProtoStoreTests, Perf2)
 {
     CreateProtoStoreRequest createRequest;
     createRequest.ExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "Perf2", 4096);
@@ -1412,7 +1414,7 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
 #ifdef NDEBUG
     createRequest.CheckpointLogSize = 1000000;
 #else
-    createRequest.CheckpointLogSize = 1000;
+    createRequest.CheckpointLogSize = 100000;
 #endif
 
     auto store = co_await CreateStore(
@@ -1423,9 +1425,9 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
         store);
 
 #ifdef NDEBUG
-    int valueCount = 5000000;
+    int valueCount = 500000;
 #else
-    int valueCount = 1000000;
+    int valueCount = 1000;
 #endif
 
     std::ranlux48 rng;
@@ -1458,23 +1460,23 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
             [&](ITransaction* operation)->status_task<>
         {
             for (auto myKeyIndex = startKeyIndex;
-            myKeyIndex < endKeyIndex;
+                myKeyIndex < endKeyIndex;
                 myKeyIndex++)
-        {
-            auto& myKey = keys[myKeyIndex];
-            StringKey key;
-            key.set_value(myKey);
-            StringValue expectedValue;
-            expectedValue.set_value(myKey);
+            {
+                auto& myKey = keys[myKeyIndex];
+                StringKey key;
+                key.set_value(myKey);
+                StringValue expectedValue;
+                expectedValue.set_value(myKey);
 
-            co_await co_await operation->AddRow(
-                WriteOperationMetadata{},
-                index,
-                &key,
-                &expectedValue);
+                co_await co_await operation->AddRow(
+                    WriteOperationMetadata{},
+                    index,
+                    &key,
+                    &expectedValue);
+            }
 
             co_return{};
-        }
         });
 
         Perf2_running_items.fetch_sub(1);
@@ -1671,6 +1673,7 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
 
     co_await readLambda();
     co_await readNonExistentLambda();
+    ::MessageBoxA(0, "Finished", "Test", MB_OK);
 }
 
 }

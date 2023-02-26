@@ -24,16 +24,13 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
     TComparer comparer = TComparer()
 )
 {
-    cppcoro::async_mutex mutex;
-    cppcoro::async_scope scope;
-    cppcoro::async_auto_reset_event itemProducedEvent;
-    size_t notReadyGeneratorCount = 0;
-    std::exception_ptr exception;
+    using generator_type = std::decay_t<decltype(*beginIterator)>;
+    using iterator_type = Phantom::Coroutines::awaitable_result_type_t<decltype(std::declval<generator_type>().begin())>;
 
     struct entry
     {
-        TItem* item;
-        cppcoro::async_auto_reset_event* itemConsumedEvent;
+        iterator_type* iterator;
+        size_t generatorIndex;
     };
 
     auto entryComparer = [&](
@@ -46,103 +43,48 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
         // so we want the highest item to be lower priority than the lowest item,
         // therefore compare opposite to the caller's comparer.
         return comparer(
-            *right.item,
-            *left.item
+            **right.iterator,
+            **left.iterator
         );
     };
 
     std::priority_queue<entry, std::vector<entry>, decltype(entryComparer)> entries(
         entryComparer);
 
-    auto processGeneratorLambda = [&](
-        auto& generator
-        ) -> cppcoro::task<>
+    std::vector<generator_type> generators;
+    for (auto&& generator : std::ranges::subrange{ beginIterator, endIterator })
     {
-        std::exception_ptr localException;
+        generators.emplace_back(std::move(generator));
+    }
 
-        try
+    std::vector<iterator_type> iterators;
+    iterators.reserve(generators.size());
+
+    for (size_t generatorIndex = 0; generatorIndex < generators.size(); generatorIndex++)
+    {
+        iterators.emplace_back(co_await generators[generatorIndex].begin());
+        if (iterators[generatorIndex] != generators[generatorIndex].end())
         {
-            cppcoro::async_auto_reset_event itemConsumedEvent;
-
-            for (auto iterator = co_await generator.begin();
-                iterator != generator.end();
-                co_await ++iterator)
-            {
+            entries.push(entry
                 {
-                    auto lock = co_await mutex.scoped_lock_async();
-                    
-                    if (exception)
-                    {
-                        break;
-                    }
-
-                    entries.push(
-                        {
-                            std::addressof(*iterator),
-                            &itemConsumedEvent
-                        });
-                    notReadyGeneratorCount--;
-
-                    itemProducedEvent.set();
-                }
-
-                co_await itemConsumedEvent;
-            }
-        }
-        catch (...)
-        {
-            localException = std::current_exception();
-        }
-
-        auto lock = co_await mutex.scoped_lock_async();
-        if (localException)
-        {
-            exception = localException;
-        }
-        notReadyGeneratorCount--;
-        itemProducedEvent.set();
-    };
-
-    {
-        auto lock = co_await mutex.scoped_lock_async();
-        auto generators = std::ranges::subrange{ beginIterator, endIterator };
-        for (auto& generator : generators)
-        {
-            scope.spawn(processGeneratorLambda(generator));
-            ++notReadyGeneratorCount;
+                    &iterators.back(),
+                    generatorIndex
+                });
         }
     }
 
-    // Just in case the set of non-empty generators is zero,
-    // signal the first time through the loop.
-    itemProducedEvent.set();
-
-    while(true)
+    while(entries.size())
     {
-        co_await itemProducedEvent;
+        auto next = entries.top();
+        entries.pop();
 
+        co_yield **next.iterator;
+
+        co_await++(*next.iterator);
+
+        if (*next.iterator != generators[next.generatorIndex].end())
         {
-            auto lock = co_await mutex.scoped_lock_async();
-            if (notReadyGeneratorCount > 0)
-            {
-                continue;
-            }
-
-            if (entries.empty())
-            {
-                co_await scope.join();
-                if (exception)
-                {
-                    std::rethrow_exception(exception);
-                }
-                co_return;
-            }
-
-            ++notReadyGeneratorCount;
-
-            co_yield *entries.top().item;
-            entries.top().itemConsumedEvent->set();
-            entries.pop();
+            entries.push(next);
         }
     }
 }

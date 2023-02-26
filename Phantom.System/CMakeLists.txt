@@ -21,7 +21,7 @@ add_library (
 	"stable_random.h"
 	"ThreadingProvider.cpp"
 	"ThreadingProvider.h" 
-	"utility.h")
+	"utility.h" "lifetime_tracker.h")
 
 target_link_libraries(
 	Phantom.System
