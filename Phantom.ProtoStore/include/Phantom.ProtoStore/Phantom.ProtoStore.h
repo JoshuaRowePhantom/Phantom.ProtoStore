@@ -330,6 +330,27 @@ public:
 using RawData = DataReference<std::span<const std::byte>>;
 using WritableRawData = DataReference<std::span<std::byte>>;
 
+
+std::span<const std::byte> get_byte_span(
+    const flatbuffers::Vector<int8_t>*
+);
+
+std::span<const std::byte> get_byte_span(
+    const std::string&
+);
+
+std::span<const char> get_char_span(
+    std::span<const std::byte>
+);
+
+std::span<const uint8_t> get_uint8_t_span(
+    std::span<const std::byte>
+);
+
+std::span<const int8_t> get_int8_t_span(
+    std::span<const std::byte>
+);
+
 typedef std::uint64_t ExtentOffset;
 
 struct ExtentOffsetRange
@@ -388,7 +409,9 @@ public:
             : 
             nullptr
         }
-    {}
+    {
+        DebugVerifyBuffer();
+    }
 
     explicit FlatMessage(
         DataReference<StoredMessage> storedMessage,
@@ -396,7 +419,9 @@ public:
     ) :
         m_storedMessage{ std::move(storedMessage) },
         m_table{ table }
-    {}
+    {
+        DebugVerifyBuffer();
+    }
 
     template<
         typename Other
@@ -407,7 +432,9 @@ public:
     ) :
         m_storedMessage{ other },
         m_table{ table }
-    {}
+    {
+        DebugVerifyTable();
+    }
 
     explicit FlatMessage(
         uint8_t messageAlignment,
@@ -428,6 +455,7 @@ public:
             m_storedMessage->Message.data())
     }
     {
+        DebugVerifyBuffer();
     }
 
     explicit FlatMessage(
@@ -448,6 +476,7 @@ public:
             m_storedMessage->Message.data())
     }
     {
+        DebugVerifyBuffer();
     }
 
     explicit FlatMessage(
@@ -468,6 +497,7 @@ public:
             m_storedMessage->Message.data())
     }
     {
+        DebugVerifyBuffer();
     }
 
     explicit FlatMessage(
@@ -498,6 +528,8 @@ public:
 
         m_table = flatbuffers::GetRoot<Table>(
             m_storedMessage->Message.data());
+
+        DebugVerifyBuffer();
     }
 
     const StoredMessage& data() const noexcept
@@ -528,6 +560,28 @@ public:
     explicit operator const DataReference<StoredMessage>&() const noexcept
     {
         return m_storedMessage;
+    }
+
+    void DebugVerifyBuffer()
+    {
+        if (m_storedMessage)
+        {
+            flatbuffers::Verifier verifier(
+                get_uint8_t_span(m_storedMessage->Message).data(),
+                m_storedMessage->Message.size());
+            assert(verifier.VerifyBuffer<Table>());
+        }
+    }
+
+    void DebugVerifyTable()
+    {
+        if (m_table)
+        {
+            flatbuffers::Verifier verifier(
+                get_uint8_t_span(m_storedMessage->Message).data(),
+                m_storedMessage->Message.size());
+            assert(verifier.VerifyTable(m_table));
+        }
     }
 };
 

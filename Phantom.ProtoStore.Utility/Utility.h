@@ -1,3 +1,4 @@
+#include "Phantom.ProtoStore/Phantom.ProtoStore.h"
 #include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.System/async_utility.h"

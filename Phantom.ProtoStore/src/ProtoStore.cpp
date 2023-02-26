@@ -354,7 +354,7 @@ task<> ProtoStore::Replay(
             break;
 
         case LogEntry::LoggedCreatePartition:
-            co_await Replay(getMessage(tag<LoggedPartitionsData>()));
+            co_await Replay(getMessage(tag<LoggedCreatePartition>()));
             break;
 
         case LogEntry::LoggedCommitLocalTransaction:

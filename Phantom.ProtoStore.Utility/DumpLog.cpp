@@ -36,6 +36,14 @@ task<> DumpLog(
             co_return;
         }
 
+        flatbuffers::Verifier verifier(
+            span.data(),
+            span.size());
+        if (!verifier.VerifyBuffer<FlatBuffers::LogRecord>())
+        {
+            std::cout << "Invalid message!\n";
+        }
+
         DumpMessage(
             "LogRecord",
             flatbuffers::FlatBufferToString(
