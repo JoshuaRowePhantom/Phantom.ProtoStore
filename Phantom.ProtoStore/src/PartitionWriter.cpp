@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PartitionImpl.h"
 #include "PartitionWriterImpl.h"
 #include "MessageStore.h"
 #include <vector>
@@ -362,7 +363,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     partitionBloomFilter.set_hashfunctioncount(
         bloomFilterHashFunctionCount);
 
-    BloomFilter<std::hash<string>, char, span<char>> bloomFilter(
+    BloomFilterVersion1<std::span<char>> bloomFilter(
         std::span(
             partitionBloomFilter.mutable_filter()->begin(),
             partitionBloomFilter.mutable_filter()->end()),

@@ -1,17 +1,26 @@
 #pragma once
 
-#include <stdint.h>
 #include "Partition.h"
 #include "AsyncScopeMixin.h"
-#include "ProtoStoreInternal.pb.h"
-#include "SkipList.h"
-#include "Phantom.System/async_reader_writer_lock.h"
-#include "PartitionTreeNodeCache.h"
 #include "BloomFilter.h"
+#include "ProtoStoreInternal.pb.h"
+#include "PartitionTreeNodeCache.h"
+#include "Phantom.System/async_reader_writer_lock.h"
+#include "SkipList.h"
 #include <compare>
+#include <stdint.h>
 
 namespace Phantom::ProtoStore
 {
+
+struct BloomFilterV1Hash
+{
+    size_t operator()(const auto& value) const;
+};
+template<
+    typename Container
+>
+using BloomFilterVersion1 = BloomFilter<SeedingPrngBloomFilterHashFunction<BloomFilterV1Hash>, char, Container>;
 
 class Partition
     :
@@ -31,12 +40,7 @@ class Partition
     PartitionBloomFilter m_partitionBloomFilter;
     PartitionRoot m_partitionRoot;
 
-    struct hash
-    {
-        size_t operator()(const auto& value) const;
-    };
-    typedef BloomFilter<SeedingPrngBloomFilterHashFunction<hash>, char, span<const char>> BloomFilterVersion1;
-    optional<BloomFilterVersion1> m_bloomFilter;
+    optional<BloomFilterVersion1<std::span<const char>>> m_bloomFilter;
 
     shared_task<> m_openTask;
 

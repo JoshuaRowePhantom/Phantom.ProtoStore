@@ -1,6 +1,5 @@
 #include "Checksum.h"
 #include "KeyComparer.h"
-#include "KeyComparer.h"
 #include "PartitionImpl.h"
 #include "PartitionTreeNodeCache.h"
 #include "Phantom.System/async_utility.h"
@@ -14,7 +13,7 @@
 namespace Phantom::ProtoStore
 {
 
-size_t Partition::hash::operator()(const auto& value) const
+size_t BloomFilterV1Hash::operator()(const auto& value) const
 {
     return checksum_v1(
         as_bytes(std::span{ value })
