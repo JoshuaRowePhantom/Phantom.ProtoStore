@@ -42,19 +42,20 @@ protected:
                 {
                     stringKey.set_value(get<0>(testRow));
 
+                    shared_ptr<ProtoValue> stringKeyProto = std::make_shared<ProtoValue>(&stringKey, true);
+                    shared_ptr<ProtoValue> stringValueProto = std::make_shared<ProtoValue>();
+
                     if (get<1>(testRow))
                     {
                         stringValue.set_value(*get<1>(testRow));
+                        *stringValueProto = { &stringValue, true };
                     }
-
-                    ProtoValue stringKeyProto{ &stringKey, true };
-                    ProtoValue stringValueProto { &stringValue, true };
 
                     ResultRow resultRow =
                     {
-                        .Key = { nullptr, stringKeyProto.as_bytes_if() },
+                        .Key = { stringKeyProto, stringKeyProto->as_bytes_if() },
                         .WriteSequenceNumber = ToSequenceNumber(get<2>(testRow)),
-                        .Value = { nullptr, stringValueProto.as_bytes_if() },
+                        .Value = { stringValueProto, stringValueProto->as_bytes_if() },
                     };
 
                     co_yield resultRow;

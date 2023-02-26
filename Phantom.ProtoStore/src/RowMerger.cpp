@@ -72,20 +72,22 @@ row_generator RowMerger::Enumerate(
         iterator != mergeEnumeration.end();
         co_await ++iterator)
     {
+        auto& row = *iterator;
+
         if (previousRow.Key->data()
-            && std::ranges::equal(*previousRow.Key, *iterator->Key))
+            && std::ranges::equal(*previousRow.Key, *row.Key))
         {
             continue;
         }
         
-        previousRow = *iterator;
+        previousRow = row;
 
-        if (!iterator->Value->data())
+        if (!row.Value->data())
         {
             continue;
         }
 
-        co_yield *iterator;
+        co_yield std::move(row);
     }
 }
 }
