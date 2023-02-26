@@ -409,13 +409,16 @@ task<> ProtoStore::Replay(
 {
     std::vector<ExtentName> headerExtentNames;
 
-    std::ranges::transform(
-        *logRecord->header_extent_names(),
-        std::back_inserter(headerExtentNames),
-        [&](const auto& extentName)
+    if (logRecord->header_extent_names())
     {
-        return MakeExtentName(*extentName);
-    });
+        std::ranges::transform(
+            *logRecord->header_extent_names(),
+            std::back_inserter(headerExtentNames),
+            [&](const auto& extentName)
+        {
+            return MakeExtentName(*extentName);
+        });
+    }
 
     auto partitions = co_await OpenPartitionsForIndex(
         m_partitionsIndex.Index,
