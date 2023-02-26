@@ -54,33 +54,48 @@ protected:
         uint64_t writeSequenceNumber,
         uint64_t readSequenceNumber,
         TransactionOutcome outcome = TransactionOutcome::Committed,
-        std::optional<TransactionId> transactionId = {})
+        std::optional<TransactionId> transactionId = {},
+        std::optional<SequenceNumber>* conflictingSequenceNumber = nullptr)
     {
         StringKey rowKey;
         rowKey.set_value(key);
         StringValue rowValue;
         rowValue.set_value(value);
 
+        ProtoValue rowKeyProto(&rowKey, true);
+        ProtoValue rowValueProto(&rowValue, true);
+
         FlatBuffers::LoggedRowWriteT loggedRowWrite;
         if (transactionId)
         {
-            loggedRowWrite.distributed_transaction_id = std::vector<int8_t>(get_int8_t_span(get_byte_span(*transactionId)));
+            auto transactionIdSpan = get_int8_t_span(get_byte_span(*transactionId));
+            loggedRowWrite.distributed_transaction_id.assign(
+                transactionIdSpan.begin(),
+                transactionIdSpan.end());
         }
+        auto keySpan = get_int8_t_span(rowKeyProto.as_bytes_if());
+        loggedRowWrite.key.assign(
+            keySpan.begin(),
+            keySpan.end());
+        auto valueSpan = get_int8_t_span(rowValueProto.as_bytes_if());
+        loggedRowWrite.value.assign(
+            valueSpan.begin(),
+            valueSpan.end());
+        loggedRowWrite.sequence_number = writeSequenceNumber;
 
-        MemoryTableRow row
-        {
-            .Key = copy_unique(rowKey),
-            .WriteSequenceNumber = ToSequenceNumber(writeSequenceNumber),
-            .Value = copy_unique(rowValue),
-            .TransactionId = transactionId,
-        };
+        FlatMessage loggedRowWriteMessage{ &loggedRowWrite };
 
         auto delayedOutcome = WithOutcome(transactionSequenceNumber, outcome, writeSequenceNumber);
 
-        co_await memoryTable.AddRow(
+        auto result = co_await memoryTable.AddRow(
             ToSequenceNumber(readSequenceNumber),
-            row,
+            std::move(loggedRowWriteMessage),
             delayedOutcome);
+
+        if (conflictingSequenceNumber)
+        {
+            *conflictingSequenceNumber = result;
+        }
 
         co_return delayedOutcome;
     }
@@ -105,33 +120,34 @@ protected:
         Inclusivity keyHighInclusivity = Inclusivity::Exclusive
     )
     {
+        ProtoValue keyLowProto;
+        ProtoValue keyHighProto;
+
         StringKey keyLowMessage;
-        StringKey* keyLowMessagePointer = nullptr;
         if (keyLow.has_value())
         {
             keyLowMessage.set_value(
                 keyLow.value());
-            keyLowMessagePointer = &keyLowMessage;
+            keyLowProto = ProtoValue(&keyLowMessage, true);
         }
 
         StringKey keyHighMessage;
-        StringKey* keyHighMessagePointer = nullptr;
         if (keyHigh.has_value())
         {
             keyHighMessage.set_value(
                 keyHigh.value());
-            keyHighMessagePointer = &keyHighMessage;
+            keyHighProto = ProtoValue(&keyHighMessage, true);
         }
 
         auto enumeration = memoryTable.Enumerate(
             delayedTransactionOutcome,
             ToSequenceNumber(readSequenceNumber),
             {
-                .Key = keyLowMessagePointer,
+                .Key = keyLowProto.as_bytes_if(),
                 .Inclusivity = keyLowInclusivity,
             },
             {
-                .Key = keyHighMessagePointer,
+                .Key = keyHighProto.as_bytes_if(),
                 .Inclusivity = keyHighInclusivity
             });
 
@@ -141,14 +157,25 @@ protected:
             iterator != enumeration.end();
             co_await ++iterator)
         {
-            auto& row = *iterator;
+            ResultRow& row = *iterator;
 
+            StringKey resultKey;
+            ProtoValue{ row.Key }.unpack(&resultKey);
+            StringValue resultValue;
+            ProtoValue{ row.Value }.unpack(&resultValue);
+            
             storedRows.push_back(
+                ExpectedRow
                 {
-                    .Key = static_cast<const StringKey*>(row.Key)->value(),
-                    .Value = static_cast<const StringKey*>(row.Value)->value(),
+                    .Key = resultKey.value(),
+                    .Value = resultValue.value(),
                     .SequenceNumber = ToUint64(row.WriteSequenceNumber),
-                    .TransactionId = row.TransactionId ? std::optional { *row.TransactionId } : std::optional<TransactionId> { },
+                    .TransactionId = row.TransactionId->data()
+                        ? std::optional { std::string {
+                            get_char_span(*row.TransactionId).begin(),
+                            get_char_span(*row.TransactionId).end()
+                            } }
+                        : std::optional<TransactionId> {},
                 }
             );
         }
@@ -254,30 +281,20 @@ ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumbe
         0
     );
 
-    StringKey key2;
-    key2.set_value("key-1");
-    StringValue value2;
-    value2.set_value("value-1-2");
+    std::optional<SequenceNumber> conflictingSequenceNumber;
 
-    MemoryTableRow row2
-    {
-        .Key = copy_unique(key2),
-        .WriteSequenceNumber = ToSequenceNumber(6),
-        .Value = copy_unique(value2),
-    };
+    co_await AddRow(
+        0,
+        "key-1",
+        "value-1-2",
+        6,
+        0,
+        TransactionOutcome::Committed,
+        {},
+        &conflictingSequenceNumber
+    );
 
-    auto result =
-        co_await memoryTable.AddRow(
-            SequenceNumber::Earliest,
-            row2,
-            WithOutcome(
-                0,
-                TransactionOutcome::Committed,
-                6));
-
-    EXPECT_EQ(ToSequenceNumber(5), result);
-    EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
-    EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
+    EXPECT_EQ(ToSequenceNumber(5), conflictingSequenceNumber);
 
     co_await EnumerateExpectedRows(
         0,
@@ -308,27 +325,20 @@ ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Committed_Row)
         0
     );
 
-    StringKey key2;
-    key2.set_value("key-1");
-    StringValue value2;
-    value2.set_value("value-1-2");
+    std::optional<SequenceNumber> conflictingSequenceNumber;
 
-    MemoryTableRow row2
-    {
-        .Key = copy_unique(key2),
-        .WriteSequenceNumber = ToSequenceNumber(5),
-        .Value = copy_unique(value2),
-    };
+    co_await AddRow(
+        0,
+        "key-1",
+        "value-1-2",
+        5,
+        7,
+        TransactionOutcome::Unknown,
+        {},
+        &conflictingSequenceNumber
+    );
 
-    auto result =
-        co_await memoryTable.AddRow(
-            ToSequenceNumber(7),
-            row2,
-            WithOutcome(0, TransactionOutcome::Unknown, 7));
-
-    EXPECT_EQ(ToSequenceNumber(5), result);
-    EXPECT_EQ("key-1", static_cast<const StringKey*>(row2.Key.get())->value());
-    EXPECT_EQ("value-1-2", static_cast<const StringValue*>(row2.Value.get())->value());
+    EXPECT_EQ(ToSequenceNumber(5), conflictingSequenceNumber);
 
     co_await EnumerateExpectedRows(
         0,
@@ -360,31 +370,26 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_co
         TransactionOutcome::Unknown
     );
 
-    StringKey key2;
-    key2.set_value("key-1");
-    StringValue value2;
-    value2.set_value("value-1-2");
-
-    MemoryTableRow row2
-    {
-        .Key = copy_unique(key2),
-        .WriteSequenceNumber = ToSequenceNumber(5),
-        .Value = copy_unique(value2),
-    };
-
     Phantom::Coroutines::async_scope<> scope;
     bool completed = false;
     scope.spawn([&]() -> reusable_task<>
     {
-        auto result =
-        co_await memoryTable.AddRow(
-            ToSequenceNumber(7),
-            row2,
-            WithOutcome(1, TransactionOutcome::Committed, 7));
+        std::optional<SequenceNumber> conflictingSequenceNumber;
+
+        co_await AddRow(
+            0,
+            "key-1",
+            "value-1-2",
+            6,
+            0,
+            TransactionOutcome::Committed,
+            {},
+            &conflictingSequenceNumber
+        );
 
         EXPECT_EQ(
             ToSequenceNumber(5),
-            result);
+            conflictingSequenceNumber);
         completed = true;
     });
 
@@ -424,31 +429,25 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         TransactionOutcome::Unknown
     );
 
-    StringKey key2;
-    key2.set_value("key-1");
-    StringValue value2;
-    value2.set_value("value-1-2");
-
-    MemoryTableRow row2
-    {
-        .Key = copy_unique(key2),
-        .WriteSequenceNumber = ToSequenceNumber(7),
-        .Value = copy_unique(value2),
-    };
-
     Phantom::Coroutines::async_scope<> scope;
     bool completed = false;
     scope.spawn([&]() -> reusable_task<>
     {
-        auto result = co_await memoryTable.AddRow(
-            ToSequenceNumber(3),
-            row2,
-            // This 0 is earlier than the 1 on the above AddRow,
-            // thus the above AddRow should be aborted.
-            WithOutcome(0, TransactionOutcome::Committed, 7));
+        std::optional<SequenceNumber> conflictingSequenceNumber;
+
+        co_await AddRow(
+            0,
+            "key-1",
+            "value-1-2",
+            6,
+            0,
+            TransactionOutcome::Committed,
+            {},
+            &conflictingSequenceNumber
+        );
 
         EXPECT_FALSE(
-            result);
+            conflictingSequenceNumber);
         completed = true;
     });
 
