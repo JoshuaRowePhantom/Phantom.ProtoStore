@@ -76,12 +76,6 @@ class MemoryTable
             MemoryTableValue&&
             ) = delete;
 
-        // The sequence number the row was either added
-        // or committed at, and the operation outcome.  The protocol to write this
-        // value after adding to the skip list is to write
-        // the contents of Row, the write this with Release semantics.
-        std::atomic<MemoryTableOutcomeAndSequenceNumber> WriteSequenceNumber;
-
         // This mutex controls reading and writing Row and AsyncTransactionOutcome
         // after the row has been added to the SkipList.
         cppcoro::async_mutex Mutex;
@@ -94,6 +88,12 @@ class MemoryTable
         // When reading, if ValueMessage is null then use the KeyMessage.
         Row KeyMessage;
         Row ValueMessage;
+
+        // The sequence number the row was either added
+        // or committed at, and the operation outcome.  The protocol to write this
+        // value after adding to the skip list is to write
+        // the contents of Row, the write this with Release semantics.
+        std::atomic<MemoryTableOutcomeAndSequenceNumber> WriteSequenceNumber;
 
         // The outcome of the owning operation.
         // It must only be checked while the Mutex is held.

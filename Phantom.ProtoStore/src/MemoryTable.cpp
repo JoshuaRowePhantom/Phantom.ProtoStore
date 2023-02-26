@@ -513,7 +513,7 @@ ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
 
 std::span<const byte> MemoryTable::MemoryTableValue::GetKeyBytes() const
 {
-    return get_byte_span(ValueMessage->key());
+    return get_byte_span(KeyMessage->key());
 }
 
 std::span<const byte> MemoryTable::MemoryTableValue::GetValueBytes() const
