@@ -439,7 +439,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
             0,
             "key-1",
             "value-1-2",
-            6,
+            7,
             0,
             TransactionOutcome::Committed,
             {},
