@@ -481,16 +481,19 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
         .Message = envelopeBuffer.data(),
     };
 
+    auto headerFlatMessage = FlatMessage<FlatBuffers::ExtentHeader>
+    {
+        DataReference<StoredMessage>
+        {
+            std::move(envelopeBuffer),
+            std::move(storedHeader),
+        },
+        header
+    };
+
     co_return make_shared<RandomMessageReader>(
         std::move(readableExtent),
-        FlatMessage<FlatBuffers::ExtentHeader>
-        {
-            DataReference<StoredMessage>
-            {
-                std::move(envelopeBuffer),
-                std::move(storedHeader),
-            }
-        });
+        std::move(headerFlatMessage));
 }
 
 task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAccessImpl(

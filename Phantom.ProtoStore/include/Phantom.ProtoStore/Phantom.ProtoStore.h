@@ -374,7 +374,16 @@ public:
     explicit FlatMessage(
         DataReference<StoredMessage> storedMessage
     ) :
-        m_storedMessage{ std::move(storedMessage) }
+        m_storedMessage{ std::move(storedMessage) },
+        m_table{ flatbuffers::GetRoot<Table>(m_storedMessage->Message.data()) }
+    {}
+
+    explicit FlatMessage(
+        DataReference<StoredMessage> storedMessage,
+        const Table* table
+    ) :
+        m_storedMessage{ std::move(storedMessage) },
+        m_table{ table }
     {}
 
     template<
