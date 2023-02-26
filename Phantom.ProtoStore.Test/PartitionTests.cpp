@@ -362,10 +362,11 @@ protected:
     {
         PartitionTestKey keyMessage;
         keyMessage.set_key(key);
+        ProtoValue keyProto{ &keyMessage, true };
 
         auto enumeration = partition->Read(
             readSequenceNumber,
-            &keyMessage,
+            keyProto.as_bytes_if(),
             ReadValueDisposition::ReadValue
         );
 
@@ -374,12 +375,14 @@ protected:
         {
             EXPECT_NE(enumeration.end(), iterator);
 
-            auto keyMessage = static_cast<const PartitionTestKey*>((*iterator).Key);
-            auto valueMessage = static_cast<const PartitionTestValue*>((*iterator).Value);
+            PartitionTestKey resultKeyMessage;
+            ProtoValue{ iterator->Key }.unpack(&resultKeyMessage);
+            PartitionTestValue resultValueMessage;
+            ProtoValue{ iterator->Value }.unpack(&resultValueMessage);
 
-            EXPECT_EQ(get<0>(expectedResult), keyMessage->key());
-            EXPECT_EQ(get<1>(expectedResult), valueMessage->key());
-            EXPECT_EQ(get<2>(expectedResult), (*iterator).WriteSequenceNumber);
+            EXPECT_EQ(get<0>(expectedResult), resultKeyMessage.key());
+            EXPECT_EQ(get<1>(expectedResult), resultValueMessage.key());
+            EXPECT_EQ(get<2>(expectedResult), iterator->WriteSequenceNumber);
             co_await ++iterator;
         }
 
@@ -406,24 +409,27 @@ protected:
 
                 PartitionTestKey keyMessage;
                 keyMessage.set_key(key);
+                ProtoValue keyProto{ &keyMessage, true };
 
                 auto actualRowGenerator = scenario.Partition->Read(
                     ToSequenceNumber(readSequenceNumber),
-                    &keyMessage,
+                    keyProto.as_bytes_if(),
                     ReadValueDisposition::ReadValue);
 
                 for (auto iterator = co_await actualRowGenerator.begin();
                     iterator != actualRowGenerator.end();
                     co_await ++iterator)
                 {
-                    auto actualKey = static_cast<const PartitionTestKey*>((*iterator).Key);
-                    auto actualValue = static_cast<const PartitionTestValue*>((*iterator).Value);
+                    PartitionTestKey resultKeyMessage;
+                    ProtoValue{ iterator->Key }.unpack(&resultKeyMessage);
+                    PartitionTestValue resultValueMessage;
+                    ProtoValue{ iterator->Value }.unpack(&resultValueMessage);
 
                     EXPECT_TRUE(expectedRow.has_value());
-                    EXPECT_EQ(actualKey->key(), get<shared_ptr<PartitionTestKey>>(*expectedRow)->key());
-                    EXPECT_EQ(actualValue->key(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->key());
-                    EXPECT_EQ(actualValue->sequencenumber(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->sequencenumber());
-                    EXPECT_EQ((*iterator).WriteSequenceNumber, get<SequenceNumber>(*expectedRow));
+                    EXPECT_EQ(resultKeyMessage.key(), get<shared_ptr<PartitionTestKey>>(*expectedRow)->key());
+                    EXPECT_EQ(resultValueMessage.key(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->key());
+                    EXPECT_EQ(resultValueMessage.sequencenumber(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->sequencenumber());
+                    EXPECT_EQ(iterator->WriteSequenceNumber, get<SequenceNumber>(*expectedRow));
 
                     expectedRow.reset();
                 }
@@ -461,34 +467,36 @@ protected:
 
         PartitionTestKey lowKeyMessage;
         lowKeyMessage.set_key(lowKey);
+        ProtoValue lowKeyProto{ &lowKeyMessage, true };
 
         PartitionTestKey highKeyMessage;
         highKeyMessage.set_key(highKey);
-        
+        ProtoValue highKeyProto{ &highKeyMessage, true };
+
         auto enumeration = scenario.Partition->Enumerate(
             readSequenceNumber,
-            { &lowKeyMessage, lowKeyInclusivity },
-            { &highKeyMessage, highKeyInclusivity },
+            { lowKeyProto.as_bytes_if(), lowKeyInclusivity},
+            { highKeyProto.as_bytes_if(), highKeyInclusivity},
             ReadValueDisposition::ReadValue);
 
         auto expectedScenarioRowsIterator = expectedScenarioRows.begin();
 
-        for (auto actualRowsIterator = co_await enumeration.begin();
-            actualRowsIterator != enumeration.end();
-            co_await ++actualRowsIterator)
+        for (auto iterator = co_await enumeration.begin();
+            iterator != enumeration.end();
+            co_await ++iterator)
         {
-            auto& actualRow = *actualRowsIterator;
-
-            auto actualKey = static_cast<const PartitionTestKey*>(actualRow.Key);
-            auto actualValue = static_cast<const PartitionTestValue*>(actualRow.Value);
+            PartitionTestKey actualKey;
+            ProtoValue{ iterator->Key }.unpack(&actualKey);
+            PartitionTestValue actualValue;
+            ProtoValue{ iterator->Value }.unpack(&actualValue);
 
             EXPECT_TRUE(expectedScenarioRowsIterator != expectedScenarioRows.end());
             auto& expectedRow = *expectedScenarioRowsIterator;
 
-            EXPECT_EQ(actualKey->key(), get<shared_ptr<PartitionTestKey>>(expectedRow)->key());
-            EXPECT_EQ(actualValue->key(), get<shared_ptr<PartitionTestValue>>(expectedRow)->key());
-            EXPECT_EQ(actualValue->sequencenumber(), get<shared_ptr<PartitionTestValue>>(expectedRow)->sequencenumber());
-            EXPECT_EQ(actualRow.WriteSequenceNumber, get<SequenceNumber>(expectedRow));
+            EXPECT_EQ(actualKey.key(), get<shared_ptr<PartitionTestKey>>(expectedRow)->key());
+            EXPECT_EQ(actualValue.key(), get<shared_ptr<PartitionTestValue>>(expectedRow)->key());
+            EXPECT_EQ(actualValue.sequencenumber(), get<shared_ptr<PartitionTestValue>>(expectedRow)->sequencenumber());
+            EXPECT_EQ(iterator->WriteSequenceNumber, get<SequenceNumber>(expectedRow));
 
             ++expectedScenarioRowsIterator;
         }
@@ -562,11 +570,12 @@ protected:
     {
         StringKey keyMessage;
         keyMessage.set_value(key);
+        ProtoValue keyProto{ &keyMessage, true };
 
         auto actualResult = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             writeSequenceNumber,
-            &keyMessage
+            keyProto.as_bytes_if()
         );
 
         EXPECT_EQ(actualResult, expectedResult);
