@@ -242,1218 +242,1292 @@ public:
     }
 };
 
-TEST_F(ProtoStoreTests, CanCreate_memory_backed_store)
+ASYNC_TEST_F(ProtoStoreTests, CanCreate_memory_backed_store)
 {
-    run_async([&]() -> task<>
-    {
-        auto store = CreateMemoryStore();
-        co_return;
-    });
+    auto store = CreateMemoryStore();
+    co_return;
 }
-
-TEST_F(ProtoStoreTests, CanOpen_memory_backed_store)
+ASYNC_TEST_F(ProtoStoreTests, CanOpen_memory_backed_store)
 {
-    run_async([&]() -> task<>
-    {
-        auto storeFactory = MakeProtoStoreFactory();
-        CreateProtoStoreRequest createRequest;
+    auto storeFactory = MakeProtoStoreFactory();
+    CreateProtoStoreRequest createRequest;
 
-        createRequest.ExtentStore = UseMemoryExtentStore();
+    createRequest.ExtentStore = UseMemoryExtentStore();
 
-        auto store = co_await storeFactory->Create(
-            createRequest);
-        store.reset();
+    auto store = co_await storeFactory->Create(
+        createRequest);
+    store.reset();
 
-        store = co_await storeFactory->Open(
-            createRequest);
-    });
+    store = co_await storeFactory->Open(
+        createRequest);
 }
-
-TEST_F(ProtoStoreTests, Open_fails_on_uncreated_store)
+ASYNC_TEST_F(ProtoStoreTests, Open_fails_on_uncreated_store)
 {
-    run_async([&]() -> task<>
-    {
-        auto storeFactory = MakeProtoStoreFactory();
-        OpenProtoStoreRequest openRequest;
+    auto storeFactory = MakeProtoStoreFactory();
+    OpenProtoStoreRequest openRequest;
 
-        openRequest.ExtentStore = UseMemoryExtentStore();
+    openRequest.ExtentStore = UseMemoryExtentStore();
 
-        EXPECT_THROW(
-            co_await storeFactory->Open(
-                openRequest),
-            range_error);
-    });
+    EXPECT_THROW(
+        co_await storeFactory->Open(
+            openRequest),
+        range_error);
 }
-
-TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
 {
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
+    auto store = co_await CreateMemoryStore();
 
-        auto index = co_await CreateTestIndex(
-            store);
+    auto index = co_await CreateTestIndex(
+        store);
 
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
 
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-    });
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
 }
-
-TEST_F(ProtoStoreTests, Can_read_and_delete_and_enumerate_one_row)
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_delete_and_enumerate_one_row)
 {
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
+    auto store = co_await CreateMemoryStore();
 
-        auto index = co_await CreateTestIndex(
-            store);
+    auto index = co_await CreateTestIndex(
+        store);
 
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
 
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            optional<string>(),
-            ToSequenceNumber(6),
-            ToSequenceNumber(5));
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        optional<string>(),
+        ToSequenceNumber(6),
+        ToSequenceNumber(5));
 
-        auto enumerateAtSequenceNumber5 = co_await EnumerateTestRows(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(5));
+    auto enumerateAtSequenceNumber5 = co_await EnumerateTestRows(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5));
 
-        auto enumerateAtSequenceNumber6 = co_await EnumerateTestRows(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(6));
+    auto enumerateAtSequenceNumber6 = co_await EnumerateTestRows(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(6));
 
 
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(5),
-            {
-                { "testKey1", {"testValue1", 5}},
-            });
-
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(6),
-            {
-            });
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_add)
-{
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(5),
-            {
-                { "testKey1", {"testValue1", 5}},
-            });
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint)
-{
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        co_await store->Checkpoint();
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(5),
-            {
-                { "testKey1", {"testValue1", 5}},
-            });
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_update)
-{
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1-2",
-            ToSequenceNumber(6),
-            ToSequenceNumber(5));
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(5),
-            {
-                { "testKey1", {"testValue1", 5}},
-            });
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(6),
-            {
-                { "testKey1", {"testValue1-2", 6}},
-            });
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint_and_update)
-{
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        co_await store->Checkpoint();
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1-2",
-            ToSequenceNumber(6),
-            ToSequenceNumber(5));
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(5),
-            {
-                { "testKey1", {"testValue1", 5}},
-            });
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(6),
-            {
-                { "testKey1", {"testValue1-2", 6}},
-            });
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_two_checkpoint_and_update_and_checkpoint)
-{
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        co_await store->Checkpoint();
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1-2",
-            ToSequenceNumber(6),
-            ToSequenceNumber(5));
-
-        co_await store->Checkpoint();
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(5),
-            {
-                { "testKey1", {"testValue1", 5}},
-            });
-
-        co_await AssertEnumeration(
-            store,
-            index,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            optional<string>(),
-            Inclusivity::Inclusive,
-            ToSequenceNumber(6),
-            {
-                { "testKey1", {"testValue1-2", 6}},
-            });
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
-{
-    run_async([&]() -> task<>
-    {
-        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
-        createRequest.DefaultMergeParameters.set_mergesperlevel(2);
-        createRequest.DefaultMergeParameters.set_maxlevel(4);
-        //auto createRequest = GetCreateMemoryStoreRequest();
-        auto store = co_await CreateStore(createRequest);
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        ranlux48 rng;
-        auto keys = MakeRandomStrings(
-            rng,
-            20,
-            100);
-
-        for (auto key : keys)
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5),
         {
-            co_await AddRowToTestIndex(
-                store,
-                index,
-                key,
-                key + "-value",
-                ToSequenceNumber(5));
+            { "testKey1", {"testValue1", 5}},
+        });
 
-            co_await store->Checkpoint();
-            co_await store->Merge();
-        }
 
-        for (auto key : keys)
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(6),
         {
-            co_await ExpectGetTestRow(
-                store,
-                index,
-                key,
-                key + "-value",
-                ToSequenceNumber(5),
-                ToSequenceNumber(5));
-        }
+        });
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_add)
+{
+    auto store = co_await CreateMemoryStore();
 
-        store.reset();
-        store = co_await OpenStore(createRequest);
+    auto index = co_await CreateTestIndex(
+        store);
 
-        index = co_await GetTestIndex(
-            store);
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
 
-        for (auto key : keys)
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5),
         {
-            co_await ExpectGetTestRow(
-                store,
-                index,
-                key,
-                key + "-value",
-                ToSequenceNumber(5),
-                ToSequenceNumber(5));
-        }    
-    });
+            { "testKey1", {"testValue1", 5}},
+        });
 }
-
-TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
+ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint)
 {
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
+    auto store = co_await CreateMemoryStore();
 
-        auto index = co_await CreateTestIndex(
-            store);
+    auto index = co_await CreateTestIndex(
+        store);
 
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1-5",
-            ToSequenceNumber(5));
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
 
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1-6",
-            ToSequenceNumber(6),
-            ToSequenceNumber(5));
+    co_await store->Checkpoint();
 
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            optional<string>(),
-            ToSequenceNumber(4),
-            ToSequenceNumber(5));
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1-5",
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1-6",
-            ToSequenceNumber(6),
-            ToSequenceNumber(6)); 
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1-6",
-            ToSequenceNumber(7),
-            ToSequenceNumber(6)); 
-    });
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5),
+        {
+            { "testKey1", {"testValue1", 5}},
+        });
 }
-
-TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after_checkpoints)
+ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_update)
 {
-    run_async([&]() -> task<>
+    auto store = co_await CreateMemoryStore();
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-2",
+        ToSequenceNumber(6),
+        ToSequenceNumber(5));
+
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5),
+        {
+            { "testKey1", {"testValue1", 5}},
+        });
+
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(6),
+        {
+            { "testKey1", {"testValue1-2", 6}},
+        });
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint_and_update)
+{
+    auto store = co_await CreateMemoryStore();
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-2",
+        ToSequenceNumber(6),
+        ToSequenceNumber(5));
+
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5),
+        {
+            { "testKey1", {"testValue1", 5}},
+        });
+
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(6),
+        {
+            { "testKey1", {"testValue1-2", 6}},
+        });
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_two_checkpoint_and_update_and_checkpoint)
+{
+    auto store = co_await CreateMemoryStore();
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-2",
+        ToSequenceNumber(6),
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5),
+        {
+            { "testKey1", {"testValue1", 5}},
+        });
+
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(6),
+        {
+            { "testKey1", {"testValue1-2", 6}},
+        });
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merges)
+{
+    //auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
+    auto createRequest = GetCreateMemoryStoreRequest();
+    createRequest.DefaultMergeParameters.set_mergesperlevel(2);
+    createRequest.DefaultMergeParameters.set_maxlevel(4);
+    //auto createRequest = GetCreateMemoryStoreRequest();
+    auto store = co_await CreateStore(createRequest);
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    ranlux48 rng;
+    auto keys = MakeRandomStrings(
+        rng,
+        20,
+        100);
+
+    for (auto key : keys)
     {
-        auto store = co_await CreateMemoryStore();
-
-        auto index = co_await CreateTestIndex(
-            store);
-
         co_await AddRowToTestIndex(
             store,
             index,
-            "testKey1",
-            "testValue1-5",
+            key,
+            key + "-value",
             ToSequenceNumber(5));
 
         co_await store->Checkpoint();
+        co_await store->Merge();
+    }
 
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1-6",
-            ToSequenceNumber(6),
-            ToSequenceNumber(5));
-
-        co_await store->Checkpoint();
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1-7",
-            ToSequenceNumber(7),
-            ToSequenceNumber(6));
-
+    for (auto key : keys)
+    {
         co_await ExpectGetTestRow(
             store,
             index,
-            "testKey1",
-            optional<string>(),
-            ToSequenceNumber(4),
-            ToSequenceNumber(5));
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1-5",
+            key,
+            key + "-value",
             ToSequenceNumber(5),
             ToSequenceNumber(5));
+    }
 
+    store.reset();
+    store = co_await OpenStore(createRequest);
+
+    index = co_await GetTestIndex(
+        store);
+
+    for (auto key : keys)
+    {
         co_await ExpectGetTestRow(
             store,
             index,
-            "testKey1",
-            "testValue1-6",
-            ToSequenceNumber(6),
-            ToSequenceNumber(6));
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1-7",
-            ToSequenceNumber(7),
-            ToSequenceNumber(7));
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1-7",
-            ToSequenceNumber(8),
-            ToSequenceNumber(7));
-    });
+            key,
+            key + "-value",
+            ToSequenceNumber(5),
+            ToSequenceNumber(5));
+    }    
 }
 
-TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
 {
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
+    auto store = co_await CreateMemoryStore();
 
-        auto index = co_await CreateTestIndex(
-            store);
+    auto index = co_await CreateTestIndex(
+        store);
 
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-5",
+        ToSequenceNumber(5));
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-6",
+        ToSequenceNumber(6),
+        ToSequenceNumber(5));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        optional<string>(),
+        ToSequenceNumber(4),
+        ToSequenceNumber(5));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1-5",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1-6",
+        ToSequenceNumber(6),
+        ToSequenceNumber(6));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1-6",
+        ToSequenceNumber(7),
+        ToSequenceNumber(6));
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after_checkpoints)
+{
+    auto store = co_await CreateMemoryStore();
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-5",
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-6",
+        ToSequenceNumber(6),
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1-7",
+        ToSequenceNumber(7),
+        ToSequenceNumber(6));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        optional<string>(),
+        ToSequenceNumber(4),
+        ToSequenceNumber(5));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1-5",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1-6",
+        ToSequenceNumber(6),
+        ToSequenceNumber(6));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1-7",
+        ToSequenceNumber(7),
+        ToSequenceNumber(7));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1-7",
+        ToSequenceNumber(8),
+        ToSequenceNumber(7));
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
+{
+    auto store = co_await CreateMemoryStore();
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    auto result =
         co_await AddRowToTestIndex(
             store,
             index,
             "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        auto result =
-            co_await AddRowToTestIndex(
-                store,
-                index,
-                "testKey1",
-                "testValue2",
-                ToSequenceNumber(4));
-        EXPECT_EQ((std::unexpected
+            "testValue2",
+            ToSequenceNumber(4));
+    EXPECT_EQ((std::unexpected
+        {
+            FailedResult
             {
-                FailedResult
+                .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
+                .ErrorDetails = TransactionFailedResult
                 {
-                    .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
-                    .ErrorDetails = TransactionFailedResult
-                    {
-                        .TransactionOutcome = TransactionOutcome::Aborted,
-                        //.Failures =
-                        //{
-                        //    {
-                        //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
-                        //        .ErrorDetails = WriteConflict
-                        //        {
-                        //            .Index = index,
-                        //            .ConflictingSequenceNumber = ToSequenceNumber(5),
-                        //        }
-                        //    }
-                        //}
-                    }
+                    .TransactionOutcome = TransactionOutcome::Aborted,
+                    //.Failures =
+                    //{
+                    //    {
+                    //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                    //        .ErrorDetails = WriteConflict
+                    //        {
+                    //            .Index = index,
+                    //            .ConflictingSequenceNumber = ToSequenceNumber(5),
+                    //        }
+                    //    }
+                    //}
                 }
-            }),
-            result);
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            optional<string>(),
-            ToSequenceNumber(4),
-            ToSequenceNumber(5));    
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
-{
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        co_await store->Checkpoint();
-
-        auto result =
-            co_await AddRowToTestIndex(
-                store,
-                index,
-                "testKey1",
-                "testValue2",
-                ToSequenceNumber(4));
-        EXPECT_EQ((std::unexpected
-            {
-                FailedResult
-                {
-                    .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
-                    .ErrorDetails = TransactionFailedResult
-                    {
-                        .TransactionOutcome = TransactionOutcome::Aborted,
-                        //.Failures = 
-                        //{
-                        //    {
-                        //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
-                        //        .ErrorDetails = WriteConflict
-                        //        {
-                        //            .Index = index,
-                        //            .ConflictingSequenceNumber = ToSequenceNumber(5),
-                        //        }
-                        //    }
-                        //}
-                    }
-                }
-            }),
-            result);
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            optional<string>(),
-            ToSequenceNumber(4),
-            ToSequenceNumber(5));
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
-{
-    run_async([&]() -> task<>
-    {
-        auto createRequest = GetCreateMemoryStoreRequest();
-//        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_reopen");
-
-        auto store = co_await CreateStore(createRequest);
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        store.reset();
-        store = co_await OpenStore(createRequest);
-
-        index = co_await GetTestIndex(
-            store);
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-    });
-}
-
-TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
-{
-    run_async([&]() -> task<>
-    {
-        //auto createRequest = GetCreateFileStoreRequest("Checkpoint_deletes_old_logs");
-        auto createRequest = GetCreateMemoryStoreRequest();
-
-        auto store = co_await CreateStore(createRequest);
-
-        auto memoryStore = std::static_pointer_cast<MemoryExtentStore>(
-            co_await createRequest.ExtentStore());
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        // Checkpoint twice to ensure old log is delete.
-        co_await store->Checkpoint();
-        EXPECT_EQ(true, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
-
-        co_await store->Checkpoint();
-
-        EXPECT_EQ(false, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
-{
-    run_async([&]() -> task<>
-    {
-        auto createRequest = GetCreateMemoryStoreRequest();
-
-        auto store = co_await CreateStore(createRequest);
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        co_await store->Checkpoint();
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-    });
-}
-
-TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
-{
-    run_async([&]() -> task<>
-    {
-        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen");
-
-        auto store = co_await CreateStore(createRequest);
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await AddRowToTestIndex(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5));
-
-        // Checkpoint a few times to make sure old log files are deleted.
-        co_await store->Checkpoint();
-        co_await store->Checkpoint();
-        co_await store->Checkpoint();
-        co_await store->Join();
-        store.reset();
-        store = co_await OpenStore(createRequest);
-
-        index = co_await GetTestIndex(
-            store);
-
-        co_await ExpectGetTestRow(
-            store,
-            index,
-            "testKey1",
-            "testValue1",
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-    });
-}
-
-TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
-{
-    run_async([&]() -> task<>
-    {
-        auto store = co_await CreateMemoryStore();
-
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await co_await operation->AddRow(
-                WriteOperationMetadata(),
-                index,
-                &key,
-                &expectedValue);
-
-            {
-                ReadRequest readRequest;
-                readRequest.Key = &key;
-                readRequest.Index = index;
-
-                auto readResult = co_await store->Read(
-                    readRequest
-                );
-
-                StringValue actualValue;
-                readResult->Value.unpack(&actualValue);
             }
+        }),
+        result);
 
-            co_return{};
-        });
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
 
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        optional<string>(),
+        ToSequenceNumber(4),
+        ToSequenceNumber(5));
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
+{
+    auto store = co_await CreateMemoryStore();
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    auto result =
+        co_await AddRowToTestIndex(
+            store,
+            index,
+            "testKey1",
+            "testValue2",
+            ToSequenceNumber(4));
+    EXPECT_EQ((std::unexpected
+        {
+            FailedResult
+            {
+                .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
+                .ErrorDetails = TransactionFailedResult
+                {
+                    .TransactionOutcome = TransactionOutcome::Aborted,
+                    //.Failures = 
+                    //{
+                    //    {
+                    //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                    //        .ErrorDetails = WriteConflict
+                    //        {
+                    //            .Index = index,
+                    //            .ConflictingSequenceNumber = ToSequenceNumber(5),
+                    //        }
+                    //    }
+                    //}
+                }
+            }
+        }),
+        result);
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        optional<string>(),
+        ToSequenceNumber(4),
+        ToSequenceNumber(5));
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
+{
+    auto createRequest = GetCreateMemoryStoreRequest();
+    //        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_reopen");
+
+    auto store = co_await CreateStore(createRequest);
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    store.reset();
+    store = co_await OpenStore(createRequest);
+
+    index = co_await GetTestIndex(
+        store);
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+}
+ASYNC_TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
+{
+    //auto createRequest = GetCreateFileStoreRequest("Checkpoint_deletes_old_logs");
+    auto createRequest = GetCreateMemoryStoreRequest();
+
+    auto store = co_await CreateStore(createRequest);
+
+    auto memoryStore = std::static_pointer_cast<MemoryExtentStore>(
+        co_await createRequest.ExtentStore());
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    // Checkpoint twice to ensure old log is delete.
+    co_await store->Checkpoint();
+    EXPECT_EQ(true, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
+
+    co_await store->Checkpoint();
+
+    EXPECT_EQ(false, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
+{
+    auto createRequest = GetCreateMemoryStoreRequest();
+
+    auto store = co_await CreateStore(createRequest);
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+}
+ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
+{
+    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen");
+
+    auto store = co_await CreateStore(createRequest);
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await AddRowToTestIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    // Checkpoint a few times to make sure old log files are deleted.
+    co_await store->Checkpoint();
+    co_await store->Checkpoint();
+    co_await store->Checkpoint();
+    co_await store->Join();
+    store.reset();
+    store = co_await OpenStore(createRequest);
+
+    index = co_await GetTestIndex(
+        store);
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+}
+ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
+{
+    auto store = co_await CreateMemoryStore();
+
+    StringKey key;
+    key.set_value("testKey1");
+    StringValue expectedValue;
+    expectedValue.set_value("testValue1");
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await store->ExecuteTransaction(
+        BeginTransactionRequest(),
+        [&](ITransaction* operation)->status_task<>
+    {
+        co_await co_await operation->AddRow(
+            WriteOperationMetadata(),
+            index,
+            &key,
+            &expectedValue);
+
+    {
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
+        );
+
+        StringValue actualValue;
+        readResult->Value.unpack(&actualValue);
+    }
+
+    co_return{};
     });
 }
 
-TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
+ASYNC_TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
 {
-    run_async([&]() -> task<>
+    auto store = co_await CreateMemoryStore();
+
+    StringKey key;
+    key.set_value("testKey1");
+    StringValue expectedValue;
+    expectedValue.set_value("testValue1");
+    StringValue unexpectedValue;
+    unexpectedValue.set_value("testValue2");
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    cppcoro::single_consumer_event addRowEvent;
+
+    auto operation1 = store->ExecuteTransaction(
+        BeginTransactionRequest(),
+        [&](ITransaction* operation)->status_task<>
     {
-        auto store = co_await CreateMemoryStore();
-
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-        StringValue unexpectedValue;
-        unexpectedValue.set_value("testValue2");
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        cppcoro::single_consumer_event addRowEvent;
-
-        auto operation1 = store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await co_await operation->AddRow(
-                WriteOperationMetadata
-                {
-                    .WriteSequenceNumber = ToSequenceNumber(5),
-                },
-                index,
-                &key,
-                &expectedValue);
-
-            addRowEvent.set();
-
-            co_return {};
-        });
-
-        auto operation2 = store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await addRowEvent;
-            co_await co_await operation->AddRow(
-                WriteOperationMetadata
-                {
-                    .WriteSequenceNumber = ToSequenceNumber(4),
-                },
-                index,
-                &key,
-                &unexpectedValue);
-
-            co_return{};
-        });
-
-        co_await operation1.when_ready();
-        co_await operation2.when_ready();
-
-        auto result = co_await operation1;
-        EXPECT_EQ(result, TransactionSucceededResult { TransactionOutcome::Committed });
-        result = co_await operation2;
-        EXPECT_EQ((std::unexpected
+        co_await co_await operation->AddRow(
+            WriteOperationMetadata
             {
-                FailedResult
-                {
-                    .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
-                    .ErrorDetails = TransactionFailedResult
-                    {
-                        .TransactionOutcome = TransactionOutcome::Aborted,
-                        //.Failures =
-                        //{
-                        //    {
-                        //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
-                        //        .ErrorDetails = WriteConflict
-                        //        {
-                        //            .Index = index,
-                        //            .ConflictingSequenceNumber = ToSequenceNumber(5),
-                        //        }
-                        //    }
-                        //}
-                    }
-                }
-            }),
-            result);
+                .WriteSequenceNumber = ToSequenceNumber(5),
+            },
+            index,
+            &key,
+            &expectedValue);
 
+    addRowEvent.set();
+
+    co_return{};
+    });
+
+    auto operation2 = store->ExecuteTransaction(
+        BeginTransactionRequest(),
+        [&](ITransaction* operation)->status_task<>
+    {
+        co_await addRowEvent;
+    co_await co_await operation->AddRow(
+        WriteOperationMetadata
+        {
+            .WriteSequenceNumber = ToSequenceNumber(4),
+        },
+        index,
+        &key,
+        &unexpectedValue);
+
+    co_return{};
+    });
+
+    co_await operation1.when_ready();
+    co_await operation2.when_ready();
+
+    auto result = co_await operation1;
+    EXPECT_EQ(result, TransactionSucceededResult{ TransactionOutcome::Committed });
+    result = co_await operation2;
+    EXPECT_EQ((std::unexpected
+        {
+            FailedResult
+            {
+                .ErrorCode = make_error_code(ProtoStoreErrorCode::AbortedTransaction),
+                .ErrorDetails = TransactionFailedResult
+                {
+                    .TransactionOutcome = TransactionOutcome::Aborted,
+                    //.Failures =
+                    //{
+                    //    {
+                    //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                    //        .ErrorDetails = WriteConflict
+                    //        {
+                    //            .Index = index,
+                    //            .ConflictingSequenceNumber = ToSequenceNumber(5),
+                    //        }
+                    //    }
+                    //}
+                }
+            }
+        }),
+        result);
+
+    co_await ExpectGetTestRow(
+        store,
+        index,
+        key.value(),
+        expectedValue.value(),
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+}
+ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_from_another_transaction)
+{
+    auto store = co_await CreateMemoryStore();
+
+    StringKey key;
+    key.set_value("testKey1");
+    StringValue expectedValue;
+    expectedValue.set_value("testValue1");
+    StringValue unexpectedValue;
+    unexpectedValue.set_value("testValue2");
+    TransactionId transactionId("transactionId1");
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await store->ExecuteTransaction(
+        BeginTransactionRequest(),
+        [&](ITransaction* operation)->status_task<>
+    {
+        co_await co_await operation->AddRow(
+            WriteOperationMetadata
+            {
+                .TransactionId = &transactionId,
+            },
+            index,
+            &key,
+            &expectedValue);
+
+    co_return{};
+    });
+
+    {
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto result = co_await store->Read(
+            readRequest);
+        EXPECT_EQ(
+            (std::unexpected
+                {
+                    FailedResult
+                    {
+                        .ErrorCode = make_error_code(ProtoStoreErrorCode::UnresolvedTransaction),
+                        .ErrorDetails = UnresolvedTransaction
+                        {
+                            .UnresolvedTransactionId = transactionId,
+                        },
+                    }
+                }),
+            result);
+    }
+
+    co_await store->ExecuteTransaction(
+        BeginTransactionRequest(),
+        [&](ITransaction* operation)->status_task<>
+    {
+        co_await operation->ResolveTransaction(
+            WriteOperationMetadata
+            {
+                .TransactionId = &transactionId,
+            },
+            TransactionOutcome::Committed);
+
+    co_return{};
+    });
+
+    {
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
+        );
+
+        StringValue actualValue;
+        readResult->Value.unpack(&actualValue);
+    }
+}
+ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_from_replayed_store)
+{
+    auto createRequest = GetCreateMemoryStoreRequest();
+    auto store = co_await CreateStore(createRequest);
+
+    StringKey key;
+    key.set_value("testKey1");
+    StringValue expectedValue;
+    expectedValue.set_value("testValue1");
+    StringValue unexpectedValue;
+    unexpectedValue.set_value("testValue2");
+    TransactionId transactionId("transactionId1");
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    co_await store->ExecuteTransaction(
+        BeginTransactionRequest(),
+        [&](ITransaction* operation)->status_task<>
+    {
+        co_await co_await operation->AddRow(
+            WriteOperationMetadata
+            {
+                .TransactionId = &transactionId,
+                .WriteSequenceNumber = ToSequenceNumber(5),
+            },
+            index,
+            &key,
+            &expectedValue);
+
+    co_return{};
+    });
+
+    // Close and reopen the store, thus replaying the transactions.
+    // The transaction should still be unresolved.
+    store.reset();
+    store = co_await OpenStore(createRequest);
+
+    {
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto result = co_await store->Read(
+            readRequest);
+        EXPECT_EQ(
+            (std::unexpected
+                {
+                    FailedResult
+                    {
+                        .ErrorCode = make_error_code(ProtoStoreErrorCode::UnresolvedTransaction),
+                        .ErrorDetails = UnresolvedTransaction
+                        {
+                            .UnresolvedTransactionId = transactionId,
+                        },
+                    }
+                }),
+            result);
+    }
+
+    // Now resolve the transaction.
+    co_await store->ExecuteTransaction(
+        BeginTransactionRequest(),
+        [&](ITransaction* operation)->status_task<>
+    {
+        co_await operation->ResolveTransaction(
+            WriteOperationMetadata
+            {
+                .TransactionId = &transactionId,
+            },
+            TransactionOutcome::Committed);
+
+    co_return{};
+    });
+
+    // The transaction should work!
+    {
         co_await ExpectGetTestRow(
             store,
             index,
             key.value(),
             expectedValue.value(),
-            ToSequenceNumber(5),
-            ToSequenceNumber(5));
-    });
-}
+            SequenceNumber::Latest,
+            ToSequenceNumber(5)
+        );
+    }
 
-TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_from_another_transaction)
-{
-    run_async([&]() -> task<>
+    // Close and reopen the store, thus replaying the transactions.
+    store.reset();
+    store = co_await OpenStore(createRequest);
+
     {
-        auto store = co_await CreateMemoryStore();
-
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-        StringValue unexpectedValue;
-        unexpectedValue.set_value("testValue2");
-        TransactionId transactionId("transactionId1");
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await co_await operation->AddRow(
-                WriteOperationMetadata
-                {
-                    .TransactionId = &transactionId,
-                },
-                index,
-                &key,
-                &expectedValue);
-
-            co_return{};
-        });
-
-        {
-            ReadRequest readRequest;
-            readRequest.Key = &key;
-            readRequest.Index = index;
-
-            auto result = co_await store->Read(
-                readRequest);
-            EXPECT_EQ(
-                (std::unexpected
-                {
-                    FailedResult
-                    {
-                        .ErrorCode = make_error_code(ProtoStoreErrorCode::UnresolvedTransaction),
-                        .ErrorDetails = UnresolvedTransaction
-                        {
-                            .UnresolvedTransactionId = transactionId,
-                        },
-                    }
-                }),
-                result);
-        }
-
-        co_await store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await operation->ResolveTransaction(
-                WriteOperationMetadata
-                {
-                    .TransactionId = &transactionId,
-                },
-                TransactionOutcome::Committed);
-
-            co_return{};
-        });
-
-        {
-            ReadRequest readRequest;
-            readRequest.Key = &key;
-            readRequest.Index = index;
-
-            auto readResult = co_await store->Read(
-                readRequest
-            );
-
-            StringValue actualValue;
-            readResult->Value.unpack(&actualValue);
-        }
-    });
-}
-
-TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_from_replayed_store)
-{
-    run_async([&]() -> task<>
-    {
-        auto createRequest = GetCreateMemoryStoreRequest();
-        auto store = co_await CreateStore(createRequest);
-
-        StringKey key;
-        key.set_value("testKey1");
-        StringValue expectedValue;
-        expectedValue.set_value("testValue1");
-        StringValue unexpectedValue;
-        unexpectedValue.set_value("testValue2");
-        TransactionId transactionId("transactionId1");
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-        co_await store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await co_await operation->AddRow(
-                WriteOperationMetadata
-                {
-                    .TransactionId = &transactionId,
-                    .WriteSequenceNumber = ToSequenceNumber(5),
-                },
-                index,
-                &key,
-                &expectedValue);
-
-            co_return{};
-        });
-
-        // Close and reopen the store, thus replaying the transactions.
-        // The transaction should still be unresolved.
-        store.reset();
-        store = co_await OpenStore(createRequest);
-
-        {
-            ReadRequest readRequest;
-            readRequest.Key = &key;
-            readRequest.Index = index;
-
-            auto result = co_await store->Read(
-                readRequest);
-            EXPECT_EQ(
-                (std::unexpected
-                {
-                    FailedResult
-                    {
-                        .ErrorCode = make_error_code(ProtoStoreErrorCode::UnresolvedTransaction),
-                        .ErrorDetails = UnresolvedTransaction
-                        {
-                            .UnresolvedTransactionId = transactionId,
-                        },
-                    }
-                }),
-                result);
-        }
-
-        // Now resolve the transaction.
-        co_await store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await operation->ResolveTransaction(
-                WriteOperationMetadata
-                {
-                    .TransactionId = &transactionId,
-                },
-                TransactionOutcome::Committed);
-
-            co_return{};
-        });
-
-        // The transaction should work!
-        {
-            co_await ExpectGetTestRow(
-                store,
-                index,
-                key.value(),
-                expectedValue.value(),
-                SequenceNumber::Latest,
-                ToSequenceNumber(5)
-            );
-        }
-
-        // Close and reopen the store, thus replaying the transactions.
-        store.reset();
-        store = co_await OpenStore(createRequest);
-
-        {
-            co_await ExpectGetTestRow(
-                store,
-                index,
-                key.value(),
-                expectedValue.value(),
-                SequenceNumber::Latest,
-                ToSequenceNumber(1)
-            );
-        }
-    });
+        co_await ExpectGetTestRow(
+            store,
+            index,
+            key.value(),
+            expectedValue.value(),
+            SequenceNumber::Latest,
+            ToSequenceNumber(1)
+        );
+    }
 }
 
 cppcoro::async_scope* m_perfScope;
 shared_ptr<IProtoStore>* m_perfStore;
 
-TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
+ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
 {
-    cppcoro::static_thread_pool threadPool(4);
+    cppcoro::static_thread_pool threadPool;
 
-    run_async([&]() -> task<>
+    auto store = co_await CreateMemoryStore();
+    m_perfStore = &store;
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+    int valueCount = 100000;
+
+    ranlux48 rng;
+
+    auto keys = MakeRandomStrings(
+        rng,
+        20,
+        valueCount
+    );
+
+    auto startTime = chrono::high_resolution_clock::now();
+
+    cppcoro::async_scope asyncScope;
+
+    for (auto value : keys)
     {
-        auto store = co_await CreateMemoryStore();
-        m_perfStore = &store;
+        asyncScope.spawn([&](string myKey) -> task<>
+        {
+            co_await threadPool.schedule();
 
-        auto index = co_await CreateTestIndex(
-            store);
+        StringKey key;
+        key.set_value(myKey);
+        StringValue expectedValue;
+        expectedValue.set_value(myKey);
 
-        int valueCount = 100000;
+        co_await store->ExecuteTransaction(
+            BeginTransactionRequest(),
+            [&](ITransaction* operation)->status_task<>
+        {
+            co_await co_await operation->AddRow(
+                WriteOperationMetadata{},
+                index,
+                &key,
+                &expectedValue);
 
-        ranlux48 rng;
+        co_return{};
+        });
+        }(value));
+    }
 
-        auto keys = MakeRandomStrings(
-            rng,
-            20,
-            valueCount
+    co_await asyncScope.join();
+
+    std::vector<task<>> tasks;
+
+    for (auto value : keys)
+    {
+        tasks.push_back([&](string myKey) -> task<>
+        {
+            co_await threadPool.schedule();
+
+        StringKey key;
+        key.set_value(myKey);
+        StringValue expectedValue;
+        expectedValue.set_value(myKey);
+
+        ReadRequest readRequest;
+        readRequest.Key = &key;
+        readRequest.Index = index;
+
+        auto readResult = co_await store->Read(
+            readRequest
         );
 
-        auto startTime = chrono::high_resolution_clock::now();
+        StringValue actualValue;
+        readResult->Value.unpack(&actualValue);
 
-        cppcoro::async_scope asyncScope;
+        auto messageDifferencerResult = MessageDifferencer::Equals(
+            expectedValue,
+            actualValue);
 
-        for (auto value : keys)
+        EXPECT_TRUE(messageDifferencerResult);
+        }(value));
+    }
+
+    for (auto& task : tasks)
+    {
+        co_await task;
+    }
+
+    auto endTime = chrono::high_resolution_clock::now();
+
+    auto runtimeMs = chrono::duration_cast<chrono::milliseconds>(endTime - startTime);
+
+    std::cout << "ProtoStoreTests runtime: " << runtimeMs.count() << "\r\n";
+}
+
+std::atomic<long> Perf2_running_items(0);
+std::vector<shared_task<>> performanceTasks;
+
+ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
+{
+    CreateProtoStoreRequest createRequest;
+    createRequest.ExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "Perf2", 4096);
+    createRequest.Schedulers = Schedulers::Default();
+
+#ifdef NDEBUG
+    createRequest.CheckpointLogSize = 1000000;
+#else
+    createRequest.CheckpointLogSize = 1000;
+#endif
+
+    auto store = co_await CreateStore(
+        createRequest);
+    m_perfStore = &store;
+
+    auto index = co_await CreateTestIndex(
+        store);
+
+#ifdef NDEBUG
+    int valueCount = 5000000;
+#else
+    int valueCount = 1000000;
+#endif
+
+    std::ranlux48 rng;
+    uniform_int_distribution<int> distribution('a', 'z');
+
+    auto keys = MakeRandomStrings(
+        rng,
+        20,
+        valueCount
+    );
+
+    auto nonExistentKeys = MakeRandomStrings(
+        rng,
+        20,
+        valueCount
+    );
+
+    auto startWriteTime = chrono::high_resolution_clock::now();
+
+    cppcoro::async_scope asyncScopeWrite;
+    auto schedulers = Schedulers::Default();
+
+    auto writeItemLambda = [&](size_t startKeyIndex, size_t endKeyIndex) -> task<>
+    {
+        co_await schedulers.ComputeScheduler->schedule();
+        Perf2_running_items.fetch_add(1);
+
+        co_await store->ExecuteTransaction(
+            BeginTransactionRequest(),
+            [&](ITransaction* operation)->status_task<>
         {
-            asyncScope.spawn([&](string myKey) -> task<>
-            {
-                co_await threadPool.schedule();
+            for (auto myKeyIndex = startKeyIndex;
+            myKeyIndex < endKeyIndex;
+                myKeyIndex++)
+        {
+            auto& myKey = keys[myKeyIndex];
+            StringKey key;
+            key.set_value(myKey);
+            StringValue expectedValue;
+            expectedValue.set_value(myKey);
 
-                StringKey key;
-                key.set_value(myKey);
-                StringValue expectedValue;
-                expectedValue.set_value(myKey);
+            co_await co_await operation->AddRow(
+                WriteOperationMetadata{},
+                index,
+                &key,
+                &expectedValue);
 
-                co_await store->ExecuteTransaction(
-                    BeginTransactionRequest(),
-                    [&](ITransaction* operation)->status_task<>
-                {
-                    co_await co_await operation->AddRow(
-                        WriteOperationMetadata{},
-                        index,
-                        &key,
-                        &expectedValue);
-
-                co_return{};
-                });
-            }(value));
+            co_return{};
         }
+        });
 
-        co_await asyncScope.join();
+        Perf2_running_items.fetch_sub(1);
+    };
 
-        std::vector<task<>> tasks;
+    auto keysPerInsert = 20;
+    for (size_t startKeyIndex = 0; startKeyIndex < keys.size(); startKeyIndex += keysPerInsert)
+    {
+        auto endKeyIndex = std::min(
+            startKeyIndex + keysPerInsert,
+            keys.size());
 
-        for (auto value : keys)
+        asyncScopeWrite.spawn(writeItemLambda(startKeyIndex, endKeyIndex));
+    }
+
+    co_await asyncScopeWrite.join();
+
+    auto endWriteTime = chrono::high_resolution_clock::now();
+    auto writeRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endWriteTime - startWriteTime);
+
+    std::cout << "ProtoStoreTests write runtime: " << writeRuntimeMs.count() << "ms\r\n" << std::flush;
+
+    auto readLambda = [&]() -> shared_task<>
+    {
+        auto startReadTime = chrono::high_resolution_clock::now();
+
+        Perf2_running_items.store(0);
+
+#ifdef NDEBUG
+        int threadCount = valueCount;
+#else
+        int threadCount = 1;
+#endif
+        auto readItemLambda = [&](int threadNumber) -> shared_task<>
         {
-            tasks.push_back([&](string myKey) -> task<>
+            co_await schedulers.ComputeScheduler->schedule();
+
+            auto endKeyIndex = std::min(
+                keys.size() / threadCount * (threadNumber + 1) - 1,
+                keys.size());
+
+            for (auto keyIndex = keys.size() / threadCount * threadNumber;
+                keyIndex < endKeyIndex;
+                keyIndex++)
             {
-                co_await threadPool.schedule();
+                if (keyIndex % 1000 == 0)
+                {
+                    co_await *schedulers.ComputeScheduler;
+                }
+
+                auto myKey = keys[keyIndex];
+
+                Perf2_running_items.fetch_add(1);
 
                 StringKey key;
                 key.set_value(myKey);
@@ -1476,296 +1550,127 @@ TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
                     actualValue);
 
                 EXPECT_TRUE(messageDifferencerResult);
-            }(value));
-        }
 
-        for (auto& task : tasks)
+                Perf2_running_items.fetch_sub(1);
+            }
+        };
+
+        cppcoro::async_scope asyncScopeRead;
+        m_perfScope = &asyncScopeRead;
+
+        for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
         {
-            co_await task;
+            performanceTasks.push_back(
+                readItemLambda(threadNumber));
+            asyncScopeRead.spawn(
+                performanceTasks.back());
         }
 
-        auto endTime = chrono::high_resolution_clock::now();
+        co_await asyncScopeRead.join();
 
-        auto runtimeMs = chrono::duration_cast<chrono::milliseconds>(endTime - startTime);
+        auto endReadTime = chrono::high_resolution_clock::now();
+        auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
 
-        std::cout << "ProtoStoreTests runtime: " << runtimeMs.count() << "\r\n";
-    });
-}
+        std::cout << "ProtoStoreTests read runtime: " << readRuntimeMs.count() << "ms\r\n";
+    };
 
-std::atomic<long> Perf2_running_items(0);
-std::vector<shared_task<>> performanceTasks;
+    co_await readLambda();
 
-TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
-{
-    run_async([&]() -> task<>
+
+    auto readNonExistentLambda = [&]() -> task<>
     {
-        CreateProtoStoreRequest createRequest;
-        createRequest.ExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "Perf2", 4096);
-        createRequest.Schedulers = Schedulers::Default();
+        auto startReadTime = chrono::high_resolution_clock::now();
+
+        Perf2_running_items.store(0);
 
 #ifdef NDEBUG
-        createRequest.CheckpointLogSize = 1000000;
+        int threadCount = 50;
 #else
-        createRequest.CheckpointLogSize = 1000;
+        int threadCount = 1;
 #endif
-
-        auto store = co_await CreateStore(
-            createRequest);
-        m_perfStore = &store;
-
-        auto index = co_await CreateTestIndex(
-            store);
-
-#ifdef NDEBUG
-        int valueCount = 5000000;
-#else
-        int valueCount = 1000000;
-#endif
-
-        std::ranlux48 rng;
-        uniform_int_distribution<int> distribution('a', 'z');
-
-        auto keys = MakeRandomStrings(
-            rng,
-            20,
-            valueCount
-        );
-
-        auto nonExistentKeys = MakeRandomStrings(
-            rng,
-            20,
-            valueCount
-        );
-
-        auto startWriteTime = chrono::high_resolution_clock::now();
-
-        cppcoro::async_scope asyncScopeWrite;
-        auto schedulers = Schedulers::Default();
-
-        auto writeItemLambda = [&](size_t startKeyIndex, size_t endKeyIndex) -> task<>
+        auto readItemsLambda = [&](int threadNumber) -> shared_task<>
         {
-            co_await schedulers.ComputeScheduler->schedule();
-            Perf2_running_items.fetch_add(1);
+            auto endKeyIndex = std::min(
+                keys.size() / threadCount * (threadNumber + 1) - 1,
+                keys.size());
 
-            co_await store->ExecuteTransaction(
-                BeginTransactionRequest(),
-                [&](ITransaction* operation)->status_task<>
+            for (auto keyIndex = nonExistentKeys.size() / threadCount * threadNumber;
+                keyIndex < endKeyIndex;
+                keyIndex++)
             {
-                for (auto myKeyIndex = startKeyIndex;
-                myKeyIndex < endKeyIndex;
-                    myKeyIndex++)
-            {
-                auto& myKey = keys[myKeyIndex];
+                if (keyIndex % 1000 == 0)
+                {
+                    co_await *schedulers.ComputeScheduler;
+                }
+
+                auto myKey = nonExistentKeys[keyIndex];
+
+                Perf2_running_items.fetch_add(1);
+
                 StringKey key;
                 key.set_value(myKey);
                 StringValue expectedValue;
                 expectedValue.set_value(myKey);
 
-                co_await co_await operation->AddRow(
-                    WriteOperationMetadata{},
-                    index,
-                    &key,
-                    &expectedValue);
+                ReadRequest readRequest;
+                readRequest.Key = &key;
+                readRequest.Index = index;
 
-                co_return{};
+                auto readResult = co_await store->Read(
+                    readRequest
+                );
+
+                EXPECT_EQ(true, !readResult->Value);
+
+                Perf2_running_items.fetch_sub(1);
             }
-            });
-
-            Perf2_running_items.fetch_sub(1);
         };
 
-        auto keysPerInsert = 20;
-        for (size_t startKeyIndex = 0; startKeyIndex < keys.size(); startKeyIndex += keysPerInsert)
-        {
-            auto endKeyIndex = std::min(
-                startKeyIndex + keysPerInsert,
-                keys.size());
+        cppcoro::async_scope asyncScopeRead;
+        m_perfScope = &asyncScopeRead;
 
-            asyncScopeWrite.spawn(writeItemLambda(startKeyIndex, endKeyIndex));
+        for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
+        {
+            performanceTasks.push_back(readItemsLambda(threadNumber));
+            asyncScopeRead.spawn(performanceTasks.back());
         }
 
-        co_await asyncScopeWrite.join();
+        co_await asyncScopeRead.join();
 
-        auto endWriteTime = chrono::high_resolution_clock::now();
-        auto writeRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endWriteTime - startWriteTime);
+        auto endReadTime = chrono::high_resolution_clock::now();
+        auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
 
-        std::cout << "ProtoStoreTests write runtime: " << writeRuntimeMs.count() << "ms\r\n" << std::flush;
+        std::cout << "ProtoStoreTests read nonexistent runtime: " << readRuntimeMs.count() << "ms\r\n";
+    };
 
-        auto readLambda = [&]() -> shared_task<>
-        {
-            auto startReadTime = chrono::high_resolution_clock::now();
+    co_await readNonExistentLambda();
 
-            Perf2_running_items.store(0);
+    auto checkpointLambda = [&]() -> task<>
+    {
+        auto checkpointStartTime = chrono::high_resolution_clock::now();
+        co_await store->Checkpoint();
+        auto checkpointEndTime = chrono::high_resolution_clock::now();
+        auto checkpointRuntimeMs = chrono::duration_cast<chrono::milliseconds>(checkpointEndTime - checkpointStartTime);
 
-#ifdef NDEBUG
-            int threadCount = valueCount;
-#else
-            int threadCount = 1;
-#endif
-            auto readItemLambda = [&](int threadNumber) -> shared_task<>
-            {
-                co_await schedulers.ComputeScheduler->schedule();
+        std::cout << "ProtoStoreTests checkpoint runtime: " << checkpointRuntimeMs.count() << "ms\r\n";
+    };
 
-                auto endKeyIndex = std::min(
-                    keys.size() / threadCount * (threadNumber + 1) - 1,
-                    keys.size());
+    co_await checkpointLambda();
 
-                for (auto keyIndex = keys.size() / threadCount * threadNumber;
-                    keyIndex < endKeyIndex;
-                    keyIndex++)
-                {
-                    if (keyIndex % 1000 == 0)
-                    {
-                        co_await *schedulers.ComputeScheduler;
-                    }
+    co_await readLambda();
+    co_await readNonExistentLambda();
 
-                    auto myKey = keys[keyIndex];
+    co_await checkpointLambda();
+    co_await checkpointLambda();
+    co_await checkpointLambda();
 
-                    Perf2_running_items.fetch_add(1);
+    co_await readLambda();
+    co_await readNonExistentLambda();
 
-                    StringKey key;
-                    key.set_value(myKey);
-                    StringValue expectedValue;
-                    expectedValue.set_value(myKey);
+    co_await checkpointLambda();
 
-                    ReadRequest readRequest;
-                    readRequest.Key = &key;
-                    readRequest.Index = index;
-
-                    auto readResult = co_await store->Read(
-                        readRequest
-                    );
-
-                    StringValue actualValue;
-                    readResult->Value.unpack(&actualValue);
-
-                    auto messageDifferencerResult = MessageDifferencer::Equals(
-                        expectedValue,
-                        actualValue);
-
-                    EXPECT_TRUE(messageDifferencerResult);
-
-                    Perf2_running_items.fetch_sub(1);
-                }
-            };
-
-            cppcoro::async_scope asyncScopeRead;
-            m_perfScope = &asyncScopeRead;
-
-            for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
-            {
-                performanceTasks.push_back(
-                    readItemLambda(threadNumber));
-                asyncScopeRead.spawn(
-                    performanceTasks.back());
-            }
-
-            co_await asyncScopeRead.join();
-
-            auto endReadTime = chrono::high_resolution_clock::now();
-            auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
-
-            std::cout << "ProtoStoreTests read runtime: " << readRuntimeMs.count() << "ms\r\n";
-        };
-
-        co_await readLambda();
-
-
-        auto readNonExistentLambda = [&]() -> task<>
-        {
-            auto startReadTime = chrono::high_resolution_clock::now();
-
-            Perf2_running_items.store(0);
-
-#ifdef NDEBUG
-            int threadCount = 50;
-#else
-            int threadCount = 1;
-#endif
-            auto readItemsLambda = [&](int threadNumber) -> shared_task<>
-            {
-                auto endKeyIndex = std::min(
-                    keys.size() / threadCount * (threadNumber + 1) - 1,
-                    keys.size());
-
-                for (auto keyIndex = nonExistentKeys.size() / threadCount * threadNumber;
-                    keyIndex < endKeyIndex;
-                    keyIndex++)
-                {
-                    if (keyIndex % 1000 == 0)
-                    {
-                        co_await *schedulers.ComputeScheduler;
-                    }
-
-                    auto myKey = nonExistentKeys[keyIndex];
-
-                    Perf2_running_items.fetch_add(1);
-
-                    StringKey key;
-                    key.set_value(myKey);
-                    StringValue expectedValue;
-                    expectedValue.set_value(myKey);
-
-                    ReadRequest readRequest;
-                    readRequest.Key = &key;
-                    readRequest.Index = index;
-
-                    auto readResult = co_await store->Read(
-                        readRequest
-                    );
-
-                    EXPECT_EQ(true, !readResult->Value);
-
-                    Perf2_running_items.fetch_sub(1);
-                }
-            };
-
-            cppcoro::async_scope asyncScopeRead;
-            m_perfScope = &asyncScopeRead;
-
-            for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
-            {
-                performanceTasks.push_back(readItemsLambda(threadNumber));
-                asyncScopeRead.spawn(performanceTasks.back());
-            }
-
-            co_await asyncScopeRead.join();
-
-            auto endReadTime = chrono::high_resolution_clock::now();
-            auto readRuntimeMs = chrono::duration_cast<chrono::milliseconds>(endReadTime - startReadTime);
-
-            std::cout << "ProtoStoreTests read nonexistent runtime: " << readRuntimeMs.count() << "ms\r\n";
-        };
-
-        co_await readNonExistentLambda();
-
-        auto checkpointLambda = [&]() -> task<>
-        {
-            auto checkpointStartTime = chrono::high_resolution_clock::now();
-            co_await store->Checkpoint();
-            auto checkpointEndTime = chrono::high_resolution_clock::now();
-            auto checkpointRuntimeMs = chrono::duration_cast<chrono::milliseconds>(checkpointEndTime - checkpointStartTime);
-
-            std::cout << "ProtoStoreTests checkpoint runtime: " << checkpointRuntimeMs.count() << "ms\r\n";
-        };
-
-        co_await checkpointLambda();
-
-        co_await readLambda();
-        co_await readNonExistentLambda();
-
-        co_await checkpointLambda();
-        co_await checkpointLambda();
-        co_await checkpointLambda();
-
-        co_await readLambda();
-        co_await readNonExistentLambda();
-
-        co_await checkpointLambda();
-
-        co_await readLambda();
-        co_await readNonExistentLambda();
-    });
+    co_await readLambda();
+    co_await readNonExistentLambda();
 }
 
 }
