@@ -111,11 +111,11 @@ namespace Phantom::ProtoStore
                 
                 if (offset > m_bytes->size())
                 {
-                    throw std::range_error("offset");
+                    co_return{};
                 }
                 if (offset + count > m_bytes->size())
                 {
-                    throw std::range_error("count");
+                    co_return{};
                 }
 
                 co_return RawData(

@@ -26,25 +26,25 @@ task<> DumpLog(
     auto logMessageReader = co_await messageStore->OpenExtentForSequentialReadAccess(
         logExtent);
 
-    try
+    do
     {
-        do
-        {
-            auto readMessageResult = co_await logMessageReader->Read();
-            auto span = get_uint8_t_span(readMessageResult->Message);
+        auto readMessageResult = co_await logMessageReader->Read();
+        auto span = get_uint8_t_span(readMessageResult->Message);
 
-            DumpMessage(
-                "LogRecord",
-                flatbuffers::FlatBufferToString(
-                    span.data(),
-                    FlatBuffers::LogRecordTypeTable(),
-                    true,
-                    true,
-                    "  "),
-                readMessageResult->DataRange.Beginning);
-        } while (true);
-    }
-    catch (range_error)
-    { }
+        if (!span.data())
+        {
+            co_return;
+        }
+
+        DumpMessage(
+            "LogRecord",
+            flatbuffers::FlatBufferToString(
+                span.data(),
+                FlatBuffers::LogRecordTypeTable(),
+                true,
+                true,
+                "  "),
+            readMessageResult->DataRange.Beginning);
+    } while (true);
 
 }

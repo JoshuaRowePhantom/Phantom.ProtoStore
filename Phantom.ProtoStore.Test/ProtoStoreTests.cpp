@@ -933,6 +933,7 @@ TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
     run_async([&]() -> task<>
     {
         auto createRequest = GetCreateMemoryStoreRequest();
+//        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_reopen");
 
         auto store = co_await CreateStore(createRequest);
 

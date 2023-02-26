@@ -54,6 +54,11 @@ task<> LogManager::Replay(
 {
     auto logExtentSequenceNumber = extentName->log_extent_sequence_number;
 
+    if (!logRecord->log_entry())
+    {
+        co_return;
+    }
+
     for (uoffset_t logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); ++logEntryIndex)
     {
         switch (logRecord->log_entry_type()->Get(logEntryIndex))

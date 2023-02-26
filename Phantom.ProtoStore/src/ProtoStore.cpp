@@ -302,28 +302,31 @@ task<> ProtoStore::Replay(
 
     while (true)
     {
-        try
-        {
-            FlatMessage<LogRecord> logRecordMessage{ co_await logReader->Read() };
+        FlatMessage<LogRecord> logRecordMessage{ co_await logReader->Read() };
 
-            co_await m_logManager->Replay(
-                extentName,
-                logRecordMessage.get()
-            );
-
-            co_await Replay(
-                logRecordMessage);
-        }
-        catch (std::range_error)
+        if (!logRecordMessage)
         {
             co_return;
         }
+
+        co_await m_logManager->Replay(
+            extentName,
+            logRecordMessage.get()
+        );
+
+        co_await Replay(
+            logRecordMessage);
     }
 }
 
 task<> ProtoStore::Replay(
     const FlatMessage<LogRecord>& logRecord)
 {
+    if (!logRecord->log_entry())
+    {
+        co_return;
+    }
+
     for(auto logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); logEntryIndex++)
     {
         auto getMessage = [&]<typename T>(tag<T>)
@@ -907,10 +910,11 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
         co_return nullptr;
     }
 
-    auto indexesByNameValue = readResult->Value.cast_if<IndexesByNameValue>();
+    IndexesByNameValue indexesByNameValue;
+    readResult->Value.unpack(&indexesByNameValue);
 
     co_return (co_await GetIndexEntryInternal(
-        indexesByNameValue->indexnumber(),
+        indexesByNameValue.indexnumber(),
         DoReplayPartitions)
         )->Index;
 }
@@ -1403,10 +1407,16 @@ task<vector<std::tuple<Serialization::PartitionsKey, Serialization::PartitionsVa
         iterator != enumeration.end();
         co_await ++iterator)
     {
+        PartitionsKey partitionsKey;
+        PartitionsValue partitionsValue;
+
+        (*iterator)->Key.unpack(&partitionsKey);
+        (*iterator)->Value.unpack(&partitionsValue);
+        
         result.push_back(
             std::make_tuple(
-                *((*iterator)->Key.cast_if<PartitionsKey>()),
-                *((*iterator)->Value.cast_if<PartitionsValue>())));
+                std::move(partitionsKey),
+                std::move(partitionsValue)));
     }
 
     co_return result;

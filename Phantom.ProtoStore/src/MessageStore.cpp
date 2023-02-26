@@ -97,8 +97,18 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
         headerExtentOffset,
         sizeof(FlatBuffers::MessageHeader_V1));
 
+    if (!messageHeaderReadBuffer->data())
+    {
+        co_return{};
+    }
+
     auto messageHeader = reinterpret_cast<const FlatBuffers::MessageHeader_V1*>(
         messageHeaderReadBuffer->data());
+    if (messageHeader->message_size_and_alignment() == 0
+        && messageHeader->crc32() == 0)
+    {
+        co_return{};
+    }
 
     auto messageSize = messageHeader->message_size_and_alignment() & ~uint32_t(0x3);
     uint8_t messageAlignment = 1 << ((messageHeader->message_size_and_alignment() & 0x3) + 2);
@@ -363,6 +373,10 @@ task<DataReference<StoredMessage>> SequentialMessageReader::Read(
 {
     auto storedMessage = co_await m_randomMessageReader->Read(
         m_currentOffset);
+    if (!storedMessage->Message.data())
+    {
+        co_return{};
+    }
     m_currentOffset = storedMessage->DataRange.End;
     co_return std::move(storedMessage);
 }
