@@ -88,11 +88,11 @@ std::weak_ordering compare_union(
         {
             return std::weak_ordering::equivalent;
         }
-        if (leftValue)
+        if (!leftValue)
         {
             return std::weak_ordering::less;
         }
-        if (rightValue)
+        if (!rightValue)
         {
             return std::weak_ordering::greater;
         }
