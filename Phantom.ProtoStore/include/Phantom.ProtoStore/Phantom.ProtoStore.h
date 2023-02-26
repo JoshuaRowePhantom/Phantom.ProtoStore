@@ -375,7 +375,14 @@ public:
         DataReference<StoredMessage> storedMessage
     ) :
         m_storedMessage{ std::move(storedMessage) },
-        m_table{ flatbuffers::GetRoot<Table>(m_storedMessage->Message.data()) }
+        m_table
+        { 
+            m_storedMessage->Message.data()
+            ?
+            flatbuffers::GetRoot<Table>(m_storedMessage->Message.data()) 
+            : 
+            nullptr
+        }
     {}
 
     explicit FlatMessage(
