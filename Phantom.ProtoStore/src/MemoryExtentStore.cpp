@@ -84,7 +84,7 @@ namespace Phantom::ProtoStore
                     if (m_currentWriteOperation)
                     {
                         co_await m_extent->Write(
-                            move(*m_currentWriteOperation));
+                            *m_currentWriteOperation);
                         m_currentWriteOperation.reset();
                     }
                     co_return;
@@ -137,7 +137,7 @@ namespace Phantom::ProtoStore
             }
 
             task<> Write(
-                WriteOperation&& writeOperation
+                WriteOperation writeOperation
             )
             {
                 auto lock = co_await m_mutex.scoped_lock_async();

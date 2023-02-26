@@ -13,6 +13,8 @@ add_executable(
     "ChecksumTests.cpp" 
     "DataReferenceTests.cpp"
     "DelayedMemoryTableTransactionOutcomeTests.cpp" 
+    "ExtentStoreTests.cpp"
+    "ExtentStoreTests.h" 
     "HeaderAccessorTests.cpp"
     "KeyComparerTests.cpp"
     "lifetime_tracker.h"
@@ -29,7 +31,7 @@ add_executable(
     "SkipListTest.cpp"
     "StandardIncludes.cpp"
     "StandardIncludes.h"
-    )
+     )
     
 PROTOBUF_GENERATE(
     LANGUAGE cpp
