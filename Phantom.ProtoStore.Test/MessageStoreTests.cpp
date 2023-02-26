@@ -316,6 +316,33 @@ ASYNC_TEST(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it
         actualMessage);
 }
 
+ASYNC_TEST(RandomReaderWriterTest, Can_use_returned_StoredMessage_from_Write)
+{
+    auto extentStore = make_shared<MemoryExtentStore>(
+        Schedulers::Default());
+    auto messageStore = make_shared<MessageStore>(
+        Schedulers::Default(),
+        extentStore);
+    auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
+
+    FlatBuffers::ScalarTableT expectedMessage;
+    expectedMessage.item = 5;
+
+    flatbuffers::FlatBufferBuilder builder;
+    auto scalarOffset = FlatBuffers::CreateScalarTable(builder, &expectedMessage);
+    builder.Finish(scalarOffset);
+
+    auto writeBuffer = co_await randomMessageWriter->Write(
+        0,
+        FlatMessage<FlatBuffers::ScalarTable>(builder).data(),
+        FlushBehavior::Flush);
+
+    FlatBuffers::ScalarTableT scalar;
+    FlatMessage<FlatBuffers::ScalarTable>{writeBuffer}->UnPackTo(&scalar);
+
+    EXPECT_EQ(scalar, expectedMessage);
+}
+
 TEST(RandomReaderWriterTest, Can_read_what_was_written_after_DontFlush_then_Flush)
 {
     run_async([]() -> task<>
