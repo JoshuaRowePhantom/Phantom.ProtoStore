@@ -82,7 +82,7 @@ std::weak_ordering compare_union(
     auto comparer = [&](auto accessor)
     {
         auto leftValue = (left.*accessor)();
-        auto rightValue = (left.*accessor)();
+        auto rightValue = (right.*accessor)();
 
         if (!leftValue && !rightValue)
         {
