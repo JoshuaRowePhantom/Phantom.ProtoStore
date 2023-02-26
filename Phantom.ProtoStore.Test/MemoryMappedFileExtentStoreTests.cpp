@@ -175,16 +175,13 @@ TEST(MemoryMappedFileExtentStoreTests, DeleteExtent_erases_the_content)
             auto writeExtent = co_await store->OpenExtentForWrite(MakeLogExtentName(0));
             auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
             auto rawData = co_await writeBuffer->Write(0, writeData.size());
-            google::protobuf::io::ArrayOutputStream outputStream(
-                rawData.data().data(),
-                rawData.data().size());
 
-            {
-                CodedOutputStream writeStream(&outputStream);
-                writeStream.WriteRaw(
-                    writeData.data(),
-                    writeData.size());
-            }
+            std::copy_n(
+                reinterpret_cast<std::byte*>(writeData.data()),
+                writeData.size(),
+                rawData->begin()
+            );
+
             co_await writeBuffer->Flush();
         }
 
@@ -201,4 +198,47 @@ TEST(MemoryMappedFileExtentStoreTests, DeleteExtent_erases_the_content)
     }
     );
 }
+
+ASYNC_TEST(MemoryMappedFileExtentStoreTests, DeleteExtent_erases_the_content_while_a_DataReference_exists)
+{
+    auto store = MakeFilesystemStore(
+        "MemoryMappedFileExtentStoreTests",
+        "DeleteExtent_erases_the_content",
+        4096);
+    vector<uint8_t> writeData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+    WritableRawData rawData;
+
+    {
+        auto writeExtent = co_await store->OpenExtentForWrite(MakeLogExtentName(0));
+        auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
+        rawData = co_await writeBuffer->Write(0, writeData.size());
+
+        std::copy_n(
+            reinterpret_cast<std::byte*>(writeData.data()),
+            writeData.size(),
+            rawData->begin()
+        );
+
+        co_await writeBuffer->Flush();
+    }
+
+    co_await store->DeleteExtent(MakeLogExtentName(0));
+
+    auto extent = co_await store->OpenExtentForRead(MakeLogExtentName(0));
+
+    EXPECT_THROW(
+        (co_await extent->Read(
+            0,
+            1))
+        ,
+        std::range_error);
+
+    EXPECT_TRUE(
+        std::ranges::equal(
+            get_uint8_t_span(*rawData),
+            writeData
+        ));
+}
+
 }
