@@ -654,7 +654,7 @@ struct TransactionFailedResult
     // execution of the transaction. These failures
     // may have been ignored by the actual transaction
     // processor.
-    std::vector<FailedResult> Failures;
+    //std::vector<FailedResult> Failures;
 
     friend bool operator==(
         const TransactionFailedResult&,

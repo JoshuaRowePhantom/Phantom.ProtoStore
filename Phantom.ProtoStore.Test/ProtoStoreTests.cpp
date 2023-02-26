@@ -827,17 +827,17 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
                     .ErrorDetails = TransactionFailedResult
                     {
                         .TransactionOutcome = TransactionOutcome::Aborted,
-                        .Failures =
-                        {
-                            {
-                                .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
-                                .ErrorDetails = WriteConflict
-                                {
-                                    .Index = index,
-                                    .ConflictingSequenceNumber = ToSequenceNumber(5),
-                                }
-                            }
-                        }
+                        //.Failures =
+                        //{
+                        //    {
+                        //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                        //        .ErrorDetails = WriteConflict
+                        //        {
+                        //            .Index = index,
+                        //            .ConflictingSequenceNumber = ToSequenceNumber(5),
+                        //        }
+                        //    }
+                        //}
                     }
                 }
             }),
@@ -894,17 +894,17 @@ TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
                     .ErrorDetails = TransactionFailedResult
                     {
                         .TransactionOutcome = TransactionOutcome::Aborted,
-                        .Failures = 
-                        {
-                            {
-                                .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
-                                .ErrorDetails = WriteConflict
-                                {
-                                    .Index = index,
-                                    .ConflictingSequenceNumber = ToSequenceNumber(5),
-                                }
-                            }
-                        }
+                        //.Failures = 
+                        //{
+                        //    {
+                        //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                        //        .ErrorDetails = WriteConflict
+                        //        {
+                        //            .Index = index,
+                        //            .ConflictingSequenceNumber = ToSequenceNumber(5),
+                        //        }
+                        //    }
+                        //}
                     }
                 }
             }),
@@ -1173,17 +1173,17 @@ TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
                     .ErrorDetails = TransactionFailedResult
                     {
                         .TransactionOutcome = TransactionOutcome::Aborted,
-                        .Failures =
-                        {
-                            {
-                                .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
-                                .ErrorDetails = WriteConflict
-                                {
-                                    .Index = index,
-                                    .ConflictingSequenceNumber = ToSequenceNumber(5),
-                                }
-                            }
-                        }
+                        //.Failures =
+                        //{
+                        //    {
+                        //        .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
+                        //        .ErrorDetails = WriteConflict
+                        //        {
+                        //            .Index = index,
+                        //            .ConflictingSequenceNumber = ToSequenceNumber(5),
+                        //        }
+                        //    }
+                        //}
                     }
                 }
             }),
