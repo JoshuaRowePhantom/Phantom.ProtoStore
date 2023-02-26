@@ -1,8 +1,7 @@
 # CMakeList.txt : Top-level CMake project file, do global configuration
 # and include sub-projects here.
 #
-cmake_minimum_required (VERSION 3.17)
-
+cmake_minimum_required (VERSION 3.24)
 
 add_executable(
     Phantom.ProtoStore.Utility
@@ -20,7 +19,7 @@ target_compile_definitions(
 
 target_link_libraries(
     Phantom.ProtoStore.Utility
+    PRIVATE
     Phantom.System
     Phantom.ProtoStore
-    Phantom.ProtoStore.FlatBuffers
 )

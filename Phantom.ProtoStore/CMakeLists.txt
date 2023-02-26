@@ -1,9 +1,13 @@
-﻿cmake_minimum_required (VERSION 3.17)
+﻿cmake_minimum_required (VERSION 3.24)
 
 add_library (
     Phantom.ProtoStore 
     STATIC
+    "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
+    "include/Phantom.ProtoStore/ProtoStore.proto"
     "src/BloomFilter.h"
+    "src/CanonicalProtoKey.cpp"
+    "src/CanonicalProtoKey.h" 
     "src/Checksum.cpp"
     "src/Checksum.h"
     "src/ExtentManager.h"
@@ -15,10 +19,10 @@ add_library (
     "src/HeaderAccessorImpl.h"
     "src/Index.cpp"
     "src/Index.h"
-    "src/IndexImpl.h"
     "src/IndexDataSources.cpp"
     "src/IndexDataSources.h"
     "src/IndexDataSourcesImpl.h"
+    "src/IndexImpl.h"
     "src/IndexMerger.cpp"
     "src/IndexMerger.h"
     "src/IndexPartitionMergeGenerator.cpp"
@@ -51,6 +55,7 @@ add_library (
     "src/ProtoStore.h"
     "src/ProtoStoreFactory.cpp"
     "src/ProtoStoreFactory.h"
+    "src/ProtoStoreInternal.proto"
     "src/RandomMessageAccessor.cpp"
     "src/RandomMessageAccessor.h"
     "src/RandomMessageAccessorImpl.h"
@@ -60,13 +65,11 @@ add_library (
     "src/Schema.h"
     "src/SkipList.cpp"
     "src/SkipList.h" 
+    "src/StandardTypes.cpp"
     "src/StandardTypes.h"
-    "src/UnresolvedTransactionsTracker.h" 
     "src/UnresolvedTransactionsTracker.cpp"
-    "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
-    "src/ProtoStoreInternal.proto"
-    "include/Phantom.ProtoStore/ProtoStore.proto"
-     "src/CanonicalProtoKey.h" "src/CanonicalProtoKey.cpp" "src/StandardTypes.cpp")
+    "src/UnresolvedTransactionsTracker.h" 
+)
     
 
 target_include_directories(
@@ -105,10 +108,9 @@ target_compile_definitions(
 target_link_libraries(
     Phantom.ProtoStore
     PUBLIC
-    Phantom.Coroutines.cppcoro
-    protobuf::libprotobuf
     flatbuffers::flatbuffers
-    PRIVATE
+    Phantom.Coroutines.cppcoro
     Phantom.ProtoStore.FlatBuffers
     Phantom.System
+    protobuf::libprotobuf
 )
