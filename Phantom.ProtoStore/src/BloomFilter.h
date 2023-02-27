@@ -486,7 +486,6 @@ template<
 public:
     using TBase::TBase;
 
-
     template<
         typename TKey
     > void add(

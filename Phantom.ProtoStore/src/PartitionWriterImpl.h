@@ -1,8 +1,9 @@
 #pragma once
 
 #include "PartitionWriter.h"
-#include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal_generated.h"
 #include "MessageStore.h"
+#include "PartitionImpl.h"
 
 namespace Phantom::ProtoStore
 {
@@ -13,108 +14,71 @@ struct PartitionWriterParameters
     size_t MaxEmbeddedValueSize = 100;
 };
 
-class PartitionTreeWriter : SerializationTypes
+class PartitionWriterBase : SerializationTypes
+{
+protected:
+    shared_ptr<ISequentialMessageWriter> m_dataWriter;
+
+    PartitionWriterBase(
+        shared_ptr<ISequentialMessageWriter> dataWriter);
+
+    task<FlatBuffers::MessageReference_V1> Write(
+        const FlatMessage<FlatBuffers::PartitionMessage>&,
+        FlushBehavior flushBehavior
+    );
+};
+
+class PartitionTreeWriter : PartitionWriterBase
 {
 private:
     struct StackEntry
     {
-        PartitionMessage Message;
-        size_t EstimatedSize = 0;
+        flatbuffers::FlatBufferBuilder partitionTreeNodeBuilder;
+        RawData highestKey;
+        SequenceNumber lowestSequenceNumberForKey;
+        std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryKey>> keyOffsets;
     };
 
     std::vector<StackEntry> m_treeNodeStack;
     
-    shared_ptr<ISequentialMessageWriter> m_dataWriter;
+    WriteRowsRequest& m_writeRowsRequest;
+    WriteRowsResult& m_writeRowsResult;
+    BloomFilterVersion1<std::span<char>>& m_bloomFilter;
 
-    google::protobuf::uint64 GetLowestSequenceNumber(
-        const Serialization::PartitionTreeEntry& treeEntry
-    );
+    using PartitionTreeEntryValueOffsetVector = std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryValue>>;
+    using PartitionDataValueOffset = Offset<FlatBuffers::PartitionDataValue>;
+    using FlatBufferBuilder = flatbuffers::FlatBufferBuilder;
 
-    task<DataReference<StoredMessage>> Write(
-        uint32_t level,
-        bool createNewLevel);
+    void FinishKey(
+        RawData& currentKey,
+        SequenceNumber lowestSequenceNumberForKey,
+        PartitionTreeEntryValueOffsetVector& treeEntryValues
+        );
+
+    PartitionDataValueOffset WriteRawData(
+        FlatBufferBuilder& builder,
+        const RawData& rawData);
+
+    task<FlatBuffers::MessageReference_V1> Flush(
+        size_t level);
 
 public:
     PartitionTreeWriter(
-        shared_ptr<ISequentialMessageWriter> dataWriter
+        shared_ptr<ISequentialMessageWriter> dataWriter,
+        WriteRowsRequest& writeRowsRequest,
+        WriteRowsResult& writeRowsResult,
+        BloomFilterVersion1<std::span<char>>& bloomFilter
     );
 
-    size_t GetEstimatedSizeForNewTreeEntryValue(
-        const PartitionTreeEntryValue& partitionTreeEntryValue
-    );
-
-    size_t GetEstimatedSizeForNewTreeEntry(
-        const string& key,
-        const PartitionTreeEntryValue& partitionTreeEntryValue
-    );
-
-    size_t GetEstimatedSizeForWriteOfParent(
-        uint32_t level
-    );
-
-    void StartTreeEntry(
-        string key);
-
-    void AddTreeEntryValue(
-        PartitionTreeEntryValue partitionTreeEntryValue);
-
-    bool IsCurrentKey(
-        const string& key
-    );
-
-    int GetKeyCount(
-        uint32_t level);
-
-    uint32_t GetLevelCount();
-
-    task<DataReference<StoredMessage>> Write(
-        uint32_t level);
-
-    task<DataReference<StoredMessage>> WriteRoot();
+    task<FlatBuffers::MessageReference_V1> WriteRows();
 };
 
 class PartitionWriter : 
-    SerializationTypes,
+    PartitionWriterBase,
     public IPartitionWriter
 {
-    shared_ptr<ISequentialMessageWriter> m_dataWriter;
     shared_ptr<ISequentialMessageWriter> m_headerWriter;
     const PartitionWriterParameters m_parameters;
-    PartitionTreeWriter m_partitionTreeWriter;
-
-    task<> AddValueToTreeEntry(
-        string key,
-        PartitionTreeEntryValue partitionTreeEntryValue);
-
-    task<DataReference<StoredMessage>> Write(
-        const PartitionMessage& partitionMessage,
-        FlushBehavior flushBehavior = FlushBehavior::DontFlush
-    );
-
-    task<DataReference<StoredMessage>> Write(
-        PartitionHeader partitionHeader
-    );
-
-    task<DataReference<StoredMessage>> Write(
-        PartitionRoot partitionRoot
-    );
-
-    task<DataReference<StoredMessage>> Write(
-        PartitionTreeNode partitionTreeNode
-    );
-
-    task<DataReference<StoredMessage>> Write(
-        PartitionBloomFilter partitionBloomFilter
-    );
-
-    task<DataReference<StoredMessage>> Write(
-        string value
-    );
-
-    task<DataReference<StoredMessage>> WriteLeftoverTreeEntries();
-
-    task<> FlushCompleteTreeNode(
-        uint32_t level);
 
 public:
     PartitionWriter(
@@ -124,7 +88,7 @@ public:
     );
 
     virtual task<WriteRowsResult> WriteRows(
-        WriteRowsRequest writeRowsRequest
+        WriteRowsRequest& writeRowsRequest
     ) override;
 };
 

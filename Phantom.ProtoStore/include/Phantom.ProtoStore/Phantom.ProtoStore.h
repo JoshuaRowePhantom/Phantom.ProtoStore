@@ -27,7 +27,7 @@ namespace Phantom::ProtoStore
 {
 namespace FlatBuffers
 {
-enum class ExtentFormatVersion : uint8_t;
+enum class ExtentFormatVersion : int8_t;
 }
 
 using cppcoro::async_generator;

@@ -4,343 +4,339 @@
 #include "PartitionWriterImpl.h"
 #include "MessageStore.h"
 #include <vector>
-#include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal_generated.h"
 #include "BloomFilter.h"
 
 namespace Phantom::ProtoStore
 {
 
-PartitionTreeWriter::PartitionTreeWriter(
-    shared_ptr<ISequentialMessageWriter> dataWriter
-) : m_dataWriter(dataWriter)
-{
-    m_treeNodeStack.push_back(StackEntry());
-
-    // Ensure there is a partition tree node in the first message we create,
-    // in case the partition ends up empty.
-    m_treeNodeStack[0].Message.mutable_partitiontreenode();
-}
-
-void PartitionTreeWriter::StartTreeEntry(
-    string key)
-{
-    auto treeEntry = m_treeNodeStack[0].Message.mutable_partitiontreenode()->mutable_treeentries()->Add();
-    treeEntry->set_key(move(key));
-
-    m_treeNodeStack[0].EstimatedSize += treeEntry->ByteSizeLong();
-}
-
-void PartitionTreeWriter::AddTreeEntryValue(
-    PartitionTreeEntryValue partitionTreeEntryValue
-)
-{
-    *m_treeNodeStack[0].Message.mutable_partitiontreenode()->mutable_treeentries(
-        m_treeNodeStack[0].Message.mutable_partitiontreenode()->treeentries_size() - 1
-    )->mutable_valueset()->add_values() = move(partitionTreeEntryValue);
-
-    m_treeNodeStack[0].EstimatedSize += partitionTreeEntryValue.ByteSizeLong();
-}
-
-bool PartitionTreeWriter::IsCurrentKey(
-    const string& key
-)
-{
-    auto treeEntriesSize = m_treeNodeStack[0].Message.partitiontreenode().treeentries_size();
-    return treeEntriesSize > 0
-        && m_treeNodeStack[0].Message.partitiontreenode().treeentries(treeEntriesSize - 1).key() == key;
-}
-
-task<DataReference<StoredMessage>> PartitionTreeWriter::Write(
-    uint32_t level)
-{
-    return Write(
-        level,
-        true);
-}
-
-task<DataReference<StoredMessage>> PartitionTreeWriter::Write(
-    uint32_t level,
-    bool createNewLevel)
-{
-    auto treeNode = m_treeNodeStack[level].Message.mutable_partitiontreenode();
-    treeNode->set_level(level);
-
-    auto writeMessageResult = co_await m_dataWriter->Write(
-        m_treeNodeStack[level].Message,
-        FlushBehavior::DontFlush);
-
-    if (m_treeNodeStack.size() < level + 2)
-    {
-        if (!createNewLevel)
-        {
-            co_return writeMessageResult;
-        }
-
-        m_treeNodeStack.resize(level + 2);
-    }
-
-    auto& lastChild = *(treeNode->mutable_treeentries()->end() - 1);
-    auto higherLevelTreeEntry = m_treeNodeStack[level + 1].Message.mutable_partitiontreenode()->add_treeentries();
-    higherLevelTreeEntry->set_key(
-        move(*lastChild.mutable_key())
-    );
-    higherLevelTreeEntry->mutable_child()->set_treenodeoffset(
-        writeMessageResult->DataRange.Beginning
-    );
-    higherLevelTreeEntry->mutable_child()->set_lowestwritesequencenumberforkey(
-        GetLowestSequenceNumber(lastChild)
-    );
-    m_treeNodeStack[level + 1].EstimatedSize += higherLevelTreeEntry->ByteSizeLong();
-
-    m_treeNodeStack[level].Message.Clear();
-    m_treeNodeStack[level].EstimatedSize = 0;
-
-    co_return writeMessageResult;
-}
-
-google::protobuf::uint64 PartitionTreeWriter::GetLowestSequenceNumber(
-    const PartitionTreeEntry& treeEntry
-)
-{
-    if (treeEntry.has_child())
-    {
-        return treeEntry.child().lowestwritesequencenumberforkey();
-    }
-    return (treeEntry.valueset().values().end() - 1)->writesequencenumber();
-}
-
-task<DataReference<StoredMessage>> PartitionTreeWriter::WriteRoot()
-{
-    DataReference<StoredMessage> result;
-    for (auto level = 0; level < m_treeNodeStack.size(); level++)
-    {
-        // Only write the node if it is non-empty
-        // or is the highest level.
-        if (m_treeNodeStack[level].Message.partitiontreenode().treeentries_size() > 0
-            ||
-            level == m_treeNodeStack.size() - 1)
-        {
-            result = co_await Write(
-                level,
-                false);
-        }
-    }
-
-    co_return result;
-}
-
-int PartitionTreeWriter::GetKeyCount(
-    uint32_t level)
-{
-    return level >= m_treeNodeStack.size()
-        ? 0
-        : m_treeNodeStack[level].Message.partitiontreenode().treeentries_size();
-}
-
-uint32_t PartitionTreeWriter::GetLevelCount()
-{
-    return m_treeNodeStack.size();
-}
-
-size_t PartitionTreeWriter::GetEstimatedSizeForNewTreeEntryValue(
-    const PartitionTreeEntryValue& partitionTreeEntryValue
-)
-{
-    return m_treeNodeStack[0].EstimatedSize + partitionTreeEntryValue.ByteSizeLong();
-}
-
-size_t PartitionTreeWriter::GetEstimatedSizeForNewTreeEntry(
-    const string& key,
-    const PartitionTreeEntryValue& partitionTreeEntryValue
-)
-{
-    return m_treeNodeStack[0].EstimatedSize + partitionTreeEntryValue.ByteSizeLong() + key.size();
-}
-
-size_t PartitionTreeWriter::GetEstimatedSizeForWriteOfParent(
-    uint32_t level
-)
-{
-    auto parentLevelEstimatedSize =
-        level >= m_treeNodeStack.size()
-        ? 0
-        : m_treeNodeStack[level].EstimatedSize;
-
-    auto keySize = m_treeNodeStack[level].Message.partitiontreenode().treeentries(0).key().size();
-
-    return parentLevelEstimatedSize + keySize;
-}
-
-PartitionWriter::PartitionWriter(
-    PartitionWriterParameters parameters,
-    shared_ptr<ISequentialMessageWriter> dataWriter,
-    shared_ptr<ISequentialMessageWriter> headerWriter
-)
-    :
-    m_parameters(parameters),
-    m_dataWriter(dataWriter),
-    m_headerWriter(headerWriter),
-    m_partitionTreeWriter(dataWriter)
+PartitionWriterBase::PartitionWriterBase(
+    shared_ptr<ISequentialMessageWriter> dataWriter)
+    : m_dataWriter{ dataWriter }
 {}
 
-task<DataReference<StoredMessage>> PartitionWriter::Write(
-    const PartitionMessage& partitionMessage,
-    FlushBehavior flushBehavior
+task<FlatBuffers::MessageReference_V1> PartitionWriterBase::Write(
+    const FlatMessage<FlatBuffers::PartitionMessage>& partitionMessage,
+    FlushBehavior flushBehavior = FlushBehavior::DontFlush
 )
 {
-    co_return co_await m_dataWriter->Write(
-        partitionMessage,
-        flushBehavior
+    auto storedMessage = co_await m_dataWriter->Write(
+        partitionMessage.data(),
+        FlushBehavior::DontFlush);
+
+    auto header = reinterpret_cast<const FlatBuffers::MessageHeader_V1*>(
+        storedMessage->Header.data());
+
+    FlatBuffers::MessageReference_V1 messageReference =
+    {
+        *header,
+        storedMessage->DataRange.Beginning,
+    };
+
+    co_return messageReference;
+}
+
+PartitionTreeWriter::PartitionTreeWriter(
+    shared_ptr<ISequentialMessageWriter> dataWriter,
+    WriteRowsRequest& writeRowsRequest,
+    WriteRowsResult& writeRowsResult,
+    BloomFilterVersion1<std::span<char>>& bloomFilter
+) :
+    PartitionWriterBase(std::move(dataWriter)),
+    m_writeRowsRequest(writeRowsRequest),
+    m_writeRowsResult(writeRowsResult),
+    m_bloomFilter(bloomFilter)
+{
+}
+
+PartitionTreeWriter::PartitionDataValueOffset PartitionTreeWriter::WriteRawData(
+    FlatBufferBuilder& builder,
+    const RawData& rawData
+)
+{
+    if (!rawData->data())
+    {
+        return {};
+    }
+
+    auto dataVectorOffset = builder.CreateVector<int8_t>(
+        get_int8_t_span(*rawData).data(),
+        rawData->size());
+
+    return FlatBuffers::CreatePartitionDataValue(
+        builder,
+        dataVectorOffset,
+        1);
+}
+
+void PartitionTreeWriter::FinishKey(
+    RawData& currentKey,
+    SequenceNumber lowestSequenceNumberForKey,
+    PartitionTreeEntryValueOffsetVector& treeEntryValues
+)
+{
+    if (!currentKey->data())
+    {
+        assert(treeEntryValues.empty());
+        return;
+    }
+
+    assert(!treeEntryValues.empty());
+
+    auto& builder = m_treeNodeStack.front().partitionTreeNodeBuilder;
+
+    auto keyOffset = WriteRawData(
+        builder,
+        currentKey);
+
+    auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
+        builder,
+        keyOffset,
+        ToUint64(lowestSequenceNumberForKey),
+        &treeEntryValues
     );
+
+    m_treeNodeStack.front().highestKey = std::move(currentKey);
+    m_treeNodeStack.front().lowestSequenceNumberForKey = lowestSequenceNumberForKey;
+    m_treeNodeStack.front().keyOffsets.push_back(partitionTreeEntryKeyOffset);
+
+    treeEntryValues.clear();
 }
 
-task<DataReference<StoredMessage>> PartitionWriter::Write(
-    PartitionHeader partitionHeader
-)
+task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
+    size_t level)
 {
-    PartitionMessage message;
-    *message.mutable_partitionheader() = move(partitionHeader);
-
-    co_await m_headerWriter->Write(
-        message,
-        FlushBehavior::Flush
-    );
-
-    co_return co_await Write(
-        message,
-        FlushBehavior::Flush);
-}
-
-task<DataReference<StoredMessage>> PartitionWriter::Write(
-    PartitionRoot partitionRoot
-)
-{
-    PartitionMessage message;
-    *message.mutable_partitionroot() = move(partitionRoot);
-    co_return co_await Write(message);
-}
-
-task<DataReference<StoredMessage>> PartitionWriter::Write(
-    PartitionTreeNode partitionTreeNode
-)
-{
-    PartitionMessage message;
-    *message.mutable_partitiontreenode() = move(partitionTreeNode);
-    co_return co_await Write(message);
-}
-
-task<DataReference<StoredMessage>> PartitionWriter::Write(
-    PartitionBloomFilter partitionBloomFilter
-)
-{
-    PartitionMessage message;
-    *message.mutable_partitionbloomfilter() = move(partitionBloomFilter);
-    co_return co_await Write(message);
-}
-
-task<DataReference<StoredMessage>> PartitionWriter::Write(
-    string value
-)
-{
-    PartitionMessage message;
-    message.set_value(move(value));
-    co_return co_await Write(message);
-}
-
-task<> PartitionWriter::AddValueToTreeEntry(
-    string key,
-    PartitionTreeEntryValue partitionTreeEntryValue)
-{
-    bool needNewTreeEntry = !m_partitionTreeWriter.IsCurrentKey(
-        key);
-
-    bool flushLevel0 = 
-        m_partitionTreeWriter.GetKeyCount(0) >= m_parameters.MinimumKeysPerTreeNode;
-
-    if (flushLevel0)
-    {
-        size_t estimatedNewSizeOfLevel0;
-
-        if (needNewTreeEntry)
-        {
-            estimatedNewSizeOfLevel0 = m_partitionTreeWriter.GetEstimatedSizeForNewTreeEntry(
-                key,
-                partitionTreeEntryValue);
-        }
-        else
-        {
-            estimatedNewSizeOfLevel0 = m_partitionTreeWriter.GetEstimatedSizeForNewTreeEntryValue(
-                partitionTreeEntryValue);
-        }
-
-        flushLevel0 = estimatedNewSizeOfLevel0 > m_parameters.DesiredTreeNodeSize;
-    }
-
-    if (flushLevel0)
-    {
-        co_await FlushCompleteTreeNode(0);
-    }
-
-    if (needNewTreeEntry)
-    {
-        m_partitionTreeWriter.StartTreeEntry(
-            move(key));
-    }
-
-    m_partitionTreeWriter.AddTreeEntryValue(
-        move(partitionTreeEntryValue));
-}
-
-task<> PartitionWriter::FlushCompleteTreeNode(
-    uint32_t level)
-{
-    bool flushNextLevel = 
-        m_partitionTreeWriter.GetKeyCount(level + 1) > m_parameters.MinimumKeysPerTreeNode;
+    StackEntry& current = m_treeNodeStack[level];
     
-    if (flushNextLevel)
+    // We need to flush the next higher level IF
+    // the higher level exists AND adding the highest key in this level to the next level
+    // would cause it to exceed its size target.
+    if (m_treeNodeStack.size() > level + 1)
     {
-        auto estimatedNewSizeOfNextLevel = m_partitionTreeWriter.GetEstimatedSizeForWriteOfParent(
-            level);
-
-        flushNextLevel = estimatedNewSizeOfNextLevel > m_parameters.DesiredTreeNodeSize;
+        StackEntry& next = m_treeNodeStack[level + 1];
+        auto approximateSize = current.highestKey->size() + 100;
+        if (next.partitionTreeNodeBuilder.GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize)
+        {
+            co_await Flush(level + 1);
+        }
     }
 
-    if (flushNextLevel)
-    {
-        co_await FlushCompleteTreeNode(
-            level + 1);
-    }
+    auto treeNodeOffset = FlatBuffers::CreatePartitionTreeNodeDirect(
+        current.partitionTreeNodeBuilder,
+        &current.keyOffsets,
+        level,
+        0,
+        0,
+        0
+    );
 
-    co_await m_partitionTreeWriter.Write(
-        level);
+    auto partitionMessageOffset = FlatBuffers::CreatePartitionMessage(
+        current.partitionTreeNodeBuilder,
+        treeNodeOffset
+    );
+
+    current.partitionTreeNodeBuilder.Finish(
+        partitionMessageOffset);
+
+    FlatMessage<FlatBuffers::PartitionMessage> partitionMessage { current.partitionTreeNodeBuilder };
+
+    auto messageReference = co_await Write(
+        partitionMessage
+    );
+
+    if (m_treeNodeStack.size() == level + 1)
+    {
+        m_treeNodeStack.push_back(StackEntry());
+    }
+    StackEntry& next = m_treeNodeStack[level + 1];
+    
+    next.highestKey = std::move(current.highestKey);
+    next.lowestSequenceNumberForKey = current.lowestSequenceNumberForKey;
+    
+    auto nextKeyDataOffset = WriteRawData(
+        next.partitionTreeNodeBuilder,
+        next.highestKey
+    );
+
+    auto nextPartitionTreeEntryKey = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
+        next.partitionTreeNodeBuilder,
+        nextKeyDataOffset,
+        ToUint64(next.lowestSequenceNumberForKey),
+        nullptr,
+        &messageReference
+    );
+
+    next.keyOffsets.push_back(
+        nextPartitionTreeEntryKey);
+
+    current.highestKey = {};
+    current.keyOffsets.clear();
+    current.partitionTreeNodeBuilder.Clear();
+
+    co_return messageReference;
 }
 
-task<DataReference<StoredMessage>> PartitionWriter::WriteLeftoverTreeEntries()
+task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 {
-    return m_partitionTreeWriter.WriteRoot();
+    auto& iterator = m_writeRowsResult.resumptionRow;
+
+    auto earliestSequenceNumber = SequenceNumber::Latest;
+    auto latestSequenceNumber = SequenceNumber::Earliest;
+
+    m_treeNodeStack.push_back(StackEntry());
+    RawData currentKey;
+    SequenceNumber lowestSequenceNumberForCurrentKey;
+    PartitionDataValueOffset currentKeyOffset;
+    PartitionTreeEntryValueOffsetVector currentValues;
+
+    auto& partitionTreeNodeBuilder = m_treeNodeStack.front().partitionTreeNodeBuilder;
+
+    for (;
+        iterator != m_writeRowsRequest.rows->end();
+        co_await ++iterator)
+    {
+        auto approximateNeededExtentSize =
+            // Bloom filter
+            m_bloomFilter.to_span().size() + 100
+            // Root
+            + 100
+            // Tree nodes higher in the stack
+            + m_treeNodeStack.size() * m_writeRowsRequest.targetMessageSize;
+
+        ResultRow& row = *iterator;
+
+        auto approximateRowSize =
+            row.Key->size()
+            + row.Value->size()
+            + row.TransactionId->size()
+            + 100;
+
+        if ((co_await m_dataWriter->CurrentOffset() + partitionTreeNodeBuilder.GetSize() + approximateRowSize) > m_writeRowsRequest.targetExtentSize)
+        {
+            // We need enough space left in the extent to write the bloom filter,
+            // root, and remaining stack entries, 
+            // so finish up here and stop this extent.
+            FinishKey(
+                currentKey,
+                lowestSequenceNumberForCurrentKey,
+                currentValues
+            );
+
+            co_await Flush(0);
+            break;
+        }
+        if (partitionTreeNodeBuilder.GetSize() + approximateRowSize > m_writeRowsRequest.targetMessageSize)
+        {
+            // We need enough space left in the message to write the key entry,
+            // so finish up this message.
+            FinishKey(
+                currentKey,
+                lowestSequenceNumberForCurrentKey,
+                currentValues
+            );
+
+            co_await Flush(0);
+        }
+
+        ++m_writeRowsResult.rowsIterated;
+        ++m_writeRowsResult.rowsWritten;
+        m_writeRowsResult.earliestSequenceNumber = ToSequenceNumber(std::min(
+            ToUint64(m_writeRowsResult.earliestSequenceNumber),
+            ToUint64(row.WriteSequenceNumber)
+        ));
+        m_writeRowsResult.latestSequenceNumber = ToSequenceNumber(std::max(
+            ToUint64(m_writeRowsResult.latestSequenceNumber),
+            ToUint64(row.WriteSequenceNumber)
+        ));
+
+        if (row.WriteSequenceNumber > latestSequenceNumber)
+        {
+            latestSequenceNumber = row.WriteSequenceNumber;
+        }
+        if (row.WriteSequenceNumber < earliestSequenceNumber)
+        {
+            earliestSequenceNumber = row.WriteSequenceNumber;
+        }
+
+        if (!currentKey->data() || !std::ranges::equal(*currentKey, *row.Key))
+        {
+            FinishKey(
+                currentKey,
+                lowestSequenceNumberForCurrentKey,
+                currentValues
+            );
+
+            currentKey = std::move(row.Key);
+        }
+
+        lowestSequenceNumberForCurrentKey = row.WriteSequenceNumber;
+
+        auto valueDataOffset = WriteRawData(
+            partitionTreeNodeBuilder,
+            row.Value);
+
+        Offset<flatbuffers::Vector<int8_t>> transactionIdOffset;
+        if (row.TransactionId->data())
+        {
+            transactionIdOffset = partitionTreeNodeBuilder.CreateVector<int8_t>(
+                get_int8_t_span(*row.TransactionId).data(),
+                row.TransactionId->size());
+        }
+
+        auto partitionTreeEntryValueOffset = FlatBuffers::CreatePartitionTreeEntryValue(
+            partitionTreeNodeBuilder,
+            ToUint64(row.WriteSequenceNumber),
+            valueDataOffset,
+            transactionIdOffset);
+
+        currentValues.push_back(
+            partitionTreeEntryValueOffset);
+    }
+
+    FinishKey(
+        currentKey,
+        lowestSequenceNumberForCurrentKey,
+        currentValues);
+
+    FlatBuffers::MessageReference_V1 root;
+
+    // Flush the lowest level to ensure that all the necessary higher levels are updated.
+    root = co_await Flush(0);
+
+    // The tree node stack is now complete.
+    // Flush each of the intermediate levels up to the first level that has < 2 entries;
+    // when we 
+    for(auto level = 1; m_treeNodeStack[level].keyOffsets.size() > 1; level++)
+    {
+        if (!m_treeNodeStack[level].keyOffsets.empty())
+        {
+            root = co_await Flush(level);
+        }
+    }
+
+    co_return root;
 }
 
 task<WriteRowsResult> PartitionWriter::WriteRows(
-    WriteRowsRequest writeRowsRequest
+    WriteRowsRequest& writeRowsRequest
 )
 {
-    auto iterator = writeRowsRequest.rows->begin();
-    WriteRowsResult result =
+    WriteRowsResult writeRowsResult =
     {
         .rowsIterated = 0,
         .rowsWritten = 0,
-        .resumptionRow = co_await move(iterator),
+        .resumptionRow = co_await writeRowsRequest.rows->begin(),
     };
 
     auto approximateRowCountToWrite = writeRowsRequest.approximateRowCount;
-    if (writeRowsRequest.inputSize > writeRowsRequest.targetSize)
+    if (writeRowsRequest.inputSize > writeRowsRequest.targetExtentSize)
     {
         // Compute the approximate fraction of rows we're going to write,
         // and add a few % for noise.  It's okay if we compute a number
         // greater or smaller than the number of rows we actually write; this is for
         // bloom filter sizing.
         auto approximateRowCountFractionToWrite =
-            static_cast<double>(writeRowsRequest.targetSize) / static_cast<double>(writeRowsRequest.inputSize) * 1.1;
+            static_cast<double>(writeRowsRequest.targetExtentSize) / static_cast<double>(writeRowsRequest.inputSize) * 1.1;
 
         approximateRowCountToWrite = static_cast<size_t>(
             writeRowsRequest.approximateRowCount * approximateRowCountFractionToWrite);
@@ -353,123 +349,66 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     auto bloomFilterHashFunctionCount = get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
         desiredBloomFilterFalsePositiveRate);
 
-    PartitionBloomFilter partitionBloomFilter;
-    partitionBloomFilter.set_algorithm(
-        PartitionBloomFilterHashAlgorithm::Version1
-    );
-    partitionBloomFilter.mutable_filter()->resize(
-        (bloomFilterBitCount + 7) / 8);
+    auto partitionBloomFilter = std::make_unique<FlatBuffers::PartitionBloomFilterT>();
+    partitionBloomFilter->filter.resize((bloomFilterBitCount + 7) / 8);
+    partitionBloomFilter->algorithm = FlatBuffers::PartitionBloomFilterHashAlgorithm::Version1;
+    partitionBloomFilter->hash_function_count = bloomFilterHashFunctionCount;
 
-    partitionBloomFilter.set_hashfunctioncount(
-        bloomFilterHashFunctionCount);
+    auto bloomFilterSpan = std::span(
+        reinterpret_cast<char*>(partitionBloomFilter->filter.data()), 
+        partitionBloomFilter->filter.size());
 
     BloomFilterVersion1<std::span<char>> bloomFilter(
-        std::span(
-            partitionBloomFilter.mutable_filter()->begin(),
-            partitionBloomFilter.mutable_filter()->end()),
+        bloomFilterSpan,
         bloomFilterHashFunctionCount
     );
 
-    auto earliestSequenceNumber = SequenceNumber::Latest;
-    auto latestSequenceNumber = SequenceNumber::Earliest;
-
-    for (;
-        result.resumptionRow != writeRowsRequest.rows->end();
-        co_await ++result.resumptionRow)
-    {
-        if (co_await m_dataWriter->CurrentOffset() > writeRowsRequest.targetSize)
-        {
-            break;
-        }
-
-        ++result.rowsIterated;
-        ++result.rowsWritten;
-
-        auto& row = *result.resumptionRow;
-     
-        if (row.WriteSequenceNumber > latestSequenceNumber)
-        {
-            latestSequenceNumber = row.WriteSequenceNumber;
-        }
-        if (row.WriteSequenceNumber < earliestSequenceNumber)
-        {
-            earliestSequenceNumber = row.WriteSequenceNumber;
-        }
-
-        std::string keyString(
-            reinterpret_cast<const char*>(row.Key->data()),
-            row.Key->size()
-        );
-
-        bloomFilter.add(
-            keyString);
-
-        PartitionTreeEntryValue partitionTreeEntryValue;
-
-        partitionTreeEntryValue.set_writesequencenumber(
-            ToUint64(row.WriteSequenceNumber));
-
-        auto valueSpan = *row.Value;
-
-        if (!valueSpan.data())
-        {
-            partitionTreeEntryValue.set_deleted(true);
-        }
-        else if (valueSpan.size() > m_parameters.MaxEmbeddedValueSize)
-        {
-            string value(
-                reinterpret_cast<const char*>(valueSpan.data()),
-                valueSpan.size());
-
-            auto largeValueWrite = co_await Write(
-                move(value));
-
-            partitionTreeEntryValue.set_valueoffset(
-                largeValueWrite->DataRange.Beginning);
-        }
-        else
-        {
-            partitionTreeEntryValue.mutable_value()->assign(
-                reinterpret_cast<const char*>(valueSpan.data()),
-                valueSpan.size());
-        }
-
-        co_await AddValueToTreeEntry(
-            move(keyString),
-            move(partitionTreeEntryValue));
-    }
-
-    auto rootTreeNodeWriteResult = co_await WriteLeftoverTreeEntries();
-
-    auto bloomFilterWriteResult = co_await Write(
-        move(partitionBloomFilter));
-
-    PartitionRoot partitionRoot;
-    partitionRoot.set_roottreenodeoffset(
-        rootTreeNodeWriteResult->DataRange.Beginning);
-    partitionRoot.set_rowcount(
-        result.rowsWritten);
-    partitionRoot.set_bloomfilteroffset(
-        bloomFilterWriteResult->DataRange.Beginning
+    PartitionTreeWriter treeWriter(
+        m_dataWriter,
+        writeRowsRequest,
+        writeRowsResult,
+        bloomFilter
     );
-    partitionRoot.set_earliestsequencenumber(
-        ToUint64(earliestSequenceNumber));
-    partitionRoot.set_latestsequencenumber(
-        ToUint64(latestSequenceNumber));
 
-    auto partitionRootWriteResult = co_await Write(
-        move(partitionRoot));
+    auto rootTreeEntryReference = co_await treeWriter.WriteRows();
 
-    PartitionHeader partitionHeader;
-    partitionHeader.set_partitionrootoffset(
-        partitionRootWriteResult->DataRange.Beginning);
+    FlatBuffers::PartitionMessageT bloomFilterPartitionMessage;
+    bloomFilterPartitionMessage.bloom_filter = std::move(partitionBloomFilter);
 
-    co_await Write(
-        move(partitionHeader));
+    FlatMessage<FlatBuffers::PartitionMessage> bloomFilterPartitionFlatMessage{ &bloomFilterPartitionMessage };
 
-    result.writtenDataSize = co_await m_dataWriter->CurrentOffset();
-    result.writtenExtentSize = co_await m_dataWriter->CurrentOffset();
-    co_return move(result);
+    auto bloomFilterReference = co_await Write(
+        bloomFilterPartitionFlatMessage);
+
+    auto partitionRoot = std::make_unique<FlatBuffers::PartitionRootT>();
+    partitionRoot->bloom_filter = std::make_unique<FlatBuffers::MessageReference_V1>(bloomFilterReference);
+    partitionRoot->root_tree_node = std::make_unique<FlatBuffers::MessageReference_V1>(rootTreeEntryReference);
+    partitionRoot->earliest_sequence_number = ToUint64(writeRowsResult.earliestSequenceNumber);
+    partitionRoot->latest_sequence_number = ToUint64(writeRowsResult.latestSequenceNumber);
+    partitionRoot->row_count = writeRowsResult.rowsWritten;
+    
+    FlatBuffers::PartitionMessageT partitionRootMessage;
+    partitionRootMessage.root = std::move(partitionRoot);
+
+    FlatMessage<FlatBuffers::PartitionMessage> partitionRootFlatMessage{ &partitionRootMessage };
+
+    auto partitionRootReference = co_await Write(
+        partitionRootFlatMessage,
+        FlushBehavior::Flush);
+
+    auto partitionHeader = std::make_unique<FlatBuffers::PartitionHeaderT>();
+    partitionHeader->partition_root = std::make_unique<FlatBuffers::MessageReference_V1>(partitionRootReference);
+
+    FlatBuffers::PartitionMessageT partitionHeaderMessage;
+    partitionHeaderMessage.header = std::move(partitionHeader);
+
+    FlatMessage<FlatBuffers::PartitionMessage> partitionHeaderFlatMessage{ &partitionHeaderMessage };
+
+    co_await m_headerWriter->Write(
+        partitionHeaderFlatMessage.data(),
+        FlushBehavior::Flush
+    );
+
+    co_return writeRowsResult;
 }
-
 }

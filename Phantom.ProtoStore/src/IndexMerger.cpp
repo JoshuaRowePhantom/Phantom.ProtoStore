@@ -129,7 +129,8 @@ task<> IndexMerger::RestartIncompleteMerge(
             .approximateRowCount = approximateRowCount,
             .rows = &rowGenerator,
             .inputSize = inputSize,
-            .targetSize = 1024 * 1024 * 1024,
+            .targetExtentSize = 1024 * 1024 * 1024,
+            .targetMessageSize = 1024 * 1024 * 1024,
         };
 
         auto writeRowsResult = co_await partitionWriter->WriteRows(

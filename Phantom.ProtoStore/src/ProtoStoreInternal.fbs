@@ -44,7 +44,7 @@ table DatabaseHeader {
     next_partition_number : uint64;
 }
 
-enum ExtentFormatVersion : uint8 {
+enum ExtentFormatVersion : byte {
     None = 0,
     V1 = 1
 }
@@ -163,6 +163,85 @@ union LogEntry
 table LogRecord
 {
     log_entry : [LogEntry];
+}
+
+table PartitionDataValue {
+    // The underlying value.
+    data : [byte];
+
+    // The required alignment of the data stored in "data"
+    alignment : byte;
+}
+
+table PartitionTreeEntryValue {
+    write_sequence_number : uint64;
+
+    // Value is not set if this is a delete.
+    value : PartitionDataValue;
+
+    // Set if this transaction has not been resolved
+    // as of when the row was written to disk.
+    // This value is cleared upon merge whenever
+    // the transaction outcome is known.
+    unresolved_transaction_id : [byte];
+}
+
+// A reference to a message elsewhere in the extent.
+struct MessageReference_V1 {
+    // The message header for the message.
+    message_header : MessageHeader_V1;
+    // The location of the message in the extent.
+    message_offset : uint64;
+}
+
+table PartitionTreeEntryKey {
+    // The highest key in the tree entry.
+    key : PartitionDataValue;
+    lowest_write_sequence_number_for_key : uint64;
+
+    // The values if this is a leaf node.
+    values : [PartitionTreeEntryValue];
+
+    // The child tree node if this is a non-leaf entry.
+    // This will be a reference to a PartitionMessage containing a PartitionTreeNode.
+    child_tree_node : MessageReference_V1;
+}
+
+table PartitionTreeNode {
+    keys : [PartitionTreeEntryKey];
+    level : uint64;
+    size : uint64;
+    approximate_key_count : uint64;
+    approximate_key_count_running_total : uint64;
+}
+
+enum PartitionBloomFilterHashAlgorithm : byte {
+    Version1 = 0
+}
+
+table PartitionBloomFilter {
+    algorithm : PartitionBloomFilterHashAlgorithm;
+    hash_function_count : uint32;
+    filter : [byte];
+}
+
+table PartitionRoot {
+    root_tree_node : MessageReference_V1;
+    row_count : uint64;
+    bloom_filter : MessageReference_V1;
+    earliest_sequence_number : uint64;
+    latest_sequence_number : uint64;
+}
+
+table PartitionHeader {
+    partition_root : MessageReference_V1;
+}
+
+table PartitionMessage {
+    tree_node : PartitionTreeNode;
+    header : PartitionHeader;
+    root : PartitionRoot;
+    bloom_filter : PartitionBloomFilter;
 }
 
 file_identifier "PSEX";
