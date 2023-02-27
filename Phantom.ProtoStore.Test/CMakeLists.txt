@@ -43,7 +43,7 @@ target_compile_definitions(
     Phantom.ProtoStore.Test
     PUBLIC
     "BOOST_ALL_NO_LIB=1"
-#    "$<$<CONFIG:RelWithDebInfo>:PHANTOM_USE_MIMALLOC=1>"
+    "$<$<CONFIG:RelWithDebInfo>:PHANTOM_USE_MIMALLOC=1>"
 )
 
 flatbuffers_generate_headers(
@@ -53,10 +53,10 @@ flatbuffers_generate_headers(
     SCHEMAS
     ProtoStoreTest.fbs)
 
-#target_link_libraries(
-#    Phantom.ProtoStore.Test
-#    PRIVATE
-#    "$<$<CONFIG:RelWithDebInfo>:mimalloc>")
+target_link_libraries(
+    Phantom.ProtoStore.Test
+    PRIVATE
+    "$<$<CONFIG:RelWithDebInfo>:mimalloc>")
 
 target_link_libraries(
     Phantom.ProtoStore.Test

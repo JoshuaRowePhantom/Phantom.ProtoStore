@@ -52,9 +52,10 @@ cppcoro::async_generator<TItem> merge_sorted_generators(
         entryComparer);
 
     std::vector<generator_type> generators;
-    for (auto&& generator : std::ranges::subrange{ beginIterator, endIterator })
+    while (beginIterator != endIterator)
     {
-        generators.emplace_back(std::move(generator));
+        generators.emplace_back(std::move(*beginIterator));
+        ++beginIterator;
     }
 
     std::vector<iterator_type> iterators;

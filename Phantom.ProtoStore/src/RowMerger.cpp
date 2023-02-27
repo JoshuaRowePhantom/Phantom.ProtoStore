@@ -16,13 +16,6 @@ row_generator RowMerger::Merge(
     row_generators rowSources
 )
 {
-    std::vector<row_generator> capturedRowSources;
-    for (auto& rowSource : rowSources)
-    {
-        capturedRowSources.emplace_back(
-            move(rowSource));
-    }
-
     auto comparator = [this](
         const ResultRow& row1,
         const ResultRow& row2
@@ -47,8 +40,8 @@ row_generator RowMerger::Merge(
     };
 
     auto result = merge_sorted_generators<ResultRow>(
-        capturedRowSources.begin(),
-        capturedRowSources.end(),
+        rowSources.begin(),
+        rowSources.end(),
         comparator);
 
     for (auto iterator = co_await result.begin();

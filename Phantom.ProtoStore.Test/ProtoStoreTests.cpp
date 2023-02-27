@@ -1425,7 +1425,7 @@ ASYNC_TEST_F(ProtoStoreTests, Perf2)
         store);
 
 #ifdef NDEBUG
-    int valueCount = 500000;
+    int valueCount = 5000000;
 #else
     int valueCount = 1000;
 #endif
@@ -1482,7 +1482,7 @@ ASYNC_TEST_F(ProtoStoreTests, Perf2)
         Perf2_running_items.fetch_sub(1);
     };
 
-    auto keysPerInsert = 20;
+    auto keysPerInsert = 100;
     for (size_t startKeyIndex = 0; startKeyIndex < keys.size(); startKeyIndex += keysPerInsert)
     {
         auto endKeyIndex = std::min(
