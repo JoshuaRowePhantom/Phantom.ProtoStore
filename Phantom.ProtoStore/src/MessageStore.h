@@ -14,9 +14,13 @@ namespace Phantom::ProtoStore
             ExtentOffset extentOffset
         ) = 0;
 
-        virtual task< DataReference<StoredMessage>> Read(
+        virtual task<DataReference<StoredMessage>> Read(
             ExtentOffset extentOffset,
             Message& message
+        ) = 0;
+
+        virtual task<DataReference<StoredMessage>> Read(
+            const FlatBuffers::MessageReference_V1* location
         ) = 0;
     };
 

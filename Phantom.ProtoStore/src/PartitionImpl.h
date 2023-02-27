@@ -3,10 +3,9 @@
 #include "Partition.h"
 #include "AsyncScopeMixin.h"
 #include "BloomFilter.h"
-#include "ProtoStoreInternal.pb.h"
-#include "PartitionTreeNodeCache.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "SkipList.h"
+#include "src/ProtoStoreInternal_generated.h"
 #include <compare>
 #include <stdint.h>
 

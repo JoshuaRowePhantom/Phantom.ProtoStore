@@ -56,6 +56,10 @@ public:
         ExtentOffset extentOffset,
         Message& message
     ) override;
+
+    virtual task<DataReference<StoredMessage>> Read(
+        const FlatBuffers::MessageReference_V1* location
+    ) override;
 };
 
 class RandomMessageWriter

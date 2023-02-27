@@ -155,6 +155,9 @@ struct LoggedDeleteExtentPendingPartitionsUpdated;
 struct LoggedUnresolvedTransactions;
 struct LoggedPartitionsData;
 struct LoggedPartitionsDataT;
+
+struct MessageReference_V1;
+
 enum class ExtentFormatVersion : int8_t;
 
 struct ExtentName;

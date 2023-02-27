@@ -84,31 +84,16 @@ RandomMessageReader::RandomMessageReader(
 {}
 
 task<DataReference<StoredMessage>> RandomMessageReader::Read(
-    ExtentOffset extentOffset
+    const FlatBuffers::MessageReference_V1* location
 )
 {
     static_assert(alignof(FlatBuffers::MessageHeader_V1) == 4);
 
     // A MessageHeader_V1 has a specific alignment of 4.
-    assert(is_aligned(extentOffset, 4));
-    auto headerExtentOffset = to_underlying_extent_offset(extentOffset);
+    assert(is_aligned(location->message_offset(), 4));
+    auto headerExtentOffset = to_underlying_extent_offset(location->message_offset());
 
-    auto messageHeaderReadBuffer = co_await m_extent->Read(
-        headerExtentOffset,
-        sizeof(FlatBuffers::MessageHeader_V1));
-
-    if (!messageHeaderReadBuffer->data())
-    {
-        co_return{};
-    }
-
-    auto messageHeader = reinterpret_cast<const FlatBuffers::MessageHeader_V1*>(
-        messageHeaderReadBuffer->data());
-    if (messageHeader->message_size_and_alignment() == 0
-        && messageHeader->crc32() == 0)
-    {
-        co_return{};
-    }
+    auto messageHeader = &location->message_header();
 
     auto messageSize = messageHeader->message_size_and_alignment() & ~uint32_t(0x3);
     uint8_t messageAlignment = 1 << ((messageHeader->message_size_and_alignment() & 0x3) + 2);
@@ -132,8 +117,8 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
         .Header = envelopeReadBuffer->subspan(0, sizeof(FlatBuffers::MessageHeader_V1)),
         .DataRange = 
         {
-            .Beginning = extentOffset,
-            .End = messageExtentOffset - headerExtentOffset + extentOffset + messageSize,
+            .Beginning = location->message_offset(),
+            .End = messageExtentOffset - headerExtentOffset + location->message_offset() + messageSize,
         },
     };
 
@@ -148,6 +133,37 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
         std::move(envelopeReadBuffer),
         storedMessage
     };
+}
+
+task<DataReference<StoredMessage>> RandomMessageReader::Read(
+    ExtentOffset extentOffset
+)
+{
+    static_assert(alignof(FlatBuffers::MessageHeader_V1) == 4);
+
+    // A MessageHeader_V1 has a specific alignment of 4.
+    assert(is_aligned(extentOffset, 4));
+    auto headerExtentOffset = to_underlying_extent_offset(extentOffset);
+
+    auto messageHeaderReadBuffer = co_await m_extent->Read(
+        headerExtentOffset,
+        sizeof(FlatBuffers::MessageHeader_V1));
+
+    if (!messageHeaderReadBuffer->data())
+    {
+        co_return{};
+    }
+
+    auto messageHeader = reinterpret_cast<const FlatBuffers::MessageHeader_V1*>(
+        messageHeaderReadBuffer->data());
+
+    FlatBuffers::MessageReference_V1 messageReference(
+        *messageHeader,
+        extentOffset
+    );
+
+    co_return co_await Read(
+        &messageReference);
 }
 
 task<DataReference<StoredMessage>> RandomMessageReader::Read(

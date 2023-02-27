@@ -1,9 +1,7 @@
 #include "Checksum.h"
 #include "KeyComparer.h"
 #include "PartitionImpl.h"
-#include "PartitionTreeNodeCache.h"
 #include "Phantom.System/async_utility.h"
-#include "ProtoStoreInternal.pb.h"
 #include "RandomMessageAccessor.h"
 #include "Schema.h"
 #include <algorithm>
