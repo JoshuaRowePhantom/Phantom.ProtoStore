@@ -36,9 +36,9 @@ std::span<const std::byte> as_bytes(
 
 template<typename T>
 std::unique_ptr<T> copy_unique(
-    const T& other)
+    T&& other)
 {
-    return make_unique<T>(other);
+    return std::make_unique<T>(other);
 }
 
 }

@@ -15,7 +15,8 @@ namespace Phantom::ProtoStore
 using namespace Serialization;
 
 class PartitionTests : 
-    public testing::Test
+    public testing::Test,
+    public SerializationTypes
 {
 protected:
     PartitionTests()
@@ -51,299 +52,62 @@ protected:
             messageStore);
     }
 
-    string ToSerializedKey(
+    std::unique_ptr<PartitionDataValueT> ToSerializedValue(
+        const Message& message
+    )
+    {
+        auto serializedValue = message.SerializeAsString();
+
+        auto dataValue = std::make_unique<PartitionDataValueT>();
+        dataValue->alignment = 1;
+        dataValue->data.resize(serializedValue.size());
+        std::copy_n(
+            serializedValue.data(),
+            serializedValue.size(),
+            reinterpret_cast<char*>(dataValue->data.data())
+        );
+
+        return std::move(dataValue);
+    }
+
+    std::unique_ptr<PartitionDataValueT> ToSerializedKey(
         google::protobuf::int32 key)
     {
         PartitionTestKey protoKey;
         protoKey.set_key(key);
-        return protoKey.SerializeAsString();
+        
+        return ToSerializedValue(
+            protoKey);
     }
 
-    string ToSerializedValue(
+    std::unique_ptr<PartitionDataValueT> ToSerializedValue(
         google::protobuf::int32 key,
         google::protobuf::uint64 sequenceNumber)
     {
         PartitionTestValue protoValue;
         protoValue.set_key(key);
         protoValue.set_sequencenumber(sequenceNumber);
-        return protoValue.SerializeAsString();
-    }
 
-    task<DataReference<StoredMessage>> WriteAlwaysHitBloomFilter(
-        const shared_ptr<ISequentialMessageWriter>& sequentialMessageWriter
-    )
-    {
-        PartitionMessage message;
-        message.mutable_partitionbloomfilter()->set_filter("\xff");
-        message.mutable_partitionbloomfilter()->set_algorithm(PartitionBloomFilterHashAlgorithm::Version1);
-        message.mutable_partitionbloomfilter()->set_hashfunctioncount(1);
-
-        co_return co_await sequentialMessageWriter->Write(
-            message,
-            FlushBehavior::Flush);
-    }
-
-    task<> WriteBloomFilterAndRootAndHeader(
-        DataReference<StoredMessage> rootTreeNodeWriteResult,
-        size_t rowCount,
-        SequenceNumber earliestSequenceNumber,
-        SequenceNumber latestSequenceNumber,
-        const shared_ptr<ISequentialMessageWriter>& dataSequentialMessageWriter,
-        const shared_ptr<ISequentialMessageWriter>& headerSequentialMessageWriter
-    )
-    {
-        auto bloomFilterWriteResult = co_await WriteAlwaysHitBloomFilter(
-            dataSequentialMessageWriter);
-
-        PartitionMessage partitionRootMessage;
-        auto partitionRoot = partitionRootMessage.mutable_partitionroot();
-        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult->DataRange.Beginning);
-        partitionRoot->set_roottreenodeoffset(rootTreeNodeWriteResult->DataRange.Beginning);
-        partitionRoot->set_rowcount(0);
-        partitionRoot->set_earliestsequencenumber(
-            ToUint64(earliestSequenceNumber));
-        partitionRoot->set_latestsequencenumber(
-            ToUint64(latestSequenceNumber));
-
-        auto partitionRootWriteResult = co_await dataSequentialMessageWriter->Write(
-            partitionRootMessage,
-            FlushBehavior::Flush);
-
-        PartitionMessage partitionHeaderMessage;
-        auto partitionHeader = partitionHeaderMessage.mutable_partitionheader();
-        partitionHeader->set_partitionrootoffset(partitionRootWriteResult->DataRange.Beginning);
-
-        co_await dataSequentialMessageWriter->Write(
-            partitionHeaderMessage,
-            FlushBehavior::Flush);
-
-        co_await headerSequentialMessageWriter->Write(
-            partitionHeaderMessage,
-            FlushBehavior::Flush);
+        return ToSerializedValue(
+            protoValue);
     }
 
     typedef std::tuple<shared_ptr<PartitionTestKey>, SequenceNumber, shared_ptr<PartitionTestValue>> ScenarioRow;
-
-    struct Scenario
-    {
-        uint64_t ScenarioNumber;
-        int32_t MinPossibleKey;
-        int32_t MaxPossibleKey;
-        SequenceNumber MinPossibleSequenceNumber;
-        SequenceNumber MaxPossibleSequenceNumber;
-        vector<ScenarioRow> AllRows;
-        shared_ptr<Partition> Partition;
-
-        optional<ScenarioRow> GetExpectedRow(
-            int32_t key,
-            SequenceNumber readSequenceNumber
-        ) const
-        {
-            optional<ScenarioRow> result;
-
-            for (auto& row : AllRows)
-            {
-                if (get<shared_ptr<PartitionTestKey>>(row)->key() != key)
-                {
-                    continue;
-                }
-
-                if (readSequenceNumber < (get<SequenceNumber>(row)))
-                {
-                    continue;
-                }
-
-                if (!result)
-                {
-                    result = row;
-                    continue;
-                }
-
-                if (get<SequenceNumber>(*result) < get<SequenceNumber>(row))
-                {
-                    result = row;
-                    continue;
-                }
-            }
-
-            return result;
-        }
-    };
-
-    shared_ptr<PartitionTestKey> MakeScenarioKey(
-        google::protobuf::int32 key
-    )
-    {
-        auto keyMessage = make_shared<PartitionTestKey>();
-        keyMessage->set_key(
-            key
-        );
-        return keyMessage;
-    }
-
-    shared_ptr<PartitionTestValue> MakeScenarioValue(
-        google::protobuf::int32 key,
-        SequenceNumber sequenceNumber
-    )
-    {
-        auto valueMessage = make_shared<PartitionTestValue>();
-        valueMessage->set_key(
-            key);
-        valueMessage->set_sequencenumber(
-            ToUint64(sequenceNumber));
-        return valueMessage;
-    }
-
-    async_generator<Scenario> GenerateAllScenarios()
-    {
-        const uint64_t scenarioCount =
-            7
-            * 7
-            * 7
-            * 7
-            * 7
-            * 7
-            * 7;
-
-        for (auto scenarioNumber = 0ULL; scenarioNumber < scenarioCount; scenarioNumber++)
-        {
-            co_yield co_await GenerateScenario(scenarioNumber);
-        }
-    }
-
-    task<Scenario> GenerateScenario(
-        uint64_t scenarioNumber
-    )
-    {
-        Scenario scenario;
-        scenario.ScenarioNumber = scenarioNumber;
-        scenario.MinPossibleKey = 0;
-        scenario.MaxPossibleKey = 4;
-        scenario.MinPossibleSequenceNumber = SequenceNumber::Earliest;
-        scenario.MaxPossibleSequenceNumber = ToSequenceNumber(4);
-
-        auto headerExtentName = MakeLogExtentName(0);
-        auto dataExtentName = MakeLogExtentName(1);
-        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
-            headerExtentName);
-        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
-            dataExtentName);
-        PartitionTreeWriter partitionTreeWriter(dataWriter);
-
-        vector<ScenarioRow> possibleRows =
-        {
-            ScenarioRow { MakeScenarioKey(1), ToSequenceNumber(3), MakeScenarioValue(1, ToSequenceNumber(3)), },
-            ScenarioRow { MakeScenarioKey(1), ToSequenceNumber(2), MakeScenarioValue(1, ToSequenceNumber(2)), },
-            ScenarioRow { MakeScenarioKey(1), ToSequenceNumber(1), MakeScenarioValue(1, ToSequenceNumber(1)), },
-            ScenarioRow { MakeScenarioKey(2), ToSequenceNumber(2), MakeScenarioValue(2, ToSequenceNumber(2)), },
-            ScenarioRow { MakeScenarioKey(3), ToSequenceNumber(3), MakeScenarioValue(3, ToSequenceNumber(3)), },
-            ScenarioRow { MakeScenarioKey(3), ToSequenceNumber(2), MakeScenarioValue(3, ToSequenceNumber(2)), },
-            ScenarioRow { MakeScenarioKey(3), ToSequenceNumber(1), MakeScenarioValue(3, ToSequenceNumber(1)), },
-        };
-        
-        auto rowCount = 0;
-
-        shared_ptr<PartitionTestKey> lastKeyInValueSet;
-
-        for (auto rowIndex = 0; rowIndex < possibleRows.size(); rowIndex++)
-        {
-            auto rowScenarioNumber = scenarioNumber % 7;
-            scenarioNumber /= 7;
-
-            auto row = possibleRows[rowIndex];
-
-            size_t level;
-            bool startNewValueSet;
-
-            switch (rowScenarioNumber)
-            {
-            case 0:
-                continue;
-            case 1:
-            case 2:
-            case 3:
-                // The row is present in level 0-2 as a value row, start new value set
-                level = rowScenarioNumber - 1;
-                startNewValueSet = true;
-                break;
-            case 4:
-            case 5:
-            case 6:
-                // The row is present in level 0-2 as a value row, share value set
-                level = rowScenarioNumber - 4;
-                startNewValueSet = false;
-                break;
-            default:
-                assert(false);
-                break;
-            }
-
-            scenario.AllRows.push_back(
-                row);
-
-            ++rowCount;
-
-            auto rowKey = get<shared_ptr<PartitionTestKey>>(row);
-            auto serializedRowKey = rowKey->SerializeAsString();
-
-            if (startNewValueSet
-                ||
-                !partitionTreeWriter.IsCurrentKey(serializedRowKey))
-            {
-                partitionTreeWriter.StartTreeEntry(
-                    move(serializedRowKey));
-            }
-
-            PartitionTreeEntryValue treeEntryValue;
-            treeEntryValue.set_writesequencenumber(
-                ToUint64(
-                    get<SequenceNumber>(row))
-            );
-            get<shared_ptr<PartitionTestValue>>(row)->SerializeToString(
-                treeEntryValue.mutable_value());
-            partitionTreeWriter.AddTreeEntryValue(
-                move(treeEntryValue));
-
-            for (size_t flushLevel = 0; flushLevel < level; flushLevel++)
-            {
-                co_await partitionTreeWriter.Write(
-                    flushLevel);
-            }
-        }
-
-        auto rootTreeEntryWriteResult = co_await partitionTreeWriter.WriteRoot();
-
-        co_await WriteBloomFilterAndRootAndHeader(
-            rootTreeEntryWriteResult,
-            rowCount,
-            ToSequenceNumber(0),
-            ToSequenceNumber(10),
-            dataWriter,
-            headerWriter);
-
-        auto partition = co_await OpenPartition(
-            headerExtentName,
-            dataExtentName);
-
-        auto errorList = co_await partition->CheckIntegrity(IntegrityCheckError{});
-        assert(0 == errorList.size());
-
-        scenario.Partition = partition;
-        
-        co_return scenario;
-    }
 
     task<shared_ptr<Partition>> OpenPartition(
         ExtentName headerExtentName,
         ExtentName dataExtentName)
     {
+        auto headerReader = co_await messageStore->OpenExtentForRandomReadAccess(
+            headerExtentName);
+
+        auto dataReader = co_await messageStore->OpenExtentForRandomReadAccess(
+            dataExtentName);
+
         auto partition = make_shared<Partition>(
             keyComparer,
-            keyFactory,
-            valueFactory,
-            messageAccessor,
-            ExtentLocation{ headerExtentName, 0 },
-            dataExtentName
+            headerReader,
+            dataReader
         );
 
         co_await partition->Open();
@@ -389,176 +153,6 @@ protected:
         EXPECT_EQ(enumeration.end(), iterator);
     }
 
-    task<> DoReadScenarioTest(
-        Scenario scenarioArg)
-    {
-        Scenario& scenario(scenarioArg);
-
-        for (auto key = scenario.MinPossibleKey;
-            key <= scenario.MaxPossibleKey;
-            key++)
-        {
-            for (auto readSequenceNumber = ToUint64(scenario.MinPossibleSequenceNumber);
-                readSequenceNumber <= ToUint64(scenario.MaxPossibleSequenceNumber);
-                readSequenceNumber++)
-            {
-                auto expectedRow = scenario.GetExpectedRow(
-                    key,
-                    ToSequenceNumber(readSequenceNumber));
-                auto originalExpectedRow = expectedRow;
-
-                PartitionTestKey keyMessage;
-                keyMessage.set_key(key);
-                ProtoValue keyProto{ &keyMessage, true };
-
-                auto actualRowGenerator = scenario.Partition->Read(
-                    ToSequenceNumber(readSequenceNumber),
-                    keyProto.as_bytes_if(),
-                    ReadValueDisposition::ReadValue);
-
-                for (auto iterator = co_await actualRowGenerator.begin();
-                    iterator != actualRowGenerator.end();
-                    co_await ++iterator)
-                {
-                    PartitionTestKey resultKeyMessage;
-                    ProtoValue{ iterator->Key }.unpack(&resultKeyMessage);
-                    PartitionTestValue resultValueMessage;
-                    ProtoValue{ iterator->Value }.unpack(&resultValueMessage);
-
-                    EXPECT_TRUE(expectedRow.has_value());
-                    EXPECT_EQ(resultKeyMessage.key(), get<shared_ptr<PartitionTestKey>>(*expectedRow)->key());
-                    EXPECT_EQ(resultValueMessage.key(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->key());
-                    EXPECT_EQ(resultValueMessage.sequencenumber(), get<shared_ptr<PartitionTestValue>>(*expectedRow)->sequencenumber());
-                    EXPECT_EQ(iterator->WriteSequenceNumber, get<SequenceNumber>(*expectedRow));
-
-                    expectedRow.reset();
-                }
-
-                EXPECT_FALSE(expectedRow.has_value());
-            }
-        }
-    }
-
-    task<> DoEnumerateScenarioTest(
-        const Scenario& scenario,
-        int32_t lowKey,
-        Inclusivity lowKeyInclusivity,
-        int32_t highKey,
-        Inclusivity highKeyInclusivity,
-        SequenceNumber readSequenceNumber
-    )
-    {
-        vector<ScenarioRow> expectedScenarioRows;
-
-        for (auto key = lowKeyInclusivity == Inclusivity::Inclusive ? lowKey : lowKey + 1;
-            key < (highKeyInclusivity == Inclusivity::Inclusive ? highKey + 1 : highKey);
-            key++)
-        {
-            auto expectedRow = scenario.GetExpectedRow(
-                key,
-                readSequenceNumber);
-
-            if (expectedRow)
-            {
-                expectedScenarioRows.push_back(
-                    *expectedRow);
-            }
-        }
-
-        PartitionTestKey lowKeyMessage;
-        lowKeyMessage.set_key(lowKey);
-        ProtoValue lowKeyProto{ &lowKeyMessage, true };
-
-        PartitionTestKey highKeyMessage;
-        highKeyMessage.set_key(highKey);
-        ProtoValue highKeyProto{ &highKeyMessage, true };
-
-        auto enumeration = scenario.Partition->Enumerate(
-            readSequenceNumber,
-            { lowKeyProto.as_bytes_if(), lowKeyInclusivity},
-            { highKeyProto.as_bytes_if(), highKeyInclusivity},
-            ReadValueDisposition::ReadValue);
-
-        auto expectedScenarioRowsIterator = expectedScenarioRows.begin();
-
-        for (auto iterator = co_await enumeration.begin();
-            iterator != enumeration.end();
-            co_await ++iterator)
-        {
-            PartitionTestKey actualKey;
-            ProtoValue{ iterator->Key }.unpack(&actualKey);
-            PartitionTestValue actualValue;
-            ProtoValue{ iterator->Value }.unpack(&actualValue);
-
-            EXPECT_TRUE(expectedScenarioRowsIterator != expectedScenarioRows.end());
-            auto& expectedRow = *expectedScenarioRowsIterator;
-
-            EXPECT_EQ(actualKey.key(), get<shared_ptr<PartitionTestKey>>(expectedRow)->key());
-            EXPECT_EQ(actualValue.key(), get<shared_ptr<PartitionTestValue>>(expectedRow)->key());
-            EXPECT_EQ(actualValue.sequencenumber(), get<shared_ptr<PartitionTestValue>>(expectedRow)->sequencenumber());
-            EXPECT_EQ(iterator->WriteSequenceNumber, get<SequenceNumber>(expectedRow));
-
-            ++expectedScenarioRowsIterator;
-        }
-
-        EXPECT_EQ(expectedScenarioRowsIterator, expectedScenarioRows.end());
-    }
-
-    task<> DoEnumerateScenarioTest(
-        Scenario scenario)
-    {
-        for (auto readSequenceNumber = ToUint64(scenario.MinPossibleSequenceNumber);
-            readSequenceNumber <= ToUint64(scenario.MaxPossibleSequenceNumber);
-            readSequenceNumber++)
-        {
-            for (auto lowKey = scenario.MinPossibleKey;
-                lowKey <= scenario.MaxPossibleKey;
-                lowKey++)
-            {
-                for (auto highKey = lowKey;
-                    highKey <= scenario.MaxPossibleKey;
-                    highKey++)
-                {
-                    co_await DoEnumerateScenarioTest(
-                        scenario,
-                        lowKey,
-                        Inclusivity::Inclusive,
-                        highKey,
-                        Inclusivity::Inclusive,
-                        ToSequenceNumber(readSequenceNumber)
-                    );
-
-                    co_await DoEnumerateScenarioTest(
-                        scenario,
-                        lowKey,
-                        Inclusivity::Inclusive,
-                        highKey,
-                        Inclusivity::Exclusive,
-                        ToSequenceNumber(readSequenceNumber)
-                    );
-
-                    co_await DoEnumerateScenarioTest(
-                        scenario,
-                        lowKey,
-                        Inclusivity::Exclusive,
-                        highKey,
-                        Inclusivity::Inclusive,
-                        ToSequenceNumber(readSequenceNumber)
-                    );
-
-                    co_await DoEnumerateScenarioTest(
-                        scenario,
-                        lowKey,
-                        Inclusivity::Exclusive,
-                        highKey,
-                        Inclusivity::Exclusive,
-                        ToSequenceNumber(readSequenceNumber)
-                    );
-                }
-            }
-        }
-    }
-
     typedef optional<SequenceNumber> noWriteConflict;
 
     task<> AssertCheckForWriteConflictResult(
@@ -600,57 +194,55 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
         auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(0));
         auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(1));
 
-        PartitionMessage treeMessage;
-        auto treeEntry1 = treeMessage.mutable_partitiontreenode()->add_treeentries();
+        PartitionMessageT treeMessage;
+        auto& treeNode = treeMessage.tree_node = std::make_unique<PartitionTreeNodeT>();
+        auto& treeEntry1 = treeNode->keys.emplace_back(std::make_unique<PartitionTreeEntryKeyT>());
+
         google::protobuf::int32 expectedKey = 1;
-        treeEntry1->set_key(
-            ToSerializedKey(expectedKey)
-        );
-        auto value = treeEntry1->mutable_valueset()->add_values();
-        value->set_value(
-            ToSerializedValue(expectedKey, 5));
+        treeEntry1->key = ToSerializedKey(expectedKey);
+        auto& value = treeEntry1->values.emplace_back(std::make_unique<PartitionTreeEntryValueT>());
+        value->value = ToSerializedValue(expectedKey, 5);
+        value->write_sequence_number = 0;
+
         auto treeMessageWriteResult = co_await dataWriter->Write(
-            treeMessage,
+            FlatMessage{ &treeMessage }.data(),
             FlushBehavior::Flush);
 
-        PartitionMessage bloomFilterMessage;
-        
-        using namespace std::string_literals;
-        bloomFilterMessage.mutable_partitionbloomfilter()->set_filter("\x0"s);
-        // Uncomment this next line to see that the test fails.
-        //bloomFilterMessage.mutable_partitionbloomfilter()->set_filter("\xff");
-
-        bloomFilterMessage.mutable_partitionbloomfilter()->set_algorithm(PartitionBloomFilterHashAlgorithm::Version1);
-        bloomFilterMessage.mutable_partitionbloomfilter()->set_hashfunctioncount(1);
+        PartitionMessageT bloomFilterMessage;
+        auto& bloomFilter = bloomFilterMessage.bloom_filter = std::make_unique<PartitionBloomFilterT>();
+        bloomFilter->algorithm = FlatBuffers::PartitionBloomFilterHashAlgorithm::Version1;
+        bloomFilter->filter.push_back(
+            0
+            // Uncomment this next line to see that the test fails.
+            | 0xff
+        );
 
         auto bloomFilterWriteResult = co_await dataWriter->Write(
-            bloomFilterMessage,
+            FlatMessage{ &bloomFilterMessage }.data(),
             FlushBehavior::Flush);
 
-        PartitionMessage partitionRootMessage;
-        auto partitionRoot = partitionRootMessage.mutable_partitionroot();
-        partitionRoot->set_bloomfilteroffset(bloomFilterWriteResult->DataRange.Beginning);
-        partitionRoot->set_roottreenodeoffset(treeMessageWriteResult->DataRange.Beginning);
-        partitionRoot->set_rowcount(0);
-        partitionRoot->set_earliestsequencenumber(
-            5);
-        partitionRoot->set_latestsequencenumber(
-            5);
+        PartitionMessageT partitionRootMessage;
+        auto& partitionRoot = partitionRootMessage.root = std::make_unique<PartitionRootT>();
+        partitionRoot->bloom_filter = copy_unique(*bloomFilterWriteResult->Reference_V1());
+        partitionRoot->root_tree_node = copy_unique(*treeMessageWriteResult->Reference_V1());
+        partitionRoot->row_count = 0;
+        partitionRoot->earliest_sequence_number = 0;
+        partitionRoot->latest_sequence_number = 10;
 
         auto partitionRootWriteResult = co_await dataWriter->Write(
-            partitionRootMessage,
+            FlatMessage{ &partitionRootMessage }.data(),
             FlushBehavior::Flush);
 
-        PartitionMessage partitionHeaderMessage;
-        auto partitionHeader = partitionHeaderMessage.mutable_partitionheader();
-        partitionHeader->set_partitionrootoffset(partitionRootWriteResult->DataRange.Beginning);
+        PartitionMessageT partitionHeaderMessage;
+        auto& partitionHeader = partitionHeaderMessage.header = std::make_unique<PartitionHeaderT>();
+        partitionHeader->partition_root = copy_unique(*partitionRootWriteResult->Reference_V1());
 
         co_await dataWriter->Write(
-            partitionHeaderMessage,
+            FlatMessage{ &partitionHeaderMessage }.data(),
             FlushBehavior::Flush);
 
         co_await headerWriter->Write(
-            partitionHeaderMessage,
+            FlatMessage{ &partitionHeaderMessage }.data(),
             FlushBehavior::Flush);
 
         auto partition = co_await OpenPartition(
@@ -687,71 +279,6 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     });
 }
 
-TEST_F(PartitionTests, Test_Enumerate_scenario)
-{
-    run_async([&]() -> task<>
-        {
-            co_await DoEnumerateScenarioTest(
-                co_await GenerateScenario(352));
-        });
-}
-
-TEST_F(PartitionTests, Test_Enumerate_scenario_352)
-{
-    run_async([&]() -> task<>
-        {
-            co_await DoEnumerateScenarioTest(
-                co_await GenerateScenario(352));
-        });
-}
-
-TEST_F(PartitionTests, DISABLED_Test_Enumerate_variations)
-{
-    run_async([&]() -> task<>
-        {
-            auto scenarios = GenerateAllScenarios();
-            for (auto scenarioIterator = co_await scenarios.begin();
-                scenarioIterator != scenarios.end();
-                co_await ++scenarioIterator)
-            {
-                co_await DoEnumerateScenarioTest(
-                    *scenarioIterator);
-            }
-        });
-}
-
-TEST_F(PartitionTests, Test_Read_scenario_352)
-{
-    run_async([&]() -> task<>
-        {
-            co_await DoReadScenarioTest(
-                co_await GenerateScenario(352));
-        });
-}
-
-TEST_F(PartitionTests, Test_Read_scenario)
-{
-    run_async([&]() -> task<>
-    {
-        co_await DoReadScenarioTest(
-            co_await GenerateScenario(352));
-    });
-}
-
-TEST_F(PartitionTests, DISABLED_Test_Read_variations)
-{
-    run_async([&]() -> task<>
-    {
-        auto scenarios = GenerateAllScenarios();
-        for (auto scenarioIterator = co_await scenarios.begin();
-            scenarioIterator != scenarios.end();
-            co_await ++scenarioIterator)
-        {
-            co_await DoReadScenarioTest(
-                *scenarioIterator);
-        }
-    });
-}
 //
 //TEST_F(PartitionTests, CheckForWriteConflict_uses_WriteSequenceNumber_with_GreaterOrEqual)
 //{

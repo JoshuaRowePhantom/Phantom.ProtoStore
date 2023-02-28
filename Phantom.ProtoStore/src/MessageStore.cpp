@@ -199,7 +199,7 @@ RandomMessageWriter::RandomMessageWriter(
 
 task<DataReference<StoredMessage>> RandomMessageWriter::Write(
     ExtentOffset extentOffset,
-    std::span<const byte> messageV1Header,
+    const MessageHeader_V1* messageV1Header,
     uint8_t messageAlignment,
     uint32_t messageSize,
     FlushBehavior flushBehavior,
@@ -251,11 +251,11 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
     auto* messageHeader = reinterpret_cast<FlatBuffers::MessageHeader_V1*>(
         headerWriteBuffer.data());
 
-    if (messageV1Header.data())
+    if (messageV1Header)
     {
         // The incoming message has an already-computed header of the correct format,
         // We can copy the header.
-        *messageHeader = *reinterpret_cast<const FlatBuffers::MessageHeader_V1*>(messageV1Header.data());
+        *messageHeader = *messageV1Header;
     }
     else
     {
@@ -340,7 +340,7 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
 {
     return Write(
         extentOffset,
-        message.Header,
+        message.Header_V1(),
         message.MessageAlignment,
         message.Message.size(),
         flushBehavior,
@@ -362,7 +362,7 @@ task< DataReference<StoredMessage>> RandomMessageWriter::Write(
 {
     co_return co_await Write(
         extentOffset,
-        {},
+        nullptr,
         1,
         message.ByteSizeLong(),
         flushBehavior,

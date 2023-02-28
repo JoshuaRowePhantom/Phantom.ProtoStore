@@ -159,9 +159,21 @@ struct LoggedPartitionsDataT;
 struct MessageReference_V1;
 
 struct PartitionMessage;
+struct PartitionMessageT;
 struct PartitionHeader;
+struct PartitionHeaderT;
 struct PartitionRoot;
+struct PartitionRootT;
+struct PartitionTreeNode;
+struct PartitionTreeNodeT;
+struct PartitionDataValue;
+struct PartitionDataValueT;
 struct PartitionTreeEntryKey;
+struct PartitionTreeEntryKeyT;
+struct PartitionTreeEntryValue;
+struct PartitionTreeEntryValueT;
+struct PartitionBloomFilter;
+struct PartitionBloomFilterT;
 
 enum class ExtentFormatVersion : int8_t;
 
@@ -235,8 +247,23 @@ public:
     using MergeProgressValue = Serialization::MergeProgressValue;
     using PlaceholderKey = Serialization::PlaceholderKey;
     using PartitionMessage = FlatBuffers::PartitionMessage;
+    using PartitionMessageT = FlatBuffers::PartitionMessageT;
     using PartitionRoot = FlatBuffers::PartitionRoot;
+    using PartitionRootT = FlatBuffers::PartitionRootT;
+    using PartitionTreeNode = FlatBuffers::PartitionTreeNode;
+    using PartitionTreeNodeT = FlatBuffers::PartitionTreeNodeT;
     using PartitionTreeEntryKey = FlatBuffers::PartitionTreeEntryKey;
+    using PartitionTreeEntryKeyT = FlatBuffers::PartitionTreeEntryKeyT;
+    using PartitionTreeEntryValue= FlatBuffers::PartitionTreeEntryValue;
+    using PartitionTreeEntryValueT = FlatBuffers::PartitionTreeEntryValueT;
+    using PartitionBloomFilter = FlatBuffers::PartitionBloomFilter;
+    using PartitionBloomFilterT = FlatBuffers::PartitionBloomFilterT;
+    using PartitionHeader = FlatBuffers::PartitionHeader;
+    using PartitionHeaderT = FlatBuffers::PartitionHeaderT;
+    using PartitionDataValue = FlatBuffers::PartitionDataValue;
+    using PartitionDataValueT = FlatBuffers::PartitionDataValueT;
+    using MessageReference_V1 = FlatBuffers::MessageReference_V1;
+    using MessageHeader_V1 = FlatBuffers::MessageHeader_V1;
     using UnresolvedTransactionKey = Serialization::UnresolvedTransactionKey;
     using UnresolvedTransactionValue = Serialization::UnresolvedTransactionValue;
 

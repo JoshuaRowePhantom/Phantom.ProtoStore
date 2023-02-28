@@ -3,6 +3,7 @@
 
 #include "Phantom.ProtoStore/Phantom.ProtoStore.h"
 #include "ProtoStoreInternal.pb.h"
+#include "src/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {
@@ -195,6 +196,25 @@ bool ProtoValue::has_value() const
 {
     return message.index() != 0
         || message_data.index() != 0;
+}
+
+const FlatBuffers::MessageHeader_V1* StoredMessage::Header_V1() const
+{
+    return
+        ExtentFormatVersion == FlatBuffers::ExtentFormatVersion::V1
+        ?
+        get_struct<FlatBuffers::MessageHeader_V1>(Header)
+        :
+        nullptr;
+}
+
+std::optional<FlatBuffers::MessageReference_V1> StoredMessage::Reference_V1() const
+{
+    return Header_V1()
+        ?
+        std::optional{ FlatBuffers::MessageReference_V1(*Header_V1(), DataRange.Beginning)}
+        :
+        std::nullopt;
 }
 
 std::span<const std::byte> ProtoValue::as_bytes_if() const

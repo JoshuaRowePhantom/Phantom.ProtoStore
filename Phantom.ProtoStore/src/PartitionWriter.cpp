@@ -24,8 +24,7 @@ task<FlatBuffers::MessageReference_V1> PartitionWriterBase::Write(
         partitionMessage.data(),
         FlushBehavior::DontFlush);
 
-    auto header = reinterpret_cast<const FlatBuffers::MessageHeader_V1*>(
-        storedMessage->Header.data());
+    auto header = storedMessage->Header_V1();
 
     FlatBuffers::MessageReference_V1 messageReference =
     {

@@ -11,6 +11,8 @@ namespace Phantom::ProtoStore
 {
 
 class RandomMessageReaderWriterBase
+    :
+    public SerializationTypes
 {
 public:
     const FlatMessage<FlatBuffers::ExtentHeader> m_header;
@@ -72,7 +74,7 @@ class RandomMessageWriter
 
     task<DataReference<StoredMessage>> Write(
         ExtentOffset extentOffset,
-        std::span<const byte> messageV1Header,
+        const MessageHeader_V1* messageV1Header,
         uint8_t messageAlignment,
         uint32_t messageSize,
         FlushBehavior flushBehavior,

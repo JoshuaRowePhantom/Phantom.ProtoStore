@@ -29,6 +29,8 @@ namespace Phantom::ProtoStore
 namespace FlatBuffers
 {
 enum class ExtentFormatVersion : int8_t;
+struct MessageHeader_V1;
+struct MessageReference_V1;
 }
 
 using cppcoro::async_generator;
@@ -331,7 +333,6 @@ public:
 using RawData = DataReference<std::span<const std::byte>>;
 using WritableRawData = DataReference<std::span<std::byte>>;
 
-
 std::span<const std::byte> get_byte_span(
     const flatbuffers::Vector<int8_t>*
 );
@@ -351,6 +352,18 @@ std::span<const uint8_t> get_uint8_t_span(
 std::span<const int8_t> get_int8_t_span(
     std::span<const std::byte>
 );
+
+template<typename T>
+const T* get_struct(
+    std::span<const std::byte> span)
+{
+    if (!span.data())
+    {
+        return nullptr;
+    }
+    assert(span.size() == sizeof(T));
+    return reinterpret_cast<const T*>(span.data());
+}
 
 typedef std::uint64_t ExtentOffset;
 
@@ -381,6 +394,9 @@ struct StoredMessage
     {
         return Message.data();
     }
+
+    const FlatBuffers::MessageHeader_V1* Header_V1() const;
+    std::optional<FlatBuffers::MessageReference_V1> Reference_V1() const;
 };
 
 template<
