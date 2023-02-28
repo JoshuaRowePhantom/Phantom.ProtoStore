@@ -16,6 +16,7 @@
 #include <cppcoro/static_thread_pool.hpp>
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
+#include <Phantom.System/concepts.h>
 #include <Phantom.System/pooled_ptr.h>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include "Phantom.Coroutines/early_termination_task.h"
@@ -385,6 +386,14 @@ struct StoredMessage
 template<
     typename T
 > concept IsNativeTable = std::derived_from<T, flatbuffers::NativeTable>;
+
+template<
+    typename Table
+> class FlatMessage;
+
+template<
+    typename T
+> concept IsFlatMessage = is_template_instantiation<T, FlatMessage>;
 
 template<
     typename Table
@@ -1259,7 +1268,7 @@ struct ExtentLocation
 struct IntegrityCheckError
 {
     IntegrityCheckErrorCode Code;
-    std::optional<std::string> Key;
+    std::optional<RawData> Key;
     std::optional<ExtentLocation> Location;
     std::optional<int> TreeNodeEntryIndex;
     std::optional<int> TreeNodeValueIndex;

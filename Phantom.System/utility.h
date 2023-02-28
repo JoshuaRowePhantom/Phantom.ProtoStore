@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <span>
+#include "concepts.h"
 
 namespace Phantom
 {
@@ -14,6 +15,7 @@ struct empty
 {};
 
 template<typename T>
+    requires !is_span<T>
 std::span<std::byte> as_bytes(
     T& value)
 {
@@ -23,6 +25,7 @@ std::span<std::byte> as_bytes(
 }
 
 template<typename T>
+    requires !is_span<T>
 std::span<const std::byte> as_bytes(
     const T& value)
 {

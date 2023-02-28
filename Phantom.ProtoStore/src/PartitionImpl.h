@@ -3,6 +3,7 @@
 #include "Partition.h"
 #include "AsyncScopeMixin.h"
 #include "BloomFilter.h"
+#include "MessageStore.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "SkipList.h"
 #include "src/ProtoStoreInternal_generated.h"
@@ -29,21 +30,17 @@ class Partition
     public virtual IJoinable
 {
     shared_ptr<KeyComparer> m_keyComparer;
-    shared_ptr<IMessageFactory> m_keyFactory;
-    shared_ptr<IMessageFactory> m_valueFactory;
-    shared_ptr<IRandomMessageAccessor> m_messageAccessor;
-    ExtentLocation m_headerLocation;
-    ExtentName m_dataExtentName;
+    shared_ptr<IRandomMessageReader> m_partitionDataReader;
+    shared_ptr<IRandomMessageReader> m_partitionHeaderReader;
 
-    PartitionHeader m_partitionHeader;
-    PartitionBloomFilter m_partitionBloomFilter;
-    PartitionRoot m_partitionRoot;
+    FlatMessage<FlatBuffers::PartitionMessage> m_partitionHeaderMessage;
+    FlatMessage<FlatBuffers::PartitionMessage> m_partitionRootMessage;
+    FlatMessage<FlatBuffers::PartitionMessage> m_partitionRootTreeNodeMessage;
+    FlatMessage<FlatBuffers::PartitionMessage> m_partitionBloomFilterMessage;
 
     optional<BloomFilterVersion1<std::span<const char>>> m_bloomFilter;
 
     shared_task<> m_openTask;
-
-    PartitionTreeNodeCache m_partitionTreeNodeCache;
 
     struct FindTreeEntryKey;
     struct FindTreeEntryKeyLessThanComparer;
@@ -57,7 +54,7 @@ class Partition
     struct EnumerateLastReturnedKey;
 
     row_generator Enumerate(
-        ExtentLocation treeNodeLocation,
+        const FlatMessage<PartitionMessage>& treeNode,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low,
         KeyRangeEnd high,
@@ -67,25 +64,22 @@ class Partition
     );
 
     int FindMatchingValueIndexByWriteSequenceNumber(
-        const PartitionTreeEntryValueSet& valueSet,
+        const FlatBuffers::PartitionTreeEntryKey* keyEntry,
         SequenceNumber readSequenceNumber);
 
     int FindTreeEntry(
-        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-        const PartitionTreeNode* treeNode,
+        const FlatMessage<PartitionMessage>& treeNode,
         const FindTreeEntryKey& key
     );
 
     int FindLowTreeEntryIndex(
-        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-        const PartitionTreeNode* treeNode,
+        const FlatMessage<PartitionMessage>& treeNode,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low
     );
 
     int FindHighTreeEntryIndex(
-        const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-        const PartitionTreeNode* treeNode,
+        const FlatMessage<PartitionMessage>& treeNode,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd high
     );
@@ -93,37 +87,38 @@ class Partition
     task<> CheckTreeNodeIntegrity(
         IntegrityCheckErrorList& errorList,
         const IntegrityCheckError& errorPrototype,
-        ExtentLocation location,
-        const Message* lowestKeyInclusive,
+        const FlatBuffers::MessageReference_V1* messageReference,
+        RawData minKeyExclusive,
         SequenceNumber lowestKeyHighestSequenceNumber,
-        const Message* maxKeyExclusive,
+        RawData maxKeyInclusive,
         SequenceNumber highestSequenceNumberForMaxKey);
 
     task<> CheckChildTreeEntryIntegrity(
         IntegrityCheckErrorList& errorList,
         const IntegrityCheckError& errorPrototype,
-        const PartitionTreeNode& parent,
+        const FlatMessage<PartitionMessage>&parent,
         size_t treeEntryIndex,
-        const Message* currentKey,
-        const Message* expectedCurrentKey,
+        RawData currentKey,
+        RawData expectedCurrentKey,
         SequenceNumber expectedHighestSequenceNumber,
-        const Message* maxKeyExclusive,
+        RawData maxKeyExclusive,
         SequenceNumber highestSequenceNumberForMaxKey);
 
     void GetKeyValues(
-        const PartitionTreeEntry& treeEntry,
-        unique_ptr<Message>& key,
+        const FlatMessage<FlatBuffers::PartitionTreeEntryKey>& keyEntry,
+        RawData& key,
         SequenceNumber& highestSequenceNumber,
         SequenceNumber& lowestSequenceNumber);
+
+    task<FlatMessage<PartitionMessage>> ReadData(
+        const FlatBuffers::MessageReference_V1*
+    );
 
 public:
     Partition(
         shared_ptr<KeyComparer> keyComparer,
-        shared_ptr<IMessageFactory> keyFactory,
-        shared_ptr<IMessageFactory> valueFactory,
-        shared_ptr<IRandomMessageAccessor> messageAccessor,
-        ExtentLocation headerLocation,
-        ExtentName dataLocation
+        shared_ptr<IRandomMessageReader> partitionData,
+        shared_ptr<IRandomMessageReader> partitionHeader
     );
 
     ~Partition();

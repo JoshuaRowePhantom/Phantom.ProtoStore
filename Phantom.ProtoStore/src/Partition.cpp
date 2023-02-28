@@ -2,14 +2,26 @@
 #include "KeyComparer.h"
 #include "PartitionImpl.h"
 #include "Phantom.System/async_utility.h"
-#include "RandomMessageAccessor.h"
+#include "MessageStore.h"
 #include "Schema.h"
+#include "src/ProtoStoreInternal_generated.h"
 #include <algorithm>
 #include <compare>
 
 #include <boost/crc.hpp>
 namespace Phantom::ProtoStore
 {
+
+RawData GetRawData(
+    const IsFlatMessage auto& reference,
+    const FlatBuffers::PartitionDataValue* dataValue)
+{
+    return RawData
+    {
+        DataReference<StoredMessage>{ reference },
+        get_byte_span(dataValue->data()),
+    };
+}
 
 size_t BloomFilterV1Hash::operator()(const auto& value) const
 {
@@ -20,28 +32,17 @@ size_t BloomFilterV1Hash::operator()(const auto& value) const
 
 struct Partition::EnumerateLastReturnedKey
 {
-    shared_ptr<PartitionTreeNodeCacheEntry> CacheEntry;
     RawData Key;
 };
 
 Partition::Partition(
     shared_ptr<KeyComparer> keyComparer,
-    shared_ptr<IMessageFactory> keyFactory,
-    shared_ptr<IMessageFactory> valueFactory,
-    shared_ptr<IRandomMessageAccessor> messageAccessor,
-    ExtentLocation headerLocation,
-    ExtentName dataExtentName
+    shared_ptr<IRandomMessageReader> partitionDataReader,
+    shared_ptr<IRandomMessageReader> partitionHeaderReader
 ) :
-    m_keyComparer(keyComparer),
-    m_keyFactory(keyFactory),
-    m_valueFactory(valueFactory),
-    m_messageAccessor(messageAccessor),
-    m_headerLocation(headerLocation),
-    m_dataExtentName(dataExtentName),
-    m_partitionTreeNodeCache(
-        keyFactory,
-        m_messageAccessor
-    )
+    m_keyComparer(std::move(keyComparer)),
+    m_partitionDataReader(std::move(partitionDataReader)),
+    m_partitionHeaderReader(std::move(partitionHeaderReader))
 {
 }
 
@@ -50,58 +51,50 @@ Partition::~Partition()
     SyncDestroy();
 }
 
+task<FlatMessage<Partition::PartitionMessage>> Partition::ReadData(
+    const FlatBuffers::MessageReference_V1* reference
+)
+{
+    co_return FlatMessage<PartitionMessage>
+    {
+        co_await m_partitionDataReader->Read(
+            reference)
+    };
+}
+
 task<> Partition::Open()
 {
-    PartitionMessage message;
+    m_partitionHeaderMessage = FlatMessage<PartitionMessage>{ co_await m_partitionHeaderReader->Read(ExtentOffset(0)) };
 
-    message.Clear();
-    co_await m_messageAccessor->ReadMessage(
-        m_headerLocation,
-        message
-    );
-    assert(message.has_partitionheader());
-    m_partitionHeader = move(*message.mutable_partitionheader());
+    m_partitionRootMessage = co_await ReadData(
+        m_partitionHeaderMessage->header()->partition_root());
+    
+    m_partitionBloomFilterMessage = co_await ReadData(
+        m_partitionRootMessage->root()->bloom_filter());
 
-    message.Clear();
-    co_await m_messageAccessor->ReadMessage(
-        ExtentLocation
-        {
-            m_dataExtentName,
-            m_partitionHeader.partitionrootoffset(),
-        },
-        message);
-    assert(message.has_partitionroot());
-    m_partitionRoot = move(*message.mutable_partitionroot());
-
-    co_await m_messageAccessor->ReadMessage(
-        ExtentLocation
-        {
-            m_dataExtentName,
-            m_partitionRoot.bloomfilteroffset(),
-        },
-        message);
-    assert(message.has_partitionbloomfilter());
-    m_partitionBloomFilter = move(*message.mutable_partitionbloomfilter());
-
-    auto span = std::span(
-        m_partitionBloomFilter.filter().cbegin(),
-        m_partitionBloomFilter.filter().cend()
-    );
+    std::span<const char> bloomFilterSpan
+    {
+        reinterpret_cast<const char*>(m_partitionBloomFilterMessage->bloom_filter()->filter()->data()),
+        m_partitionBloomFilterMessage->bloom_filter()->filter()->size(),
+    };
 
     m_bloomFilter.emplace(
-        span,
-        m_partitionBloomFilter.hashfunctioncount()
-        );
+        bloomFilterSpan,
+        m_partitionBloomFilterMessage->bloom_filter()->hash_function_count()
+    );
+
+    m_partitionRootTreeNodeMessage = co_await ReadData(
+        m_partitionRootMessage->root()->root_tree_node());
 }
 
 task<size_t> Partition::GetRowCount()
 {
-    co_return m_partitionRoot.rowcount();
+    co_return m_partitionRootMessage->root()->row_count();
 }
 
 task<ExtentOffset> Partition::GetApproximateDataSize()
 {
-    co_return m_partitionHeader.partitionrootoffset();
+    co_return 0;
 }
 
 row_generator Partition::Read(
@@ -146,11 +139,7 @@ row_generator Partition::Enumerate(
     EnumerateLastReturnedKey unusedEnumerateLastReturnedKey;
 
     auto enumeration = Enumerate(
-        ExtentLocation 
-        { 
-            m_dataExtentName,
-            m_partitionRoot.roottreenodeoffset()
-        },
+        m_partitionRootTreeNodeMessage,
         readSequenceNumber,
         low,
         high,
@@ -193,11 +182,7 @@ row_generator Partition::Checkpoint(
     EnumerateLastReturnedKey unusedEnumerateLastReturnedKey;
 
     auto enumeration = Enumerate(
-        ExtentLocation
-        {
-            m_dataExtentName,
-            m_partitionRoot.roottreenodeoffset()
-        },
+        m_partitionRootTreeNodeMessage,
         readSequenceNumber,
         low,
         high,
@@ -214,6 +199,7 @@ row_generator Partition::Checkpoint(
 }
 
 struct Partition::FindTreeEntryKeyLessThanComparer
+    : SerializationTypes
 {
     const KeyComparer& m_keyComparer;
     
@@ -223,21 +209,20 @@ struct Partition::FindTreeEntryKeyLessThanComparer
     {}
 
     bool operator()(
-        const PartitionTreeNodeCacheEntry::iterator_type::value_type& cacheEntry,
+        const PartitionTreeEntryKey* keyEntry,
         const KeyRangeComparerArgument& key
         )
     {
         KeyRangeLessThanComparer comparer(
             m_keyComparer);
 
+        auto keySpan = get_byte_span(
+            keyEntry->key()->data());
+
         KeyAndSequenceNumberComparerArgument cacheEntryKey
         {
-            *cacheEntry.Key,
-            ToSequenceNumber(
-                cacheEntry.TreeEntry->has_child()
-                    ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
-                    : (cacheEntry.TreeEntry->valueset().values().end() - 1)->writesequencenumber()
-            )
+            keySpan,
+            ToSequenceNumber(keyEntry->lowest_write_sequence_number_for_key())
         };
 
         return comparer(cacheEntryKey, key);
@@ -245,20 +230,19 @@ struct Partition::FindTreeEntryKeyLessThanComparer
 
     bool operator()(
         const KeyRangeComparerArgument& key,
-        const PartitionTreeNodeCacheEntry::iterator_type::value_type& cacheEntry
+        const PartitionTreeEntryKey* keyEntry
         )
     {
         KeyRangeLessThanComparer comparer(
             m_keyComparer);
 
+        auto keySpan = get_byte_span(
+            keyEntry->key()->data());
+
         KeyAndSequenceNumberComparerArgument cacheEntryKey
         {
-            *cacheEntry.Key,
-            ToSequenceNumber(
-                cacheEntry.TreeEntry->has_child()
-                    ? cacheEntry.TreeEntry->child().lowestwritesequencenumberforkey()
-                    : (cacheEntry.TreeEntry->valueset().values().end() - 1)->writesequencenumber()
-            )
+            keySpan,
+            ToSequenceNumber(keyEntry->lowest_write_sequence_number_for_key()),
         };
 
         return comparer(key, cacheEntryKey);
@@ -266,8 +250,7 @@ struct Partition::FindTreeEntryKeyLessThanComparer
 };
 
 int Partition::FindLowTreeEntryIndex(
-    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-    const PartitionTreeNode* treeNode,
+    const FlatMessage<PartitionMessage>& treeNode,
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low
 )
@@ -281,19 +264,22 @@ int Partition::FindLowTreeEntryIndex(
         low.Inclusivity,
     };
 
+    // VectorIterator doesn't accept its difference_type in its += operator.
+#pragma warning (push)
+#pragma warning (disable: 4244)
     auto lowerBound = std::lower_bound(
-        partitionTreeNodeCacheEntry->begin(),
-        partitionTreeNodeCacheEntry->end(),
+        treeNode->tree_node()->keys()->begin(),
+        treeNode->tree_node()->keys()->end(),
         key,
         FindTreeEntryKeyLessThanComparer { *m_keyComparer }
     );
+#pragma warning (pop)
 
-    return lowerBound - partitionTreeNodeCacheEntry->begin();
+    return lowerBound - treeNode->tree_node()->keys()->begin();
 }
 
 int Partition::FindHighTreeEntryIndex(
-    const shared_ptr<PartitionTreeNodeCacheEntry>& partitionTreeNodeCacheEntry,
-    const PartitionTreeNode* treeNode,
+    const FlatMessage<PartitionMessage>& treeNode,
     SequenceNumber readSequenceNumber,
     KeyRangeEnd high
 )
@@ -311,23 +297,23 @@ int Partition::FindHighTreeEntryIndex(
     };
 
     auto lowerBound = std::lower_bound(
-        partitionTreeNodeCacheEntry->begin(),
-        partitionTreeNodeCacheEntry->end(),
+        treeNode->tree_node()->keys()->begin(),
+        treeNode->tree_node()->keys()->end(),
         key,
         FindTreeEntryKeyLessThanComparer{ *m_keyComparer }
     );
 
-    return lowerBound - partitionTreeNodeCacheEntry->begin();
+    return lowerBound - treeNode->tree_node()->keys()->begin();
 }
 
 int Partition::FindMatchingValueIndexByWriteSequenceNumber(
-    const PartitionTreeEntryValueSet& valueSet,
+    const FlatBuffers::PartitionTreeEntryKey* keyEntry,
     SequenceNumber readSequenceNumber)
 {
     auto readSequenceNumberInt64 = ToUint64(readSequenceNumber);
 
     // Most of the time, we're returning the first entry.
-    if (valueSet.values(0).writesequencenumber() <= readSequenceNumberInt64)
+    if (keyEntry->values()->Get(0)->write_sequence_number() <= readSequenceNumberInt64)
     {
         return 0;
     }
@@ -335,32 +321,36 @@ int Partition::FindMatchingValueIndexByWriteSequenceNumber(
     struct comparer
     {
         bool operator()(
-            const PartitionTreeEntryValue& partitionTreeEntryValue,
+            const FlatBuffers::PartitionTreeEntryValue* partitionTreeEntryValue,
             SequenceNumber readSequenceNumber
             ) const
         {
-            return partitionTreeEntryValue.writesequencenumber() > ToUint64(readSequenceNumber);
+            return partitionTreeEntryValue->write_sequence_number() > ToUint64(readSequenceNumber);
         }
 
         bool operator()(
             SequenceNumber readSequenceNumber,
-            const PartitionTreeEntryValue& partitionTreeEntryValue
+            const FlatBuffers::PartitionTreeEntryValue* partitionTreeEntryValue
             ) const
         {
-            return ToUint64(readSequenceNumber) > partitionTreeEntryValue.writesequencenumber();
+            return ToUint64(readSequenceNumber) > partitionTreeEntryValue->write_sequence_number();
         }
     };
 
+    // VectorIterator doesn't accept its difference_type in its += operator.
+#pragma warning (push)
+#pragma warning (disable: 4244)
     return std::lower_bound(
-        valueSet.values().begin() + 1,
-        valueSet.values().end(),
+        keyEntry->values()->begin() + 1,
+        keyEntry->values()->end(),
         readSequenceNumber,
         comparer()
-    ) - valueSet.values().begin();
+    ) - keyEntry->values()->begin();
+#pragma warning (pop)
 }
 
 row_generator Partition::Enumerate(
-    ExtentLocation treeNodeLocation,
+    const FlatMessage<PartitionMessage>& treeNode,
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high,
@@ -369,24 +359,13 @@ row_generator Partition::Enumerate(
     EnumerateLastReturnedKey& lastReturnedKey
 )
 {
-    shared_ptr<PartitionTreeNodeCacheEntry> cacheEntry = co_await m_partitionTreeNodeCache.GetPartitionTreeNodeCacheEntry(
-        treeNodeLocation);
-
-    DataReference<const Serialization::PartitionTreeNode*> treeNode = cacheEntry->ReadTreeNode();
-
-//#ifndef NDEBUG
-//    auto treeNodeString = treeNode->DebugString();
-//#endif
-
     int lowTreeEntryIndex = FindLowTreeEntryIndex(
-        cacheEntry,
-        *treeNode,
+        treeNode,
         readSequenceNumber,
         low);
 
     int highTreeEntryIndex = FindHighTreeEntryIndex(
-        cacheEntry,
-        *treeNode,
+        treeNode,
         readSequenceNumber,
         high);
 
@@ -394,28 +373,28 @@ row_generator Partition::Enumerate(
 
     while (
         (
-            (*treeNode)->level() == 0 && lowTreeEntryIndex < highTreeEntryIndex
+            treeNode->tree_node()->level() == 0 && lowTreeEntryIndex < highTreeEntryIndex
             ||
-            (*treeNode)->level() > 0 && lowTreeEntryIndex <= highTreeEntryIndex
+            treeNode->tree_node()->level() > 0 && lowTreeEntryIndex <= highTreeEntryIndex
         )
         &&
-        lowTreeEntryIndex < (*treeNode)->treeentries_size())
+        lowTreeEntryIndex < treeNode->tree_node()->keys()->size())
     {
-        auto& treeNodeEntry = (*treeNode)->treeentries(lowTreeEntryIndex);
-        auto key = cacheEntry->GetKey(lowTreeEntryIndex);
+        const FlatBuffers::PartitionTreeEntryKey* keyEntry = treeNode->tree_node()->keys()->Get(lowTreeEntryIndex);
+        
+        RawData key = GetRawData(
+            treeNode,
+            keyEntry->key());
 
-        if (treeNodeEntry.has_child())
+        if (keyEntry->child_tree_node())
         {
-            ExtentLocation enumerationLocation =
-            {
-                m_dataExtentName,
-                treeNodeEntry.child().treenodeoffset(),
-            };
+            auto childMessage = co_await ReadData(
+                keyEntry->child_tree_node());
 
             EnumerateLastReturnedKey childEnumerateLastReturnedKey;
 
             auto subTreeEnumerator = Enumerate(
-                enumerationLocation,
+                childMessage,
                 readSequenceNumber,
                 low,
                 high,
@@ -454,14 +433,14 @@ row_generator Partition::Enumerate(
         {
             // We're looking at a matching tree entry, now we need to find the right value
             // based on the write sequence number.
-            const PartitionTreeEntryValue* treeEntryValue;
+            const FlatBuffers::PartitionTreeEntryValue* treeEntryValue;
             auto valueIndex = FindMatchingValueIndexByWriteSequenceNumber(
-                treeNodeEntry.valueset(),
+                keyEntry,
                 readSequenceNumber);
 
-            if (valueIndex < treeNodeEntry.valueset().values_size())
+            if (valueIndex < keyEntry->values()->size())
             {
-                treeEntryValue = &treeNodeEntry.valueset().values(valueIndex);
+                treeEntryValue = keyEntry->values()->Get(valueIndex);
             }
             else
             {
@@ -487,33 +466,26 @@ row_generator Partition::Enumerate(
                 // Otherwise we need to return a composite tree entry.
                 if (readValueDisposition == ReadValueDisposition::DontReadValue)
                 {
-                } else if (PartitionTreeEntryValue::kValueOffset == treeEntryValue->PartitionTreeEntryValue_case())
+                } else if (treeEntryValue->value())
                 {
-                    auto message = std::make_shared<PartitionMessage>();
-                    co_await m_messageAccessor->ReadMessage(
-                        {
-                            .extentName = m_dataExtentName,
-                            .extentOffset = treeEntryValue->valueoffset(),
-                        },
-                        *message);
-
-                    assert(message->PartitionMessageType_case() == PartitionMessage::kValue);
-
-                    value = { message, as_bytes(std::span{ message->value() }) };
+                    value = GetRawData(
+                        treeNode,
+                        treeEntryValue->value());
                 }
-                else if (PartitionTreeEntryValue::kValue == treeEntryValue->PartitionTreeEntryValue_case())
+                else if (treeEntryValue->big_value())
                 {
-                    value = { cacheEntry, as_bytes(std::span{ treeEntryValue->value()}) };
-                }
-                else
-                {
-                    assert(PartitionTreeEntryValue::kDeleted == treeEntryValue->PartitionTreeEntryValue_case());
+                    auto valueMessage = co_await ReadData(
+                        treeEntryValue->big_value());
+
+                    value = GetRawData(
+                        valueMessage,
+                        valueMessage->value());
                 }
 
                 co_yield ResultRow
                 {
                     .Key = key,
-                    .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->writesequencenumber()),
+                    .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->write_sequence_number()),
                     .Value = std::move(value),
                 };
 
@@ -526,14 +498,12 @@ row_generator Partition::Enumerate(
                     };
 
                     lowTreeEntryIndex = FindLowTreeEntryIndex(
-                        cacheEntry,
-                        *treeNode,
+                        treeNode,
                         readSequenceNumber,
                         low);
 
                     lastReturnedKey = EnumerateLastReturnedKey
                     {
-                        cacheEntry,
                         key,
                     };
                 }
@@ -550,7 +520,7 @@ row_generator Partition::Enumerate(
 SequenceNumber Partition::GetLatestSequenceNumber()
 {
     return ToSequenceNumber(
-        m_partitionRoot.latestsequencenumber());
+        m_partitionRootMessage->root()->latest_sequence_number());
 }
 
 task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
@@ -584,75 +554,69 @@ task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
 task<> Partition::CheckTreeNodeIntegrity(
     IntegrityCheckErrorList& errorList,
     const IntegrityCheckError& errorPrototype,
-    ExtentLocation treeNodeLocation,
-    const Message* minKeyExclusive,
+    const FlatBuffers::MessageReference_V1* messageReference,
+    RawData minKeyExclusive,
     SequenceNumber minKeyExclusiveLowestSequenceNumber,
-    const Message* maxKeyInclusive,
+    RawData maxKeyInclusive,
     SequenceNumber maxKeyInclusiveLowestSequenceNumber)
 {
-    PartitionMessage treeNodeMessage;
-    co_await m_messageAccessor->ReadMessage(
-        treeNodeLocation,
-        treeNodeMessage
-    );
+    auto treeNodeMessage = co_await ReadData(messageReference);
+    auto errorLocationExtentOffset = treeNodeMessage.data().DataRange.Beginning;
 
-    if (!treeNodeMessage.has_partitiontreenode())
+    if (!treeNodeMessage->tree_node())
     {
         auto error = errorPrototype;
         error.Code = IntegrityCheckErrorCode::Partition_MissingTreeNode;
-        error.Location = treeNodeLocation;
+        error.Location->extentOffset = errorLocationExtentOffset;
         errorList.push_back(error);
         co_return;
     }
     
-    if (treeNodeMessage.partitiontreenode().treeentries_size() == 0)
+    if (treeNodeMessage->tree_node()->keys()->size() == 0)
     {
         co_return;
     }
 
-    unique_ptr<Message> maxKeyInclusiveHolder;
-    if (!maxKeyInclusive)
+    if (!maxKeyInclusive->data())
     {
         GetKeyValues(
-            *(treeNodeMessage.partitiontreenode().treeentries().end() - 1),
-            maxKeyInclusiveHolder,
+            FlatMessage<PartitionTreeEntryKey>{ treeNodeMessage, *treeNodeMessage->tree_node()->keys()->rbegin() },
+            maxKeyInclusive,
             maxKeyInclusiveLowestSequenceNumber,
             maxKeyInclusiveLowestSequenceNumber
         );
-        maxKeyInclusive = maxKeyInclusiveHolder.get();
     }
 
-    unique_ptr<Message> previousKeyHolder;
-    const Message* previousKey = minKeyExclusive;
+    RawData previousKey = minKeyExclusive;
     SequenceNumber previousKeyLowestSequenceNumber = minKeyExclusiveLowestSequenceNumber;
 
     for (auto index = 0;
-        index < treeNodeMessage.partitiontreenode().treeentries_size();
+        index < treeNodeMessage->tree_node()->keys()->size();
         index++)
     {
         auto treeEntryErrorPrototype = errorPrototype;
-        treeEntryErrorPrototype.Location = treeNodeLocation;
+        treeEntryErrorPrototype.Location->extentOffset = errorLocationExtentOffset;
         treeEntryErrorPrototype.TreeNodeEntryIndex = index;
-        treeEntryErrorPrototype.Key = treeNodeMessage.partitiontreenode().treeentries(index).key();
+        treeEntryErrorPrototype.Key = GetRawData(
+            treeNodeMessage,
+            treeNodeMessage->tree_node()->keys()->Get(index)->key());
 
-        auto& treeEntry = treeNodeMessage.partitiontreenode().treeentries(index);
+        auto treeEntry = treeNodeMessage->tree_node()->keys()->Get(index);
 
-        unique_ptr<Message> currentKeyHolder;
-        const Message* currentKey;
+        RawData currentKey;
         SequenceNumber currentKeyHighestSequenceNumber;
         SequenceNumber currentKeyLowestSequenceNumber;
 
         GetKeyValues(
-            treeNodeMessage.partitiontreenode().treeentries(index),
-            currentKeyHolder,
+            FlatMessage<PartitionTreeEntryKey>{ treeNodeMessage, treeEntry },
+            currentKey,
             currentKeyHighestSequenceNumber,
             currentKeyLowestSequenceNumber);
-        currentKey = currentKeyHolder.get();
 
         co_await CheckChildTreeEntryIntegrity(
             errorList,
             treeEntryErrorPrototype,
-            treeNodeMessage.partitiontreenode(),
+            treeNodeMessage,
             index,
             currentKey,
             previousKey,
@@ -660,72 +624,70 @@ task<> Partition::CheckTreeNodeIntegrity(
             currentKey,
             currentKeyLowestSequenceNumber);
 
-        previousKeyHolder = move(currentKeyHolder);
-        previousKey = currentKeyHolder.get();
+        previousKey = currentKey;
         previousKeyLowestSequenceNumber = currentKeyLowestSequenceNumber;
     }
 }
 
 void Partition::GetKeyValues(
-    const PartitionTreeEntry& treeEntry,
-    unique_ptr<Message>& key,
+    const FlatMessage<FlatBuffers::PartitionTreeEntryKey>& keyEntry,
+    RawData& key,
     SequenceNumber& highestSequenceNumber,
     SequenceNumber& lowestSequenceNumber)
 {
-    key.reset(
-        m_keyFactory->GetPrototype()->New());
+    key = GetRawData(
+        keyEntry,
+        keyEntry->key());
 
-    if (treeEntry.has_child())
+    if (keyEntry->values())
     {
-        highestSequenceNumber = ToSequenceNumber(
-            treeEntry.child().lowestwritesequencenumberforkey());
+        
         lowestSequenceNumber = ToSequenceNumber(
-            treeEntry.child().lowestwritesequencenumberforkey());
-    }
-    else if (treeEntry.has_valueset()
-        && treeEntry.valueset().values_size() > 0)
-    {
+            keyEntry->values()->rbegin()->write_sequence_number());
         highestSequenceNumber = ToSequenceNumber(
-            treeEntry.valueset().values().begin()->writesequencenumber());
-        lowestSequenceNumber = ToSequenceNumber(
-            (treeEntry.valueset().values().end() - 1)->writesequencenumber());
+            keyEntry->values()->begin()->write_sequence_number());
     }
     else
     {
+        lowestSequenceNumber = ToSequenceNumber(
+            keyEntry->lowest_write_sequence_number_for_key());
         highestSequenceNumber = SequenceNumber::Latest;
-        lowestSequenceNumber = SequenceNumber::Earliest;
     }
 }
 
 task<> Partition::CheckChildTreeEntryIntegrity(
     IntegrityCheckErrorList& errorList,
     const IntegrityCheckError& errorPrototype,
-    const PartitionTreeNode& parent,
+    const FlatMessage<PartitionMessage>& parent,
     size_t treeEntryIndex,
-    const Message* currentKey,
-    const Message* minKeyExclusive,
+    RawData currentKey,
+    RawData minKeyExclusive,
     SequenceNumber minKeyExclusiveLowestSequenceNumber,
-    const Message* maxKeyInclusive,
+    RawData maxKeyInclusive,
     SequenceNumber maxKeyInclusiveLowestSequenceNumber)
 {
-    const PartitionTreeEntry& treeEntry = parent.treeentries(treeEntryIndex);
+    FlatMessage<FlatBuffers::PartitionTreeEntryKey> treeEntry
+    {
+        parent,
+        parent->tree_node()->keys()->Get(treeEntryIndex),
+    };
 
     SequenceNumber currentHighestSequenceNumber;
     SequenceNumber currentLowestSequenceNumber;
-    if (treeEntry.has_child())
+    
+    if (treeEntry->child_tree_node())
     {
         currentHighestSequenceNumber = ToSequenceNumber(
-            treeEntry.child().lowestwritesequencenumberforkey());
+            treeEntry->lowest_write_sequence_number_for_key());
         currentLowestSequenceNumber = ToSequenceNumber(
-            treeEntry.child().lowestwritesequencenumberforkey());
+            treeEntry->lowest_write_sequence_number_for_key());
     }
-    else if (treeEntry.has_valueset()
-        && treeEntry.valueset().values_size() > 0)
+    else if (treeEntry->values())
     {
         currentHighestSequenceNumber = ToSequenceNumber(
-            treeEntry.valueset().values(0).writesequencenumber());
+            treeEntry->values()->Get(0)->write_sequence_number());
         currentLowestSequenceNumber = ToSequenceNumber(
-            (treeEntry.valueset().values().end() - 1)->writesequencenumber());
+            (treeEntry->values()->rbegin())->write_sequence_number());
     }
     else
     {
@@ -743,7 +705,7 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     }
 
     if (!m_bloomFilter->test(
-        treeEntry.key()))
+        get_byte_span(treeEntry->key()->data())))
     {
         auto error = errorPrototype;
         error.Code = IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter;
@@ -752,18 +714,13 @@ task<> Partition::CheckChildTreeEntryIntegrity(
 
     KeyAndSequenceNumberComparer keyAndSequenceNumberComparer(*m_keyComparer);
     
-    std::string currentKeyString;
-    currentKey->SerializeToString(&currentKeyString);
-
     // If there is a min key, ensure the tree entry is above that value.
     std::string minKeyExclusiveString;
-    if (minKeyExclusive)
+    if (minKeyExclusive->data())
     {
-        minKeyExclusive->SerializeToString(&minKeyExclusiveString);
-
         auto keyComparisonResult = keyAndSequenceNumberComparer(
-            { get_byte_span(minKeyExclusiveString), minKeyExclusiveLowestSequenceNumber },
-            { get_byte_span(currentKeyString), currentLowestSequenceNumber });
+            { *minKeyExclusive, minKeyExclusiveLowestSequenceNumber },
+            { *currentKey, currentLowestSequenceNumber });
 
         if (keyComparisonResult != std::weak_ordering::greater)
         {
@@ -777,13 +734,10 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     // There is always a max key.
     // Ensure the tree entry is below that value.
     // if (maxKeyInclusive)
-    std::string maxKeyInclusiveString;
-    maxKeyInclusive->SerializeToString(&maxKeyInclusiveString);
-
     {
         auto maxKeyComparisonResult = keyAndSequenceNumberComparer(
-            { get_byte_span(currentKeyString), currentLowestSequenceNumber },
-            { get_byte_span(maxKeyInclusiveString), maxKeyInclusiveLowestSequenceNumber});
+            { *currentKey, currentLowestSequenceNumber },
+            { *maxKeyInclusive, maxKeyInclusiveLowestSequenceNumber});
 
         if (maxKeyComparisonResult == std::weak_ordering::greater)
         {
@@ -794,9 +748,9 @@ task<> Partition::CheckChildTreeEntryIntegrity(
         }
     }
 
-    if (parent.level() > 0)
+    if (parent->tree_node()->level() > 0)
     {
-        if (!treeEntry.has_child())
+        if (!treeEntry->child_tree_node())
         {
             auto error = errorPrototype;
             error.Code = IntegrityCheckErrorCode::Partition_NonLeafNodeNeedsChild;
@@ -807,7 +761,7 @@ task<> Partition::CheckChildTreeEntryIntegrity(
         co_await CheckTreeNodeIntegrity(
             errorList,
             errorPrototype,
-            { m_dataExtentName, treeEntry.child().treenodeoffset() },
+            treeEntry->child_tree_node(),
             minKeyExclusive,
             minKeyExclusiveLowestSequenceNumber,
             currentKey,
@@ -816,22 +770,22 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     }
     else
     {
-        if (treeEntry.has_child())
+        if (treeEntry->child_tree_node())
         {
             auto error = errorPrototype;
             error.Code = IntegrityCheckErrorCode::Partition_LeafNodeHasChild;
             errorList.push_back(error);
         }
-        else if (treeEntry.has_valueset())
+        else if (treeEntry->values())
         {
             for (auto valueIndex = 1;
-                valueIndex < treeEntry.valueset().values_size();
+                valueIndex < treeEntry->values()->size();
                 valueIndex++)
             {
                 auto previousValueSequenceNumber = ToSequenceNumber(
-                    treeEntry.valueset().values(valueIndex - 1).writesequencenumber());
+                    treeEntry->values()->Get(valueIndex - 1)->write_sequence_number());
                 auto currentValueSequenceNumber = ToSequenceNumber(
-                    treeEntry.valueset().values(valueIndex).writesequencenumber());
+                    treeEntry->values()->Get(valueIndex)->write_sequence_number());
 
                 if (previousValueSequenceNumber <= currentValueSequenceNumber)
                 {
@@ -866,7 +820,7 @@ task<IntegrityCheckErrorList> Partition::CheckIntegrity(
     co_await CheckTreeNodeIntegrity(
         errorList,
         errorPrototype,
-        { m_dataExtentName,  m_partitionRoot.roottreenodeoffset() },
+        m_partitionRootMessage->root()->root_tree_node(),
         nullptr,
         SequenceNumber::Latest,
         nullptr,

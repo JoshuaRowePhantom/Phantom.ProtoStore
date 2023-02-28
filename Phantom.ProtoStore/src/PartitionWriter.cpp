@@ -287,6 +287,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             partitionTreeNodeBuilder,
             ToUint64(row.WriteSequenceNumber),
             valueDataOffset,
+            nullptr,
             transactionIdOffset);
 
         currentValues.push_back(

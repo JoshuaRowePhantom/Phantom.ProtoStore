@@ -179,6 +179,9 @@ table PartitionTreeEntryValue {
     // Value is not set if this is a delete.
     value : PartitionDataValue;
 
+    // The value is large, and was not put directly into the row.
+    big_value : MessageReference_V1;
+
     // Set if this transaction has not been resolved
     // as of when the row was written to disk.
     // This value is cleared upon merge whenever
@@ -239,6 +242,7 @@ table PartitionHeader {
 
 table PartitionMessage {
     tree_node : PartitionTreeNode;
+    value : PartitionDataValue;
     header : PartitionHeader;
     root : PartitionRoot;
     bloom_filter : PartitionBloomFilter;

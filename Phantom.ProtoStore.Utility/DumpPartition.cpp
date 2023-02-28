@@ -1,4 +1,6 @@
 #include "Utility.h"
+#include <flatbuffers/flatbuffers.h>
+#include <flatbuffers/minireflect.h>
 
 using namespace std;
 using namespace Phantom::ProtoStore;
@@ -23,17 +25,34 @@ task<> DumpPartition(
     auto dataMessageReader = co_await messageStore->OpenExtentForSequentialReadAccess(
         dataExtent);
 
-    Serialization::PartitionMessage message;
+    FlatMessage<FlatBuffers::PartitionMessage> message;
     do
     {
-        auto readMessageResult = co_await dataMessageReader->Read(
-            message);
+        auto readMessageResult = co_await dataMessageReader->Read();
+        auto span = get_uint8_t_span(readMessageResult->Message);
+
+        if (!span.data())
+        {
+            co_return;
+        }
+
+        flatbuffers::Verifier verifier(
+            span.data(),
+            span.size());
+        if (!verifier.VerifyBuffer<FlatBuffers::LogRecord>())
+        {
+            std::cout << "Invalid message!\n";
+        }
 
         DumpMessage(
             "PartitionMessage",
-            message,
-            readMessageResult->DataRange.Beginning
-        );
-    } while (!message.has_partitionheader());
+            flatbuffers::FlatBufferToString(
+                span.data(),
+                FlatBuffers::PartitionMessageTypeTable(),
+                true,
+                true,
+                "  "),
+            readMessageResult->DataRange.Beginning);
+    } while (true);
 
 }

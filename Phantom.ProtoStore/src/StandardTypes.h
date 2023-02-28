@@ -158,6 +158,11 @@ struct LoggedPartitionsDataT;
 
 struct MessageReference_V1;
 
+struct PartitionMessage;
+struct PartitionHeader;
+struct PartitionRoot;
+struct PartitionTreeEntryKey;
+
 enum class ExtentFormatVersion : int8_t;
 
 struct ExtentName;
@@ -229,7 +234,9 @@ public:
     using MergeProgressKey = Serialization::MergeProgressKey;
     using MergeProgressValue = Serialization::MergeProgressValue;
     using PlaceholderKey = Serialization::PlaceholderKey;
-    using PartitionMessage = Serialization::PartitionMessage;
+    using PartitionMessage = FlatBuffers::PartitionMessage;
+    using PartitionRoot = FlatBuffers::PartitionRoot;
+    using PartitionTreeEntryKey = FlatBuffers::PartitionTreeEntryKey;
     using UnresolvedTransactionKey = Serialization::UnresolvedTransactionKey;
     using UnresolvedTransactionValue = Serialization::UnresolvedTransactionValue;
 

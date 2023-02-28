@@ -344,10 +344,12 @@ task<WriteRowsResult> Index::WriteMemoryTables(
     {
         .approximateRowCount = rowCount,
         .rows = &rows,
+        .targetExtentSize = std::numeric_limits<ExtentOffset>::max(),
+        .targetMessageSize = 1024*1024*1024,
     };
 
     co_return co_await partitionWriter->WriteRows(
-        move(writeRowsRequest));
+        writeRowsRequest);
 }
 
 task<> Index::SetDataSources(

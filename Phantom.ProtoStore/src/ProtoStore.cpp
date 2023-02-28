@@ -1137,25 +1137,30 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     auto dataExtentName = MakePartitionDataExtentName(
         headerExtentName);
 
+    auto headerReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
+        headerExtentName);
+
+    auto dataReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
+        dataExtentName);
+    
     auto partition = make_shared<Partition>(
         index->GetKeyComparer(),
-        index->GetKeyFactory(),
-        index->GetValueFactory(),
-        m_messageAccessor,
-        ExtentLocation
-        {
-            .extentName = headerExtentName,
-            .extentOffset = 0,
-        },
-        dataExtentName
+        std::move(headerReader),
+        std::move(dataReader)
         );
 
     co_await partition->Open();
 
     if (m_integrityChecks.contains(IntegrityCheck::CheckPartitionOnOpen))
     {
+        IntegrityCheckError errorPrototype;
+        errorPrototype.Location = ExtentLocation
+        {
+            .extentName = dataExtentName,
+        };
+
         auto errorList = co_await partition->CheckIntegrity(
-            IntegrityCheckError{});
+            errorPrototype);
         if (!errorList.empty())
         {
             throw IntegrityException(errorList);

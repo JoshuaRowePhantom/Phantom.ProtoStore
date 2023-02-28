@@ -307,7 +307,7 @@ ASYNC_TEST(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it
     auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
 
     auto flatMessage = FlatMessage<FlatBuffers::ScalarTable>(co_await randomMessageReader->Read(
-        0));
+        ExtentOffset(0)));
     FlatBuffers::ScalarTableT actualMessage;
     flatMessage->UnPackTo(&actualMessage);
 
