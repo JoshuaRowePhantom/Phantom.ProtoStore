@@ -1541,7 +1541,6 @@ task<> ProtoStore::OpenPartitionWriter(
         out_dataExtentName);
 
     out_partitionWriter = make_shared<PartitionWriter>(
-        PartitionWriterParameters(),
         dataWriter,
         headerWriter
         );

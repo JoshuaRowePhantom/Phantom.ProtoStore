@@ -7,13 +7,6 @@
 
 namespace Phantom::ProtoStore
 {
-struct PartitionWriterParameters
-{
-    size_t DesiredTreeNodeSize = 1024 * 64 - 4096;
-    size_t MinimumKeysPerTreeNode = 2;
-    size_t MaxEmbeddedValueSize = 100;
-};
-
 class PartitionWriterBase : SerializationTypes
 {
 protected:
@@ -78,11 +71,9 @@ class PartitionWriter :
     public IPartitionWriter
 {
     shared_ptr<ISequentialMessageWriter> m_headerWriter;
-    const PartitionWriterParameters m_parameters;
 
 public:
     PartitionWriter(
-        PartitionWriterParameters parameters,
         shared_ptr<ISequentialMessageWriter> dataWriter,
         shared_ptr<ISequentialMessageWriter> headerWriter
     );

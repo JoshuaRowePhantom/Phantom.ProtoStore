@@ -107,7 +107,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     size_t level)
 {
     StackEntry& current = m_treeNodeStack[level];
-    
+
     // We need to flush the next higher level IF
     // the higher level exists AND adding the highest key in this level to the next level
     // would cause it to exceed its size target.
@@ -138,7 +138,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     current.partitionTreeNodeBuilder.Finish(
         partitionMessageOffset);
 
-    FlatMessage<FlatBuffers::PartitionMessage> partitionMessage { current.partitionTreeNodeBuilder };
+    FlatMessage<FlatBuffers::PartitionMessage> partitionMessage{ current.partitionTreeNodeBuilder };
 
     auto messageReference = co_await Write(
         partitionMessage
@@ -149,10 +149,10 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
         m_treeNodeStack.push_back(StackEntry());
     }
     StackEntry& next = m_treeNodeStack[level + 1];
-    
+
     next.highestKey = std::move(current.highestKey);
     next.lowestSequenceNumberForKey = current.lowestSequenceNumberForKey;
-    
+
     auto nextKeyDataOffset = WriteRawData(
         next.partitionTreeNodeBuilder,
         next.highestKey
@@ -307,7 +307,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     // The tree node stack is now complete.
     // Flush each of the intermediate levels up to the first level that has < 2 entries;
     // when we 
-    for(auto level = 1; m_treeNodeStack[level].keyOffsets.size() > 1; level++)
+    for (auto level = 1; m_treeNodeStack[level].keyOffsets.size() > 1; level++)
     {
         if (!m_treeNodeStack[level].keyOffsets.empty())
         {
@@ -316,6 +316,15 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     }
 
     co_return root;
+}
+
+PartitionWriter::PartitionWriter(
+    shared_ptr<ISequentialMessageWriter> dataWriter,
+    shared_ptr<ISequentialMessageWriter> headerWriter
+) :
+    PartitionWriterBase { std::move(dataWriter) },
+    m_headerWriter{ std::move(headerWriter) }
+{
 }
 
 task<WriteRowsResult> PartitionWriter::WriteRows(
