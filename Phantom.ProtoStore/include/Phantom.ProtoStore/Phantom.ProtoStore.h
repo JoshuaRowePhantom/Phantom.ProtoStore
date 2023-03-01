@@ -31,6 +31,7 @@ namespace FlatBuffers
 enum class ExtentFormatVersion : int8_t;
 struct MessageHeader_V1;
 struct MessageReference_V1;
+struct PartitionMessage;
 }
 
 using cppcoro::async_generator;
@@ -1288,6 +1289,7 @@ struct IntegrityCheckError
     ExtentLocation Location;
     std::optional<int> TreeNodeEntryIndex;
     std::optional<int> TreeNodeValueIndex;
+    std::shared_ptr<FlatMessage<FlatBuffers::PartitionMessage>> PartitionMessage;
 
     friend bool operator==(
         const IntegrityCheckError&,

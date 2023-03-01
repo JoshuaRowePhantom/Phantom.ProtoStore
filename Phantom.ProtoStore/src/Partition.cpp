@@ -603,6 +603,8 @@ task<> Partition::CheckTreeNodeIntegrity(
         treeEntryErrorPrototype.Key = GetRawData(
             treeNodeMessage,
             treeNodeMessage->tree_node()->keys()->Get(index)->key());
+        treeEntryErrorPrototype.PartitionMessage = copy_shared(
+            treeNodeMessage);
 
         auto treeEntry = treeNodeMessage->tree_node()->keys()->Get(index);
 
@@ -725,10 +727,11 @@ task<> Partition::CheckChildTreeEntryIntegrity(
             { *minKeyExclusive, minKeyExclusiveLowestSequenceNumber },
             { *currentKey, currentLowestSequenceNumber });
 
-        if (keyComparisonResult != std::weak_ordering::greater)
+        if (keyComparisonResult != std::weak_ordering::less)
         {
             auto error = errorPrototype;
             error.Code = IntegrityCheckErrorCode::Partition_OutOfOrderKey;
+            error.Key = currentKey;
             errorList.push_back(error);
             co_return;
         }
@@ -746,6 +749,7 @@ task<> Partition::CheckChildTreeEntryIntegrity(
         {
             auto error = errorPrototype;
             error.Code = IntegrityCheckErrorCode::Partition_KeyOutOfMaxRange;
+            errorList.push_back(error);
             errorList.push_back(error);
             co_return;
         }
