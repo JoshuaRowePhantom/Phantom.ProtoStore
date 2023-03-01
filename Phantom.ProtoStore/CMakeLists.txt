@@ -94,8 +94,14 @@ flatbuffers_generate_headers(
     TARGET Phantom.ProtoStore.FlatBuffers
     INCLUDE_PREFIX ./src ./include
     FLAGS --reflect-names --gen-name-strings --gen-compare --cpp-std c++17 --gen-object-api --scoped-enums --gen-mutable
+    BINARY_SCHEMAS_DIR "${CMAKE_CURRENT_BINARY_DIR}"
     SCHEMAS
     src/ProtoStoreInternal.fbs)
+
+phantom_flatbuffers_generate_natvis(
+    TARGET Phantom.ProtoStore.FlatBuffers
+    NATVIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+)
 
 target_compile_definitions(
     Phantom.ProtoStore
