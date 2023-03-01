@@ -76,4 +76,13 @@ ASYNC_TEST(MemoryMappedFileExtentStoreTests, Data_is_readable_after_Commit_and_F
     co_await ExtentStoreTests::Data_is_readable_after_Commit_and_Flush(*store);
 }
 
+ASYNC_TEST(MemoryMappedFileExtentStoreTests, Can_extend_extent_while_data_reference_is_held)
+{
+    auto store = MakeFilesystemStore(
+        "MemoryMappedFileExtentStoreTests",
+        "Can_extend_extent_while_data_reference_is_held",
+        4096);
+    co_await ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(*store);
+}
+
 }

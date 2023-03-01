@@ -34,5 +34,9 @@ public:
     static task<> Data_is_readable_after_Commit_and_Flush(
         IExtentStore& store
     );
+
+    static task<> Can_extend_extent_while_data_reference_is_held(
+        IExtentStore& store
+    );
 };
 }

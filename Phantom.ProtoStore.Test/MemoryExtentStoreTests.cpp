@@ -50,4 +50,10 @@ ASYNC_TEST(MemoryExtentStoreTests, Data_is_readable_after_Commit_and_Flush)
     co_await ExtentStoreTests::Data_is_readable_after_Commit_and_Flush(store);
 }
 
+ASYNC_TEST(MemoryExtentStoreTests, Can_extend_extent_while_data_reference_is_held)
+{
+    MemoryExtentStore store(Schedulers::Default());
+    co_await ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(store);
+}
+
 }

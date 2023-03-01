@@ -205,4 +205,40 @@ task<> ExtentStoreTests::Data_is_readable_after_Commit_and_Flush(
     EXPECT_TRUE(std::ranges::equal(expectedData, *rawData));
 }
 
+task<> ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(
+    IExtentStore& store
+)
+{
+    vector<uint8_t> writeData1 = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    vector<uint8_t> writeData2 = { 2, 2, 3, 4, 5, 6, 7, 8, 9, 20 };
+    auto expectedData1 = as_bytes(std::span<uint8_t>{ writeData1 });
+    auto expectedData2 = as_bytes(std::span<uint8_t>{ writeData2 });
+
+    WritableRawData rawData1;
+    WritableRawData rawData2;
+
+    auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
+    rawData1 = co_await writeBuffer1->Write(0, writeData1.size());
+    std::ranges::copy(expectedData1, rawData1->data());
+
+    auto writeBuffer2 = co_await writeExtent->CreateWriteBuffer();
+    rawData2 = co_await writeBuffer1->Write(65536, writeData1.size());
+    std::ranges::copy(expectedData2, rawData2->data());
+
+    co_await writeBuffer1->Commit();
+    co_await writeBuffer2->Flush();
+
+    EXPECT_TRUE(std::ranges::equal(expectedData1, *rawData1));
+    EXPECT_TRUE(std::ranges::equal(expectedData2, *rawData2));
+
+    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    
+    auto actualData1 = co_await readExtent->Read(0, expectedData1.size());
+    auto actualData2 = co_await readExtent->Read(65536, expectedData1.size());
+
+    EXPECT_TRUE(std::ranges::equal(expectedData1, *actualData1));
+    EXPECT_TRUE(std::ranges::equal(expectedData2, *actualData2));
+}
+
 }
