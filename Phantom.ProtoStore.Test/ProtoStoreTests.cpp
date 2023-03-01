@@ -874,8 +874,8 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
 }
 ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
 {
-    auto createRequest = GetCreateMemoryStoreRequest();
-    //        auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_reopen");
+    //auto createRequest = GetCreateMemoryStoreRequest();
+    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_reopen");
 
     auto store = co_await CreateStore(createRequest);
 

@@ -8,7 +8,7 @@ uint32_t checksum_v1(
     std::span<const byte> data
 )
 {
-    using crc_v1_type = boost::crc_optimal<32, 0x1EDC6F41, 0xffffffff, 0xffffffff, true, true>;
+    using crc_v1_type = boost::crc_optimal<32, 0x1EDC6F41, 0xffffffff, 0, true, true>;
     crc_v1_type crc;
     crc.process_bytes(
         data.data(),

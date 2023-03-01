@@ -281,6 +281,34 @@ ASYNC_TEST(RandomReaderWriterTest, Can_read_what_was_written)
         actualMessage));
 }
 
+ASYNC_TEST(RandomReaderWriterTest, Reading_zeroed_data_returns_no_message)
+{
+    MessageStoreTestMessage expectedMessage;
+    expectedMessage.set_string_value("hello world!");
+
+    auto extentStore = make_shared<MemoryExtentStore>(
+        Schedulers::Default());
+    auto messageStore = make_shared<MessageStore>(
+        Schedulers::Default(),
+        extentStore);
+    {
+        auto writeExtent = co_await extentStore->OpenExtentForWrite(MakeLogExtentName(0));
+        auto zeroBuffer = co_await writeExtent->CreateWriteBuffer();
+        auto buffer = co_await zeroBuffer->Write(0, 10000);
+        co_await zeroBuffer->Flush();
+    }
+
+    // This writes the header.
+    {
+        auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
+        randomMessageWriter = nullptr;
+    }
+
+    auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
+    auto message = co_await randomMessageReader->Read(ExtentOffset(0));
+    EXPECT_FALSE(message);
+}
+
 ASYNC_TEST(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it_back_with_envelope)
 {
     auto extentStore = make_shared<MemoryExtentStore>(

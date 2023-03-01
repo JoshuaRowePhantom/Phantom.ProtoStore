@@ -89,6 +89,15 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
 {
     static_assert(alignof(FlatBuffers::MessageHeader_V1) == 4);
 
+    // A zero length message has a non-zero CRC,
+    // so reading a zero length message with a zero CRC
+    // indicates we're reading out of bounds.
+    if (location->message_header().crc32() == 0
+        && location->message_header().message_size_and_alignment() == 0)
+    {
+        co_return{};
+    }
+
     // A MessageHeader_V1 has a specific alignment of 4.
     assert(is_aligned(location->message_offset(), 4));
     auto headerExtentOffset = to_underlying_extent_offset(location->message_offset());
