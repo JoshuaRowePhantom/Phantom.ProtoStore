@@ -1285,7 +1285,7 @@ struct IntegrityCheckError
 {
     IntegrityCheckErrorCode Code;
     std::optional<RawData> Key;
-    std::optional<ExtentLocation> Location;
+    ExtentLocation Location;
     std::optional<int> TreeNodeEntryIndex;
     std::optional<int> TreeNodeValueIndex;
 

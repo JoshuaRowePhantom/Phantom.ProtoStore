@@ -37,12 +37,12 @@ struct Partition::EnumerateLastReturnedKey
 
 Partition::Partition(
     shared_ptr<KeyComparer> keyComparer,
-    shared_ptr<IRandomMessageReader> partitionDataReader,
-    shared_ptr<IRandomMessageReader> partitionHeaderReader
+    shared_ptr<IRandomMessageReader> partitionHeaderReader,
+    shared_ptr<IRandomMessageReader> partitionDataReader
 ) :
     m_keyComparer(std::move(keyComparer)),
-    m_partitionDataReader(std::move(partitionDataReader)),
-    m_partitionHeaderReader(std::move(partitionHeaderReader))
+    m_partitionHeaderReader(std::move(partitionHeaderReader)),
+    m_partitionDataReader(std::move(partitionDataReader))
 {
 }
 
@@ -64,7 +64,10 @@ task<FlatMessage<Partition::PartitionMessage>> Partition::ReadData(
 
 task<> Partition::Open()
 {
-    m_partitionHeaderMessage = FlatMessage<PartitionMessage>{ co_await m_partitionHeaderReader->Read(ExtentOffset(0)) };
+    m_partitionHeaderMessage = FlatMessage<PartitionMessage>
+    { 
+        co_await m_partitionHeaderReader->Read(ExtentOffset(0)) 
+    };
 
     m_partitionRootMessage = co_await ReadData(
         m_partitionHeaderMessage->header()->partition_root());
@@ -567,7 +570,7 @@ task<> Partition::CheckTreeNodeIntegrity(
     {
         auto error = errorPrototype;
         error.Code = IntegrityCheckErrorCode::Partition_MissingTreeNode;
-        error.Location->extentOffset = errorLocationExtentOffset;
+        error.Location.extentOffset = errorLocationExtentOffset;
         errorList.push_back(error);
         co_return;
     }
@@ -595,7 +598,7 @@ task<> Partition::CheckTreeNodeIntegrity(
         index++)
     {
         auto treeEntryErrorPrototype = errorPrototype;
-        treeEntryErrorPrototype.Location->extentOffset = errorLocationExtentOffset;
+        treeEntryErrorPrototype.Location.extentOffset = errorLocationExtentOffset;
         treeEntryErrorPrototype.TreeNodeEntryIndex = index;
         treeEntryErrorPrototype.Key = GetRawData(
             treeNodeMessage,

@@ -211,10 +211,11 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
         PartitionMessageT bloomFilterMessage;
         auto& bloomFilter = bloomFilterMessage.bloom_filter = std::make_unique<PartitionBloomFilterT>();
         bloomFilter->algorithm = FlatBuffers::PartitionBloomFilterHashAlgorithm::Version1;
+        bloomFilter->hash_function_count = 1;
         bloomFilter->filter.push_back(
             0
             // Uncomment this next line to see that the test fails.
-            | 0xff
+            //| 0xff
         );
 
         auto bloomFilterWriteResult = co_await dataWriter->Write(

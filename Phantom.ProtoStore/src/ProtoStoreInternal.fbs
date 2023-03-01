@@ -7,7 +7,7 @@ table DatabaseHeaderExtentName {
 table IndexExtentName {
     partition_number : uint64;
     index_number : uint64;
-    level : uint64;
+    level : uint8;
     index_name : string;
 }
 
