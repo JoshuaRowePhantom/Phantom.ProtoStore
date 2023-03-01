@@ -38,5 +38,9 @@ public:
     static task<> Can_extend_extent_while_data_reference_is_held(
         IExtentStore& store
     );
+
+    static task<> Open_extent_for_write_erases_previous_content(
+        IExtentStore& store
+    );
 };
 }

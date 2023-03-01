@@ -241,4 +241,24 @@ task<> ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(
     EXPECT_TRUE(std::ranges::equal(expectedData2, *actualData2));
 }
 
+task<> ExtentStoreTests::Open_extent_for_write_erases_previous_content(
+    IExtentStore& store
+)
+{
+    vector<uint8_t> writeData1 = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    auto writeDataExtent1 = as_bytes(std::span<uint8_t>{ writeData1 });
+    auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
+    auto rawData1 = co_await writeBuffer1->Write(0, writeData1.size());
+    std::ranges::copy(writeDataExtent1, rawData1->data());
+    co_await writeBuffer1->Flush();
+
+    writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+
+    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto actualData1 = co_await readExtent->Read(0, writeData1.size());
+    EXPECT_TRUE(!actualData1->data());
+    EXPECT_EQ(0, actualData1->size());
+}
+
 }

@@ -85,4 +85,13 @@ ASYNC_TEST(MemoryMappedFileExtentStoreTests, Can_extend_extent_while_data_refere
     co_await ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(*store);
 }
 
+ASYNC_TEST(MemoryMappedFileExtentStoreTests, Open_extent_for_write_erases_previous_content)
+{
+    auto store = MakeFilesystemStore(
+        "MemoryMappedFileExtentStoreTests",
+        "Open_extent_for_write_erases_previous_content",
+        4096);
+    co_await ExtentStoreTests::Open_extent_for_write_erases_previous_content(*store);
+}
+
 }

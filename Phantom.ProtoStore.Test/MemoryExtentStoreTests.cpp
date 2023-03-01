@@ -56,4 +56,10 @@ ASYNC_TEST(MemoryExtentStoreTests, Can_extend_extent_while_data_reference_is_hel
     co_await ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(store);
 }
 
+ASYNC_TEST(MemoryExtentStoreTests, Open_extent_for_write_erases_previous_content)
+{
+    MemoryExtentStore store(Schedulers::Default());
+    co_await ExtentStoreTests::Open_extent_for_write_erases_previous_content(store);
+}
+
 }

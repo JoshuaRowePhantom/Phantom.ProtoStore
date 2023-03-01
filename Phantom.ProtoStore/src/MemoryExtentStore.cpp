@@ -201,10 +201,17 @@ namespace Phantom::ProtoStore
         cppcoro::async_mutex m_extentsMutex;
 
         task<shared_ptr<Extent>> GetExtent(
-            ExtentName extentName)
+            ExtentName extentName,
+            bool replace)
         {
             auto lock = co_await m_extentsMutex.scoped_lock_async();
 
+            if (replace)
+            {
+                m_extents.erase(
+                    extentName);
+            }
+            
             auto existingExtent = m_extents.find(
                 extentName);
 
@@ -238,14 +245,17 @@ namespace Phantom::ProtoStore
             ExtentName extentName)
         {
             co_return co_await GetExtent(
-                extentName);
+                extentName,
+                false);
         }
 
         task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
             ExtentName extentName)
         {
+
             co_return co_await GetExtent(
-                extentName);
+                extentName,
+                true);
         }
 
         task<> DeleteExtent(

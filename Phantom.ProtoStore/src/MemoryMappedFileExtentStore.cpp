@@ -702,6 +702,8 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
 task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrite(
     ExtentName extentName)
 {
+    co_await DeleteExtent(extentName);
+
     co_return make_shared<MemoryMappedWritableExtent>(
         m_schedulers,
         GetFilename(extentName),
