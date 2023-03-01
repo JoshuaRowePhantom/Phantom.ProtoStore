@@ -320,6 +320,8 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
     {
         auto mappedRegionLock = co_await m_lastMappedFullRegionLock.writer().scoped_lock_async();
 
+        // If some other thread already extended the extent,
+        // use its result.
         if (offset + count < m_lastMappedFullRegionSize)
         {
             region = m_lastFullRegion;
@@ -335,15 +337,21 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
 
         auto newSize = m_lastMappedFullRegionSize;
 
+        // Always grow by at least 25%
+        // Always grow by at least 1 block
         newSize = std::max(
             newSize + newSize / 4,
             newSize + m_blockSize);
 
+        // Always grow to at least the requested size.
         newSize = std::max(
             (offset + count),
             newSize);
 
+        // And round up to the next block size.
         newSize = (newSize + m_blockSize - 1) / m_blockSize * m_blockSize;
+
+        assert(newSize > m_lastMappedFullRegionSize);
 
         {
             std::filebuf filebuf;
