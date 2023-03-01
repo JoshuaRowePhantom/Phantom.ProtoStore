@@ -5,9 +5,11 @@ add_executable(
     "as_awaitable_tests.cpp"
     "async_bound_tests.cpp"
     "async_ring_buffer_tests.cpp"
-    
+    "async_test.cpp"
+    "async_test.h" 
     "async_utility_concept_tests.cpp"
     "async_value_source_tests.cpp"
+    "concepts_test.cpp" 
     "encompassing_pending_task_tests.cpp"
     "invoke_as_awaitable_tests.cpp"
     "merge_tests.cpp"
@@ -18,7 +20,9 @@ add_executable(
     "single_pending_task_tests.cpp" 
     "StandardIncludes.h"
     "ThreadingTests.cpp"
-    "ThreadingTests.h" "async_test.h" "async_test.cpp" "concepts_test.cpp")
+    "ThreadingTests.h"
+    "utility_test.cpp"
+    )
 
 target_link_libraries(
     Phantom.System.Test

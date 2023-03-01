@@ -35,10 +35,17 @@ std::span<const std::byte> as_bytes(
 }
 
 template<typename T>
-std::unique_ptr<T> copy_unique(
+auto copy_unique(
     T&& other)
 {
-    return std::make_unique<T>(other);
+    return std::make_unique<std::decay_t<T>>(other);
+}
+
+template<typename T>
+auto copy_shared(
+    T&& other)
+{
+    return std::make_shared<std::decay_t<T>>(other);
 }
 
 }
