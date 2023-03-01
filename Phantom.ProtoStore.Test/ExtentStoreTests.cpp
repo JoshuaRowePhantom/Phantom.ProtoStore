@@ -223,8 +223,10 @@ task<> ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(
     std::ranges::copy(expectedData1, rawData1->data());
 
     auto writeBuffer2 = co_await writeExtent->CreateWriteBuffer();
-    rawData2 = co_await writeBuffer1->Write(65536, writeData1.size());
+    rawData2 = co_await writeBuffer2->Write(65536, writeData2.size());
     std::ranges::copy(expectedData2, rawData2->data());
+
+    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
 
     co_await writeBuffer1->Commit();
     co_await writeBuffer2->Flush();
@@ -232,8 +234,6 @@ task<> ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(
     EXPECT_TRUE(std::ranges::equal(expectedData1, *rawData1));
     EXPECT_TRUE(std::ranges::equal(expectedData2, *rawData2));
 
-    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
-    
     auto actualData1 = co_await readExtent->Read(0, expectedData1.size());
     auto actualData2 = co_await readExtent->Read(65536, expectedData1.size());
 
