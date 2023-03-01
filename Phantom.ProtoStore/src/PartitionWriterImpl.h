@@ -34,6 +34,8 @@ private:
 
     std::vector<StackEntry> m_treeNodeStack;
     
+    StackEntry& current();
+
     WriteRowsRequest& m_writeRowsRequest;
     WriteRowsResult& m_writeRowsResult;
     BloomFilterVersion1<std::span<char>>& m_bloomFilter;
@@ -43,8 +45,6 @@ private:
     using FlatBufferBuilder = flatbuffers::FlatBufferBuilder;
 
     void FinishKey(
-        RawData& currentKey,
-        SequenceNumber lowestSequenceNumberForKey,
         PartitionTreeEntryValueOffsetVector& treeEntryValues
         );
 
@@ -53,7 +53,8 @@ private:
         const RawData& rawData);
 
     task<FlatBuffers::MessageReference_V1> Flush(
-        size_t level);
+        uint8_t level,
+        bool isFinishing);
 
 public:
     PartitionTreeWriter(

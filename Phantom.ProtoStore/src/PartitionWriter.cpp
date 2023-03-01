@@ -69,12 +69,10 @@ PartitionTreeWriter::PartitionDataValueOffset PartitionTreeWriter::WriteRawData(
 }
 
 void PartitionTreeWriter::FinishKey(
-    RawData& currentKey,
-    SequenceNumber lowestSequenceNumberForKey,
     PartitionTreeEntryValueOffsetVector& treeEntryValues
 )
 {
-    if (!currentKey->data())
+    if (!current().highestKey->data())
     {
         assert(treeEntryValues.empty());
         return;
@@ -86,43 +84,60 @@ void PartitionTreeWriter::FinishKey(
 
     auto keyOffset = WriteRawData(
         builder,
-        currentKey);
+        current().highestKey);
 
     auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
         builder,
         keyOffset,
-        ToUint64(lowestSequenceNumberForKey),
+        ToUint64(current().lowestSequenceNumberForKey),
         &treeEntryValues
     );
 
-    m_treeNodeStack.front().highestKey = std::move(currentKey);
-    m_treeNodeStack.front().lowestSequenceNumberForKey = lowestSequenceNumberForKey;
     m_treeNodeStack.front().keyOffsets.push_back(partitionTreeEntryKeyOffset);
 
     treeEntryValues.clear();
 }
 
-task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
-    size_t level)
+PartitionTreeWriter::StackEntry& PartitionTreeWriter::current()
 {
-    StackEntry& current = m_treeNodeStack[level];
+    return m_treeNodeStack[0];
+}
+
+task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
+    uint8_t level,
+    bool isFinishing)
+{
+    StackEntry* current = &m_treeNodeStack[level];
+
+    bool hasParent = m_treeNodeStack.size() > level + 1;
+    StackEntry* parent = hasParent ? &m_treeNodeStack[level + 1] : nullptr;
+
+    // If we're finishing up writing the tree,
+    // then don't propagate a key out of the root node.
+    bool propagateKeyToParent =
+        !isFinishing
+        ||
+        hasParent;
 
     // We need to flush the next higher level IF
     // the higher level exists AND adding the highest key in this level to the next level
     // would cause it to exceed its size target.
-    if (m_treeNodeStack.size() > level + 1)
+    if (propagateKeyToParent)
     {
         StackEntry& next = m_treeNodeStack[level + 1];
-        auto approximateSize = current.highestKey->size() + 100;
+        auto approximateSize = current->highestKey->size() + 100;
         if (next.partitionTreeNodeBuilder.GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize)
         {
-            co_await Flush(level + 1);
+            // Note that we don't forward the value of "isFinishing",
+            // because we -do- want a flushed root node to result
+            // in a new top-level node.
+            co_await Flush(level + 1, false);
         }
     }
 
     auto treeNodeOffset = FlatBuffers::CreatePartitionTreeNodeDirect(
-        current.partitionTreeNodeBuilder,
-        &current.keyOffsets,
+        current->partitionTreeNodeBuilder,
+        &current->keyOffsets,
         level,
         0,
         0,
@@ -130,47 +145,49 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     );
 
     auto partitionMessageOffset = FlatBuffers::CreatePartitionMessage(
-        current.partitionTreeNodeBuilder,
+        current->partitionTreeNodeBuilder,
         treeNodeOffset
     );
 
-    current.partitionTreeNodeBuilder.Finish(
+    current->partitionTreeNodeBuilder.Finish(
         partitionMessageOffset);
 
-    FlatMessage<FlatBuffers::PartitionMessage> partitionMessage{ current.partitionTreeNodeBuilder };
+    FlatMessage<FlatBuffers::PartitionMessage> partitionMessage{ current->partitionTreeNodeBuilder };
 
     auto messageReference = co_await Write(
         partitionMessage
     );
 
-    if (m_treeNodeStack.size() == level + 1)
+    if (propagateKeyToParent)
     {
-        m_treeNodeStack.push_back(StackEntry());
+        if (!parent)
+        {
+            parent = &m_treeNodeStack.emplace_back(StackEntry());
+        }
+
+        parent->highestKey = std::move(current->highestKey);
+        parent->lowestSequenceNumberForKey = current->lowestSequenceNumberForKey;
+
+        auto nextKeyDataOffset = WriteRawData(
+            parent->partitionTreeNodeBuilder,
+            parent->highestKey
+        );
+
+        auto nextPartitionTreeEntryKey = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
+            parent->partitionTreeNodeBuilder,
+            nextKeyDataOffset,
+            ToUint64(parent->lowestSequenceNumberForKey),
+            nullptr,
+            &messageReference
+        );
+
+        parent->keyOffsets.push_back(
+            nextPartitionTreeEntryKey);
     }
-    StackEntry& next = m_treeNodeStack[level + 1];
 
-    next.highestKey = std::move(current.highestKey);
-    next.lowestSequenceNumberForKey = current.lowestSequenceNumberForKey;
-
-    auto nextKeyDataOffset = WriteRawData(
-        next.partitionTreeNodeBuilder,
-        next.highestKey
-    );
-
-    auto nextPartitionTreeEntryKey = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
-        next.partitionTreeNodeBuilder,
-        nextKeyDataOffset,
-        ToUint64(next.lowestSequenceNumberForKey),
-        nullptr,
-        &messageReference
-    );
-
-    next.keyOffsets.push_back(
-        nextPartitionTreeEntryKey);
-
-    current.highestKey = {};
-    current.keyOffsets.clear();
-    current.partitionTreeNodeBuilder.Clear();
+    current->highestKey = {};
+    current->keyOffsets.clear();
+    current->partitionTreeNodeBuilder.Clear();
 
     co_return messageReference;
 }
@@ -183,8 +200,6 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     auto latestSequenceNumber = SequenceNumber::Earliest;
 
     m_treeNodeStack.push_back(StackEntry());
-    RawData currentKey;
-    SequenceNumber lowestSequenceNumberForCurrentKey;
     PartitionDataValueOffset currentKeyOffset;
     PartitionTreeEntryValueOffsetVector currentValues;
 
@@ -216,12 +231,10 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             // root, and remaining stack entries, 
             // so finish up here and stop this extent.
             FinishKey(
-                currentKey,
-                lowestSequenceNumberForCurrentKey,
                 currentValues
             );
 
-            co_await Flush(0);
+            co_await Flush(0, false);
             break;
         }
         if (partitionTreeNodeBuilder.GetSize() + approximateRowSize > m_writeRowsRequest.targetMessageSize)
@@ -229,12 +242,10 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             // We need enough space left in the message to write the key entry,
             // so finish up this message.
             FinishKey(
-                currentKey,
-                lowestSequenceNumberForCurrentKey,
                 currentValues
             );
 
-            co_await Flush(0);
+            co_await Flush(0, false);
         }
 
         ++m_writeRowsResult.rowsIterated;
@@ -256,19 +267,16 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         {
             earliestSequenceNumber = row.WriteSequenceNumber;
         }
-
-        if (!currentKey->data() || !std::ranges::equal(*currentKey, *row.Key))
+        
+        if (current().highestKey->data() && !std::ranges::equal(*current().highestKey, *row.Key))
         {
             FinishKey(
-                currentKey,
-                lowestSequenceNumberForCurrentKey,
                 currentValues
             );
-
-            currentKey = std::move(row.Key);
         }
 
-        lowestSequenceNumberForCurrentKey = row.WriteSequenceNumber;
+        current().highestKey = std::move(row.Key);
+        current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
 
         auto valueDataOffset = WriteRawData(
             partitionTreeNodeBuilder,
@@ -294,24 +302,16 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     }
 
     FinishKey(
-        currentKey,
-        lowestSequenceNumberForCurrentKey,
         currentValues);
 
     FlatBuffers::MessageReference_V1 root;
 
-    // Flush the lowest level to ensure that all the necessary higher levels are updated.
-    root = co_await Flush(0);
-
-    // The tree node stack is now complete.
-    // Flush each of the intermediate levels up to the first level that has < 2 entries;
-    // when we 
-    for (auto level = 1; m_treeNodeStack[level].keyOffsets.size() > 1; level++)
+    // There may be leftover nodes in the tree node stack.
+    // Flush them.
+    // The rightmost side of the tree will be unbalanced.
+    for (auto level = 0; level < m_treeNodeStack.size(); level++)
     {
-        if (!m_treeNodeStack[level].keyOffsets.empty())
-        {
-            root = co_await Flush(level);
-        }
+        root = co_await Flush(level, true);
     }
 
     co_return root;
@@ -412,6 +412,17 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     partitionHeaderMessage.header = std::move(partitionHeader);
 
     FlatMessage<FlatBuffers::PartitionMessage> partitionHeaderFlatMessage{ &partitionHeaderMessage };
+
+    // We write the partition header to both the
+    // data writer and the header writer.
+    // This makes it possible to recover the header from the data partition.
+
+    // This also flushes all the writes that have been performed against the
+    // data extent. All the previous writes were only Committed.
+    co_await m_dataWriter->Write(
+        partitionHeaderFlatMessage.data(),
+        FlushBehavior::Flush
+    );
 
     co_await m_headerWriter->Write(
         partitionHeaderFlatMessage.data(),

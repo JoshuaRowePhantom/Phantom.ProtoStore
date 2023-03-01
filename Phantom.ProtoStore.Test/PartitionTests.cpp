@@ -190,9 +190,11 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     {
         // This test writes a valid tree structure that _should_ find the message,
         // but a bloom filter that never hits.  Read() should therefore not find the message.
+        auto headerExtentName = MakeLogExtentName(0);
+        auto dataExtentName = MakeLogExtentName(1);
 
-        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(0));
-        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(MakeLogExtentName(1));
+        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(headerExtentName);
+        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(dataExtentName);
 
         PartitionMessageT treeMessage;
         auto& treeNode = treeMessage.tree_node = std::make_unique<PartitionTreeNodeT>();
@@ -247,8 +249,8 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
             FlushBehavior::Flush);
 
         auto partition = co_await OpenPartition(
-            MakeLogExtentName(0),
-            MakeLogExtentName(1));
+            headerExtentName,
+            dataExtentName);
 
         // The partition should fail an integrity check because
         // there is a key not present in the bloom filter.
