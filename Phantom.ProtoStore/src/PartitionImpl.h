@@ -15,8 +15,9 @@ namespace Phantom::ProtoStore
 
 struct BloomFilterV1Hash
 {
-    size_t operator()(const auto& value) const;
+    size_t operator()(std::span<const std::byte> value) const;
 };
+
 template<
     typename Container
 >

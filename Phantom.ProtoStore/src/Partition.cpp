@@ -23,10 +23,10 @@ RawData GetRawData(
     };
 }
 
-size_t BloomFilterV1Hash::operator()(const auto& value) const
+size_t BloomFilterV1Hash::operator()(std::span<const std::byte> value) const
 {
     return checksum_v1(
-        as_bytes(std::span{ value })
+        value
     );
 }
 

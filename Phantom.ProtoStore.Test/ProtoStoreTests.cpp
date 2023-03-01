@@ -931,6 +931,7 @@ ASYNC_TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
 
     EXPECT_EQ(false, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
 }
+
 ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
 {
     auto createRequest = GetCreateMemoryStoreRequest();

@@ -277,6 +277,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 
         current().highestKey = std::move(row.Key);
         current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
+        m_bloomFilter.add(
+            *current().highestKey);
 
         auto valueDataOffset = WriteRawData(
             partitionTreeNodeBuilder,
