@@ -716,22 +716,22 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
     auto filename = GetFilename(
         extentName);
 
-    if (m_extentDeleteAction == ExtentDeleteAction::Rename)
-    {
-        if (std::filesystem::exists(
-            filename
-        ))
-        {
-            std::filesystem::rename(
-                filename,
-                filename + ".deleted");
-        }
-    }
-    else
-    {
+    //if (m_extentDeleteAction == ExtentDeleteAction::Rename)
+    //{
+    //    if (std::filesystem::exists(
+    //        filename
+    //    ))
+    //    {
+    //        std::filesystem::rename(
+    //            filename,
+    //            filename + ".deleted");
+    //    }
+    //}
+    //else
+    //{
         std::filesystem::remove(
             filename);
-    }
+    //}
 
     co_return;
 }
