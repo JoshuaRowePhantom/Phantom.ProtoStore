@@ -48,7 +48,8 @@ target_compile_definitions(
 
 flatbuffers_generate_headers(
     TARGET Phantom.ProtoStore.Test.FlatBuffers
-    INCLUDE_PREFIX . ../Phantom.ProtoStore/src ../Phantom.ProtoStore/include
+    INCLUDE_PREFIX Phantom.ProtoStore
+    INCLUDE ../Phantom.ProtoStore/src ../Phantom.ProtoStore/include
     FLAGS --reflect-names --gen-name-strings --gen-compare --cpp-std c++17 --gen-object-api --scoped-enums --gen-mutable
     SCHEMAS
     ProtoStoreTest.fbs)

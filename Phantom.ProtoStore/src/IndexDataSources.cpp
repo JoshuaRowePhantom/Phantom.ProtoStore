@@ -1,7 +1,7 @@
 #include "IndexDataSourcesImpl.h"
 #include "Index.h"
 #include "ProtoStoreInternal.pb.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {

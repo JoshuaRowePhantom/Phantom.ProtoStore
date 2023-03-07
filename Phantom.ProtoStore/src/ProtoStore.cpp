@@ -11,7 +11,7 @@
 #include "Phantom.System/async_value_source.h"
 #include "ProtoStore.h"
 #include "ProtoStoreInternal.pb.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "Schema.h"
 #include "StandardTypes.h"
 #include "UnresolvedTransactionsTracker.h"

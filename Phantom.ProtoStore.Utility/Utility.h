@@ -4,7 +4,7 @@
 #include "Phantom.System/async_utility.h"
 #include "Phantom.System/utility.h"
 #include "ProtoStoreInternal.pb.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include <cppcoro/task.hpp>
 #include <iostream>
 #include <queue>

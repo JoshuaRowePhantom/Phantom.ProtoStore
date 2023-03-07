@@ -3,7 +3,7 @@
 #include "ExtentName.h"
 #include "MessageStore.h"
 #include "Phantom.System/async_reader_writer_lock.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
 

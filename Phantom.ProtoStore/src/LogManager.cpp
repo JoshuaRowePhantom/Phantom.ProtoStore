@@ -3,7 +3,7 @@
 #include "ExtentStore.h"
 #include "MessageStore.h"
 #include "Phantom.Coroutines/suspend_result.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {

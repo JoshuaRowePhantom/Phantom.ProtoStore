@@ -3,8 +3,8 @@
 #include "Phantom.ProtoStore/src/MessageStoreImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "ProtoStoreTest.pb.h"
-#include "src/ProtoStoreInternal_generated.h"
-#include "ProtoStoreTest_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
 
 namespace Phantom::ProtoStore
 {

@@ -4,7 +4,7 @@
 #include "ProtoStoreInternal.pb.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "MessageStore.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {

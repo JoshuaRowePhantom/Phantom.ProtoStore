@@ -10,6 +10,7 @@
 #include <string>
 #include <system_error>
 #include <type_traits>
+#include <variant>
 #include <cppcoro/async_generator.hpp>
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>

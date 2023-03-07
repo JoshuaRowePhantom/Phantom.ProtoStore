@@ -3,7 +3,7 @@
 #include "Phantom.ProtoStore/src/HeaderAccessorImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 using google::protobuf::util::MessageDifferencer;
 

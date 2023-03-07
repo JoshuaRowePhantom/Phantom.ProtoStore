@@ -18,7 +18,7 @@
 #include "Phantom.System/encompassing_pending_task.h"
 #include "IndexMerger.h"
 #include "ExtentName.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {

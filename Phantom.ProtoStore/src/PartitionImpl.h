@@ -6,7 +6,7 @@
 #include "MessageStore.h"
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "SkipList.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include <compare>
 #include <stdint.h>
 

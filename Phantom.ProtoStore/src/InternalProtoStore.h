@@ -2,7 +2,7 @@
 
 #include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
 {

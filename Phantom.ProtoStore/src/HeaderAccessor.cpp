@@ -1,5 +1,5 @@
 #include "HeaderAccessorImpl.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "ExtentName.h"
 
 namespace Phantom::ProtoStore

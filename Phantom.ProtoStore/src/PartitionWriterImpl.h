@@ -1,7 +1,7 @@
 #pragma once
 
 #include "PartitionWriter.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "MessageStore.h"
 #include "PartitionImpl.h"
 

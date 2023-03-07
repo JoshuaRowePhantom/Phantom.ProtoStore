@@ -2,7 +2,7 @@
 #include "ExtentName.h"
 #include "ExtentStore.h"
 #include "MessageStoreImpl.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
 

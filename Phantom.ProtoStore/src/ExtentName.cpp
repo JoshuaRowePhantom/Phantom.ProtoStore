@@ -1,6 +1,6 @@
 #include "StandardTypes.h"
 #include "ExtentName.h"
-#include "src/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include <boost/functional/hash.hpp>
 
 std::size_t std::hash<Phantom::ProtoStore::ExtentName>::operator()(
