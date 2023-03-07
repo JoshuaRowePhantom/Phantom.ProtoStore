@@ -4,6 +4,7 @@ add_library (
     Phantom.ProtoStore 
     STATIC
     "include/Phantom.ProtoStore/Errors.h"
+    "include/Phantom.ProtoStore/Payloads.h"  
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
     "include/Phantom.ProtoStore/Primitives.h"
     "include/Phantom.ProtoStore/ProtoIndex.h"
@@ -53,6 +54,7 @@ add_library (
     "src/PartitionWriter.cpp"
     "src/PartitionWriter.h"
     "src/PartitionWriterImpl.h"
+    "src/Payloads.cpp"
     "src/Phantom.ProtoStore.cpp"
     "src/ProtoStore.cpp"
     "src/ProtoStore.h"
@@ -73,7 +75,7 @@ add_library (
     "src/StandardTypes.h"
     "src/UnresolvedTransactionsTracker.cpp"
     "src/UnresolvedTransactionsTracker.h" 
-     )
+      )
     
 
 target_include_directories(
