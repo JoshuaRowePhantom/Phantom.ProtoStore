@@ -26,12 +26,12 @@ namespace Phantom::ProtoStore
     
     TEST(ChecksumTests, Crc32TestVectors_a)
     {
-        EXPECT_TRUE(RunCrc32c({ "a" }, 486108540));
+        EXPECT_TRUE(RunCrc32c({ "a" }, 1043315919UL));
     }
     
     TEST(ChecksumTests, Crc32TestVectors_123456789)
     {
-        EXPECT_TRUE(RunCrc32c({ "123456789" }, 1043315919));
+        EXPECT_TRUE(RunCrc32c({ "123456789" }, 486108540));
     }
 
 }
