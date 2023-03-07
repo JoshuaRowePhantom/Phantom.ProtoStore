@@ -1,0 +1,4 @@
+namespace Phantom.ProtoStore;
+
+// Expect to be in the range ("Ascending", "Descending")
+attribute SortOrder;

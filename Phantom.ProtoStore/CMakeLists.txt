@@ -62,9 +62,6 @@ add_library (
     "src/ProtoStoreFactory.cpp"
     "src/ProtoStoreFactory.h"
     "src/ProtoStoreInternal.proto"
-    
-    
-    
     "src/RowMerger.cpp"
     "src/RowMerger.h"
     "src/Scheduler.cpp"
@@ -101,10 +98,11 @@ PROTOBUF_GENERATE(
 
 flatbuffers_generate_headers(
     TARGET Phantom.ProtoStore.FlatBuffers
-    INCLUDE_PREFIX ./src ./include
+    INCLUDE_PREFIX src include
     FLAGS --reflect-names --gen-name-strings --gen-compare --cpp-std c++17 --gen-object-api --scoped-enums --gen-mutable
     BINARY_SCHEMAS_DIR "${CMAKE_CURRENT_BINARY_DIR}"
     SCHEMAS
+    include/Phantom.ProtoStore/ProtoStore.fbs
     src/ProtoStoreInternal.fbs)
 
 phantom_flatbuffers_generate_natvis(
