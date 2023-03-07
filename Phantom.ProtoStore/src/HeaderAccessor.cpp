@@ -1,5 +1,4 @@
 #include "HeaderAccessorImpl.h"
-#include "RandomMessageAccessor.h"
 #include "src/ProtoStoreInternal_generated.h"
 #include "ExtentName.h"
 
@@ -19,12 +18,12 @@ const ExtentLocation DefaultHeaderLocation1 = MakeDefaultHeaderLocation(0);
 const ExtentLocation DefaultHeaderLocation2 = MakeDefaultHeaderLocation(1);
 
 HeaderAccessor::HeaderAccessor(
-    shared_ptr<IRandomMessageAccessor> messageAccessor,
+    shared_ptr<IMessageStore> messageStore,
     ExtentLocation headerLocation1,
     ExtentLocation headerLocation2
 )
     :
-    m_messageAccessor(move(messageAccessor)),
+    m_messageStore(move(messageStore)),
     m_headerLocation1(headerLocation1),
     m_headerLocation2(headerLocation2),
     m_currentLocation(headerLocation1),
@@ -36,8 +35,17 @@ task<std::unique_ptr<FlatBuffers::DatabaseHeaderT>> HeaderAccessor::ReadHeader(
     ExtentLocation location,
     bool throwOnError)
 {
-    auto storedMessage = co_await m_messageAccessor->ReadMessage(
-        location);
+    auto messageReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
+        location.extentName
+    );
+
+    if (!messageReader)
+    {
+        co_return{};
+    }
+
+    auto storedMessage = co_await messageReader->Read(
+        location.extentOffset);
 
     if (!storedMessage)
     {
@@ -107,8 +115,12 @@ task<> HeaderAccessor::WriteHeader(
 
     FlatMessage<FlatBuffers::DatabaseHeader> databaseHeader{ builder };
 
-    auto result = co_await m_messageAccessor->WriteMessage(
-        m_nextLocation,
+    auto extent = co_await m_messageStore->OpenExtentForRandomWriteAccess(
+        m_nextLocation.extentName
+    );
+
+    auto result = co_await extent->Write(
+        m_nextLocation.extentOffset,
         databaseHeader.data(),
         FlushBehavior::Flush);
 
@@ -118,22 +130,22 @@ task<> HeaderAccessor::WriteHeader(
 }
 
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
-    shared_ptr<IRandomMessageAccessor> messageAccessor)
+    shared_ptr<IMessageStore> messageStore)
 {
     return MakeHeaderAccessor(
-        move(messageAccessor),
+        move(messageStore),
         MakeDefaultHeaderLocation(0),
         MakeDefaultHeaderLocation(1)
         );
 }
 
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
-    shared_ptr<IRandomMessageAccessor> messageAccessor,
+    shared_ptr<IMessageStore> messageStore,
     ExtentLocation headerLocation1,
     ExtentLocation headerLocation2)
 {
     return make_shared<HeaderAccessor>(
-        move(messageAccessor),
+        move(messageStore),
         headerLocation1,
         headerLocation2);
 }

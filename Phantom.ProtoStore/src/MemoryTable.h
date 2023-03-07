@@ -26,7 +26,7 @@ struct MemoryTableTransactionOutcome
         ) = default;
 };
 
-enum class MemoryTableOutcomeAndSequenceNumber
+enum class MemoryTableOutcomeAndSequenceNumber : uint64_t
 {
     Earliest = 0,
     NumberMask = 0xfffffffffffffffc,

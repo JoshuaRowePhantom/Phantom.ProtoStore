@@ -10,7 +10,7 @@ class HeaderAccessor
     :
     public IHeaderAccessor
 {
-    shared_ptr<IRandomMessageAccessor> m_messageAccessor;
+    shared_ptr<IMessageStore> m_messageStore;
     ExtentLocation m_headerLocation1;
     ExtentLocation m_headerLocation2;
     ExtentLocation m_currentLocation;
@@ -22,7 +22,7 @@ class HeaderAccessor
 
 public:
     HeaderAccessor(
-        shared_ptr<IRandomMessageAccessor> messageAccessor,
+        shared_ptr<IMessageStore> messageStore,
         ExtentLocation headerLocation1,
         ExtentLocation headerLocation2);
 

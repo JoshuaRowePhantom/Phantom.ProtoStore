@@ -10,6 +10,7 @@
 #include <cppcoro/shared_task.hpp>
 #include "AsyncScopeMixin.h"
 #include "LogManager.h"
+#include "HeaderAccessor.h"
 #include "IndexDataSources.h"
 #include "IndexPartitionMergeGenerator.h"
 #include "InternalProtoStore.h"
@@ -30,7 +31,6 @@ class ProtoStore
     Schedulers m_schedulers;
     const shared_ptr<IExtentStore> m_extentStore;
     const shared_ptr<IMessageStore> m_messageStore;
-    const shared_ptr<IRandomMessageAccessor> m_messageAccessor;
     const shared_ptr<IHeaderAccessor> m_headerAccessor;
     const MergeParameters m_defaultMergeParameters;
 

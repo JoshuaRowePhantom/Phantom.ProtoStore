@@ -4,7 +4,6 @@
 #include "Phantom.ProtoStore/src/PartitionWriterImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStoreImpl.h"
-#include "Phantom.ProtoStore/src/RandomMessageAccessorImpl.h"
 #include "ProtoStoreTest.pb.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include <tuple>
@@ -47,9 +46,6 @@ protected:
         messageStore = make_shared<MessageStore>(
             Schedulers::Inline(),
             extentStore);
-
-        messageAccessor = make_shared<RandomMessageAccessor>(
-            messageStore);
     }
 
     std::unique_ptr<PartitionDataValueT> ToSerializedValue(
@@ -178,7 +174,6 @@ protected:
     shared_ptr<KeyComparer> keyComparer;
     shared_ptr<MemoryExtentStore> extentStore;
     shared_ptr<MessageStore> messageStore;
-    shared_ptr<IRandomMessageAccessor> messageAccessor;
 
     shared_ptr<IMessageFactory> keyFactory;
     shared_ptr<IMessageFactory> valueFactory;

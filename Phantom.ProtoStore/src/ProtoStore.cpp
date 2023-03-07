@@ -11,7 +11,6 @@
 #include "Phantom.System/async_value_source.h"
 #include "ProtoStore.h"
 #include "ProtoStoreInternal.pb.h"
-#include "RandomMessageAccessor.h"
 #include "src/ProtoStoreInternal_generated.h"
 #include "Schema.h"
 #include "StandardTypes.h"
@@ -31,8 +30,7 @@ ProtoStore::ProtoStore(
     m_extentStore(move(extentStore)),
     m_defaultMergeParameters(openRequest.DefaultMergeParameters),
     m_messageStore(MakeMessageStore(m_schedulers, m_extentStore)),
-    m_messageAccessor(MakeRandomMessageAccessor(m_messageStore)),
-    m_headerAccessor(MakeHeaderAccessor(m_messageAccessor)),
+    m_headerAccessor(MakeHeaderAccessor(m_messageStore)),
     m_encompassingCheckpointTask(),
     m_mergeTask([=] { return InternalMerge(); })
 {

@@ -62,9 +62,9 @@ add_library (
     "src/ProtoStoreFactory.cpp"
     "src/ProtoStoreFactory.h"
     "src/ProtoStoreInternal.proto"
-    "src/RandomMessageAccessor.cpp"
-    "src/RandomMessageAccessor.h"
-    "src/RandomMessageAccessorImpl.h"
+    
+    
+    
     "src/RowMerger.cpp"
     "src/RowMerger.h"
     "src/Scheduler.cpp"

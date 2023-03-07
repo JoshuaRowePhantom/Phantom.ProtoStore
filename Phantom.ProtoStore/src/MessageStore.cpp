@@ -622,6 +622,10 @@ task<shared_ptr<RandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAcce
     ExtentName extentName
 )
 {
+    // Remove the existing cached readable extent
+    // and ensure nobody opens it until we've finished writing the header.
+    auto lock = co_await m_extentsLock.writer().scoped_lock_async();
+    m_readableExtents.erase(extentName);
     auto writableExtent = co_await m_extentStore->OpenExtentForWrite(
         extentName);
 
@@ -646,6 +650,7 @@ task<shared_ptr<RandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAcce
         headerWritableRawData.data().data()
     );
     co_await headerWriteBuffer->Flush();
+    lock.unlock();
 
     StoredMessage storedExtentHeader
     {

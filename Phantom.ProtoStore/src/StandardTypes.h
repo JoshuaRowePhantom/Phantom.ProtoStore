@@ -76,8 +76,6 @@ class IInternalProtoStore;
 class IInternalTransaction;
 class IExtentStore;
 class IMessageStore;
-class IRandomMessageAccessor;
-class IHeaderAccessor;
 class IChecksumAlgorithm;
 class IChecksumAlgorithmFactory;
 class ISequentialMessageWriter;

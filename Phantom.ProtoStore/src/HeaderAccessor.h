@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandardTypes.h"
+#include "MessageStore.h"
 #include <memory>
 
 namespace Phantom::ProtoStore
@@ -20,11 +21,11 @@ extern const ExtentLocation DefaultHeaderLocation1;
 extern const ExtentLocation DefaultHeaderLocation2;
 
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
-    shared_ptr<IRandomMessageAccessor> messageStore,
+    shared_ptr<IMessageStore> messageStore,
     ExtentLocation headerLocation1,
     ExtentLocation headerLocation2);
 
 shared_ptr<IHeaderAccessor> MakeHeaderAccessor(
-    shared_ptr<IRandomMessageAccessor> messageStore);
+    shared_ptr<IMessageStore> messageStore);
 
 }
