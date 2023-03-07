@@ -1428,7 +1428,7 @@ ASYNC_TEST_F(ProtoStoreTests, Perf2)
 #ifdef NDEBUG
     int valueCount = 5000000;
 #else
-    int valueCount = 1000;
+    int valueCount = 10000;
 #endif
 
     std::ranlux48 rng;
@@ -1451,10 +1451,14 @@ ASYNC_TEST_F(ProtoStoreTests, Perf2)
     cppcoro::async_scope asyncScopeWrite;
     auto schedulers = Schedulers::Default();
 
+    std::atomic<size_t> rowsWritten = 0;
+
     auto writeItemLambda = [&](size_t startKeyIndex, size_t endKeyIndex) -> task<>
     {
         co_await schedulers.ComputeScheduler->schedule();
         Perf2_running_items.fetch_add(1);
+
+        bool doCheckpoint = false;
 
         co_await store->ExecuteTransaction(
             BeginTransactionRequest(),
@@ -1475,10 +1479,20 @@ ASYNC_TEST_F(ProtoStoreTests, Perf2)
                     index,
                     &key,
                     &expectedValue);
-            }
 
+                if (rowsWritten.fetch_add(1) % 10000 == 0)
+                {
+                    doCheckpoint = true;
+                }
+            }
             co_return{};
         });
+
+        if (doCheckpoint)
+        {
+            //co_await store->Checkpoint();
+            //co_await store->Merge();
+        }
 
         Perf2_running_items.fetch_sub(1);
     };
@@ -1674,7 +1688,6 @@ ASYNC_TEST_F(ProtoStoreTests, Perf2)
 
     co_await readLambda();
     co_await readNonExistentLambda();
-    ::MessageBoxA(0, "Finished", "Test", MB_OK);
 }
 
 }

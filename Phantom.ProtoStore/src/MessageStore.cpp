@@ -67,7 +67,7 @@ ExtentOffset RandomMessageReaderWriterBase::to_underlying_extent_offset(
 )
 {
     return align(
-        extentOffset + m_header.data().Message.size(),
+        extentOffset + m_header.data().Content.Payload.size(),
         4
     );
 }
@@ -121,9 +121,16 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
     StoredMessage storedMessage
     {
         .ExtentFormatVersion = m_header->extent_version(),
-        .MessageAlignment = messageAlignment,
-        .Message = envelopeReadBuffer->subspan(headerSpaceSize),
-        .Header = envelopeReadBuffer->subspan(0, sizeof(FlatBuffers::MessageHeader_V1)),
+        .Header = 
+        { 
+            alignof(MessageHeader_V1), 
+            envelopeReadBuffer->subspan(0, sizeof(FlatBuffers::MessageHeader_V1))
+        },
+        .Content =
+        {
+            messageAlignment,
+            envelopeReadBuffer->subspan(headerSpaceSize),
+        },
         .DataRange = 
         {
             .Beginning = location->message_offset(),
@@ -131,7 +138,7 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
         },
     };
 
-    auto crc = checksum_v1(storedMessage.Message);
+    auto crc = checksum_v1(storedMessage.Content.Payload);
     if (crc != messageHeader->crc32())
     {
         throw std::range_error("crc");
@@ -183,8 +190,8 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
     auto flatMessage = co_await Read(extentOffset);
 
     google::protobuf::io::ArrayInputStream messageStream(
-        flatMessage->Message.data(),
-        flatMessage->Message.size()
+        flatMessage->Content.Payload.data(),
+        flatMessage->Content.Payload.size()
     );
 
     message.ParseFromZeroCopyStream(
@@ -287,9 +294,16 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
     StoredMessage storedMessage
     {
         .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::V1,
-        .MessageAlignment = messageAlignment,
-        .Message = messageWriteBuffer,
-        .Header = headerWriteBuffer,
+        .Header =
+        {
+            alignof(MessageHeader_V1),
+            headerWriteBuffer
+        },
+        .Content =
+        {
+            messageAlignment,
+            messageWriteBuffer
+        },
         .DataRange = { extentOffset, messageExtentOffset - headerExtentOffset + extentOffset + alignedMessageSize32 },
     };
 
@@ -350,14 +364,14 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
     return Write(
         extentOffset,
         message.Header_V1(),
-        message.MessageAlignment,
-        message.Message.size(),
+        message.Content.Alignment,
+        message.Content.Payload.size(),
         flushBehavior,
         [&](std::span<std::byte> messageWriteBuffer)
     {
         std::copy_n(
-            message.Message.data(),
-            message.Message.size(),
+            message.Content.Payload.data(),
+            message.Content.Payload.size(),
             messageWriteBuffer.data()
         );
     });
@@ -412,8 +426,8 @@ task<DataReference<StoredMessage>> SequentialMessageReader::Read(
 {
     auto readResult = co_await Read();
     google::protobuf::io::ArrayInputStream stream(
-        readResult->Message.data(),
-        readResult->Message.size()
+        readResult->Content.Payload.data(),
+        readResult->Content.Payload.size()
     );
     message.ParseFromZeroCopyStream(
         &stream);
@@ -442,8 +456,8 @@ task<DataReference<StoredMessage>> SequentialMessageWriter::Write(
     {
         writeRange = m_randomMessageWriter->GetWriteRange(
             writeOffset,
-            flatMessage.MessageAlignment,
-            flatMessage.Message.size());
+            flatMessage.Content.Alignment,
+            flatMessage.Content.Payload.size());
     } while (!m_currentOffset.compare_exchange_weak(
         writeOffset,
         writeRange.End,
@@ -523,7 +537,11 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
     StoredMessage storedHeader
     {
         .ExtentFormatVersion = header->extent_version(),
-        .Message = envelopeBuffer.data(),
+        .Content = 
+        {
+            32,
+            envelopeBuffer.data(),
+        },
     };
 
     auto headerFlatMessage = FlatMessage<FlatBuffers::ExtentHeader>
@@ -629,22 +647,27 @@ task<shared_ptr<RandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAcce
     );
     co_await headerWriteBuffer->Flush();
 
-    StoredMessage storedHeader
+    StoredMessage storedExtentHeader
     {
         .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::V1,
-        .MessageAlignment = static_cast<uint8_t>(headerBuilder.GetBufferMinAlignment()),
-        .Message = headerWritableRawData.data(),
         .Header = {},
+        .Content =
+        {
+            static_cast<uint8_t>(headerBuilder.GetBufferMinAlignment()),
+            headerWritableRawData.data(),
+        },
     };
-    auto* header = flatbuffers::GetSizePrefixedRoot<FlatBuffers::ExtentHeader>(
-        storedHeader.Message.data());
+    
+    auto* extentHeader = flatbuffers::GetSizePrefixedRoot<FlatBuffers::ExtentHeader>(
+        storedExtentHeader.Content.Payload.data());
 
     FlatMessage<FlatBuffers::ExtentHeader> flatMessage(
         DataReference<StoredMessage>
         {
             std::move(headerWritableRawData),
-            storedHeader
-        });
+            storedExtentHeader
+        },
+        extentHeader);
 
     co_return make_shared<RandomMessageWriter>(
         std::move(writableExtent),

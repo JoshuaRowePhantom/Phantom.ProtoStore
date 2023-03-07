@@ -29,7 +29,7 @@ task<> DumpLog(
     do
     {
         auto readMessageResult = co_await logMessageReader->Read();
-        auto span = get_uint8_t_span(readMessageResult->Message);
+        auto span = get_uint8_t_span(readMessageResult->Content.Payload);
 
         if (!span.data())
         {

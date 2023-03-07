@@ -203,7 +203,7 @@ const FlatBuffers::MessageHeader_V1* StoredMessage::Header_V1() const
     return
         ExtentFormatVersion == FlatBuffers::ExtentFormatVersion::V1
         ?
-        get_struct<FlatBuffers::MessageHeader_V1>(Header)
+        get_struct<FlatBuffers::MessageHeader_V1>(Header.Payload)
         :
         nullptr;
 }

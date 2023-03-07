@@ -334,6 +334,36 @@ public:
 using RawData = DataReference<std::span<const std::byte>>;
 using WritableRawData = DataReference<std::span<std::byte>>;
 
+struct AlignedMessage
+{
+    uint8_t Alignment = 0;
+    std::span<const std::byte> Payload;
+
+    explicit operator bool() const
+    {
+        return Payload.data();
+    }
+
+    AlignedMessage()
+    {
+    }
+
+    AlignedMessage(
+        uint8_t alignment,
+        std::span<const std::byte> payload
+    ) :
+        Alignment { alignment },
+        Payload { payload }
+    {}
+
+    AlignedMessage(
+        const flatbuffers::FlatBufferBuilder& builder
+    ) :
+        Alignment(builder.GetBufferMinAlignment()),
+        Payload(as_bytes(builder.GetBufferSpan()))
+    {}
+};
+
 std::span<const std::byte> get_byte_span(
     const flatbuffers::Vector<int8_t>*
 );
@@ -380,20 +410,15 @@ struct StoredMessage
     // The format version of the extent the message was stored in.
     FlatBuffers::ExtentFormatVersion ExtentFormatVersion;
     
-    // The alignment requirement of the message in bytes.
-    uint8_t MessageAlignment = 0;
-
-    // The message body itself.
-    std::span<const std::byte> Message;
-    // The header for the message.
-    std::span<const std::byte> Header;
+    AlignedMessage Header;
+    AlignedMessage Content;
 
     // The range the message was stored in.
     ExtentOffsetRange DataRange;
 
     operator bool() const
     {
-        return Message.data();
+        return Content.operator bool();
     }
 
     const FlatBuffers::MessageHeader_V1* Header_V1() const;
@@ -429,9 +454,9 @@ public:
         m_storedMessage{ std::move(storedMessage) },
         m_table
         { 
-            m_storedMessage->Message.data()
+            m_storedMessage
             ?
-            flatbuffers::GetRoot<Table>(m_storedMessage->Message.data()) 
+            flatbuffers::GetRoot<Table>(m_storedMessage->Content.Payload.data())
             : 
             nullptr
         }
@@ -471,14 +496,13 @@ public:
         nullptr,
         {
             .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
-            .MessageAlignment = messageAlignment,
-            .Message = message,
+            .Content = { messageAlignment, message },
         },
     },
         m_table 
     {
         flatbuffers::GetRoot<Table>(
-            m_storedMessage->Message.data())
+            m_storedMessage->Content.Payload)
     }
     {
         DebugVerifyBuffer();
@@ -492,14 +516,13 @@ public:
         nullptr,
         {
             .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
-            .MessageAlignment = static_cast<uint8_t>(builder.GetBufferMinAlignment()),
-            .Message = as_bytes(builder.GetBufferSpan())
+            .Content { builder },
         },
     },
         m_table
     {
         flatbuffers::GetRoot<Table>(
-            m_storedMessage->Message.data())
+            m_storedMessage->Content.Payload.data())
     }
     {
         DebugVerifyBuffer();
@@ -513,14 +536,13 @@ public:
         builder,
         {
             .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
-            .MessageAlignment = static_cast<uint8_t>(builder->GetBufferMinAlignment()),
-            .Message = as_bytes(builder->GetBufferSpan())
+            .Content { *builder },
         },
     },
         m_table
     {
         flatbuffers::GetRoot<Table>(
-            m_storedMessage->Message.data())
+            m_storedMessage->Content.Payload.data())
     }
     {
         DebugVerifyBuffer();
@@ -539,8 +561,7 @@ public:
         StoredMessage storedMessage =
         {
             .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
-            .MessageAlignment = static_cast<uint8_t>(builder.GetBufferMinAlignment()),
-            .Message = as_bytes(builder.GetBufferSpan())
+            .Content { builder }
         };
 
         size_t size;
@@ -553,7 +574,7 @@ public:
         };
 
         m_table = flatbuffers::GetRoot<Table>(
-            m_storedMessage->Message.data());
+            m_storedMessage->Content.Payload.data());
 
         DebugVerifyBuffer();
     }
@@ -593,8 +614,8 @@ public:
         if (m_storedMessage)
         {
             flatbuffers::Verifier verifier(
-                get_uint8_t_span(m_storedMessage->Message).data(),
-                m_storedMessage->Message.size());
+                get_uint8_t_span(m_storedMessage->Content.Payload).data(),
+                m_storedMessage->Content.Payload.size());
             assert(verifier.VerifyBuffer<Table>());
         }
     }
@@ -604,8 +625,8 @@ public:
         if (m_table)
         {
             flatbuffers::Verifier verifier(
-                get_uint8_t_span(m_storedMessage->Message).data(),
-                m_storedMessage->Message.size());
+                get_uint8_t_span(m_storedMessage->Content.Payload).data(),
+                m_storedMessage->Content.Payload.size());
             assert(verifier.VerifyTable(m_table));
         }
     }
