@@ -18,6 +18,11 @@ struct MessageReference_V1;
 struct PartitionMessage;
 }
 
+// A DataReference uses an std::shared_ptr to ensure
+// access to an backing store is maintained at least
+// as long as the resource is referenced.
+// An example use is to hold open a memory mapped file
+// as the backing store for a FlatBuffers table read from that file.
 template<
     typename Data
 >
