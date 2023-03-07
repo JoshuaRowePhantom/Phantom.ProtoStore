@@ -11,14 +11,11 @@
 #include <system_error>
 #include <type_traits>
 #include <cppcoro/async_generator.hpp>
-#include <cppcoro/static_thread_pool.hpp>
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
 #include <Phantom.System/concepts.h>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
-#include "Phantom.Coroutines/early_termination_task.h"
-#include "Phantom.Coroutines/expected_early_termination.h"
-#include "Phantom.Coroutines/reusable_task.h"
+#include "Async.h"
 #include "Errors.h"
 #include "Payloads.h"
 #include "Primitives.h"
@@ -26,80 +23,6 @@
 
 namespace Phantom::ProtoStore
 {
-
-using cppcoro::async_generator;
-
-template<
-    typename Result = void
-> using StatusResult = std::expected<Result, std::error_code>;
-
-template<
-    typename Result = void
-> using status_task =
-Phantom::Coroutines::basic_reusable_task
-<
-    Phantom::Coroutines::derived_promise
-    <
-        Phantom::Coroutines::reusable_task_promise
-        <
-            StatusResult<Result>
-        >,
-        Phantom::Coroutines::expected_early_termination_transformer,
-        Phantom::Coroutines::await_all_await_transform
-    >
->;
-
-struct FailedResult;
-
-template<
-    typename Result
->
-using OperationResult = std::expected<Result, FailedResult>;
-
-template<
-    typename Result = void
-> using operation_task =
-Phantom::Coroutines::basic_reusable_task
-<
-    Phantom::Coroutines::derived_promise
-    <
-        Phantom::Coroutines::reusable_task_promise
-        <
-            OperationResult<Result>
-        >,
-        Phantom::Coroutines::expected_early_termination_transformer,
-        Phantom::Coroutines::await_all_await_transform
-    >
->;
-
-extern const std::error_category& ProtoStoreErrorCategory();
-
-enum class ProtoStoreErrorCode
-{
-    AbortedTransaction,
-    WriteConflict,
-    UnresolvedTransaction,
-};
-
-std::error_code make_error_code(
-    ProtoStoreErrorCode errorCode
-);
-
-std::unexpected<std::error_code> make_unexpected(
-    ProtoStoreErrorCode errorCode
-);
-
-// Operation processors can return this error code
-// to generically abort the operation.
-std::unexpected<std::error_code> abort_transaction();
-
-template<
-    typename Result = void
-> using task =
-Phantom::Coroutines::reusable_task<Result>;
-
-using std::shared_ptr;
-using std::unique_ptr;
 
 template<typename T>
 concept IsMessage = std::is_convertible_v<T*, google::protobuf::Message*>;
@@ -283,6 +206,8 @@ struct CommitResult
         ) = default;
 };
 
+using EnumerateResultGenerator = async_generator<OperationResult<EnumerateResult>>;
+
 class IReadableProtoStore
 {
 public:
@@ -294,7 +219,7 @@ public:
         const ReadRequest& readRequest
     ) = 0;
 
-    virtual async_generator<OperationResult<EnumerateResult>> Enumerate(
+    virtual EnumerateResultGenerator Enumerate(
         const EnumerateRequest& enumerateRequest
     ) = 0;
 };
@@ -431,8 +356,8 @@ enum class IntegrityCheck
 
 struct OpenProtoStoreRequest
 {
-    std::function<task<shared_ptr<IExtentStore>>()> ExtentStore;
-    std::vector<shared_ptr<IOperationProcessor>> OperationProcessors;
+    std::function<task<std::shared_ptr<IExtentStore>>()> ExtentStore;
+    std::vector<std::shared_ptr<IOperationProcessor>> OperationProcessors;
     Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;
     MergeParameters DefaultMergeParameters;
@@ -523,14 +448,14 @@ public:
 class IProtoStoreFactory
 {
 public:
-    virtual task<shared_ptr<IProtoStore>> Open(
+    virtual task<std::shared_ptr<IProtoStore>> Open(
         const OpenProtoStoreRequest& openRequest
     ) = 0;
 
-    virtual task<shared_ptr<IProtoStore>> Create(
+    virtual task<std::shared_ptr<IProtoStore>> Create(
         const CreateProtoStoreRequest& openRequest
     ) = 0;
 };
 
-shared_ptr<IProtoStoreFactory> MakeProtoStoreFactory();
+std::shared_ptr<IProtoStoreFactory> MakeProtoStoreFactory();
 }

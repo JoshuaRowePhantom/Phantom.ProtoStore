@@ -3,6 +3,7 @@
 add_library (
     Phantom.ProtoStore 
     STATIC
+    "include/Phantom.ProtoStore/Async.h"
     "include/Phantom.ProtoStore/Errors.h"
     "include/Phantom.ProtoStore/Payloads.h"  
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
@@ -75,7 +76,7 @@ add_library (
     "src/StandardTypes.h"
     "src/UnresolvedTransactionsTracker.cpp"
     "src/UnresolvedTransactionsTracker.h" 
-      )
+    )
     
 
 target_include_directories(

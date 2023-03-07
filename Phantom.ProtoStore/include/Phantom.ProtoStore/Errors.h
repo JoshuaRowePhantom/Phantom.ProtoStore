@@ -101,4 +101,25 @@ void FailedResult::throw_exception(
     throw ProtoStoreException{ std::forward<decltype(self)>(self) };
 }
 
+extern const std::error_category& ProtoStoreErrorCategory();
+
+enum class ProtoStoreErrorCode
+{
+    AbortedTransaction,
+    WriteConflict,
+    UnresolvedTransaction,
+};
+
+std::error_code make_error_code(
+    ProtoStoreErrorCode errorCode
+);
+
+std::unexpected<std::error_code> make_unexpected(
+    ProtoStoreErrorCode errorCode
+);
+
+// Operation processors can return this error code
+// to generically abort the operation.
+std::unexpected<std::error_code> abort_transaction();
+
 }
