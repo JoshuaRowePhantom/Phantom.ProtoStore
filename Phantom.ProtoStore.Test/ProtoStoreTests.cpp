@@ -1406,7 +1406,7 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
 std::atomic<long> Perf2_running_items(0);
 std::vector<shared_task<>> performanceTasks;
 
-ASYNC_TEST_F(ProtoStoreTests, Perf2)
+ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
 {
     CreateProtoStoreRequest createRequest;
     createRequest.ExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "Perf2", 4096);

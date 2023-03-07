@@ -20,7 +20,7 @@ class PartitionTests :
 protected:
     PartitionTests()
     {
-        keyComparer = make_shared<KeyComparer>(
+        keyComparer = make_shared<ProtoKeyComparer>(
             PartitionTestKey::descriptor());
 
         MessageDescription keyMessageDescription;

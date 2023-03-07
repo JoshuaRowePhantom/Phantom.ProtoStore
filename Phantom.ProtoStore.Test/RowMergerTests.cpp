@@ -27,7 +27,7 @@ protected:
     {
         run_async([&]() -> task<>
         {
-            KeyComparer keyComparer(
+            ProtoKeyComparer keyComparer(
                 StringKey::descriptor());
 
             RowMerger rowMerger(

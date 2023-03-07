@@ -18,7 +18,7 @@ const Serialization::PlaceholderKey KeyMaxMessage = [] { Serialization::Placehol
 const std::span<const byte> KeyMinSpan = as_bytes(KeyMinMessage);
 const std::span<const byte> KeyMaxSpan = as_bytes(KeyMaxMessage);
 
-KeyComparer::KeyComparer(
+ProtoKeyComparer::ProtoKeyComparer(
     const Descriptor* messageDescriptor)
     :
     m_messageDescriptor(
@@ -30,7 +30,7 @@ KeyComparer::KeyComparer(
 {
 }
 
-KeyComparer::MessageSortOrderMap KeyComparer::GetMessageSortOrders(
+ProtoKeyComparer::MessageSortOrderMap ProtoKeyComparer::GetMessageSortOrders(
     const google::protobuf::Descriptor* messageDescriptor,
     MessageSortOrderMap messageSortOrders)
 {
@@ -62,7 +62,7 @@ KeyComparer::MessageSortOrderMap KeyComparer::GetMessageSortOrders(
     return std::move(messageSortOrders);
 }
 
-KeyComparer::FieldSortOrderMap KeyComparer::GetFieldSortOrders(
+ProtoKeyComparer::FieldSortOrderMap ProtoKeyComparer::GetFieldSortOrders(
     const google::protobuf::Descriptor* messageDescriptor,
     FieldSortOrderMap fieldSortOrders)
 {
@@ -93,7 +93,7 @@ KeyComparer::FieldSortOrderMap KeyComparer::GetFieldSortOrders(
     return std::move(fieldSortOrders);
 }
 
-std::weak_ordering KeyComparer::ApplySortOrder(
+std::weak_ordering ProtoKeyComparer::ApplySortOrder(
     SortOrder sortOrder,
     std::weak_ordering value
 )
@@ -106,7 +106,7 @@ std::weak_ordering KeyComparer::ApplySortOrder(
     return 0 <=> value;
 }
 
-SortOrder KeyComparer::CombineSortOrder(
+SortOrder ProtoKeyComparer::CombineSortOrder(
     SortOrder sortOrder1,
     SortOrder sortOrder2
 )
@@ -175,7 +175,7 @@ std::weak_ordering KeyRangeComparer::operator()(
 }
 
 
-std::weak_ordering KeyComparer::Compare(
+std::weak_ordering ProtoKeyComparer::Compare(
     std::span<const byte> value1,
     std::span<const byte> value2
 ) const

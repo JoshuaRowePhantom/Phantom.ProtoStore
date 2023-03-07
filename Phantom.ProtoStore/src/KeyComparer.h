@@ -27,6 +27,22 @@ extern const std::span<const std::byte> KeyMaxSpan;
 class KeyComparer
 {
 public:
+    virtual std::weak_ordering Compare(
+        std::span<const byte> value1,
+        std::span<const byte> value2
+    ) const = 0;
+
+    std::weak_ordering operator()(
+        std::span<const byte> value1,
+        std::span<const byte> value2
+        ) const;
+};
+
+class ProtoKeyComparer
+    :
+    public KeyComparer
+{
+public:
     template<typename T>
     struct compare_tag {};
 
@@ -56,18 +72,13 @@ private:
     );
 
 public:
-    KeyComparer(
+    ProtoKeyComparer(
         const google::protobuf::Descriptor* messageDescriptor);
 
-    std::weak_ordering Compare(
+    virtual std::weak_ordering Compare(
         std::span<const byte> value1,
         std::span<const byte> value2
-    ) const;
-
-    std::weak_ordering operator()(
-        std::span<const byte> value1,
-        std::span<const byte> value2
-        ) const; 
+    ) const override;
 };
 
 struct KeyAndSequenceNumberComparerArgument

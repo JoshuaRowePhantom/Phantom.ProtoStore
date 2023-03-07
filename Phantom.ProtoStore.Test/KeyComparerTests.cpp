@@ -6,11 +6,11 @@ namespace Phantom::ProtoStore
 {
 
 template<typename T>
-void DoKeyComparerTest(
+void DoProtoKeyComparerTest(
     const T& lesser,
     const T& greater)
 {
-    KeyComparer keyComparer(
+    ProtoKeyComparer keyComparer(
         T::GetDescriptor());
 
     ProtoValue lesserProto(&lesser, true);
@@ -30,7 +30,7 @@ void DoKeyAndSequenceNumberComparerTest(
     const TValue& lesser,
     const TValue& greater)
 {
-    KeyComparer keyComparer(
+    ProtoKeyComparer keyComparer(
         TKey::GetDescriptor());
     KeyAndSequenceNumberComparer keyAndSequenceNumberComparer(
         keyComparer);
@@ -46,7 +46,7 @@ void DoKeyRangeComparerTestNotEquivalent(
     const TValue1& lesser,
     const TValue2& greater)
 {
-    KeyComparer keyComparer(
+    ProtoKeyComparer keyComparer(
         TKey::GetDescriptor());
     KeyRangeComparer keyAndSequenceNumberComparer(
         keyComparer);
@@ -55,7 +55,7 @@ void DoKeyRangeComparerTestNotEquivalent(
     EXPECT_EQ(std::weak_ordering::greater, keyAndSequenceNumberComparer(greater, lesser));
 }
 
-TEST(KeyComparerTests, TestKey_int32)
+TEST(ProtoKeyComparerTests, TestKey_int32)
 {
     TestKey lesser;
     TestKey greater;
@@ -63,7 +63,7 @@ TEST(KeyComparerTests, TestKey_int32)
     lesser.set_int32_value(0);
     greater.set_int32_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
@@ -71,12 +71,12 @@ TEST(KeyComparerTests, TestKey_int32)
     lesser.set_int32_value(1);
     greater.set_int32_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_int64)
+TEST(ProtoKeyComparerTests, TestKey_int64)
 {
     TestKey lesser;
     TestKey greater;
@@ -84,19 +84,19 @@ TEST(KeyComparerTests, TestKey_int64)
     lesser.set_int64_value(0);
     greater.set_int64_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_int64_value(1);
     greater.set_int64_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_sint32)
+TEST(ProtoKeyComparerTests, TestKey_sint32)
 {
     TestKey lesser;
     TestKey greater;
@@ -104,19 +104,19 @@ TEST(KeyComparerTests, TestKey_sint32)
     lesser.set_sint32_value(0);
     greater.set_sint32_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_sint32_value(1);
     greater.set_sint32_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_sint64)
+TEST(ProtoKeyComparerTests, TestKey_sint64)
 {
     TestKey lesser;
     TestKey greater;
@@ -124,19 +124,19 @@ TEST(KeyComparerTests, TestKey_sint64)
     lesser.set_sint64_value(0);
     greater.set_sint64_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_sint64_value(0);
     greater.set_sint64_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_fixed32)
+TEST(ProtoKeyComparerTests, TestKey_fixed32)
 {
     TestKey lesser;
     TestKey greater;
@@ -144,19 +144,19 @@ TEST(KeyComparerTests, TestKey_fixed32)
     lesser.set_fixed32_value(0);
     greater.set_fixed32_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_fixed32_value(1);
     greater.set_fixed32_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_fixed64)
+TEST(ProtoKeyComparerTests, TestKey_fixed64)
 {
     TestKey lesser;
     TestKey greater;
@@ -164,19 +164,19 @@ TEST(KeyComparerTests, TestKey_fixed64)
     lesser.set_fixed64_value(0);
     greater.set_fixed64_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_fixed64_value(1);
     greater.set_fixed64_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_float)
+TEST(ProtoKeyComparerTests, TestKey_float)
 {
     TestKey lesser;
     TestKey greater;
@@ -184,19 +184,19 @@ TEST(KeyComparerTests, TestKey_float)
     lesser.set_float_value(0);
     greater.set_float_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_float_value(1);
     greater.set_float_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_double)
+TEST(ProtoKeyComparerTests, TestKey_double)
 {
     TestKey lesser;
     TestKey greater;
@@ -204,104 +204,104 @@ TEST(KeyComparerTests, TestKey_double)
     lesser.set_double_value(0);
     greater.set_double_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_double_value(1);
     greater.set_double_value(2);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_string)
+TEST(ProtoKeyComparerTests, TestKey_string)
 {
     TestKey lesser;
     TestKey greater;
 
     greater.set_string_value("b");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_string_value("a");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_bytes)
+TEST(ProtoKeyComparerTests, TestKey_bytes)
 {
     TestKey lesser;
     TestKey greater;
 
     greater.set_bytes_value("b");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.set_bytes_value("a");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_subkey)
+TEST(ProtoKeyComparerTests, TestKey_subkey)
 {
     TestKey lesser;
     TestKey greater;
 
     greater.mutable_subkey_value()->set_string_value("b");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.mutable_subkey_value()->set_string_value("a");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_repeated_int32)
+TEST(ProtoKeyComparerTests, TestKey_repeated_int32)
 {
     TestKey lesser;
     TestKey greater;
 
     greater.mutable_repeated_int32_value()->Add(1);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.mutable_repeated_int32_value()->Add(0);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_repeated_string)
+TEST(ProtoKeyComparerTests, TestKey_repeated_string)
 {
     TestKey lesser;
     TestKey greater;
 
     *greater.add_repeated_string_value() = "b";
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     *lesser.add_repeated_string_value() = "a";
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
@@ -311,30 +311,30 @@ TEST(KeyComparerTests, TestKey_repeated_string)
     *greater.add_repeated_string_value() = "a";
     *greater.add_repeated_string_value() = "b";
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 
-TEST(KeyComparerTests, TestKey_repeated_SubKey)
+TEST(ProtoKeyComparerTests, TestKey_repeated_SubKey)
 {
     TestKey lesser;
     TestKey greater;
 
     greater.add_repeated_subkey_value()->set_string_value("b");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 
     lesser.add_repeated_subkey_value()->set_string_value("a");
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }
 //
-//TEST(KeyComparerTests, Uses_lexical_order_not_tag_order)
+//TEST(ProtoKeyComparerTests, Uses_lexical_order_not_tag_order)
 //{
 //    TestKey_OutOfOrderFields lesser;
 //    TestKey_OutOfOrderFields greater;
@@ -344,12 +344,12 @@ TEST(KeyComparerTests, TestKey_repeated_SubKey)
 //    greater.set_lexicallyfirstnumericallysecond(2);
 //    greater.set_lexicallysecondnumericallyfirst(1);
 //
-//    DoKeyComparerTest(
+//    DoProtoKeyComparerTest(
 //        lesser,
 //        greater);
 //}
 
-TEST(KeyComparerTests, Uses_message_level_sort_order_on_outer_key)
+TEST(ProtoKeyComparerTests, Uses_message_level_sort_order_on_outer_key)
 {
     TestKey_DescendingSortOrder_Field lesser;
     TestKey_DescendingSortOrder_Field greater;
@@ -357,7 +357,7 @@ TEST(KeyComparerTests, Uses_message_level_sort_order_on_outer_key)
     lesser.set_value(2);
     greater.set_value(1);
 
-    DoKeyComparerTest(
+    DoProtoKeyComparerTest(
         lesser,
         greater);
 }

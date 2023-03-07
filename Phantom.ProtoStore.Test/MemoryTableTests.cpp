@@ -14,7 +14,7 @@ namespace Phantom::ProtoStore
 class MemoryTableTests : public ::testing::Test
 {
 protected:
-    KeyComparer keyComparer;
+    ProtoKeyComparer keyComparer;
     MemoryTable memoryTable;
 
 public:

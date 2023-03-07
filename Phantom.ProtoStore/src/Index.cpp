@@ -24,7 +24,7 @@ Index::Index(
     m_createSequenceNumber(createSequenceNumber),
     m_keyFactory(keyFactory),
     m_valueFactory(valueFactory),
-    m_keyComparer(make_shared<KeyComparer>(keyFactory->GetDescriptor())),
+    m_keyComparer(make_shared<ProtoKeyComparer>(keyFactory->GetDescriptor())),
     m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
     m_unresolvedTransactionsTracker(unresolvedTransactionsTracker)
 {
