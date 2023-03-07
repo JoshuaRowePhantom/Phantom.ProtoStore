@@ -401,9 +401,6 @@ TEST(HeaderAccessorTests, Can_alternate_write_request_locations)
         co_await headerAccessor->WriteHeader(
             &newHeader);
 
-        DatabaseHeaderT ;
-        DatabaseHeaderT ;
-
         auto actualLocation1Header = FlatMessage<DatabaseHeader>
         {
             co_await randomMessageAccessor->ReadMessage(

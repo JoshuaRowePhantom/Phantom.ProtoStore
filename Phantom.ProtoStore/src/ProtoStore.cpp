@@ -1591,32 +1591,4 @@ shared_ptr<IIndex> ProtoStore::GetUnresolvedTransactionsIndex()
     return m_unresolvedTransactionIndex.Index;
 }
 
-Schedulers Schedulers::Default()
-{
-    static shared_ptr<IScheduler> scheduler = std::make_shared<DefaultScheduler<cppcoro::static_thread_pool>>();
-
-    static Schedulers schedulers =
-    {
-        .LockScheduler = scheduler,
-        .IoScheduler = scheduler,
-        .ComputeScheduler = scheduler,
-    };
-
-    return schedulers;
-}
-
-Schedulers Schedulers::Inline()
-{
-    static shared_ptr<IScheduler> scheduler = std::make_shared<DefaultScheduler<cppcoro::inline_scheduler>>();
-
-    static Schedulers schedulers =
-    {
-        .LockScheduler = scheduler,
-        .IoScheduler = scheduler,
-        .ComputeScheduler = scheduler,
-    };
-
-    return schedulers;
-}
-
 }

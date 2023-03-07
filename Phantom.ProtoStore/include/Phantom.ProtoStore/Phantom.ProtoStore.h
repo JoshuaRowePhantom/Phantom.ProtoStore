@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <any>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -23,6 +22,9 @@
 #include "Phantom.Coroutines/expected_early_termination.h"
 #include "Phantom.Coroutines/reusable_task.h"
 #include "flatbuffers/flatbuffers.h"
+#include "Errors.h"
+#include "Primitives.h"
+#include "Scheduler.h"
 
 namespace Phantom::ProtoStore
 {
@@ -112,79 +114,7 @@ using std::unique_ptr;
 template<typename T>
 concept IsMessage = std::is_convertible_v<T*, Message*>;
 
-typedef std::string IndexName;
-enum class SequenceNumber : std::uint64_t
-{
-    Earliest = 0,
-    Latest = 0x3fffffffffffffffULL,
-    LatestCommitted = Latest - 1,
-};
-
-inline SequenceNumber ToSequenceNumber(
-    std::uint64_t sequenceNumber)
-{
-    if (sequenceNumber > static_cast<uint64_t>(SequenceNumber::Latest))
-    {
-        throw std::out_of_range(
-            "SequenceNumber was out of range.");
-    }
-
-    return static_cast<SequenceNumber>(sequenceNumber << 2);
-}
-
-inline std::uint64_t ToUint64(
-    SequenceNumber sequenceNumber)
-{
-    return static_cast<std::uint64_t>(sequenceNumber) >> 2;
-}
-
-inline std::weak_ordering operator <=>(
-    SequenceNumber s1,
-    SequenceNumber s2
-    )
-{
-    return ToUint64(s1) <=> ToUint64(s2);
-}
-
-typedef std::string TransactionId;
-
 class IMessageStore;
-class IIndex;
-
-class ProtoIndex
-{
-    friend class ProtoStore;
-    friend class LocalTransaction;
-    IIndex* m_index;
-
-public:
-    ProtoIndex()
-        :
-        m_index(nullptr)
-    {}
-
-    ProtoIndex(
-        IIndex* index)
-        :
-        m_index(index)
-    {
-    }
-
-    ProtoIndex(
-        shared_ptr<IIndex> index)
-        :
-        m_index(index.get())
-    {
-    }
-
-    ProtoStore* ProtoStore() const;
-    const IndexName& IndexName() const;
-
-    friend bool operator==(
-        const ProtoIndex&,
-        const ProtoIndex&
-        ) = default;
-};
 
 struct GetIndexRequest
 {
@@ -730,113 +660,6 @@ public:
     ProtoValue& operator=(ProtoValue&&);
 };
 
-struct WriteConflict
-{
-    ProtoIndex Index;
-    SequenceNumber ConflictingSequenceNumber;
-
-    friend bool operator ==(
-        const WriteConflict&,
-        const WriteConflict&
-        ) = default;
-};
-
-struct UnresolvedTransaction
-{
-    TransactionId UnresolvedTransactionId;
-
-    friend bool operator ==(
-        const UnresolvedTransaction&,
-        const UnresolvedTransaction&
-        ) = default;
-};
-
-enum class TransactionOutcome {
-    Unknown = 0,
-    Committed = 1,
-    Aborted = 2,
-};
-
-struct TransactionFailedResult
-{
-    // The transaction outcome,
-    // which will be either Aborted or Unknown.
-    TransactionOutcome TransactionOutcome;
-
-    // The failures that were encountered during
-    // execution of the transaction. These failures
-    // may have been ignored by the actual transaction
-    // processor.
-    //std::vector<FailedResult> Failures;
-
-    friend bool operator==(
-        const TransactionFailedResult&,
-        const TransactionFailedResult&
-        ) = default;
-};
-
-struct FailedResult
-{
-    std::error_code ErrorCode;
-
-    using error_details_type = std::variant<
-        std::monostate,
-        WriteConflict,
-        UnresolvedTransaction,
-        TransactionFailedResult
-    >;
-
-    error_details_type ErrorDetails;
-
-    operator std::error_code() const
-    {
-        return ErrorCode;
-    }
-
-    operator std::unexpected<std::error_code>() const
-    {
-        return std::unexpected{ ErrorCode };
-    }
-
-    operator std::unexpected<FailedResult>() const &
-    {
-        return std::unexpected{ *this };
-    }
-
-    operator std::unexpected<FailedResult>() &&
-    {
-        return std::unexpected{ std::move(*this) };
-    }
-
-    friend bool operator ==(
-        const FailedResult&,
-        const FailedResult&
-        ) = default;
-
-    [[noreturn]]
-    void throw_exception(
-        this auto&& self);
-};
-
-class ProtoStoreException : std::exception
-{
-public:
-    const FailedResult Result;
-
-    ProtoStoreException(
-        FailedResult result
-    ) : Result(std::move(result))
-    {
-    }
-};
-
-[[noreturn]]
-void FailedResult::throw_exception(
-    this auto&& self)
-{
-    throw ProtoStoreException{ std::forward<decltype(self)>(self) };
-}
-
 struct WriteOperation
 {
     ProtoIndex Index;
@@ -1086,121 +909,6 @@ public:
     ) = 0;
 };
 
-class IScheduler
-{
-public:
-    class schedule_operation
-    {
-        friend class IScheduler;
-        IScheduler* m_scheduler;
-        std::any m_value;
-
-        schedule_operation(
-            IScheduler* scheduler,
-            std::any&& value)
-            : m_scheduler(scheduler),
-            m_value(move(value))
-        {}
-
-    public:
-        bool await_ready() noexcept
-        {
-            return m_scheduler->await_ready(
-                &m_value);
-        }
-
-        void await_suspend(std::coroutine_handle<> awaitingCoroutine) noexcept
-        {
-            m_scheduler->await_suspend(
-                &m_value,
-                awaitingCoroutine);
-        }
-
-        void await_resume()
-        {
-            return m_scheduler->await_resume(
-                &m_value);
-        }
-
-    };
-    
-    virtual std::any create_schedule_operation_value(
-    ) = 0;
-
-    virtual bool await_ready(
-        std::any* scheduleOperationValue
-    ) noexcept = 0;
-
-    virtual void await_suspend(
-        std::any* scheduleOperationValue,
-        std::coroutine_handle<> awaitingCoroutine
-    ) noexcept = 0;
-
-    virtual void await_resume(
-        std::any* scheduleOperationValue
-    ) noexcept = 0;
-
-    schedule_operation schedule()
-    {
-        return schedule_operation(
-            this,
-            create_schedule_operation_value());
-    }
-
-    schedule_operation operator co_await()
-    {
-        return schedule();
-    }
-};
-
-template<
-    typename TScheduler
-> class DefaultScheduler
-    :
-    public IScheduler
-{
-    TScheduler m_scheduler;
-    typedef decltype(m_scheduler.schedule()) underlying_schedule_operation;
-
-public:
-    template<
-        typename ... TArgs
-    >
-    DefaultScheduler(
-        TArgs&& ... args
-    ) : m_scheduler(std::forward<TArgs>(args)...)
-    {}
-
-    virtual std::any create_schedule_operation_value(
-    ) override
-    {
-        return m_scheduler.schedule();
-    }
-
-    virtual bool await_ready(
-        std::any* value
-    ) noexcept override
-    {
-        return std::any_cast<underlying_schedule_operation>(value)->await_ready();
-    }
-
-    virtual void await_suspend(
-        std::any* value,
-        std::coroutine_handle<> awaitingCoroutine
-    ) noexcept override
-    {
-        return std::any_cast<underlying_schedule_operation>(value)->await_suspend(
-            awaitingCoroutine);
-    }
-
-    virtual void await_resume(
-        std::any* value
-    ) noexcept override
-    {
-        return std::any_cast<underlying_schedule_operation>(value)->await_resume();
-    }
-};
-
 class IProtoStore
     : 
     public IReadableProtoStore,
@@ -1224,16 +932,6 @@ public:
 };
 
 class IExtentStore;
-
-struct Schedulers
-{
-    std::shared_ptr<IScheduler> LockScheduler;
-    std::shared_ptr<IScheduler> IoScheduler;
-    std::shared_ptr<IScheduler> ComputeScheduler;
-
-    static Schedulers Default();
-    static Schedulers Inline();
-};
 
 enum class IntegrityCheck
 {

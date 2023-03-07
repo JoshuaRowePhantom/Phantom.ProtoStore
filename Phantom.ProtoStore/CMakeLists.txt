@@ -3,13 +3,18 @@
 add_library (
     Phantom.ProtoStore 
     STATIC
+    "include/Phantom.ProtoStore/Errors.h"
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
+    "include/Phantom.ProtoStore/Primitives.h"
+    "include/Phantom.ProtoStore/ProtoIndex.h"
     "include/Phantom.ProtoStore/ProtoStore.proto"
+    "include/Phantom.ProtoStore/Scheduler.h" 
     "src/BloomFilter.h"
     "src/CanonicalProtoKey.cpp"
     "src/CanonicalProtoKey.h" 
     "src/Checksum.cpp"
     "src/Checksum.h"
+    "src/Errors.cpp"
     "src/ExtentManager.h"
     "src/ExtentName.cpp"
     "src/ExtentName.h"
@@ -59,6 +64,7 @@ add_library (
     "src/RandomMessageAccessorImpl.h"
     "src/RowMerger.cpp"
     "src/RowMerger.h"
+    "src/Scheduler.cpp"
     "src/Schema.cpp"
     "src/Schema.h"
     "src/SkipList.cpp"
@@ -67,7 +73,7 @@ add_library (
     "src/StandardTypes.h"
     "src/UnresolvedTransactionsTracker.cpp"
     "src/UnresolvedTransactionsTracker.h" 
-)
+     )
     
 
 target_include_directories(
