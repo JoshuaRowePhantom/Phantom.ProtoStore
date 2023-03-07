@@ -4,9 +4,9 @@
 #include <compare>
 #include <concepts>
 #include <unordered_map>
+#include <flatbuffers/reflection.h>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/dynamic_message.h"
+#include <google/protobuf/descriptor.h>
 
 namespace Phantom::ProtoStore
 {
@@ -26,6 +26,18 @@ extern const std::span<const std::byte> KeyMaxSpan;
 
 class KeyComparer
 {
+protected:
+
+    static std::weak_ordering ApplySortOrder(
+        SortOrder sortOrder,
+        std::weak_ordering value
+    );
+
+    static SortOrder CombineSortOrder(
+        SortOrder sortOrder1,
+        SortOrder sortOrder2
+    );
+
 public:
     virtual std::weak_ordering Compare(
         std::span<const byte> value1,
@@ -61,19 +73,28 @@ private:
         const google::protobuf::Descriptor*,
         FieldSortOrderMap source = {});
 
-    static std::weak_ordering ApplySortOrder(
-        SortOrder sortOrder,
-        std::weak_ordering value
-    );
-
-    static SortOrder CombineSortOrder(
-        SortOrder sortOrder1,
-        SortOrder sortOrder2
-    );
-
 public:
     ProtoKeyComparer(
         const google::protobuf::Descriptor* messageDescriptor);
+
+    virtual std::weak_ordering Compare(
+        std::span<const byte> value1,
+        std::span<const byte> value2
+    ) const override;
+};
+
+class FlatBufferKeyComparer
+    :
+    public KeyComparer
+{
+public:
+    template<typename T>
+    struct compare_tag {};
+
+private:
+
+public:
+    FlatBufferKeyComparer();
 
     virtual std::weak_ordering Compare(
         std::span<const byte> value1,

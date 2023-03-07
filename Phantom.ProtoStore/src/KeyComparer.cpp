@@ -93,7 +93,7 @@ ProtoKeyComparer::FieldSortOrderMap ProtoKeyComparer::GetFieldSortOrders(
     return std::move(fieldSortOrders);
 }
 
-std::weak_ordering ProtoKeyComparer::ApplySortOrder(
+std::weak_ordering KeyComparer::ApplySortOrder(
     SortOrder sortOrder,
     std::weak_ordering value
 )
@@ -106,7 +106,7 @@ std::weak_ordering ProtoKeyComparer::ApplySortOrder(
     return 0 <=> value;
 }
 
-SortOrder ProtoKeyComparer::CombineSortOrder(
+SortOrder KeyComparer::CombineSortOrder(
     SortOrder sortOrder1,
     SortOrder sortOrder2
 )
