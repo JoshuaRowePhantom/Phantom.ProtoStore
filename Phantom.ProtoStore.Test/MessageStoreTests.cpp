@@ -475,53 +475,34 @@ TEST(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error)
         auto messageStore = make_shared<MessageStore>(
             Schedulers::Default(),
             extentStore);
-        auto randomMessageWriter = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
 
-        auto writeResult = co_await randomMessageWriter->Write(
+        // Write a message to extent 0 to compute crcs.
+        auto randomMessageWriter0 = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(0));
+
+        auto writeExtent0Result = co_await randomMessageWriter0->Write(
             offset,
             expectedMessage,
             FlushBehavior::Flush);
 
-        EXPECT_EQ(
-            expectedEndOfMessage, 
-            writeResult->DataRange.End);
+        // Write the same message to another extent, which shouldn't compute CRCs.
+        auto randomMessageWriter1 = co_await messageStore->OpenExtentForRandomWriteAccess(MakeLogExtentName(1));
 
-        uint8_t lastChecksumByte;
+        FlatBuffers::MessageHeader_V1 messageHeader = *writeExtent0Result->Header_V1();
+        messageHeader.mutate_crc32(messageHeader.crc32() + 1);
+        StoredMessage messageToWriteToExtent1
         {
-            auto readableExtent = co_await extentStore->OpenExtentForRead(MakeLogExtentName(0));
-            auto readBuffer = co_await readableExtent->Read(expectedEndOfMessage - 1, 1);
+            .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::V1,
+            .Header = { 4, std::as_bytes(std::span{ &messageHeader, 1 })},
+            .Content = writeExtent0Result->Content,
+        };
 
-            google::protobuf::io::CodedInputStream inputStream(
-                reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
-                readBuffer.data().size());
-            inputStream.ReadRaw(
-                &lastChecksumByte,
-                sizeof(lastChecksumByte));
-        }
+        auto writeExtent1Result = co_await randomMessageWriter1->Write(
+            offset,
+            messageToWriteToExtent1,
+            FlushBehavior::Flush
+        );
 
-        uint8_t corruptedLastChecksumByte = lastChecksumByte ^ 1;
-
-        {
-            auto writableExtent = co_await extentStore->OpenExtentForWrite(MakeLogExtentName(0));
-            auto writeBuffer = co_await writableExtent->CreateWriteBuffer();
-            auto rawData = co_await writeBuffer->Write(expectedEndOfMessage - 1, 1);
-            google::protobuf::io::ArrayOutputStream outputStream(
-                rawData.data().data(),
-                rawData.data().size());
-
-            {
-                google::protobuf::io::CodedOutputStream corruptingOutputStream(
-                    &outputStream);
-
-                corruptingOutputStream.WriteRaw(
-                    &corruptedLastChecksumByte,
-                    sizeof(corruptedLastChecksumByte));
-            }
-
-            co_await writeBuffer->Flush();
-        }
-
-        auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(0));
+        auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(MakeLogExtentName(1));
 
         MessageStoreTestMessage actualMessage;
 
