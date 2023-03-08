@@ -5,11 +5,11 @@ table ScalarTable {
     item : uint32;
 }
 
-struct TestKeyStruct {
-    array_value : [int:3];
+struct SubStruct {
+    value : uint32;
 }
 
-table TestKey {
+struct TestKeyStruct {
     byte_value : byte;
     ubyte_value : ubyte;
     bool_value: bool;
@@ -21,14 +21,57 @@ table TestKey {
     long_value : long;
     ulong_value : ulong;
     double_value : double;
+    substruct_value : SubStruct;
+
+    byte_array : [byte : 3];
+    ubyte_array : [ubyte : 3];
+    bool_array : [bool : 3];
+    short_array : [short : 3];
+    ushort_array : [ushort : 3];
+    int_array : [int : 3];
+    uint_array : [uint : 3];
+    float_array : [float : 3];
+    long_array : [long : 3];
+    ulong_array : [ulong : 3];
+    double_array : [double : 3];
+    substruct_array : [SubStruct : 3];
+}
+
+table TestKey {
+    byte_value : byte;
+    ubyte_value : ubyte;
+    bool_value : bool;
+    short_value : short;
+    ushort_value : ushort;
+    int_value : int;
+    uint_value : uint;
+    float_value : float;
+    long_value : long;
+    ulong_value : ulong;
+    double_value : double;
     defaulted_value : int = 5;
 
     string_value : string;
-    int_vector_value : [int];
     subkey_value : TestKey;
     struct_value : TestKeyStruct;
 
     descending_value : int (SortOrder: "Descending");
     descending_subkey : TestKey (SortOrder: "Descending");
     descending_vector : [int] (SortOrder: 1);
+
+    byte_vector : [byte];
+    ubyte_vector : [ubyte];
+    bool_vector : [bool];
+    short_vector : [short];
+    ushort_vector : [ushort];
+    int_vector : [int];
+    uint_vector : [uint];
+    float_vector : [float];
+    long_vector : [long];
+    ulong_vector : [ulong];
+    double_vector : [double];
+
+    string_vector : [string];
+    subkey_vector : [TestKey];
+    struct_vector : [TestKeyStruct];
 }
