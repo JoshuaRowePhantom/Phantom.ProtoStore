@@ -63,6 +63,34 @@ template<
         zero,
         high);
 }
+//
+//template<
+//    auto Member
+//> void DoFlatBufferPointerKeyComparerNumericVectorTest(
+//)
+//{
+//    TestKeyT low;
+//    TestKeyT zero;
+//    TestKeyT high;
+//
+//    low.*Member = std::numeric_limits<std::decay_t<decltype(low.*Member)>>::lowest();
+//    high.*Member = std::numeric_limits<std::decay_t<decltype(high.*Member)>>::max();
+//
+//    if (low.*Member != zero.*Member)
+//    {
+//        DoFlatBufferPointerKeyComparerTest(
+//            low,
+//            zero);
+//    }
+//
+//    DoFlatBufferPointerKeyComparerTest(
+//        low,
+//        high);
+//
+//    DoFlatBufferPointerKeyComparerTest(
+//        zero,
+//        high);
+//}
 
 TEST(FlatBufferPointerKeyComparerTests, primitive_types)
 {
@@ -77,6 +105,21 @@ TEST(FlatBufferPointerKeyComparerTests, primitive_types)
     DoFlatBufferPointerKeyComparerNumericTest<&TestKeyT::ulong_value>();
     DoFlatBufferPointerKeyComparerNumericTest<&TestKeyT::ushort_value>();
 }
+
+//
+//TEST(FlatBufferPointerKeyComparerTests, primitive_vector_types)
+//{
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::byte_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::double_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::float_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::int_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::long_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::short_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::ubyte_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::uint_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::ulong_vector>();
+//    DoFlatBufferPointerKeyComparerNumericVectorTest<&TestKeyT::ushort_vector>();
+//}
 
 }
 

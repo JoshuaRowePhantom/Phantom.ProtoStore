@@ -627,7 +627,12 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare
 
     for (auto& comparer : m_comparers)
     {
-        auto result = comparer(value1, value2);
+        auto result = comparer.comparerFunction(
+            comparer.flatBuffersReflectionField,
+            comparer.elementComparer,
+            value1,
+            value2);
+
         if (result != std::weak_ordering::equivalent)
         {
             return result;
@@ -676,14 +681,23 @@ template<
             flatBuffersReflectionField->type()->index()
         );
 
-        const InternalObjectComparer* comparer = GetObjectComparer(
+        const InternalObjectComparer* elementObjectComparer = GetObjectComparer(
             internalComparers,
             flatBuffersReflectionSchema,
             fieldObject);
 
         if (fieldObject->is_struct())
         {
-            return [=](const void* value1, const void* value2) -> std::weak_ordering
+            return ComparerFunction
+            {
+                flatBuffersReflectionField,
+                nullptr,
+                [](
+                    const ::reflection::Field* flatBuffersReflectionField,
+                    const InternalObjectComparer* elementObjectComparer,
+                    const void* value1,
+                    const void* value2
+                ) -> std::weak_ordering
             {
                 auto field1 = flatbuffers::GetFieldStruct(
                     *reinterpret_cast<const Container*>(value1),
@@ -695,14 +709,24 @@ template<
                     *flatBuffersReflectionField
                 );
 
-                return comparer->Compare(
+                return elementObjectComparer->Compare(
                     field1,
                     field2);
-            };
+            }
+            }; 
         }
         else if constexpr (std::same_as<Container, flatbuffers::Table>)
         {
-            return [=](const void* value1, const void* value2) -> std::weak_ordering
+            return ComparerFunction
+            {
+                flatBuffersReflectionField,
+                elementObjectComparer,
+                [](
+                    const ::reflection::Field* flatBuffersReflectionField,
+                    const InternalObjectComparer* elementObjectComparer,
+                    const void* value1,
+                    const void* value2
+                ) -> std::weak_ordering
             {
                 auto field1 = flatbuffers::GetFieldT(
                     *reinterpret_cast<const Container*>(value1),
@@ -714,9 +738,10 @@ template<
                     *flatBuffersReflectionField
                 );
 
-                return comparer->Compare(
+                return elementObjectComparer->Compare(
                     field1,
                     field2);
+            }
             };
         }
 
@@ -826,9 +851,15 @@ template<
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
-    return[=](
-        const void* value1,
-        const void* value2
+    return ComparerFunction
+    {
+        flatBuffersReflectionField,
+        nullptr,
+        [](
+            const ::reflection::Field* flatBuffersReflectionField,
+            const InternalObjectComparer* elementObjectComparer,
+            const void* value1,
+            const void* value2
         ) -> std::weak_ordering
     {
         auto fieldValue1 = fieldRetriever(
@@ -842,6 +873,7 @@ template<
         );
 
         return ComparePrimitive(fieldValue1, fieldValue2);
+    }
     };
 }
 
@@ -1039,7 +1071,16 @@ template<
                 flatBuffersReflectionField->type()->index()));
     }
 
-    return [=](const void* value1, const void* value2) -> std::weak_ordering
+    return ComparerFunction
+    {
+        flatBuffersReflectionField,
+        nullptr,
+        [](
+            const ::reflection::Field* flatBuffersReflectionField,
+            const InternalObjectComparer* elementObjectComparer,
+            const void* value1,
+            const void* value2
+        ) -> std::weak_ordering
     {
         auto vector1 = flatbuffers::GetFieldV<Value>(
             *reinterpret_cast<const flatbuffers::Table*>(value1),
@@ -1096,6 +1137,7 @@ template<
         }
 
         return vector1->size() <=> vector2->size();
+    }
     };
 }
 
@@ -1216,7 +1258,16 @@ template<
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
-    return [=](const void* value1, const void* value2)
+    return ComparerFunction
+    {
+        flatBuffersReflectionField,
+        nullptr,
+        [](
+            const ::reflection::Field* flatBuffersReflectionField,
+            const InternalObjectComparer* elementObjectComparer,
+            const void* value1,
+            const void* value2
+        ) -> std::weak_ordering
     {
         auto array1 = flatbuffers::GetAnyFieldAddressOf<const Value>(
             *reinterpret_cast<const flatbuffers::Struct*>(value1),
@@ -1231,13 +1282,13 @@ template<
             auto value1 = *(array1 + index);
             auto value2 = *(array2 + index);
 
-
             return ComparePrimitive(
                 value1,
                 value2);
         }
 
         return std::weak_ordering::equivalent;
+    }
     };
 }
 
@@ -1261,7 +1312,16 @@ template<
         flatBuffersReflectionSchema,
         elementObjectType);
 
-    return [=](const void* value1, const void* value2)
+    return
+    {
+        flatBuffersReflectionField,
+        elementObjectComparer,
+        [](
+                    const ::reflection::Field* flatBuffersReflectionField,
+                    const InternalObjectComparer* elementObjectComparer,
+                    const void* value1,
+                    const void* value2
+                ) -> std::weak_ordering
     {
         const uint8_t* array1 = flatbuffers::GetAnyFieldAddressOf<const uint8_t>(
             *reinterpret_cast<const flatbuffers::Struct*>(value1),
@@ -1282,6 +1342,7 @@ template<
         }
 
         return std::weak_ordering::equivalent;
+    }
     };
 }
 

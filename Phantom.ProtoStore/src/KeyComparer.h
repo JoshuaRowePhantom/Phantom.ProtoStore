@@ -102,10 +102,17 @@ private:
         :
         public BaseKeyComparer
     {
-        using ComparerFunction = std::function<std::weak_ordering(
-            const void* value1,
-            const void* value2
-        )>;
+        struct ComparerFunction
+        {
+            const ::reflection::Field* flatBuffersReflectionField = nullptr;
+            const InternalObjectComparer* elementComparer = nullptr;
+
+            std::weak_ordering(*comparerFunction)(
+                const ::reflection::Field*,
+                const InternalObjectComparer*,
+                const void* value1,
+                const void* value2);
+        };
 
         std::vector<ComparerFunction> m_comparers;
 
