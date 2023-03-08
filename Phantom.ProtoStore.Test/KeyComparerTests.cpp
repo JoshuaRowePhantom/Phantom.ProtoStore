@@ -25,26 +25,6 @@ void DoProtoKeyComparerTest(
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterSpan, greaterSpan));
 }
 
-template<typename T>
-void DoFlatBufferPointerKeyComparerTest(
-    const T& lesser,
-    const T& greater)
-{
-    FlatBufferPointerKeyComparer keyComparer(
-        );
-
-    ProtoValue lesserProto(&lesser, true);
-    ProtoValue greaterProto(&greater, true);
-
-    auto lesserSpan = lesserProto.as_bytes_if();
-    auto greaterSpan = greaterProto.as_bytes_if();
-
-    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserSpan, greaterSpan));
-    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(greaterSpan, lesserSpan));
-    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserSpan, lesserSpan));
-    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterSpan, greaterSpan));
-}
-
 template<typename TKey, typename TValue>
 void DoKeyAndSequenceNumberComparerTest(
     const TValue& lesser,

@@ -15,9 +15,9 @@ add_executable(
     "DelayedMemoryTableTransactionOutcomeTests.cpp" 
     "ExtentStoreTests.cpp"
     "ExtentStoreTests.h" 
+    "FlatBufferPointerKeyComparerTests.cpp"
     "HeaderAccessorTests.cpp"
     "KeyComparerTests.cpp"
-    
     "MemoryExtentStoreTests.cpp"
     "MemoryMappedFileExtentStoreTests.cpp"
     "MemoryTableTests.cpp"
@@ -31,7 +31,7 @@ add_executable(
     "SkipListTest.cpp"
     "StandardIncludes.cpp"
     "StandardIncludes.h"
-     )
+)
     
 PROTOBUF_GENERATE(
     LANGUAGE cpp
@@ -51,8 +51,14 @@ flatbuffers_generate_headers(
     INCLUDE_PREFIX Phantom.ProtoStore
     INCLUDE ../Phantom.ProtoStore/src ../Phantom.ProtoStore/include
     FLAGS --reflect-names --gen-name-strings --gen-compare --cpp-std c++17 --gen-object-api --scoped-enums --gen-mutable
+    BINARY_SCHEMAS_DIR "${CMAKE_CURRENT_BINARY_DIR}"
     SCHEMAS
     ProtoStoreTest.fbs)
+
+phantom_flatbuffers_generate_natvis(
+    TARGET Phantom.ProtoStore.Test.FlatBuffers
+    NATVIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+)
 
 target_link_libraries(
     Phantom.ProtoStore.Test

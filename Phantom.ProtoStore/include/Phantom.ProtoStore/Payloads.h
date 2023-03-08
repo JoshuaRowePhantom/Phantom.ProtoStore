@@ -354,7 +354,7 @@ public:
 
         StoredMessage storedMessage =
         {
-            .ExtentFormatVersion = FlatBuffers::ExtentFormatVersion::None,
+            .ExtentFormatVersion = static_cast<Phantom::ProtoStore::FlatBuffers::ExtentFormatVersion>(0),
             .Content { builder }
         };
 

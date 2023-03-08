@@ -148,12 +148,6 @@ private:
             const ::reflection::Field* flatBuffersReflectionField
         );
 
-        static InternalObjectComparer* GetObjectComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject
-        );
-
         static ComparerFunction GetVectorFieldComparer(
             ComparerMap& internalComparers,
             const ::reflection::Schema* flatBuffersReflectionSchema,
@@ -196,10 +190,16 @@ private:
             const ::reflection::Field* flatBuffersReflectionField
         );
 
+        InternalObjectComparer(
+            ComparerMap& internalComparers,
+            const ::reflection::Schema* flatBuffersReflectionSchema,
+            const ::reflection::Object* flatBuffersReflectionObject
+        );
+
     public:
         InternalObjectComparer();
 
-        InternalObjectComparer(
+        static InternalObjectComparer* GetObjectComparer(
             ComparerMap& internalComparers,
             const ::reflection::Schema* flatBuffersReflectionSchema,
             const ::reflection::Object* flatBuffersReflectionObject
@@ -211,7 +211,7 @@ private:
         ) const;
     };
 
-    ComparerMap m_internalComparers;
+    std::shared_ptr<ComparerMap> m_internalComparers = std::make_shared<ComparerMap>();
     const InternalObjectComparer* m_rootComparer;
 
 public:

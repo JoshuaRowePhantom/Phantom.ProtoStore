@@ -538,8 +538,6 @@ std::weak_ordering ProtoKeyComparer::Compare(
     }
 }
 
-
-
 std::weak_ordering KeyComparer::operator()(
     std::span<const byte> value1,
     std::span<const byte> value2
@@ -553,11 +551,11 @@ FlatBufferPointerKeyComparer::FlatBufferPointerKeyComparer(
     const ::reflection::Object* flatBuffersReflectionObject
 )
 {
-    m_rootComparer = &(m_internalComparers[flatBuffersReflectionObject] = InternalObjectComparer(
-        m_internalComparers,
+    m_rootComparer = InternalObjectComparer::GetObjectComparer(
+        *m_internalComparers,
         flatBuffersReflectionSchema,
         flatBuffersReflectionObject
-    ));
+    );
 }
 
 std::weak_ordering FlatBufferPointerKeyComparer::Compare(
@@ -647,6 +645,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer* FlatBufferPointerKeyCompar
 {
     if (!internalComparers.contains(flatBuffersReflectionObject))
     {
+        internalComparers[flatBuffersReflectionObject] = {};
+
         internalComparers[flatBuffersReflectionObject] = InternalObjectComparer(
             internalComparers,
             flatBuffersReflectionSchema,
@@ -841,7 +841,7 @@ template<
             flatBuffersReflectionField
         );
 
-        return ComparePrimitive(value1, value2);
+        return ComparePrimitive(fieldValue1, fieldValue2);
     };
 }
 
@@ -1048,6 +1048,21 @@ template<
         auto vector2 = flatbuffers::GetFieldV<Value>(
             *reinterpret_cast<const flatbuffers::Table*>(value2),
             *flatBuffersReflectionField);
+
+        if (vector1 == vector2)
+        {
+            return std::weak_ordering::equivalent;
+        }
+
+        if (vector1 == nullptr)
+        {
+            return std::weak_ordering::less;
+        }
+
+        if (vector2 == nullptr)
+        {
+            return std::weak_ordering::greater;
+        }
 
         auto sizeToCompare = std::min(
             vector1->size(),
