@@ -12,6 +12,7 @@ namespace Phantom::ProtoStore
 
 using FlatBuffers::TestKeyT;
 using FlatBuffers::TestKeyStruct;
+using FlatBuffers::TestKeyDescendingTableT;
 
 FlatBufferPointerKeyComparer GetTestKeyFlatBufferPointerKeyComparer()
 {
@@ -428,6 +429,34 @@ TEST(FlatBufferPointerKeyComparerTests, struct_primitive_descending)
 
     low.descending_value = 5;
     high.descending_value = 4;
+
+    DoFlatBufferPointerKeyComparerTest(
+        low,
+        high
+    );
+}
+
+TEST(FlatBufferPointerKeyComparerTests, descending_table)
+{
+    TestKeyT low;
+    TestKeyT high;
+
+    low.descending_table = std::make_unique<TestKeyDescendingTableT>();
+    high.descending_table = std::make_unique<TestKeyDescendingTableT>();
+
+    low.descending_table->ascending_value = 5;
+    high.descending_table->ascending_value = 4;
+
+    DoFlatBufferPointerKeyComparerTest(
+        low,
+        high
+    );
+
+    low.descending_table = std::make_unique<TestKeyDescendingTableT>();
+    high.descending_table = std::make_unique<TestKeyDescendingTableT>();
+
+    low.descending_table->descending_value = 4;
+    high.descending_table->descending_value = 5;
 
     DoFlatBufferPointerKeyComparerTest(
         low,

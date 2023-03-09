@@ -9,6 +9,11 @@ struct SubStruct {
     value : uint32;
 }
 
+table TestKeyDescendingTable (SortOrder: "Descending") {
+    ascending_value : int;
+    descending_value : int (SortOrder: "Descending");
+}
+
 struct TestKeyStruct {
     byte_value : byte;
     ubyte_value : ubyte;
@@ -59,8 +64,6 @@ table TestKey {
     struct_value : TestKeyStruct;
 
     descending_value : int (SortOrder: "Descending");
-    descending_subkey : TestKey (SortOrder: "Descending");
-    descending_vector : [int] (SortOrder: 1);
 
     byte_vector : [byte];
     ubyte_vector : [ubyte];
@@ -77,4 +80,6 @@ table TestKey {
     string_vector : [string];
     subkey_vector : [TestKey];
     struct_vector : [TestKeyStruct];
+
+    descending_table : TestKeyDescendingTable;
 }
