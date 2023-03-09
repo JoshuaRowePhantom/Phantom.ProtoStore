@@ -106,6 +106,28 @@ TEST(FlatBufferPointerKeyComparerTests, table_primitive_types)
     DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::ushort_value);
 }
 
+TEST(FlatBufferPointerKeyComparerTests, defaulted_value)
+{
+    TestKeyT low;
+    TestKeyT defaulted;
+    TestKeyT high;
+
+    low.defaulted_value = 4;
+    high.defaulted_value = 6;
+
+    DoFlatBufferPointerKeyComparerTest(
+        low,
+        defaulted);
+
+    DoFlatBufferPointerKeyComparerTest(
+        low,
+        high);
+
+    DoFlatBufferPointerKeyComparerTest(
+        defaulted,
+        high);
+}
+
 TEST(FlatBufferPointerKeyComparerTests, table_string_type)
 {
     DoFlatBufferPointerKeyComparerTableFieldTest(
@@ -145,8 +167,10 @@ TEST(FlatBufferPointerKeyComparerTests, table_subtable)
 
 template<
     typename Type
-> void DoFlatBufferPointerKeyComparerNumericVectorTest(
-    std::vector<Type> TestKeyT::* member
+> void DoFlatBufferPointerKeyComparerVectorTest(
+    std::vector<Type> TestKeyT::* member,
+    auto lowValueLambda,
+    auto highValueLambda
 )
 {
     TestKeyT key_empty;
@@ -157,19 +181,16 @@ template<
     TestKeyT key_h_l;
     TestKeyT key_h_h;
 
-    auto lowValue = std::numeric_limits<Type>::lowest();
-    auto highValue = std::numeric_limits<Type>::max();
-
-    (key_l.*member).push_back(lowValue);
-    (key_l_l.*member).push_back(lowValue);
-    (key_l_l.*member).push_back(lowValue);
-    (key_l_h.*member).push_back(lowValue);
-    (key_l_h.*member).push_back(highValue);
-    (key_h.*member).push_back(highValue);
-    (key_h_l.*member).push_back(highValue);
-    (key_h_l.*member).push_back(lowValue);
-    (key_h_h.*member).push_back(highValue);
-    (key_h_h.*member).push_back(highValue);
+    (key_l.*member).push_back(lowValueLambda());
+    (key_l_l.*member).push_back(lowValueLambda());
+    (key_l_l.*member).push_back(lowValueLambda());
+    (key_l_h.*member).push_back(lowValueLambda());
+    (key_l_h.*member).push_back(highValueLambda());
+    (key_h.*member).push_back(highValueLambda());
+    (key_h_l.*member).push_back(highValueLambda());
+    (key_h_l.*member).push_back(lowValueLambda());
+    (key_h_h.*member).push_back(highValueLambda());
+    (key_h_h.*member).push_back(highValueLambda());
 
     DoFlatBufferPointerKeyComparerTest(
         key_empty,
@@ -261,6 +282,21 @@ template<
         key_h_h);
 }
 
+template<
+    typename Type
+> void DoFlatBufferPointerKeyComparerNumericVectorTest(
+    std::vector<Type> TestKeyT::* member
+)
+{
+    auto lowValue = std::numeric_limits<Type>::lowest();
+    auto highValue = std::numeric_limits<Type>::max();
+    return DoFlatBufferPointerKeyComparerVectorTest(
+        member,
+        [&]() { return lowValue; },
+        [&]() { return highValue; }
+    );
+}
+
 TEST(FlatBufferPointerKeyComparerTests, primitive_vector_types)
 {
     DoFlatBufferPointerKeyComparerNumericVectorTest(&TestKeyT::bool_vector);
@@ -274,6 +310,21 @@ TEST(FlatBufferPointerKeyComparerTests, primitive_vector_types)
     DoFlatBufferPointerKeyComparerNumericVectorTest(&TestKeyT::uint_vector);
     DoFlatBufferPointerKeyComparerNumericVectorTest(&TestKeyT::ulong_vector);
     DoFlatBufferPointerKeyComparerNumericVectorTest(&TestKeyT::ushort_vector);
+}
+
+TEST(FlatBufferPointerKeyComparerTests, string_vector)
+{
+    DoFlatBufferPointerKeyComparerVectorTest(
+        &TestKeyT::string_vector,
+        []() { return "aaa"; },
+        []() { return "aab"; }
+    );
+
+    DoFlatBufferPointerKeyComparerVectorTest(
+        &TestKeyT::string_vector,
+        []() { return "aa"; },
+        []() { return "aaa"; }
+    );
 }
 
 template<

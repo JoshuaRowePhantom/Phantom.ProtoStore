@@ -49,6 +49,7 @@ table TestKey {
     long_value : long;
     ulong_value : ulong;
     double_value : double;
+
     defaulted_value : int = 5;
 
     string_value : string;
