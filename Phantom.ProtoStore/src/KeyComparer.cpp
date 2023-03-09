@@ -1095,19 +1095,12 @@ template<
             return std::weak_ordering::equivalent;
         }
 
-        if (vector1 == nullptr)
-        {
-            return std::weak_ordering::less;
-        }
-
-        if (vector2 == nullptr)
-        {
-            return std::weak_ordering::greater;
-        }
+        auto size1 = vector1 ? vector1->size() : 0;
+        auto size2 = vector2 ? vector2->size() : 0;
 
         auto sizeToCompare = std::min(
-            vector1->size(),
-            vector2->size()
+            size1,
+            size2
         );
 
         for (int32_t index = 0; index < sizeToCompare; ++index)
@@ -1115,28 +1108,35 @@ template<
             auto value1 = vector1->Get(index);
             auto value2 = vector2->Get(index);
 
+            std::weak_ordering result;
+
             if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::Table>, Value>
                 || std::same_as<flatbuffers::Offset<flatbuffers::Struct>, Value>)
             {
-                return elementObjectComparer->Compare(
+                result = elementObjectComparer->Compare(
                     value1,
                     value2);
             }
             else if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::String>, Value>)
             {
-                return ComparePrimitive(
+                result = ComparePrimitive(
                     value1->string_view(),
                     value2->string_view());
             }
             else
             {
-                return ComparePrimitive(
+                result = ComparePrimitive(
                     value1,
                     value2);
             }
+
+            if (result != std::weak_ordering::equivalent)
+            {
+                return result;
+            }
         }
 
-        return vector1->size() <=> vector2->size();
+        return size1 <=> size2;
     }
     };
 }
