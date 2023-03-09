@@ -75,7 +75,6 @@ add_library (
     "src/UnresolvedTransactionsTracker.h" 
     )
     
-
 target_include_directories(
     Phantom.ProtoStore
     PUBLIC
@@ -103,11 +102,23 @@ flatbuffers_generate_headers(
     BINARY_SCHEMAS_DIR "${CMAKE_CURRENT_BINARY_DIR}"
     SCHEMAS
     include/Phantom.ProtoStore/ProtoStore.fbs
-    src/ProtoStoreInternal.fbs)
+    src/ProtoStoreInternal.fbs
+    src/reflection-phantom-protostore.fbs)
 
 phantom_flatbuffers_generate_natvis(
     TARGET Phantom.ProtoStore.FlatBuffers
     NATVIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+cmrc_add_resource_library(
+    Phantom.ProtoStore.Resources
+    NAMESPACE Phantom::ProtoStore::Resources
+)
+
+phantom_add_flatbuffers_schema_resources(
+    Phantom.ProtoStore.FlatBuffers
+    Phantom.ProtoStore.Resources
+    "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 target_compile_definitions(

@@ -551,6 +551,8 @@ FlatBufferPointerKeyComparer::FlatBufferPointerKeyComparer(
     const ::reflection::Object* flatBuffersReflectionObject
 )
 {
+    flatbuffers::FlatBufferBuilder schemaBuilder;
+
     m_rootComparer = InternalObjectComparer::GetObjectComparer(
         *m_internalComparers,
         flatBuffersReflectionSchema,

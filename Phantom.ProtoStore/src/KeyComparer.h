@@ -217,7 +217,7 @@ private:
             const void* value2
         ) const;
     };
-
+    
     std::shared_ptr<ComparerMap> m_internalComparers = std::make_shared<ComparerMap>();
     const InternalObjectComparer* m_rootComparer;
 

@@ -60,6 +60,17 @@ phantom_flatbuffers_generate_natvis(
     NATVIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
+cmrc_add_resource_library(
+    Phantom.ProtoStore.Test.Resources
+    NAMESPACE Phantom::ProtoStore::Test::Resources
+)
+
+phantom_add_flatbuffers_schema_resources(
+    Phantom.ProtoStore.Test.FlatBuffers
+    Phantom.ProtoStore.Test.Resources
+    "${CMAKE_CURRENT_BINARY_DIR}"
+)
+
 target_link_libraries(
     Phantom.ProtoStore.Test
     PRIVATE
@@ -70,6 +81,7 @@ target_link_libraries(
     PRIVATE
     Phantom.System
     Phantom.ProtoStore
+    Phantom.ProtoStore.Test.Resources
     Phantom.ProtoStore.Test.FlatBuffers
     GTest::gtest
     GTest::gtest_main

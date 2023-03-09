@@ -1,5 +1,6 @@
 ﻿cmake_minimum_required (VERSION 3.24)
 
+find_package(cmakerc REQUIRED)
 enable_testing()
 
 project ("Phantom.Scalable.Native")
@@ -11,6 +12,8 @@ if (MSVC)
 	add_compile_definitions(_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS)
 	add_compile_definitions(_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS)
 endif()
+
+include(cmake/FlatBuffersSchemaResource.cmake)
 
 add_subdirectory ("Phantom.System")
 add_subdirectory ("Phantom.System.Test") 
