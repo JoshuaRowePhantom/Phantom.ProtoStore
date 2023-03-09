@@ -35,6 +35,8 @@ struct TestKeyStruct {
     ulong_array : [ulong : 3];
     double_array : [double : 3];
     substruct_array : [SubStruct : 3];
+
+    descending_value : int (SortOrder: "Descending");
 }
 
 table TestKey {

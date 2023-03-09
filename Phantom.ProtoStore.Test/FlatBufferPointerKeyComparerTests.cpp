@@ -409,5 +409,31 @@ TEST(FlatBufferPointerKeyComparerTests, struct_primitive_types)
     DoFlatBufferPointerKeyComparerStructNumericTest(&TestKeyStruct::mutate_ushort_value);
 }
 
+TEST(FlatBufferPointerKeyComparerTests, table_primitive_descending)
+{
+    DoFlatBufferPointerKeyComparerTableFieldTest(
+        &TestKeyT::descending_value,
+        5,
+        4
+    );
+}
+
+TEST(FlatBufferPointerKeyComparerTests, struct_primitive_descending)
+{
+    TestKeyT low;
+    TestKeyT high;
+
+    low.struct_value = std::make_unique<TestKeyStruct>();
+    high.struct_value = std::make_unique<TestKeyStruct>();
+
+    low.descending_value = 5;
+    high.descending_value = 4;
+
+    DoFlatBufferPointerKeyComparerTest(
+        low,
+        high
+    );
+}
+
 }
 

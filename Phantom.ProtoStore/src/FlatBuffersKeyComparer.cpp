@@ -43,11 +43,19 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer(
     const ::reflection::Object* flatBuffersReflectionObject
 )
 {
+    auto objectSortOrder = GetSortOrder(
+        flatBuffersReflectionObject
+    );
+
     flatbuffers::ForAllFields(
         flatBuffersReflectionObject,
         false,
         [&](auto flatBuffersReflectionField)
     {
+        auto fieldSortOrder = GetSortOrder(
+            flatBuffersReflectionField
+        );
+
         if (flatBuffersReflectionObject->is_struct())
         {
             m_comparers.push_back(
@@ -56,7 +64,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer(
                     flatBuffersReflectionSchema,
                     flatBuffersReflectionObject,
                     flatBuffersReflectionField
-                    ));
+                    )
+                .ApplySortOrder(objectSortOrder, fieldSortOrder));
         }
         else
         {
@@ -66,7 +75,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer(
                     flatBuffersReflectionSchema,
                     flatBuffersReflectionObject,
                     flatBuffersReflectionField
-                    ));
+                    )
+                .ApplySortOrder(objectSortOrder, fieldSortOrder));
         }
     });
 }
@@ -101,7 +111,9 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare
 
         if (result != std::weak_ordering::equivalent)
         {
-            return result;
+            return ApplySortOrder(
+                comparer.sortOrder,
+                result);
         }
     }
 
@@ -130,7 +142,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer* FlatBufferPointerKeyCompar
 
 template<
     typename Container
-> static FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
+> static FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction 
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -233,11 +246,11 @@ template<
     case BaseType::String:
         if constexpr (std::same_as<Container, flatbuffers::Table>)
         {
-            return GetPrimitiveFieldComparer < Container, [](auto table, auto field)
+            return GetPrimitiveFieldComparer<Container, [](auto table, auto field)
             {
                 return flatbuffers::GetStringView(flatbuffers::GetFieldS(*table, *field));
             }
-            > (
+            >(
                 flatBuffersReflectionField);
         }
         else
@@ -313,7 +326,8 @@ template<
 template<
     typename Container,
     auto fieldRetriever
-> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
+> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction 
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
@@ -929,6 +943,39 @@ template<
             *container,
             *flatBuffersReflectionField);
     }
+}
+
+SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
+    const flatbuffers::Vector<flatbuffers::Offset<reflection::KeyValue>>* attributes
+)
+{
+    if (attributes)
+    {
+        for (auto attribute : *attributes)
+        {
+            if (attribute->key()->string_view() == "SortOrder"
+                && attribute->value()->string_view() == "Descending")
+            {
+                return SortOrder::Descending;
+            }
+        }
+    }
+
+    return SortOrder::Ascending;
+}
+
+SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
+    const ::reflection::Object* flatBuffersReflectionObject
+)
+{
+    return GetSortOrder(flatBuffersReflectionObject->attributes());
+}
+
+SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
+    const ::reflection::Field* flatBuffersReflectionField
+)
+{
+    return GetSortOrder(flatBuffersReflectionField->attributes());
 }
 
 }

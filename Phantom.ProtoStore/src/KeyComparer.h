@@ -112,9 +112,39 @@ private:
                 const InternalObjectComparer*,
                 const void* value1,
                 const void* value2);
+
+            const SortOrder sortOrder = SortOrder::Ascending;
+
+            ComparerFunction ApplySortOrder(
+                SortOrder objectSortOrder,
+                SortOrder fieldSortOrder
+            )
+            {
+                return
+                {
+                    flatBuffersReflectionField,
+                    elementComparer,
+                    comparerFunction,
+                    BaseKeyComparer::CombineSortOrder(
+                        objectSortOrder,
+                        fieldSortOrder)
+                };
+            }
         };
 
         std::vector<ComparerFunction> m_comparers;
+
+        static SortOrder GetSortOrder(
+            const flatbuffers::Vector<flatbuffers::Offset<reflection::KeyValue>>* attributes
+        );
+
+        static SortOrder GetSortOrder(
+            const ::reflection::Object* flatBuffersReflectionField
+        );
+
+        static SortOrder GetSortOrder(
+            const ::reflection::Field* flatBuffersReflectionField
+        );
 
         template<
             typename Value
