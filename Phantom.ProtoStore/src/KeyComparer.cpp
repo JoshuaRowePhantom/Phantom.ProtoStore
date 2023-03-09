@@ -691,7 +691,7 @@ template<
             return ComparerFunction
             {
                 flatBuffersReflectionField,
-                nullptr,
+                elementObjectComparer,
                 [](
                     const ::reflection::Field* flatBuffersReflectionField,
                     const InternalObjectComparer* elementObjectComparer,
@@ -705,7 +705,7 @@ template<
                 );
 
                 auto field2 = flatbuffers::GetFieldStruct(
-                    *reinterpret_cast<const Container*>(value1),
+                    *reinterpret_cast<const Container*>(value2),
                     *flatBuffersReflectionField
                 );
 
