@@ -3,6 +3,9 @@
 #include "Phantom.ProtoStore/src/KeyComparer.h"
 #include <limits>
 #include <fstream>
+#include <cmrc/cmrc.hpp>
+
+CMRC_DECLARE(Phantom::ProtoStore::Test::Resources);
 
 namespace Phantom::ProtoStore
 {
@@ -10,23 +13,26 @@ namespace Phantom::ProtoStore
 using FlatBuffers::TestKeyT;
 using FlatBuffers::TestKeyStruct;
 
-template<typename T>
-void DoFlatBufferPointerKeyComparerTest(
-    const T& lesser,
-    const T& greater)
+FlatBufferPointerKeyComparer GetTestKeyFlatBufferPointerKeyComparer()
 {
-    std::ifstream sourceBinarySchemaFile("ProtoStoreTest.bfbs", std::ios::binary);
-
-    std::vector<char> sourceBinarySchema(
-        std::istreambuf_iterator<char>(sourceBinarySchemaFile),
-        {});
+    auto fileSystem = cmrc::Phantom::ProtoStore::Test::Resources::get_filesystem();
+    auto schemaData = fileSystem.open("ProtoStoreTest.bfbs");
 
     const reflection::Schema* schema = flatbuffers::GetRoot<reflection::Schema>(
-        sourceBinarySchema.data());
+        schemaData.begin());
 
     FlatBufferPointerKeyComparer keyComparer(
         schema,
         schema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.TestKey"));
+
+    return std::move(keyComparer);
+}
+
+void DoFlatBufferPointerKeyComparerTest(
+    const TestKeyT& lesser,
+    const TestKeyT& greater)
+{
+    auto keyComparer = GetTestKeyFlatBufferPointerKeyComparer();
 
     FlatMessage lesserFlatMessage{ &lesser };
     FlatMessage greaterFlatMessage{ &greater };
@@ -116,6 +122,25 @@ TEST(FlatBufferPointerKeyComparerTests, table_string_type)
         &TestKeyT::string_value,
         "aa",
         "b");
+}
+
+TEST(FlatBufferPointerKeyComparerTests, table_subtable)
+{
+    TestKeyT low;
+    TestKeyT high;
+
+    low.byte_value = -1;
+    high.byte_value = 1;
+
+    DoFlatBufferPointerKeyComparerTableFieldTest(
+        &TestKeyT::subkey_value,
+        copy_unique(low),
+        copy_unique(high));
+
+    DoFlatBufferPointerKeyComparerTableFieldTest(
+        &TestKeyT::subkey_value,
+        nullptr,
+        copy_unique(low));
 }
 
 template<

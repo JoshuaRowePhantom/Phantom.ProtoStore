@@ -736,7 +736,7 @@ template<
                 );
 
                 auto field2 = flatbuffers::GetFieldT(
-                    *reinterpret_cast<const Container*>(value1),
+                    *reinterpret_cast<const Container*>(value2),
                     *flatBuffersReflectionField
                 );
 
