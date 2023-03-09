@@ -21,6 +21,7 @@ add_library (
     "src/ExtentName.cpp"
     "src/ExtentName.h"
     "src/ExtentStore.h"
+    "src/FlatBuffersKeyComparer.cpp"
     "src/HeaderAccessor.cpp"
     "src/HeaderAccessor.h"
     "src/HeaderAccessorImpl.h"
