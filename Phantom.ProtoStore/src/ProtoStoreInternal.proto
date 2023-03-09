@@ -5,6 +5,27 @@ import "Phantom.ProtoStore/ProtoStore.proto";
 
 package Phantom.ProtoStore.Serialization;
 
+message FieldDescription {
+    repeated int32 FieldNumbers = 1;
+}
+
+message FieldListDescription {
+    repeated FieldDescription Fields = 1;
+}
+
+message KeySchemaDescription {
+    MessageDescription Description = 1;
+}
+
+message ValueSchemaDescription {
+    MessageDescription Description = 1;
+}
+
+message IndexSchemaDescription {
+    KeySchemaDescription Key = 1;
+    ValueSchemaDescription Value = 2;
+}
+
 message InternalKeyPrefixMetadata {
 }
 
