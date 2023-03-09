@@ -327,6 +327,21 @@ TEST(FlatBufferPointerKeyComparerTests, string_vector)
     );
 }
 
+TEST(FlatBufferPointerKeyComparerTests, subkey_vector)
+{
+    TestKeyT low;
+    TestKeyT high;
+
+    low.byte_value = -1;
+    high.byte_value = 1;
+
+    DoFlatBufferPointerKeyComparerVectorTest(
+        &TestKeyT::subkey_vector,
+        [&]() { return copy_unique(low); },
+        [&]() { return copy_unique(high); }
+    );
+}
+
 template<
     typename Type
 >

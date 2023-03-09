@@ -1076,7 +1076,7 @@ template<
     return ComparerFunction
     {
         flatBuffersReflectionField,
-        nullptr,
+        elementObjectComparer,
         [](
             const ::reflection::Field* flatBuffersReflectionField,
             const InternalObjectComparer* elementObjectComparer,
