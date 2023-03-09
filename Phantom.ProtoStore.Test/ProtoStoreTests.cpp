@@ -7,6 +7,7 @@
 #include <cppcoro/static_thread_pool.hpp>
 #define NOMINMAX
 #include "Windows.h"
+#include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
 
 using namespace std;
 
@@ -62,12 +63,12 @@ public:
             request);
     }
 
-    task<ProtoIndex> CreateTestIndex(
+    task<ProtoIndex> CreateTestProtoIndex(
         const shared_ptr<IProtoStore>& store
     )
     {
         CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.IndexName = "test_ProtoIndex";
         createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
         createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
 
@@ -78,12 +79,12 @@ public:
         co_return *index;
     }
 
-    task<ProtoIndex> GetTestIndex(
+    task<ProtoIndex> GetTestProtoIndex(
         const shared_ptr<IProtoStore>& store
     )
     {
         CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_Index";
+        createIndexRequest.IndexName = "test_ProtoIndex";
         createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
         createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
 
@@ -93,7 +94,7 @@ public:
         co_return index;
     }
 
-    task<TransactionResult> AddRowToTestIndex(
+    task<TransactionResult> AddRowToTestProtoIndex(
         const shared_ptr<IProtoStore>& store,
         ProtoIndex index,
         string key,
@@ -128,7 +129,7 @@ public:
         });
     }
 
-    task<> ExpectGetTestRow(
+    task<> ExpectGetTestProtoRow(
         const shared_ptr<IProtoStore>& store,
         ProtoIndex index,
         string key,
@@ -162,7 +163,7 @@ public:
         }
     }
 
-    task<vector<row<StringKey, StringValue>>> EnumerateTestRows(
+    task<vector<row<StringKey, StringValue>>> EnumerateTestProtoRows(
         const shared_ptr<IProtoStore>& store,
         ProtoIndex index,
         optional<string> keyLow,
@@ -222,7 +223,7 @@ public:
         map<string, tuple<string, uint64_t>> expectedRows
     )
     {
-        auto actualRows = co_await EnumerateTestRows(
+        auto actualRows = co_await EnumerateTestProtoRows(
             store,
             index,
             keyLow,
@@ -279,17 +280,17 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
         "testValue1",
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -301,17 +302,17 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_delete_and_enumerate_one_row)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
         "testValue1",
         ToSequenceNumber(5));
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -319,7 +320,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_delete_and_enumerate_one_row)
         ToSequenceNumber(6),
         ToSequenceNumber(5));
 
-    auto enumerateAtSequenceNumber5 = co_await EnumerateTestRows(
+    auto enumerateAtSequenceNumber5 = co_await EnumerateTestProtoRows(
         store,
         index,
         optional<string>(),
@@ -328,7 +329,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_delete_and_enumerate_one_row)
         Inclusivity::Inclusive,
         ToSequenceNumber(5));
 
-    auto enumerateAtSequenceNumber6 = co_await EnumerateTestRows(
+    auto enumerateAtSequenceNumber6 = co_await EnumerateTestProtoRows(
         store,
         index,
         optional<string>(),
@@ -366,10 +367,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_add)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -392,10 +393,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -420,17 +421,17 @@ ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_update)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
         "testValue1",
         ToSequenceNumber(5));
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -466,10 +467,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint_and_update)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -478,7 +479,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_checkpoint_and_update)
 
     co_await store->Checkpoint();
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -514,10 +515,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_two_checkpoint_and_upd
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -526,7 +527,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_enumerate_one_row_after_two_checkpoint_and_upd
 
     co_await store->Checkpoint();
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -569,7 +570,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merg
     //auto createRequest = GetCreateMemoryStoreRequest();
     auto store = co_await CreateStore(createRequest);
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
     ranlux48 rng;
@@ -580,7 +581,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merg
 
     for (auto key : keys)
     {
-        co_await AddRowToTestIndex(
+        co_await AddRowToTestProtoIndex(
             store,
             index,
             key,
@@ -593,7 +594,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merg
 
     for (auto key : keys)
     {
-        co_await ExpectGetTestRow(
+        co_await ExpectGetTestProtoRow(
             store,
             index,
             key,
@@ -605,12 +606,12 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_rows_after_checkpoints_and_merg
     store.reset();
     store = co_await OpenStore(createRequest);
 
-    index = co_await GetTestIndex(
+    index = co_await GetTestProtoIndex(
         store);
 
     for (auto key : keys)
     {
-        co_await ExpectGetTestRow(
+        co_await ExpectGetTestProtoRow(
             store,
             index,
             key,
@@ -624,17 +625,17 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
         "testValue1-5",
         ToSequenceNumber(5));
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -642,7 +643,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
         ToSequenceNumber(6),
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -650,7 +651,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
         ToSequenceNumber(4),
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -658,7 +659,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -666,7 +667,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions)
         ToSequenceNumber(6),
         ToSequenceNumber(6));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -678,10 +679,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -690,7 +691,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
 
     co_await store->Checkpoint();
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -700,7 +701,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
 
     co_await store->Checkpoint();
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -708,7 +709,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
         ToSequenceNumber(7),
         ToSequenceNumber(6));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -716,7 +717,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
         ToSequenceNumber(4),
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -724,7 +725,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -732,7 +733,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
         ToSequenceNumber(6),
         ToSequenceNumber(6));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -740,7 +741,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_multiple_versions_after
         ToSequenceNumber(7),
         ToSequenceNumber(7));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -752,10 +753,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -763,7 +764,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
         ToSequenceNumber(5));
 
     auto result =
-        co_await AddRowToTestIndex(
+        co_await AddRowToTestProtoIndex(
             store,
             index,
             "testKey1",
@@ -793,7 +794,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
         }),
         result);
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -801,7 +802,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_written)
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -813,10 +814,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
 {
     auto store = co_await CreateMemoryStore();
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -826,7 +827,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
     co_await store->Checkpoint();
 
     auto result =
-        co_await AddRowToTestIndex(
+        co_await AddRowToTestProtoIndex(
             store,
             index,
             "testKey1",
@@ -856,7 +857,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
         }),
         result);
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -864,7 +865,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_after_row_checkpointed)
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -879,10 +880,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
 
     auto store = co_await CreateStore(createRequest);
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -892,10 +893,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_reopen)
     store.reset();
     store = co_await OpenStore(createRequest);
 
-    index = co_await GetTestIndex(
+    index = co_await GetTestProtoIndex(
         store);
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -913,10 +914,10 @@ ASYNC_TEST_F(ProtoStoreTests, Checkpoint_deletes_old_logs)
     auto memoryStore = std::static_pointer_cast<MemoryExtentStore>(
         co_await createRequest.ExtentStore());
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -938,10 +939,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
 
     auto store = co_await CreateStore(createRequest);
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -950,7 +951,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint)
 
     co_await store->Checkpoint();
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -964,10 +965,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_re
 
     auto store = co_await CreateStore(createRequest);
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
-    co_await AddRowToTestIndex(
+    co_await AddRowToTestProtoIndex(
         store,
         index,
         "testKey1",
@@ -982,10 +983,10 @@ ASYNC_TEST_F(ProtoStoreTests, Can_read_and_write_one_row_after_checkpoint_and_re
     store.reset();
     store = co_await OpenStore(createRequest);
 
-    index = co_await GetTestIndex(
+    index = co_await GetTestProtoIndex(
         store);
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         "testKey1",
@@ -1002,7 +1003,7 @@ ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_read_written_row_during_operation)
     StringValue expectedValue;
     expectedValue.set_value("testValue1");
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
     co_await store->ExecuteTransaction(
@@ -1043,7 +1044,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
     StringValue unexpectedValue;
     unexpectedValue.set_value("testValue2");
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
     cppcoro::single_consumer_event addRowEvent;
@@ -1113,7 +1114,7 @@ ASYNC_TEST_F(ProtoStoreTests, Can_conflict_on_one_row_and_commits_first)
         }),
         result);
 
-    co_await ExpectGetTestRow(
+    co_await ExpectGetTestProtoRow(
         store,
         index,
         key.value(),
@@ -1133,7 +1134,7 @@ ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_fr
     unexpectedValue.set_value("testValue2");
     TransactionId transactionId("transactionId1");
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
     co_await store->ExecuteTransaction(
@@ -1214,7 +1215,7 @@ ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_fr
     unexpectedValue.set_value("testValue2");
     TransactionId transactionId("transactionId1");
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
     co_await store->ExecuteTransaction(
@@ -1278,7 +1279,7 @@ ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_fr
 
     // The transaction should work!
     {
-        co_await ExpectGetTestRow(
+        co_await ExpectGetTestProtoRow(
             store,
             index,
             key.value(),
@@ -1293,7 +1294,7 @@ ASYNC_TEST_F(ProtoStoreTests, DISABLED_Can_commit_transaction_in_memory_table_fr
     store = co_await OpenStore(createRequest);
 
     {
-        co_await ExpectGetTestRow(
+        co_await ExpectGetTestProtoRow(
             store,
             index,
             key.value(),
@@ -1314,7 +1315,7 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf1))
     auto store = co_await CreateMemoryStore();
     m_perfStore = &store;
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
     int valueCount = 100000;
@@ -1422,7 +1423,7 @@ ASYNC_TEST_F(ProtoStoreTests, PerformanceTest(Perf2))
         createRequest);
     m_perfStore = &store;
 
-    auto index = co_await CreateTestIndex(
+    auto index = co_await CreateTestProtoIndex(
         store);
 
 #ifdef NDEBUG
