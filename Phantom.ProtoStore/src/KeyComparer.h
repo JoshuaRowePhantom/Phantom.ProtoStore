@@ -171,6 +171,16 @@ private:
             const ::reflection::Field* flatBuffersReflectionField
         );
 
+        template<
+        > static ComparerFunction GetTypedVectorFieldComparer<
+            flatbuffers::Struct
+            >(
+            ComparerMap& internalComparers,
+            const ::reflection::Schema* flatBuffersReflectionSchema,
+            const ::reflection::Object* flatBuffersReflectionObject,
+            const ::reflection::Field* flatBuffersReflectionField
+        );
+
         static ComparerFunction GetArrayFieldComparer(
             ComparerMap& internalComparers,
             const ::reflection::Schema* flatBuffersReflectionSchema,

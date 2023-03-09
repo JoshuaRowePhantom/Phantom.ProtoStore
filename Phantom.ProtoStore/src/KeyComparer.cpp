@@ -992,7 +992,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBuffe
         if (flatBuffersReflectionSchema->objects()->Get(
             flatBuffersReflectionField->type()->index())->is_struct())
         {
-            return GetTypedVectorFieldComparer<flatbuffers::Offset<flatbuffers::Struct>>(
+            return GetTypedVectorFieldComparer<flatbuffers::Struct>(
                 internalComparers,
                 flatBuffersReflectionSchema,
                 flatBuffersReflectionObject,
@@ -1053,6 +1053,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBuffe
         throw std::range_error("flatBuffersReflectionField->type()->element()");
     }
 }
+
 template<
     typename Value
 > FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldComparer(
@@ -1097,8 +1098,8 @@ template<
             return std::weak_ordering::equivalent;
         }
 
-        auto size1 = vector1 ? vector1->size() : 0;
-        auto size2 = vector2 ? vector2->size() : 0;
+        auto size1 = flatbuffers::VectorLength(vector1);
+        auto size2 = flatbuffers::VectorLength(vector2);
 
         auto sizeToCompare = std::min(
             size1,
@@ -1131,6 +1132,78 @@ template<
                     value1,
                     value2);
             }
+
+            if (result != std::weak_ordering::equivalent)
+            {
+                return result;
+            }
+        }
+
+        return size1 <=> size2;
+    }
+    };
+}
+
+template<
+> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldComparer<
+    flatbuffers::Struct
+    >(
+    ComparerMap& internalComparers,
+    const ::reflection::Schema* flatBuffersReflectionSchema,
+    const ::reflection::Object* flatBuffersReflectionObject,
+    const ::reflection::Field* flatBuffersReflectionField
+)
+{
+    using reflection::BaseType;
+    InternalObjectComparer* elementObjectComparer = GetObjectComparer(
+        internalComparers,
+        flatBuffersReflectionSchema,
+        flatBuffersReflectionSchema->objects()->Get(
+            flatBuffersReflectionField->type()->index()));
+
+    return ComparerFunction
+    {
+        flatBuffersReflectionField,
+        elementObjectComparer,
+        [](
+            const ::reflection::Field* flatBuffersReflectionField,
+            const InternalObjectComparer* elementObjectComparer,
+            const void* value1,
+            const void* value2
+        ) -> std::weak_ordering
+    {
+        auto vector1 = flatbuffers::GetFieldAnyV(
+            *reinterpret_cast<const flatbuffers::Table*>(value1),
+            *flatBuffersReflectionField);
+
+        auto vector2 = flatbuffers::GetFieldAnyV(
+            *reinterpret_cast<const flatbuffers::Table*>(value2),
+            *flatBuffersReflectionField);
+
+        if (vector1 == vector2)
+        {
+            return std::weak_ordering::equivalent;
+        }
+
+        auto size1 = vector1 ? vector1->size() : 0;
+        auto size2 = vector2 ? vector2->size() : 0;
+
+        auto sizeToCompare = std::min(
+            size1,
+            size2
+        )
+            * flatBuffersReflectionField->type()->element_size();
+
+        for (int32_t index = 0; index < sizeToCompare; index += flatBuffersReflectionField->type()->element_size())
+        {
+            auto value1 = vector1->Data() + index;
+            auto value2 = vector2->Data() + index;
+
+            std::weak_ordering result;
+
+            result = elementObjectComparer->Compare(
+                value1,
+                value2);
 
             if (result != std::weak_ordering::equivalent)
             {
