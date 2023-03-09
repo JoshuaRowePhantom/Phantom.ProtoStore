@@ -24,8 +24,8 @@ class Schema
         const google::protobuf::FileDescriptor* fileDescriptor);
 
 public:
-    static void MakeMessageDescription(
-        MessageDescription& messageDescription,
+    static void MakeSchemaDescription(
+        Serialization::SchemaDescription& messageDescription,
         const Descriptor* messageDescriptor
     );
 
@@ -33,7 +33,7 @@ public:
         const Message* prototype);
 
     static shared_ptr<IMessageFactory> MakeMessageFactory(
-        const MessageDescription& messageDescription);
+        const Serialization::ProtocolBuffersMessageDescription& messageDescription);
 };
 
 

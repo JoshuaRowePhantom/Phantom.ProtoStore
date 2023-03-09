@@ -27,20 +27,21 @@ void Schema::AddFileToMessageDescription(
     }
 }
 
-void Schema::MakeMessageDescription(
-    MessageDescription& messageDescription,
+void Schema::MakeSchemaDescription(
+    Serialization::SchemaDescription& schemaDescription,
     const Descriptor* messageDescriptor
 )
 {
-    messageDescription.Clear();
-    messageDescription.set_messagename(
+    schemaDescription.Clear();
+    auto messageDescription = schemaDescription.mutable_protocolbuffersdescription()->mutable_messagedescription();
+    messageDescription->set_messagename(
         messageDescriptor->full_name());
     
     std::set<const google::protobuf::FileDescriptor*> addedFileDescriptors;
 
     AddFileToMessageDescription(
         addedFileDescriptors,
-        messageDescription.mutable_filedescriptors(),
+        messageDescription->mutable_filedescriptors(),
         messageDescriptor->file()
     );
 }
@@ -100,7 +101,7 @@ shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
 }
 
 shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
-    const MessageDescription& messageDescription
+    const Serialization::ProtocolBuffersMessageDescription& messageDescription
 )
 {
     auto generatedDescriptorPool = google::protobuf::DescriptorPool::generated_pool();

@@ -95,10 +95,11 @@ enum class FlushBehavior
 
 class WriteRowsResult;
 class MergeParameters;
-class MessageDescription;
 
 namespace Serialization
 {
+class SchemaDescription;
+class ProtocolBuffersMessageDescription;
 class LogRecord;
 class IndexesByNameKey;
 class IndexesByNameValue;

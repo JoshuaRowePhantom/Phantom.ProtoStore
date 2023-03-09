@@ -1073,11 +1073,11 @@ void ProtoStore::MakeIndexesByNumberRow(
     indexesByNumberValue.set_indexname(indexName);
     indexesByNumberValue.set_createsequencenumber(ToUint64(createSequenceNumber));
 
-    Schema::MakeMessageDescription(
+    Schema::MakeSchemaDescription(
         *(indexesByNumberValue.mutable_schema()->mutable_key()->mutable_description()),
         keyDescriptor);
 
-    Schema::MakeMessageDescription(
+    Schema::MakeSchemaDescription(
         *(indexesByNumberValue.mutable_schema()->mutable_value()->mutable_description()),
         valueDescriptor);
 }
@@ -1088,10 +1088,10 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
 )
 {
     auto keyMessageFactory = Schema::MakeMessageFactory(
-        indexesByNumberValue.schema().key().description());
+        indexesByNumberValue.schema().key().description().protocolbuffersdescription().messagedescription());
     
     auto valueMessageFactory = Schema::MakeMessageFactory(
-        indexesByNumberValue.schema().value().description());
+        indexesByNumberValue.schema().value().description().protocolbuffersdescription().messagedescription());
 
     auto index = make_shared<Index>(
         indexesByNumberValue.indexname(),

@@ -4,6 +4,7 @@
 #include "Phantom.ProtoStore/src/PartitionWriterImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStoreImpl.h"
+#include "ProtoStoreInternal.pb.h"
 #include "ProtoStoreTest.pb.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include <tuple>
@@ -23,22 +24,22 @@ protected:
         keyComparer = make_shared<ProtoKeyComparer>(
             PartitionTestKey::descriptor());
 
-        MessageDescription keyMessageDescription;
+        SchemaDescription keySchemaDescription;
 
-        Schema::MakeMessageDescription(
-            keyMessageDescription,
+        Schema::MakeSchemaDescription(
+            keySchemaDescription,
             PartitionTestKey::descriptor());
 
-        MessageDescription valueMessageDescription;
+        SchemaDescription valueSchemaDescription;
 
-        Schema::MakeMessageDescription(
-            valueMessageDescription,
+        Schema::MakeSchemaDescription(
+            valueSchemaDescription,
             PartitionTestValue::descriptor());
 
         keyFactory = Schema::MakeMessageFactory(
-            keyMessageDescription);
+            keySchemaDescription.protocolbuffersdescription().messagedescription());
         valueFactory = Schema::MakeMessageFactory(
-            valueMessageDescription);
+            valueSchemaDescription.protocolbuffersdescription().messagedescription());
 
         extentStore = make_shared<MemoryExtentStore>(
             Schedulers::Inline());

@@ -25,11 +25,6 @@ extend google.protobuf.MessageOptions {
   optional ProtoStoreMessageOptions MessageOptions = 50000;
 }
 
-message MessageDescription {
-    google.protobuf.FileDescriptorSet FileDescriptors = 1;
-    string MessageName = 2;
-}
-
 message MergeParameters {
     uint64 MergesPerLevel = 1;
     uint64 MaxLevel = 2;
