@@ -37,47 +37,85 @@ void DoFlatBufferPointerKeyComparerTest(
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterFlatMessage.get(), greaterFlatMessage.get()));
 }
 
-template<
-    auto Member
-> void DoFlatBufferPointerKeyComparerTableNumericTest(
-    )
+void DoFlatBufferPointerKeyComparerTableFieldTest(
+    auto member,
+    auto value1,
+    auto value2
+)
 {
     TestKeyT low;
-    TestKeyT zero;
     TestKeyT high;
 
-    low.*Member = std::numeric_limits<std::decay_t<decltype(low.*Member)>>::lowest();
-    high.*Member = std::numeric_limits<std::decay_t<decltype(high.*Member)>>::max();
-
-    if (low.*Member != 0)
-    {
-        DoFlatBufferPointerKeyComparerTest(
-            low,
-            zero);
-    }
+    low.*member = std::move(value1);
+    high.*member = std::move(value2);
 
     DoFlatBufferPointerKeyComparerTest(
         low,
         high);
+}
 
-    DoFlatBufferPointerKeyComparerTest(
+template<
+    typename Value
+> void DoFlatBufferPointerKeyComparerTableNumericTest(
+    Value TestKeyT::*member)
+{
+    Value lowest = std::numeric_limits<Value>::lowest();
+    Value zero = 0;
+    Value highest = std::numeric_limits<Value>::max();
+
+    return DoFlatBufferPointerKeyComparerTableFieldTest(
+        member,
+        lowest,
+        highest
+    );
+
+    if (lowest != zero)
+    {
+        return DoFlatBufferPointerKeyComparerTableFieldTest(
+            member,
+            lowest,
+            zero
+        );
+    }
+
+    return DoFlatBufferPointerKeyComparerTableFieldTest(
+        member,
         zero,
-        high);
+        highest
+    );
 }
 
 TEST(FlatBufferPointerKeyComparerTests, table_primitive_types)
 {
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::bool_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::byte_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::double_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::float_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::int_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::long_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::short_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::ubyte_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::uint_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::ulong_value>();
-    DoFlatBufferPointerKeyComparerTableNumericTest<&TestKeyT::ushort_value>();
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::bool_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::byte_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::double_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::float_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::int_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::long_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::short_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::ubyte_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::uint_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::ulong_value);
+    DoFlatBufferPointerKeyComparerTableNumericTest(&TestKeyT::ushort_value);
+}
+
+TEST(FlatBufferPointerKeyComparerTests, table_string_type)
+{
+    DoFlatBufferPointerKeyComparerTableFieldTest(
+        &TestKeyT::string_value,
+        "",
+        "a");
+
+    DoFlatBufferPointerKeyComparerTableFieldTest(
+        &TestKeyT::string_value,
+        "aa",
+        "aaa");
+
+    DoFlatBufferPointerKeyComparerTableFieldTest(
+        &TestKeyT::string_value,
+        "aa",
+        "b");
 }
 
 template<
