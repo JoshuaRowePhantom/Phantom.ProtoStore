@@ -16,7 +16,7 @@ public:
     ) const = 0;
 };
 
-class Schema
+class SchemaDescriptions
 {
     static void AddFileToMessageDescription(
         std::set<const google::protobuf::FileDescriptor*>& addedFileDescriptors,

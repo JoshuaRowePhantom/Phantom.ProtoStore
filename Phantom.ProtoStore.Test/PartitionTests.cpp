@@ -26,13 +26,13 @@ protected:
 
         SchemaDescription keySchemaDescription;
 
-        Schema::MakeSchemaDescription(
+        SchemaDescriptions::MakeSchemaDescription(
             keySchemaDescription,
             PartitionTestKey::descriptor());
 
         SchemaDescription valueSchemaDescription;
 
-        Schema::MakeSchemaDescription(
+        SchemaDescriptions::MakeSchemaDescription(
             valueSchemaDescription,
             PartitionTestValue::descriptor());
 

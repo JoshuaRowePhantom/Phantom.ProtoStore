@@ -107,8 +107,7 @@ class ProtoStore
         const IndexName& indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
-        const Descriptor* keyDescriptor,
-        const Descriptor* valueDescriptor
+        const Schema& schema
     );
 
     IndexEntry MakeIndex(

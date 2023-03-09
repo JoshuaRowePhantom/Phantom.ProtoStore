@@ -97,8 +97,9 @@ task<> ProtoStore::Open(
             "__System.IndexesByNumber",
             1,
             SequenceNumber::Earliest,
-            IndexesByNumberKey::descriptor(),
-            IndexesByNumberValue::descriptor());
+            Schema::Make(
+                IndexesByNumberKey::descriptor(),
+                IndexesByNumberValue::descriptor()));
 
         m_indexesByNumberIndex = MakeIndex(
             indexesByNumberKey,
@@ -116,8 +117,9 @@ task<> ProtoStore::Open(
             "__System.IndexesByName",
             2,
             SequenceNumber::Earliest,
-            IndexesByNameKey::descriptor(),
-            IndexesByNameValue::descriptor());
+            Schema::Make(
+                IndexesByNameKey::descriptor(),
+                IndexesByNameValue::descriptor()));
 
         m_indexesByNameIndex = MakeIndex(
             indexesByNumberKey,
@@ -135,8 +137,9 @@ task<> ProtoStore::Open(
             "__System.Partitions",
             3,
             SequenceNumber::Earliest,
-            PartitionsKey::descriptor(),
-            PartitionsValue::descriptor());
+            Schema::Make(
+                PartitionsKey::descriptor(),
+                PartitionsValue::descriptor()));
 
         m_partitionsIndex = MakeIndex(
             indexesByNumberKey,
@@ -154,8 +157,9 @@ task<> ProtoStore::Open(
             "__System.Merges",
             4,
             SequenceNumber::Earliest,
-            MergesKey::descriptor(),
-            MergesValue::descriptor());
+            Schema::Make(
+                MergesKey::descriptor(),
+                MergesValue::descriptor()));
 
         m_mergesIndex = MakeIndex(
             indexesByNumberKey,
@@ -173,8 +177,9 @@ task<> ProtoStore::Open(
             "__System.MergeProgress",
             5,
             SequenceNumber::Earliest,
-            MergeProgressKey::descriptor(),
-            MergeProgressValue::descriptor());
+            Schema::Make(
+                MergeProgressKey::descriptor(),
+                MergeProgressValue::descriptor()));
 
         m_mergeProgressIndex = MakeIndex(
             indexesByNumberKey,
@@ -192,8 +197,9 @@ task<> ProtoStore::Open(
             "__System.UnresolvedTransactions",
             6,
             SequenceNumber::Earliest,
-            UnresolvedTransactionKey::descriptor(),
-            UnresolvedTransactionValue::descriptor());
+            Schema::Make(
+                UnresolvedTransactionKey::descriptor(),
+                UnresolvedTransactionValue::descriptor()));
 
         m_unresolvedTransactionIndex = MakeIndex(
             indexesByNumberKey,
@@ -942,8 +948,7 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
         createIndexRequest.IndexName,
         indexNumber,
         SequenceNumber::Earliest,
-        createIndexRequest.KeySchema.KeyDescriptor,
-        createIndexRequest.ValueSchema.ValueDescriptor
+        createIndexRequest.Schema
     );
 
     auto transactionResult = co_await co_await InternalExecuteTransaction(
@@ -1061,8 +1066,7 @@ void ProtoStore::MakeIndexesByNumberRow(
     const IndexName& indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
-    const Descriptor* keyDescriptor,
-    const Descriptor* valueDescriptor
+    const Schema& schema
 )
 {
     indexesByNumberKey.Clear();
@@ -1073,13 +1077,13 @@ void ProtoStore::MakeIndexesByNumberRow(
     indexesByNumberValue.set_indexname(indexName);
     indexesByNumberValue.set_createsequencenumber(ToUint64(createSequenceNumber));
 
-    Schema::MakeSchemaDescription(
+    SchemaDescriptions::MakeSchemaDescription(
         *(indexesByNumberValue.mutable_schema()->mutable_key()->mutable_description()),
-        keyDescriptor);
+        get<ProtocolBuffersKeySchema>(schema.KeySchema.FormatSchema).ObjectSchema.MessageDescriptor);
 
-    Schema::MakeSchemaDescription(
+    SchemaDescriptions::MakeSchemaDescription(
         *(indexesByNumberValue.mutable_schema()->mutable_value()->mutable_description()),
-        valueDescriptor);
+        get<ProtocolBuffersValueSchema>(schema.ValueSchema.FormatSchema).ObjectSchema.MessageDescriptor);
 }
 
 ProtoStore::IndexEntry ProtoStore::MakeIndex(
@@ -1087,7 +1091,7 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     const IndexesByNumberValue& indexesByNumberValue
 )
 {
-    auto keyComparer = Schema::MakeKeyComparer(
+    auto keyComparer = SchemaDescriptions::MakeKeyComparer(
         indexesByNumberValue.schema().key().description()
     );
 

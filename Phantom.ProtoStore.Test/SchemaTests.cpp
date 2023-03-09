@@ -12,7 +12,7 @@ TEST(SchemaTests, Can_round_trip_to_key_comparer_with_compiled_class)
 {
     Serialization::SchemaDescription schemaDescription;
 
-    Schema::MakeSchemaDescription(
+    SchemaDescriptions::MakeSchemaDescription(
         schemaDescription,
         TestKey::descriptor());
 
@@ -20,7 +20,7 @@ TEST(SchemaTests, Can_round_trip_to_key_comparer_with_compiled_class)
         "Phantom.ProtoStore.TestKey", 
         schemaDescription.protocolbuffersdescription().messagedescription().messagename());
 
-    auto keyComparer = Schema::MakeKeyComparer(
+    auto keyComparer = SchemaDescriptions::MakeKeyComparer(
         schemaDescription);
 
     TestKey low;

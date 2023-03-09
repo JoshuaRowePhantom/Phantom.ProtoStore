@@ -69,8 +69,9 @@ public:
     {
         CreateIndexRequest createIndexRequest;
         createIndexRequest.IndexName = "test_ProtoIndex";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+        createIndexRequest.Schema = Schema::Make(
+            StringKey::descriptor(),
+            StringValue::descriptor());
 
         auto index = co_await store->CreateIndex(
             createIndexRequest
@@ -85,8 +86,9 @@ public:
     {
         CreateIndexRequest createIndexRequest;
         createIndexRequest.IndexName = "test_ProtoIndex";
-        createIndexRequest.KeySchema.KeyDescriptor = StringKey::descriptor();
-        createIndexRequest.ValueSchema.ValueDescriptor = StringValue::descriptor();
+        createIndexRequest.Schema = Schema::Make(
+            StringKey::descriptor(),
+            StringValue::descriptor());
 
         auto index = co_await store->GetIndex(
             createIndexRequest

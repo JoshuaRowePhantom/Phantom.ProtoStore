@@ -7,7 +7,7 @@
 namespace Phantom::ProtoStore
 {
 
-void Schema::AddFileToMessageDescription(
+void SchemaDescriptions::AddFileToMessageDescription(
     std::set<const google::protobuf::FileDescriptor*>& addedFileDescriptors,
     google::protobuf::FileDescriptorSet* fileDescriptorSet,
     const google::protobuf::FileDescriptor* fileDescriptor)
@@ -28,7 +28,7 @@ void Schema::AddFileToMessageDescription(
     }
 }
 
-void Schema::MakeSchemaDescription(
+void SchemaDescriptions::MakeSchemaDescription(
     Serialization::SchemaDescription& schemaDescription,
     const Descriptor* messageDescriptor
 )
@@ -92,7 +92,7 @@ const Message* ProtoStoreMessageFactory::GetPrototype(
     return m_prototype;
 }
 
-shared_ptr<KeyComparer> Schema::MakeKeyComparer(
+shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
     const Serialization::SchemaDescription& messageDescription)
 {
     if (messageDescription.has_protocolbuffersdescription())
@@ -104,7 +104,7 @@ shared_ptr<KeyComparer> Schema::MakeKeyComparer(
     throw std::range_error("messageDescription");
 }
 
-shared_ptr<KeyComparer> Schema::MakeProtocolBuffersKeyComparer(
+shared_ptr<KeyComparer> SchemaDescriptions::MakeProtocolBuffersKeyComparer(
     const Serialization::ProtocolBuffersSchemaDescription& protocolBuffersSchemaDescription)
 {
     auto& messageDescription = protocolBuffersSchemaDescription.messagedescription();
