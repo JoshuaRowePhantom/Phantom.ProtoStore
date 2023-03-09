@@ -11,6 +11,7 @@ add_library (
     "include/Phantom.ProtoStore/ProtoIndex.h"
     "include/Phantom.ProtoStore/ProtoStore.proto"
     "include/Phantom.ProtoStore/Scheduler.h" 
+    "include/Phantom.ProtoStore/Schema.h"
     "src/BloomFilter.h"
     "src/CanonicalProtoKey.cpp"
     "src/CanonicalProtoKey.h" 

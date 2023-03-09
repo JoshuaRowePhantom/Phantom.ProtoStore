@@ -18,6 +18,8 @@ struct MessageReference_V1;
 struct PartitionMessage;
 }
 
+class ProtoValue;
+
 // A DataReference uses an std::shared_ptr to ensure
 // access to an backing store is maintained at least
 // as long as the resource is referenced.
@@ -222,10 +224,14 @@ struct StoredMessage
 
 template<
     typename T
+> concept IsFlatBufferTable = std::is_base_of<flatbuffers::Table, T>::value;
+
+template<
+    typename T
 > concept IsNativeTable = std::derived_from<T, flatbuffers::NativeTable>;
 
 template<
-    typename Table
+    IsFlatBufferTable Table
 > class FlatMessage;
 
 template<
@@ -233,7 +239,7 @@ template<
 > concept IsFlatMessage = is_template_instantiation<T, FlatMessage>;
 
 template<
-    typename Table
+    IsFlatBufferTable Table
 > class FlatMessage
 {
     DataReference<StoredMessage> m_storedMessage;
@@ -343,8 +349,12 @@ public:
         DebugVerifyBuffer();
     }
 
+    template<
+        IsNativeTable NativeTable
+    >
+        requires std::same_as<NativeTable, typename Table::NativeTableType>
     explicit FlatMessage(
-        const typename Table::NativeTableType* table
+        const NativeTable* table
     )
     {
         flatbuffers::FlatBufferBuilder builder;
@@ -404,25 +414,34 @@ public:
         return m_storedMessage;
     }
 
+    operator ProtoValue() const & noexcept;
+    operator ProtoValue()&& noexcept;
+
     void DebugVerifyBuffer()
     {
-        if (m_storedMessage)
+        if constexpr (!std::same_as<flatbuffers::Table, Table>)
         {
-            flatbuffers::Verifier verifier(
-                get_uint8_t_span(m_storedMessage->Content.Payload).data(),
-                m_storedMessage->Content.Payload.size());
-            assert(verifier.VerifyBuffer<Table>());
+            if (m_storedMessage)
+            {
+                flatbuffers::Verifier verifier(
+                    get_uint8_t_span(m_storedMessage->Content.Payload).data(),
+                    m_storedMessage->Content.Payload.size());
+                assert(verifier.VerifyBuffer<Table>());
+            }
         }
     }
 
     void DebugVerifyTable()
     {
-        if (m_table)
+        if constexpr (!std::same_as<flatbuffers::Table, Table>)
         {
-            flatbuffers::Verifier verifier(
-                get_uint8_t_span(m_storedMessage->Content.Payload).data(),
-                m_storedMessage->Content.Payload.size());
-            assert(verifier.VerifyTable(m_table));
+            if (m_table)
+            {
+                flatbuffers::Verifier verifier(
+                    get_uint8_t_span(m_storedMessage->Content.Payload).data(),
+                    m_storedMessage->Content.Payload.size());
+                assert(verifier.VerifyTable(m_table));
+            }
         }
     }
 };
@@ -448,7 +467,8 @@ class ProtoValue
     typedef std::variant<
         std::monostate,
         const google::protobuf::Message*,
-        std::unique_ptr<const google::protobuf::Message>
+        std::shared_ptr<const google::protobuf::Message>,
+        const flatbuffers::Table*
     > message_type;
 
 public:
@@ -459,7 +479,20 @@ public:
     ProtoValue();
 
     ProtoValue(
-        std::unique_ptr<google::protobuf::Message>&& other);
+        const ProtoValue&);
+
+    ProtoValue(
+        ProtoValue&&);
+
+    ProtoValue& operator=(ProtoValue&&);
+
+    ProtoValue(
+        AlignedMessageData,
+        const flatbuffers::Table*
+    );
+
+    ProtoValue(
+        std::shared_ptr<google::protobuf::Message> other);
 
     ProtoValue(
         std::string bytes);
@@ -474,9 +507,6 @@ public:
         const google::protobuf::Message* other,
         bool pack = false);
 
-    ProtoValue(
-        ProtoValue&&);
-
     ~ProtoValue();
 
     static ProtoValue KeyMin();
@@ -489,7 +519,7 @@ public:
     const google::protobuf::Message* as_message_if() const;
 
     template<
-        typename TMessage
+        std::derived_from<google::protobuf::Message> TMessage
     > const TMessage* cast_if() const
     {
         auto message = as_message_if();
@@ -502,6 +532,19 @@ public:
             message->GetDescriptor() == TMessage::descriptor())
         {
             return static_cast<const TMessage*>(message);
+        }
+
+        return nullptr;
+    }
+
+    template<
+        IsFlatBufferTable Table
+    > const Table* cast_if() const
+    {
+        if (holds_alternative<const flatbuffers::Table*>(message))
+        {
+            return reinterpret_cast<const Table*>(
+                get<const flatbuffers::Table*>(message));
         }
 
         return nullptr;
@@ -521,8 +564,58 @@ public:
 
     bool IsKeyMin() const;
     bool IsKeyMax() const;
-
-    ProtoValue& operator=(ProtoValue&&);
 };
+
+template<
+    IsFlatBufferTable Table
+>
+FlatMessage<Table>::operator ProtoValue() const & noexcept
+{
+    if (m_table)
+    {
+        return ProtoValue
+        {
+            m_storedMessage ?
+                AlignedMessageData
+                {
+                    m_storedMessage,
+                    m_storedMessage->Content,
+                }
+                :
+                AlignedMessageData{},
+            reinterpret_cast<const flatbuffers::Table*>(m_table),
+        };
+    }
+    else
+    {
+        return {};
+    }
+}
+
+template<
+    IsFlatBufferTable Table
+>
+FlatMessage<Table>::operator ProtoValue() && noexcept
+{
+    if (m_table)
+    {
+        return ProtoValue
+        {
+            m_storedMessage ?
+                AlignedMessageData
+                {
+                    std::move(m_storedMessage),
+                    m_storedMessage->Content,
+                }
+                :
+                AlignedMessageData{},
+            reinterpret_cast<const flatbuffers::Table*>(m_table),
+        };
+    }
+    else
+    {
+        return {};
+    }
+}
 
 }

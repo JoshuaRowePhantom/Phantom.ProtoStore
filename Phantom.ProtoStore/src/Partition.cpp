@@ -592,8 +592,11 @@ task<> Partition::CheckTreeNodeIntegrity(
         treeEntryErrorPrototype.Key = GetAlignedMessageData(
             treeNodeMessage,
             treeNodeMessage->tree_node()->keys()->Get(index)->key());
-        treeEntryErrorPrototype.PartitionMessage = copy_shared(
-            treeNodeMessage);
+        
+        treeEntryErrorPrototype.PartitionMessage = make_shared<FlatMessage<flatbuffers::Table>>(
+            treeNodeMessage,
+            reinterpret_cast<const flatbuffers::Table*>(treeNodeMessage.get())
+            );
 
         auto treeEntry = treeNodeMessage->tree_node()->keys()->Get(index);
 

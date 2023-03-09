@@ -23,7 +23,7 @@ ProtoValue ProtoValue::KeyMax()
 ProtoValue::ProtoValue() = default;
 
 ProtoValue::ProtoValue(
-    std::unique_ptr<google::protobuf::Message>&& other)
+    std::shared_ptr<google::protobuf::Message> other)
 {
     if (other)
     {
@@ -168,7 +168,7 @@ const google::protobuf::Message* ProtoValue::as_message_if() const
     }
 
     {
-        auto source = std::get_if<std::unique_ptr<const google::protobuf::Message>>(&message);
+        auto source = std::get_if<std::shared_ptr<const google::protobuf::Message>>(&message);
         if (source)
         {
             return source->get();
@@ -232,9 +232,39 @@ std::span<const std::byte> ProtoValue::as_bytes_if() const
 }
 
 ProtoValue::ProtoValue(
-    ProtoValue&&
+    ProtoValue&& other
+)
+{
+    std::swap(message_data, other.message_data);
+    std::swap(message, other.message);
+}
+
+ProtoValue::ProtoValue(
+    const ProtoValue& other
 ) = default;
 
-ProtoValue& ProtoValue::operator=(ProtoValue&&) = default;
+ProtoValue& ProtoValue::operator=(ProtoValue&& other)
+{
+    if (&other == this)
+    {
+        return *this;
+    }
+
+    ProtoValue temp(std::move(*this));
+    std::swap(message_data, other.message_data);
+    std::swap(message, other.message);
+    
+    return *this;
+}
+
+
+ProtoValue::ProtoValue(
+    AlignedMessageData alignedMessageData,
+    const flatbuffers::Table* table
+) :
+    message_data(std::move(alignedMessageData)),
+    message(table)
+{
+}
 
 }
