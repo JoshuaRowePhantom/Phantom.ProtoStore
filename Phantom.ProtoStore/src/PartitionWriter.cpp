@@ -48,31 +48,11 @@ PartitionTreeWriter::PartitionTreeWriter(
 {
 }
 
-PartitionTreeWriter::PartitionDataValueOffset PartitionTreeWriter::WriteRawData(
-    FlatBufferBuilder& builder,
-    const RawData& rawData
-)
-{
-    if (!rawData->data())
-    {
-        return {};
-    }
-
-    auto dataVectorOffset = builder.CreateVector<int8_t>(
-        get_int8_t_span(*rawData).data(),
-        rawData->size());
-
-    return FlatBuffers::CreatePartitionDataValue(
-        builder,
-        dataVectorOffset,
-        1);
-}
-
 void PartitionTreeWriter::FinishKey(
     PartitionTreeEntryValueOffsetVector& treeEntryValues
 )
 {
-    if (!current().highestKey->data())
+    if (!*current().highestKey)
     {
         assert(treeEntryValues.empty());
         return;
@@ -82,9 +62,9 @@ void PartitionTreeWriter::FinishKey(
 
     auto& builder = m_treeNodeStack.front().partitionTreeNodeBuilder;
 
-    auto keyOffset = WriteRawData(
+    auto keyOffset = CreateDataValue(
         builder,
-        current().highestKey);
+        *current().highestKey);
 
     auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
         builder,
@@ -125,7 +105,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     if (propagateKeyToParent)
     {
         StackEntry& next = m_treeNodeStack[level + 1];
-        auto approximateSize = current->highestKey->size() + 100;
+        auto approximateSize = current->highestKey->Payload.size() + 100;
         if (next.partitionTreeNodeBuilder.GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize)
         {
             // Note that we don't forward the value of "isFinishing",
@@ -168,9 +148,9 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
         parent->highestKey = std::move(current->highestKey);
         parent->lowestSequenceNumberForKey = current->lowestSequenceNumberForKey;
 
-        auto nextKeyDataOffset = WriteRawData(
+        auto nextKeyDataOffset = CreateDataValue(
             parent->partitionTreeNodeBuilder,
-            parent->highestKey
+            *parent->highestKey
         );
 
         auto nextPartitionTreeEntryKey = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
@@ -200,7 +180,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     auto latestSequenceNumber = SequenceNumber::Earliest;
 
     m_treeNodeStack.push_back(StackEntry());
-    PartitionDataValueOffset currentKeyOffset;
+    DataValueOffset currentKeyOffset;
     PartitionTreeEntryValueOffsetVector currentValues;
 
     auto& partitionTreeNodeBuilder = m_treeNodeStack.front().partitionTreeNodeBuilder;
@@ -220,9 +200,9 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         ResultRow& row = *iterator;
 
         auto approximateRowSize =
-            row.Key->size()
-            + row.Value->size()
-            + row.TransactionId->size()
+            row.Key->Payload.size()
+            + row.Value->Payload.size()
+            + row.TransactionId->Payload.size()
             + 100;
 
         if ((co_await m_dataWriter->CurrentOffset() + partitionTreeNodeBuilder.GetSize() + approximateRowSize) > m_writeRowsRequest.targetExtentSize)
@@ -268,7 +248,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             earliestSequenceNumber = row.WriteSequenceNumber;
         }
         
-        if (current().highestKey->data() && !std::ranges::equal(*current().highestKey, *row.Key))
+        if (current().highestKey->Payload.data() && !std::ranges::equal(current().highestKey->Payload, row.Key->Payload))
         {
             FinishKey(
                 currentValues
@@ -278,19 +258,15 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         current().highestKey = std::move(row.Key);
         current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
         m_bloomFilter.add(
-            *current().highestKey);
+            current().highestKey->Payload);
 
-        auto valueDataOffset = WriteRawData(
+        auto valueDataOffset = CreateDataValue(
             partitionTreeNodeBuilder,
-            row.Value);
+            *row.Value);
 
-        Offset<flatbuffers::Vector<int8_t>> transactionIdOffset;
-        if (row.TransactionId->data())
-        {
-            transactionIdOffset = partitionTreeNodeBuilder.CreateVector<int8_t>(
-                get_int8_t_span(*row.TransactionId).data(),
-                row.TransactionId->size());
-        }
+        auto transactionIdOffset = CreateDataValue(
+            partitionTreeNodeBuilder,
+            *row.TransactionId);
 
         auto partitionTreeEntryValueOffset = FlatBuffers::CreatePartitionTreeEntryValue(
             partitionTreeNodeBuilder,

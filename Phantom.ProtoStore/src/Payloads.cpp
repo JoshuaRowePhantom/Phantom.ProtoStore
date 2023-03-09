@@ -48,11 +48,11 @@ ProtoValue::ProtoValue(
 }
 
 ProtoValue::ProtoValue(
-    RawData bytes)
+    AlignedMessageData message)
 {
-    if (bytes->data())
+    if (message)
     {
-        message_data = std::move(bytes);
+        message_data = std::move(message);
     }
 }
 
@@ -224,9 +224,9 @@ std::span<const std::byte> ProtoValue::as_bytes_if() const
     {
         return get<std::span<const std::byte>>(message_data);
     }
-    if (holds_alternative<RawData>(message_data))
+    if (holds_alternative<AlignedMessageData>(message_data))
     {
-        return get<RawData>(message_data).data();
+        return get<AlignedMessageData>(message_data)->Payload;
     }
     return {};
 }

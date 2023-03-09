@@ -166,8 +166,8 @@ struct PartitionRoot;
 struct PartitionRootT;
 struct PartitionTreeNode;
 struct PartitionTreeNodeT;
-struct PartitionDataValue;
-struct PartitionDataValueT;
+struct DataValue;
+struct DataValueT;
 struct PartitionTreeEntryKey;
 struct PartitionTreeEntryKeyT;
 struct PartitionTreeEntryValue;
@@ -260,8 +260,8 @@ public:
     using PartitionBloomFilterT = FlatBuffers::PartitionBloomFilterT;
     using PartitionHeader = FlatBuffers::PartitionHeader;
     using PartitionHeaderT = FlatBuffers::PartitionHeaderT;
-    using PartitionDataValue = FlatBuffers::PartitionDataValue;
-    using PartitionDataValueT = FlatBuffers::PartitionDataValueT;
+    using DataValue = FlatBuffers::DataValue;
+    using DataValueT = FlatBuffers::DataValueT;
     using MessageReference_V1 = FlatBuffers::MessageReference_V1;
     using MessageHeader_V1 = FlatBuffers::MessageHeader_V1;
     using UnresolvedTransactionKey = Serialization::UnresolvedTransactionKey;
@@ -289,10 +289,10 @@ using LocalTransactionNumber = uint64_t;
 
 struct ResultRow
 {
-    RawData Key;
+    AlignedMessageData Key;
     SequenceNumber WriteSequenceNumber;
-    RawData Value;
-    RawData TransactionId;
+    AlignedMessageData Value;
+    AlignedMessageData TransactionId;
 };
 
 typedef cppcoro::async_generator<ResultRow> row_generator;
@@ -317,5 +317,29 @@ typedef row<Serialization::MergesKey, Serialization::MergesValue> merges_row_typ
 typedef vector<merges_row_type> merges_row_list_type;
 typedef row<Serialization::MergeProgressKey, Serialization::MergeProgressValue> merge_progress_row_type;
 typedef vector<merge_progress_row_type> merge_progress_row_list_type;
+
+flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(
+    flatbuffers::FlatBufferBuilder& builder,
+    const AlignedMessage& message
+);
+
+AlignedMessage GetAlignedMessage(
+    const FlatBuffers::DataValue* data
+);
+
+AlignedMessageData GetAlignedMessageData(
+    DataReference<StoredMessage> reference,
+    const FlatBuffers::DataValue* data
+);
+
+AlignedMessageData GetAlignedMessageData(
+    const IsFlatMessage auto& reference,
+    const FlatBuffers::DataValue* data
+)
+{
+    return GetAlignedMessageData(
+        static_cast<DataReference<StoredMessage>>(reference),
+        data);
+}
 
 }

@@ -53,9 +53,9 @@ protected:
 
                     ResultRow resultRow =
                     {
-                        .Key = { stringKeyProto, stringKeyProto->as_bytes_if() },
+                        .Key = { stringKeyProto, { 1, stringKeyProto->as_bytes_if() } },
                         .WriteSequenceNumber = ToSequenceNumber(get<2>(testRow)),
-                        .Value = { stringValueProto, stringValueProto->as_bytes_if() },
+                        .Value = { stringValueProto, { 1, stringValueProto->as_bytes_if() } },
                     };
 
                     co_yield resultRow;

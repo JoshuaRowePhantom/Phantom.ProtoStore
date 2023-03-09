@@ -44,14 +44,14 @@ protected:
             extentStore);
     }
 
-    std::unique_ptr<PartitionDataValueT> ToSerializedValue(
+    std::unique_ptr<DataValueT> ToSerializedValue(
         const Message& message
     )
     {
         auto serializedValue = message.SerializeAsString();
 
-        auto dataValue = std::make_unique<PartitionDataValueT>();
-        dataValue->alignment = 1;
+        auto dataValue = std::make_unique<DataValueT>();
+        dataValue->flatbuffers_alignment = 1;
         dataValue->data.resize(serializedValue.size());
         std::copy_n(
             serializedValue.data(),
@@ -62,7 +62,7 @@ protected:
         return std::move(dataValue);
     }
 
-    std::unique_ptr<PartitionDataValueT> ToSerializedKey(
+    std::unique_ptr<DataValueT> ToSerializedKey(
         google::protobuf::int32 key)
     {
         PartitionTestKey protoKey;
@@ -72,7 +72,7 @@ protected:
             protoKey);
     }
 
-    std::unique_ptr<PartitionDataValueT> ToSerializedValue(
+    std::unique_ptr<DataValueT> ToSerializedValue(
         google::protobuf::int32 key,
         google::protobuf::uint64 sequenceNumber)
     {

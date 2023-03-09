@@ -22,8 +22,8 @@ row_generator RowMerger::Merge(
         )
     {
         auto keyOrdering = m_keyComparer->Compare(
-            *row1.Key,
-            *row2.Key
+            row1.Key->Payload,
+            row2.Key->Payload
         );
 
         if (keyOrdering == std::weak_ordering::less)
@@ -67,15 +67,15 @@ row_generator RowMerger::Enumerate(
     {
         auto& row = *iterator;
 
-        if (previousRow.Key->data()
-            && std::ranges::equal(*previousRow.Key, *row.Key))
+        if (previousRow.Key
+            && std::ranges::equal(previousRow.Key->Payload, row.Key->Payload))
         {
             continue;
         }
         
         previousRow = row;
 
-        if (!row.Value->data())
+        if (!row.Value)
         {
             continue;
         }

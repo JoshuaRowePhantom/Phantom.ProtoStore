@@ -12,17 +12,6 @@
 namespace Phantom::ProtoStore
 {
 
-RawData GetRawData(
-    const IsFlatMessage auto& reference,
-    const FlatBuffers::PartitionDataValue* dataValue)
-{
-    return RawData
-    {
-        DataReference<StoredMessage>{ reference },
-        get_byte_span(dataValue->data()),
-    };
-}
-
 size_t BloomFilterV1Hash::operator()(std::span<const std::byte> value) const
 {
     return checksum_v1(
@@ -32,7 +21,7 @@ size_t BloomFilterV1Hash::operator()(std::span<const std::byte> value) const
 
 struct Partition::EnumerateLastReturnedKey
 {
-    RawData Key;
+    AlignedMessageData Key;
 };
 
 Partition::Partition(
@@ -385,7 +374,7 @@ row_generator Partition::Enumerate(
     {
         const FlatBuffers::PartitionTreeEntryKey* keyEntry = treeNode->tree_node()->keys()->Get(lowTreeEntryIndex);
         
-        RawData key = GetRawData(
+        AlignedMessageData key = GetAlignedMessageData(
             treeNode,
             keyEntry->key());
 
@@ -417,11 +406,11 @@ row_generator Partition::Enumerate(
             // so set low to that key.
             if (enumerateBehavior == EnumerateBehavior::PointInTimeRead
                 &&
-                childEnumerateLastReturnedKey.Key->data())
+                childEnumerateLastReturnedKey.Key)
             {
                 low =
                 {
-                    *childEnumerateLastReturnedKey.Key,
+                    childEnumerateLastReturnedKey.Key->Payload,
                     Inclusivity::Exclusive,
                 };
 
@@ -450,7 +439,7 @@ row_generator Partition::Enumerate(
                 treeEntryValue = nullptr;
             }
 
-            RawData value;
+            AlignedMessageData value;
 
             // The node matched, and we might have a value to return;
             // except we might have found a tree entry whose values are all newer
@@ -471,7 +460,7 @@ row_generator Partition::Enumerate(
                 {
                 } else if (treeEntryValue->value())
                 {
-                    value = GetRawData(
+                    value = GetAlignedMessageData(
                         treeNode,
                         treeEntryValue->value());
                 }
@@ -480,7 +469,7 @@ row_generator Partition::Enumerate(
                     auto valueMessage = co_await ReadData(
                         treeEntryValue->big_value());
 
-                    value = GetRawData(
+                    value = GetAlignedMessageData(
                         valueMessage,
                         valueMessage->value());
                 }
@@ -496,7 +485,7 @@ row_generator Partition::Enumerate(
                 {
                     low =
                     {
-                        *key,
+                        key->Payload,
                         Inclusivity::Exclusive,
                     };
 
@@ -558,9 +547,9 @@ task<> Partition::CheckTreeNodeIntegrity(
     IntegrityCheckErrorList& errorList,
     const IntegrityCheckError& errorPrototype,
     const FlatBuffers::MessageReference_V1* messageReference,
-    RawData minKeyExclusive,
+    AlignedMessageData minKeyExclusive,
     SequenceNumber minKeyExclusiveLowestSequenceNumber,
-    RawData maxKeyInclusive,
+    AlignedMessageData maxKeyInclusive,
     SequenceNumber maxKeyInclusiveLowestSequenceNumber)
 {
     auto treeNodeMessage = co_await ReadData(messageReference);
@@ -580,7 +569,7 @@ task<> Partition::CheckTreeNodeIntegrity(
         co_return;
     }
 
-    if (!maxKeyInclusive->data())
+    if (!maxKeyInclusive)
     {
         GetKeyValues(
             FlatMessage<PartitionTreeEntryKey>{ treeNodeMessage, *treeNodeMessage->tree_node()->keys()->rbegin() },
@@ -590,7 +579,7 @@ task<> Partition::CheckTreeNodeIntegrity(
         );
     }
 
-    RawData previousKey = minKeyExclusive;
+    AlignedMessageData previousKey = minKeyExclusive;
     SequenceNumber previousKeyLowestSequenceNumber = minKeyExclusiveLowestSequenceNumber;
 
     for (auto index = 0;
@@ -600,7 +589,7 @@ task<> Partition::CheckTreeNodeIntegrity(
         auto treeEntryErrorPrototype = errorPrototype;
         treeEntryErrorPrototype.Location.extentOffset = errorLocationExtentOffset;
         treeEntryErrorPrototype.TreeNodeEntryIndex = index;
-        treeEntryErrorPrototype.Key = GetRawData(
+        treeEntryErrorPrototype.Key = GetAlignedMessageData(
             treeNodeMessage,
             treeNodeMessage->tree_node()->keys()->Get(index)->key());
         treeEntryErrorPrototype.PartitionMessage = copy_shared(
@@ -608,7 +597,7 @@ task<> Partition::CheckTreeNodeIntegrity(
 
         auto treeEntry = treeNodeMessage->tree_node()->keys()->Get(index);
 
-        RawData currentKey;
+        AlignedMessageData currentKey;
         SequenceNumber currentKeyHighestSequenceNumber;
         SequenceNumber currentKeyLowestSequenceNumber;
 
@@ -636,11 +625,11 @@ task<> Partition::CheckTreeNodeIntegrity(
 
 void Partition::GetKeyValues(
     const FlatMessage<FlatBuffers::PartitionTreeEntryKey>& keyEntry,
-    RawData& key,
+    AlignedMessageData& key,
     SequenceNumber& highestSequenceNumber,
     SequenceNumber& lowestSequenceNumber)
 {
-    key = GetRawData(
+    key = GetAlignedMessageData(
         keyEntry,
         keyEntry->key());
 
@@ -665,10 +654,10 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     const IntegrityCheckError& errorPrototype,
     const FlatMessage<PartitionMessage>& parent,
     size_t treeEntryIndex,
-    RawData currentKey,
-    RawData minKeyExclusive,
+    AlignedMessageData currentKey,
+    AlignedMessageData minKeyExclusive,
     SequenceNumber minKeyExclusiveLowestSequenceNumber,
-    RawData maxKeyInclusive,
+    AlignedMessageData maxKeyInclusive,
     SequenceNumber maxKeyInclusiveLowestSequenceNumber)
 {
     FlatMessage<FlatBuffers::PartitionTreeEntryKey> treeEntry
@@ -721,11 +710,11 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     
     // If there is a min key, ensure the tree entry is above that value.
     std::string minKeyExclusiveString;
-    if (minKeyExclusive->data())
+    if (minKeyExclusive)
     {
         auto keyComparisonResult = keyAndSequenceNumberComparer(
-            { *minKeyExclusive, minKeyExclusiveLowestSequenceNumber },
-            { *currentKey, currentLowestSequenceNumber });
+            { minKeyExclusive->Payload, minKeyExclusiveLowestSequenceNumber },
+            { currentKey->Payload, currentLowestSequenceNumber });
 
         if (keyComparisonResult != std::weak_ordering::less)
         {
@@ -742,8 +731,8 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     // if (maxKeyInclusive)
     {
         auto maxKeyComparisonResult = keyAndSequenceNumberComparer(
-            { *currentKey, currentLowestSequenceNumber },
-            { *maxKeyInclusive, maxKeyInclusiveLowestSequenceNumber});
+            { currentKey->Payload, currentLowestSequenceNumber },
+            { maxKeyInclusive->Payload, maxKeyInclusiveLowestSequenceNumber});
 
         if (maxKeyComparisonResult == std::weak_ordering::greater)
         {

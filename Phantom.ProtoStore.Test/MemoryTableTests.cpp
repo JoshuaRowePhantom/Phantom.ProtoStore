@@ -47,6 +47,15 @@ protected:
         return delayedOutcome;
     }
 
+    std::unique_ptr<FlatBuffers::DataValueT> ToDataValue(
+        std::span<const std::byte> bytes)
+    {
+        auto result = std::make_unique<FlatBuffers::DataValueT>();
+        result->flatbuffers_alignment = 1;
+        result->data.assign_range(get_int8_t_span(bytes));
+        return std::move(result);
+    }
+
     task<shared_ptr<DelayedMemoryTableTransactionOutcome>> AddRow(
         MemoryTableTransactionSequenceNumber transactionSequenceNumber,
         string key,
@@ -68,19 +77,14 @@ protected:
         FlatBuffers::LoggedRowWriteT loggedRowWrite;
         if (transactionId)
         {
-            auto transactionIdSpan = get_int8_t_span(get_byte_span(*transactionId));
-            loggedRowWrite.distributed_transaction_id.assign(
-                transactionIdSpan.begin(),
-                transactionIdSpan.end());
+            loggedRowWrite.distributed_transaction_id = ToDataValue(
+                get_byte_span(*transactionId));
         }
-        auto keySpan = get_int8_t_span(rowKeyProto.as_bytes_if());
-        loggedRowWrite.key.assign(
-            keySpan.begin(),
-            keySpan.end());
-        auto valueSpan = get_int8_t_span(rowValueProto.as_bytes_if());
-        loggedRowWrite.value.assign(
-            valueSpan.begin(),
-            valueSpan.end());
+        loggedRowWrite.key = ToDataValue(
+            rowKeyProto.as_bytes_if());
+
+        loggedRowWrite.value = ToDataValue(
+            rowValueProto.as_bytes_if());
         loggedRowWrite.sequence_number = writeSequenceNumber;
 
         FlatMessage loggedRowWriteMessage{ &loggedRowWrite };
@@ -170,10 +174,10 @@ protected:
                     .Key = resultKey.value(),
                     .Value = resultValue.value(),
                     .SequenceNumber = ToUint64(row.WriteSequenceNumber),
-                    .TransactionId = row.TransactionId->data()
+                    .TransactionId = row.TransactionId->Payload.data()
                         ? std::optional { std::string {
-                            get_char_span(*row.TransactionId).begin(),
-                            get_char_span(*row.TransactionId).end()
+                            get_char_span(row.TransactionId->Payload).begin(),
+                            get_char_span(row.TransactionId->Payload).end()
                             } }
                         : std::optional<TransactionId> {},
                 }

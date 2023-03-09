@@ -27,7 +27,7 @@ private:
     struct StackEntry
     {
         flatbuffers::FlatBufferBuilder partitionTreeNodeBuilder;
-        RawData highestKey;
+        DataReference<AlignedMessage> highestKey;
         SequenceNumber lowestSequenceNumberForKey;
         std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryKey>> keyOffsets;
     };
@@ -41,16 +41,16 @@ private:
     BloomFilterVersion1<std::span<char>>& m_bloomFilter;
 
     using PartitionTreeEntryValueOffsetVector = std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryValue>>;
-    using PartitionDataValueOffset = Offset<FlatBuffers::PartitionDataValue>;
+    using DataValueOffset = Offset<FlatBuffers::DataValue>;
     using FlatBufferBuilder = flatbuffers::FlatBufferBuilder;
 
     void FinishKey(
         PartitionTreeEntryValueOffsetVector& treeEntryValues
         );
 
-    PartitionDataValueOffset WriteRawData(
+    DataValueOffset WriteAlignedMessage(
         FlatBufferBuilder& builder,
-        const RawData& rawData);
+        const AlignedMessage& rawData);
 
     task<FlatBuffers::MessageReference_V1> Flush(
         uint8_t level,

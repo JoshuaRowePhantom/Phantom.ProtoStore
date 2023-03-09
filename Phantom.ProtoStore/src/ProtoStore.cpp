@@ -592,26 +592,36 @@ public:
             auto unownedKey = key.pack_unowned();
             auto unownedValue = value.pack_unowned();
 
-            auto keySpan = get_int8_t_span(unownedKey.as_bytes_if());
-            auto valueSpan = get_int8_t_span(unownedValue.as_bytes_if());
+            auto keySpan = unownedKey.as_bytes_if();
+            auto valueSpan = unownedValue.as_bytes_if();
 
             flatbuffers::FlatBufferBuilder loggedRowWriteBuilder;
 
-            Offset<flatbuffers::Vector<int8_t>> keyOffset = loggedRowWriteBuilder.CreateVector<int8_t>(
-                keySpan);
+            auto keyOffset = CreateDataValue(
+                loggedRowWriteBuilder,
+                {
+                    1,
+                    keySpan
+                }
+            );
 
-            Offset<flatbuffers::Vector<int8_t>> valueOffset;
-            Offset<flatbuffers::Vector<int8_t>> transactionIdOffset;
+            auto valueOffset = CreateDataValue(
+                loggedRowWriteBuilder,
+                {
+                    1,
+                    valueSpan
+                }
+            );
 
-            if (valueSpan.data())
-            {
-                valueOffset = loggedRowWriteBuilder.CreateVector<int8_t>(
-                    valueSpan);
-            }
+            Offset<DataValue> transactionIdOffset;
             if (writeOperationMetadata.TransactionId)
             {
-                transactionIdOffset = loggedRowWriteBuilder.CreateVector<int8_t>(
-                    get_int8_t_span(get_byte_span(*writeOperationMetadata.TransactionId)));
+                transactionIdOffset = CreateDataValue(
+                    loggedRowWriteBuilder,
+                    {
+                        1,
+                        get_byte_span(*writeOperationMetadata.TransactionId)
+                    });
             }
 
             auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(

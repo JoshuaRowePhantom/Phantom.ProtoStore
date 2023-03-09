@@ -86,8 +86,8 @@ class MemoryTable
         // The Key in it must never be replaced, as it is used in a thread-unsafe way
         // after the skip list node is created.
         // When reading, if ValueMessage is null then use the KeyMessage.
-        Row KeyMessage;
-        Row ValueMessage;
+        Row KeyRow;
+        Row ValueRow;
 
         // The sequence number the row was either added
         // or committed at, and the operation outcome.  The protocol to write this
@@ -99,9 +99,9 @@ class MemoryTable
         // It must only be checked while the Mutex is held.
         shared_ptr<DelayedMemoryTableTransactionOutcome> DelayedTransactionOutcome;
 
-        std::span<const byte> GetKeyBytes() const;
-        std::span<const byte> GetValueBytes() const;
-        std::span<const byte> GetTransactionIdBytes() const;
+        AlignedMessage GetKeyMessage() const;
+        AlignedMessage GetValueMessage() const;
+        AlignedMessage GetTransactionIdMessage() const;
         SequenceNumber GetWriteSequenceNumber() const;
 
         ResultRow GetResultRow() const;

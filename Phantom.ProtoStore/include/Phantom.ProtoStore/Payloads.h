@@ -103,8 +103,8 @@ public:
         return *this;
     }
 
-    operator bool() const noexcept
-        requires std::convertible_to<Data, bool>
+    explicit operator bool() const noexcept
+        requires requires (const Data d) { static_cast<bool>(d); }
     {
         return static_cast<bool>(m_data);
     }
@@ -158,6 +158,7 @@ struct AlignedMessage
 
 using RawData = DataReference<std::span<const std::byte>>;
 using WritableRawData = DataReference<std::span<std::byte>>;
+using AlignedMessageData = DataReference<AlignedMessage>;
 
 std::span<const std::byte> get_byte_span(
     const flatbuffers::Vector<int8_t>*
@@ -441,7 +442,7 @@ class ProtoValue
         std::monostate,
         std::span<const std::byte>,
         std::string,
-        RawData
+        AlignedMessageData
     > message_data_type;
 
     typedef std::variant<
@@ -467,7 +468,7 @@ public:
         std::span<const std::byte> bytes);
 
     ProtoValue(
-        RawData bytes);
+        AlignedMessageData bytes);
 
     ProtoValue(
         const google::protobuf::Message* other,

@@ -178,11 +178,11 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         // Jolly Joy! The previous transaction aborted,
         // and was the last transaction to touch this row. We are therefore
         // allowed to update this row.
-        iterator->ValueMessage = std::move(row);
+        iterator->ValueRow = std::move(row);
         iterator->DelayedTransactionOutcome = delayedTransactionOutcome;
 
         memoryTableWriteSequenceNumber = ToOutcomeUnknownSubsequentInsertion(
-            SequenceNumber(iterator->ValueMessage->sequence_number()));
+            SequenceNumber(iterator->ValueRow->sequence_number()));
 
         iterator->WriteSequenceNumber.store(
             memoryTableWriteSequenceNumber,
@@ -310,7 +310,7 @@ row_generator MemoryTable::Enumerate(
 
         // No matter what, the next key to enumerate will be at least as large
         // as the current key.
-        enumerationKey.KeyLow = memoryTableValue.GetKeyBytes();
+        enumerationKey.KeyLow = memoryTableValue.GetKeyMessage().Payload;
 
         // The rowTransactionOutcome value needs to be acquired
         // before reading the sequence number for return determination.
@@ -457,98 +457,114 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     ReplayInsertionKey&& other
 )
     :
-    KeyMessage{ move(other.Row) },
+    KeyRow{ move(other.Row) },
     WriteSequenceNumber
 {
     ToMemoryTableOutcomeAndSequenceNumber(
-        ToSequenceNumber(KeyMessage->sequence_number()),
+        ToSequenceNumber(KeyRow->sequence_number()),
         TransactionOutcome::Committed)
 }
 {
-    assert(KeyMessage.get());
+    assert(KeyRow.get());
 }
 
 MemoryTable::MemoryTableValue::MemoryTableValue(
     InsertionKey&& other
 )
     :
-    KeyMessage{ move(other.Row) },
+    KeyRow{ move(other.Row) },
     WriteSequenceNumber 
     {
         ToMemoryTableOutcomeAndSequenceNumber(
-            ToSequenceNumber(KeyMessage->sequence_number()),
+            ToSequenceNumber(KeyRow->sequence_number()),
             TransactionOutcome::Unknown)
     },
     DelayedTransactionOutcome{ other.DelayedTransactionOutcome }
 {
-    assert(KeyMessage.get());
+    assert(KeyRow.get());
 }
 
 ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
 {
-    auto* valueMessage = &KeyMessage;
-    if (ValueMessage)
+    auto* valueRow = &KeyRow;
+    if (ValueRow)
     {
-        valueMessage = &ValueMessage;
+        valueRow = &ValueRow;
     }
 
-    auto valueBytes = GetValueBytes();
-    auto transactionIdBytes = GetTransactionIdBytes();
+    auto keyAlignedMessage = GetKeyMessage();
+    auto valueAlignedMessage = GetValueMessage();
+    auto transactionIdAlignedMessage = GetTransactionIdMessage();
 
     ResultRow resultRow;
-    resultRow.Key = RawData{ DataReference<StoredMessage>(KeyMessage), GetKeyBytes() };
+    resultRow.Key = AlignedMessageData
+    {
+        DataReference<StoredMessage>(KeyRow),
+        keyAlignedMessage
+    };
+
     resultRow.WriteSequenceNumber = GetWriteSequenceNumber();
-    if (valueBytes.data())
+    resultRow.Value =
     {
-        resultRow.Value = RawData{ DataReference<StoredMessage>(*valueMessage), valueBytes };
-    }
-    if (transactionIdBytes.data())
+        DataReference<StoredMessage>(*valueRow),
+        valueAlignedMessage,
+    };
+    if (transactionIdAlignedMessage)
     {
-        resultRow.TransactionId = RawData{ DataReference<StoredMessage>(*valueMessage), transactionIdBytes };
+        resultRow.TransactionId =
+        {
+            DataReference<StoredMessage>(*valueRow),
+            transactionIdAlignedMessage,
+        };
     }
 
     return std::move(resultRow);
 }
 
 
-std::span<const byte> MemoryTable::MemoryTableValue::GetKeyBytes() const
+AlignedMessage MemoryTable::MemoryTableValue::GetKeyMessage() const
 {
-    return get_byte_span(KeyMessage->key());
+    return GetAlignedMessage(
+        KeyRow->key());
 }
 
-std::span<const byte> MemoryTable::MemoryTableValue::GetValueBytes() const
+AlignedMessage MemoryTable::MemoryTableValue::GetValueMessage() const
 {
-    if (ValueMessage)
+    if (ValueRow)
     {
-        return get_byte_span(ValueMessage->value());
+        return GetAlignedMessage(
+            ValueRow->value());
     }
     else
     {
-        return get_byte_span(KeyMessage->value());
+        return GetAlignedMessage(
+            KeyRow->value());
     }
 }
 
-std::span<const byte> MemoryTable::MemoryTableValue::GetTransactionIdBytes() const
+AlignedMessage MemoryTable::MemoryTableValue::GetTransactionIdMessage() const
 {
-    if (ValueMessage)
+    if (ValueRow)
     {
-        return get_byte_span(ValueMessage->distributed_transaction_id());
+        return GetAlignedMessage(
+            ValueRow->distributed_transaction_id());
     }
     else
     {
-        return get_byte_span(KeyMessage->distributed_transaction_id());
+        return GetAlignedMessage(
+            KeyRow->distributed_transaction_id());
     }
 }
 
 SequenceNumber MemoryTable::MemoryTableValue::GetWriteSequenceNumber() const
 {
-    if (ValueMessage)
+    if (ValueRow)
     {
-        return ToSequenceNumber(ValueMessage->sequence_number());
+        return ToSequenceNumber(ValueRow->sequence_number());
     }
     else
     {
-        return ToSequenceNumber(KeyMessage->sequence_number());
+        return ToSequenceNumber(KeyRow->sequence_number());
     }
 }
 
@@ -572,7 +588,7 @@ MemoryTable::InsertionKey::InsertionKey(
 MemoryTable::InsertionKey& MemoryTable::InsertionKey::InsertionKey::operator=(
     MemoryTableValue&& memoryTableValue)
 {
-    Row = move(memoryTableValue.KeyMessage);
+    Row = move(memoryTableValue.KeyRow);
     return *this;
 }
 
@@ -583,8 +599,8 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     ) const
 {
     auto comparisonResult = (*m_keyComparer)(
-        key1.GetKeyBytes(),
-        key2.GetKeyBytes());
+        key1.GetKeyMessage().Payload,
+        key2.GetKeyMessage().Payload);
 
     return comparisonResult;
 }
@@ -595,8 +611,8 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     ) const
 {
     auto comparisonResult = (*m_keyComparer)(
-        key1.GetKeyBytes(),
-        get_byte_span(key2.Row->key()));
+        key1.GetKeyMessage().Payload,
+        get_byte_span(key2.Row->key()->data()));
 
     if (comparisonResult != std::weak_ordering::equivalent)
     {
@@ -628,7 +644,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         std::weak_ordering::greater
         :
         (*m_keyComparer)(
-            key1.GetKeyBytes(),
+            key1.GetKeyMessage().Payload,
             *key2.KeyLow);
 
     if (comparisonResult == std::weak_ordering::equivalent
@@ -678,7 +694,7 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
         std::weak_ordering::less
         :
         (*m_keyComparer)(
-            key1.GetKeyBytes(),
+            key1.GetKeyMessage().Payload,
             key2.Key);
 
     if (comparisonResult == std::weak_ordering::equivalent
@@ -698,8 +714,8 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
 {
     auto comparisonResult =
         (*m_keyComparer)(
-            key1.GetKeyBytes(),
-            get_byte_span(key2.Row->key())
+            key1.GetKeyMessage().Payload,
+            GetAlignedMessage(key2.Row->key()).Payload
             );
 
     if (comparisonResult == std::weak_ordering::equivalent)

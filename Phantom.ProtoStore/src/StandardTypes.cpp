@@ -254,4 +254,67 @@ std::weak_ordering operator<=>(
 
 }
 
+
+flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(
+    flatbuffers::FlatBufferBuilder& builder,
+    const AlignedMessage& message
+)
+{
+    if (!message.Payload.data())
+    {
+        return {};
+    }
+
+    builder.ForceVectorAlignment(
+        message.Payload.size(),
+        1,
+        message.Alignment
+    );
+
+    auto dataVectorOffset = builder.CreateVector<int8_t>(
+        get_int8_t_span(message.Payload).data(),
+        message.Payload.size());
+
+    return FlatBuffers::CreateDataValue(
+        builder,
+        dataVectorOffset,
+        1);
+}
+
+AlignedMessage GetAlignedMessage(
+    const FlatBuffers::DataValue* data
+)
+{
+    if (!data)
+    {
+        return {};
+    }
+
+    return
+    {
+        data->flatbuffers_alignment(),
+        get_byte_span(data->data()),
+    };
+}
+
+AlignedMessageData GetAlignedMessageData(
+    DataReference<StoredMessage> reference,
+    const FlatBuffers::DataValue* data
+)
+{
+    auto alignedMessage = GetAlignedMessage(data);
+    if (alignedMessage)
+    {
+        return AlignedMessageData
+        {
+            reference,
+            alignedMessage
+        };
+    }
+    else
+    {
+        return {};
+    }
+}
+
 }

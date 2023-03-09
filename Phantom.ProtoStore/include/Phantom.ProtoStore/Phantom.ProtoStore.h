@@ -217,7 +217,6 @@ struct CreateIndexRequest
         ) = default;
 };
 
-
 struct WriteOperation
 {
     ProtoIndex Index;
@@ -564,7 +563,7 @@ struct ExtentLocation
 struct IntegrityCheckError
 {
     IntegrityCheckErrorCode Code;
-    std::optional<RawData> Key;
+    std::optional<AlignedMessageData> Key;
     ExtentLocation Location;
     std::optional<int> TreeNodeEntryIndex;
     std::optional<int> TreeNodeValueIndex;

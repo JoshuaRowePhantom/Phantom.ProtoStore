@@ -94,7 +94,7 @@ operation_task<CheckpointNumber> Index::AddRow(
         auto conflictingSequenceNumber = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             writeSequenceNumber,
-            get_byte_span(row->key()));
+            get_byte_span(row->key()->data()));
 
         if (conflictingSequenceNumber.has_value())
         {
@@ -216,7 +216,7 @@ operation_task<ReadResult> Index::Read(
         //    }
         //}
 
-        if (!resultRow.Value->data())
+        if (!resultRow.Value)
         {
             break;
         }

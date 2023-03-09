@@ -230,7 +230,7 @@ task<> IndexMerger::WriteMergeProgress(
     MergesValue mergesValue;
     mergesValue.CopyFrom(incompleteMerge.Merge.Value);
     
-    auto keySpan = get_char_span(*(*writeRowsResult.resumptionRow).Key);
+    auto keySpan = get_char_span((*writeRowsResult.resumptionRow).Key->Payload);
     mergesValue.mutable_resumekey()->mutable_key()->assign(
         keySpan.data(),
         keySpan.size());

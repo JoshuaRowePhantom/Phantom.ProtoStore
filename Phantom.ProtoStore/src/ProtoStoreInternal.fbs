@@ -78,14 +78,21 @@ struct MessageHeader_V1
     message_size_and_alignment : uint32;
 }
 
+table DataValue {
+    data : [byte];
+    // The required alignment of the data stored in "data"
+    // if the data is flatbuffers data.
+    flatbuffers_alignment : ubyte = 4;
+}
+
 table LoggedRowWrite
 {
     index_number : uint64;
     sequence_number : uint64;
     checkpoint_number : uint64;
-    key : [byte] (force_align: 32);
-    value : [byte] (force_align: 32);
-    distributed_transaction_id : [byte];
+    key : DataValue;
+    value : DataValue;
+    distributed_transaction_id : DataValue;
     local_transaction_id : uint64;
     write_id : uint32;
 }
@@ -164,20 +171,11 @@ table LogRecord
 {
     log_entry : [LogEntry];
 }
-
-table PartitionDataValue {
-    // The underlying value.
-    data : [byte];
-
-    // The required alignment of the data stored in "data"
-    alignment : byte;
-}
-
 table PartitionTreeEntryValue {
     write_sequence_number : uint64;
 
     // Value is not set if this is a delete.
-    value : PartitionDataValue;
+    value : DataValue;
 
     // The value is large, and was not put directly into the row.
     big_value : MessageReference_V1;
@@ -186,7 +184,7 @@ table PartitionTreeEntryValue {
     // as of when the row was written to disk.
     // This value is cleared upon merge whenever
     // the transaction outcome is known.
-    unresolved_transaction_id : [byte];
+    unresolved_transaction_id : DataValue;
 }
 
 // A reference to a message elsewhere in the extent.
@@ -199,7 +197,7 @@ struct MessageReference_V1 {
 
 table PartitionTreeEntryKey {
     // The highest key in the tree entry.
-    key : PartitionDataValue;
+    key : DataValue;
     lowest_write_sequence_number_for_key : uint64;
 
     // The values if this is a leaf node.
@@ -242,7 +240,7 @@ table PartitionHeader {
 
 table PartitionMessage {
     tree_node : PartitionTreeNode;
-    value : PartitionDataValue;
+    value : DataValue;
     header : PartitionHeader;
     root : PartitionRoot;
     bloom_filter : PartitionBloomFilter;
