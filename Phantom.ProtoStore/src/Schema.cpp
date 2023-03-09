@@ -1,5 +1,6 @@
 #include "Schema.h"
 #include "ProtoStoreInternal.pb.h"
+#include "KeyComparer.h"
 #include <google/protobuf/dynamic_message.h>
 #include <array>
 
@@ -91,31 +92,30 @@ const Message* ProtoStoreMessageFactory::GetPrototype(
     return m_prototype;
 }
 
-shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
-    const Message* prototype)
+shared_ptr<KeyComparer> Schema::MakeKeyComparer(
+    const Serialization::SchemaDescription& messageDescription)
 {
-    return make_shared<ProtoStoreMessageFactory>(
-        prototype,
-        prototype->GetDescriptor(),
-        std::any());
+    if (messageDescription.has_protocolbuffersdescription())
+    {
+        return MakeProtocolBuffersKeyComparer(
+            messageDescription.protocolbuffersdescription());
+    }
+
+    throw std::range_error("messageDescription");
 }
 
-shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
-    const Serialization::ProtocolBuffersMessageDescription& messageDescription
-)
+shared_ptr<KeyComparer> Schema::MakeProtocolBuffersKeyComparer(
+    const Serialization::ProtocolBuffersSchemaDescription& protocolBuffersSchemaDescription)
 {
+    auto& messageDescription = protocolBuffersSchemaDescription.messagedescription();
     auto generatedDescriptorPool = google::protobuf::DescriptorPool::generated_pool();
     auto generatedDescriptor = generatedDescriptorPool->FindMessageTypeByName(
         messageDescription.messagename());
 
     if (generatedDescriptor)
     {
-        auto generatedMessageFactory = google::protobuf::MessageFactory::generated_factory();
-        auto generatedPrototype = generatedMessageFactory->GetPrototype(
+        return std::make_shared<ProtoKeyComparer>(
             generatedDescriptor);
-
-        return MakeMessageFactory(
-            generatedPrototype);
     }
 
     auto descriptorPool = make_shared<google::protobuf::DescriptorPool>();
@@ -134,22 +134,23 @@ shared_ptr<IMessageFactory> Schema::MakeMessageFactory(
         throw std::exception("Error finding message descriptor");
     }
 
-    auto messageFactory = make_shared<google::protobuf::DynamicMessageFactory>();
-    auto protoType = messageFactory->GetPrototype(
-        messageDescriptor);
-
-    // Construct an object to hold the shared pointers
-    // that will be destroyed in the correct order.
-    std::array holders =
+    struct holder
     {
-        std::any(descriptorPool),
-        std::any(messageFactory),
+        std::shared_ptr< google::protobuf::DescriptorPool> descriptorPool;
+        std::shared_ptr<KeyComparer> keyComparer;
     };
 
-    return make_shared<ProtoStoreMessageFactory>(
-        protoType,
-        messageDescriptor,
-        holders);
+    auto holderPointer = std::make_shared<holder>(
+        holder {
+            descriptorPool,
+            std::make_shared<ProtoKeyComparer>(
+                messageDescriptor)
+        });
+
+    return std::shared_ptr<KeyComparer>(
+        holderPointer,
+        holderPointer->keyComparer.get()
+        );
 }
 
 }

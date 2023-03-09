@@ -36,11 +36,6 @@ protected:
             valueSchemaDescription,
             PartitionTestValue::descriptor());
 
-        keyFactory = Schema::MakeMessageFactory(
-            keySchemaDescription.protocolbuffersdescription().messagedescription());
-        valueFactory = Schema::MakeMessageFactory(
-            valueSchemaDescription.protocolbuffersdescription().messagedescription());
-
         extentStore = make_shared<MemoryExtentStore>(
             Schedulers::Inline());
 
@@ -175,9 +170,6 @@ protected:
     shared_ptr<KeyComparer> keyComparer;
     shared_ptr<MemoryExtentStore> extentStore;
     shared_ptr<MessageStore> messageStore;
-
-    shared_ptr<IMessageFactory> keyFactory;
-    shared_ptr<IMessageFactory> valueFactory;
 };
 
 TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)

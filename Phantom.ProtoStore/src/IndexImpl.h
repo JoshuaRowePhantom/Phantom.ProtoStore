@@ -18,8 +18,6 @@ class Index
     const SequenceNumber m_createSequenceNumber;
     const shared_ptr<KeyComparer> m_keyComparer;
     const shared_ptr<RowMerger> m_rowMerger;
-    const shared_ptr<IMessageFactory> m_keyFactory;
-    const shared_ptr<IMessageFactory> m_valueFactory;
     IUnresolvedTransactionsTracker* const m_unresolvedTransactionsTracker;
 
     // This lock control access to the following members:
@@ -56,20 +54,12 @@ public:
         const string& indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
-        shared_ptr<IMessageFactory> keyFactory,
-        shared_ptr<IMessageFactory> valueFactory,
+        shared_ptr<KeyComparer> keyComparer,
         IUnresolvedTransactionsTracker* unresolvedTransactionsTracker
     );
 
     virtual shared_ptr<KeyComparer> GetKeyComparer(
     ) override;
-
-    virtual shared_ptr<IMessageFactory> GetKeyFactory(
-    ) override;
-
-    virtual shared_ptr<IMessageFactory> GetValueFactory(
-    ) override;
-
 
     virtual operation_task<CheckpointNumber> AddRow(
         SequenceNumber readSequenceNumber,

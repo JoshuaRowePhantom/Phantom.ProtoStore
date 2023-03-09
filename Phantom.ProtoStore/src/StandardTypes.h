@@ -100,6 +100,7 @@ namespace Serialization
 {
 class SchemaDescription;
 class ProtocolBuffersMessageDescription;
+class ProtocolBuffersSchemaDescription;
 class LogRecord;
 class IndexesByNameKey;
 class IndexesByNameValue;

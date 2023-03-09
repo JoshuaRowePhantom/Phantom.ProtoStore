@@ -21,12 +21,6 @@ public:
     virtual shared_ptr<KeyComparer> GetKeyComparer(
     ) = 0;
 
-    virtual shared_ptr<IMessageFactory> GetKeyFactory(
-    ) = 0;
-
-    virtual shared_ptr<IMessageFactory> GetValueFactory(
-    ) = 0;
-
     virtual operation_task<ReadResult> Read(
         shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
         const ReadRequest& readRequest

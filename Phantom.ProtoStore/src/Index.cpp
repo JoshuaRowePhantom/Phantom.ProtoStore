@@ -14,17 +14,14 @@ Index::Index(
     const string& indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
-    shared_ptr<IMessageFactory> keyFactory,
-    shared_ptr<IMessageFactory> valueFactory,
+    shared_ptr<KeyComparer> keyComparer,
     IUnresolvedTransactionsTracker* unresolvedTransactionsTracker
 )
     :
     m_indexName(indexName),
     m_indexNumber(indexNumber),
     m_createSequenceNumber(createSequenceNumber),
-    m_keyFactory(keyFactory),
-    m_valueFactory(valueFactory),
-    m_keyComparer(make_shared<ProtoKeyComparer>(keyFactory->GetDescriptor())),
+    m_keyComparer(std::move(keyComparer)),
     m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
     m_unresolvedTransactionsTracker(unresolvedTransactionsTracker)
 {
@@ -33,16 +30,6 @@ Index::Index(
 shared_ptr<KeyComparer> Index::GetKeyComparer()
 {
     return m_keyComparer;
-}
-
-shared_ptr<IMessageFactory> Index::GetKeyFactory()
-{
-    return m_keyFactory;
-}
-
-shared_ptr<IMessageFactory> Index::GetValueFactory()
-{
-    return m_valueFactory;
 }
 
 IndexNumber Index::GetIndexNumber() const

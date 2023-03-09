@@ -23,17 +23,16 @@ class Schema
         google::protobuf::FileDescriptorSet* fileDescriptorSet,
         const google::protobuf::FileDescriptor* fileDescriptor);
 
+    static shared_ptr<KeyComparer> MakeProtocolBuffersKeyComparer(
+        const Serialization::ProtocolBuffersSchemaDescription& messageDescription);
 public:
     static void MakeSchemaDescription(
         Serialization::SchemaDescription& messageDescription,
         const Descriptor* messageDescriptor
     );
 
-    static shared_ptr<IMessageFactory> MakeMessageFactory(
-        const Message* prototype);
-
-    static shared_ptr<IMessageFactory> MakeMessageFactory(
-        const Serialization::ProtocolBuffersMessageDescription& messageDescription);
+    static shared_ptr<KeyComparer> MakeKeyComparer(
+        const Serialization::SchemaDescription& messageDescription);
 };
 
 

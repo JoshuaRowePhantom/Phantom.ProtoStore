@@ -1087,18 +1087,15 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     const IndexesByNumberValue& indexesByNumberValue
 )
 {
-    auto keyMessageFactory = Schema::MakeMessageFactory(
-        indexesByNumberValue.schema().key().description().protocolbuffersdescription().messagedescription());
-    
-    auto valueMessageFactory = Schema::MakeMessageFactory(
-        indexesByNumberValue.schema().value().description().protocolbuffersdescription().messagedescription());
+    auto keyComparer = Schema::MakeKeyComparer(
+        indexesByNumberValue.schema().key().description()
+    );
 
     auto index = make_shared<Index>(
         indexesByNumberValue.indexname(),
         indexesByNumberKey.indexnumber(),
         ToSequenceNumber(indexesByNumberValue.createsequencenumber()),
-        keyMessageFactory,
-        valueMessageFactory,
+        keyComparer,
         m_unresolvedTransactionsTracker.get()
         );
 
