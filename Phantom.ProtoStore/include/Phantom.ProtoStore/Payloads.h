@@ -484,8 +484,7 @@ class ProtoValue
         // flat buffer values
         std::span<const std::byte>,
         std::string,
-        AlignedMessageData,
-        std::shared_ptr<flatbuffers::DetachedBuffer>
+        AlignedMessageData
     > message_data_type;
 
     // These constants correspond to the values in message_type variant.
@@ -608,6 +607,46 @@ public:
         backing_store backingStore,
         const google::protobuf::Message* protocolBufferMessage
     );
+
+    template<
+        IsNativeTable NativeTable
+    > ProtoValue(
+        const NativeTable& nativeFlatBufferMessage
+    )
+    {
+        flatbuffers::FlatBufferBuilder builder;
+        auto rootOffset = NativeTable::TableType::Pack(
+            builder,
+            &nativeFlatBufferMessage);
+        builder.Finish(rootOffset);
+
+        auto alignment = static_cast<uint8_t>(builder.GetBufferMinAlignment());
+        auto detachedBuffer = std::make_shared<flatbuffers::DetachedBuffer>(
+            builder.Release());
+        auto span = std::span<const uint8_t>
+        {
+            detachedBuffer->data(),
+            detachedBuffer->size()
+        };
+
+        AlignedMessage alignedMessageData
+        {
+            alignment,
+            as_bytes(span),
+        };
+
+        message_data.emplace<flat_buffers_aligned_message_data>(
+            AlignedMessageData
+            {
+                detachedBuffer,
+                alignedMessageData
+            });
+
+        auto table = ::flatbuffers::GetRoot<flatbuffers::Table>(
+            span.data());
+
+        message.emplace<flat_buffers_table_pointer>(table);
+    }
 
     static ProtoValue FlatBuffer(
         flat_buffer_message flatBufferBufferMessage

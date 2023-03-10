@@ -37,6 +37,8 @@ protected:
     std::shared_ptr<string_holder> nonNullProtocolAlignedMessageString;
     AlignedMessageData nonNullProtocolAlignedMessageData;
 
+    std::shared_ptr<StringKey> nonNullProtocolMessageSharedPointer;
+
     ProtoValueTests()
     {
         auto rootOffset = FlatBuffers::CreateScalarTable(
@@ -81,6 +83,9 @@ protected:
             AlignedMessage(
                 16,
                 get_byte_span(nonNullProtocolAlignedMessageString->value)));
+
+        nonNullProtocolMessageSharedPointer = std::make_shared<StringKey>(
+            nonNullProtocolMessage);
     }
 };
 
@@ -150,6 +155,16 @@ TEST_F(ProtoValueTests, constructor)
 {
     ProtoValue protoValue;
     ExpectEmpty(protoValue);
+}
+
+TEST_F(ProtoValueTests, constructor_flatmessage_native_table)
+{
+    FlatBuffers::ScalarTableT table;
+    table.item = 5;
+    ProtoValue protoValue(table);
+    ExpectIsTable(
+        protoValue,
+        protoValue.as_table_if());
 }
 
 TEST_F(ProtoValueTests, constructor_flatmessage_monostate)
@@ -335,6 +350,51 @@ TEST_F(ProtoValueTests, constructor_backing_store_aligned_message_data_protocolm
     ExpectIsProtocolBuffer(
         protoValue,
         &nonNullProtocolMessage);
+
+    nonNullProtocolAlignedMessageString = nullptr;
+    EXPECT_EQ(1, nonNullProtocolAlignedMessageLifetimeStatistics.instance_count);
+    protoValue = {};
+    EXPECT_EQ(0, nonNullProtocolAlignedMessageLifetimeStatistics.instance_count);
+}
+
+TEST_F(ProtoValueTests, constructor_backing_store_monostate_protocolmessage_shared_ptr_null)
+{
+    ProtoValue protoValue(ProtoValue::backing_store{}, ProtoValue::protocol_buffer_message{ std::shared_ptr<const google::protobuf::Message>() });
+    ExpectEmpty(protoValue);
+}
+
+TEST_F(ProtoValueTests, constructor_backing_store_monostate_protocolmessage_shared_ptr)
+{
+    ProtoValue protoValue(ProtoValue::backing_store{}, ProtoValue::protocol_buffer_message{ nonNullProtocolMessageSharedPointer });
+    ExpectIsProtocolBuffer(protoValue, nonNullProtocolMessageSharedPointer.get());
+    ExpectEmptyData(protoValue);
+}
+
+TEST_F(ProtoValueTests, constructor_backing_store_span_protocolmessage_shared_ptr)
+{
+    ProtoValue protoValue(nonNullProtocolMessageSpan, ProtoValue::protocol_buffer_message{ nonNullProtocolMessageSharedPointer });
+    EXPECT_EQ(nonNullProtocolMessageSpan.data(), protoValue.as_protocol_buffer_bytes_if().data());
+    ExpectIsProtocolBuffer(protoValue, nonNullProtocolMessageSharedPointer.get());
+}
+
+TEST_F(ProtoValueTests, constructor_backing_store_string_protocolmessage_shared_ptr)
+{
+    ProtoValue protoValue(nonNullProtocolMessageString, ProtoValue::protocol_buffer_message{ nonNullProtocolMessageSharedPointer });
+    ExpectIsProtocolBuffer(
+        protoValue,
+        nonNullProtocolMessageSharedPointer.get()
+    );
+}
+
+TEST_F(ProtoValueTests, constructor_backing_store_aligned_message_data_protocolmessage_shared_ptr)
+{
+    ProtoValue protoValue(
+        std::move(nonNullProtocolAlignedMessageData),
+        ProtoValue::protocol_buffer_message{ nonNullProtocolMessageSharedPointer });
+
+    ExpectIsProtocolBuffer(
+        protoValue,
+        nonNullProtocolMessageSharedPointer.get());
 
     nonNullProtocolAlignedMessageString = nullptr;
     EXPECT_EQ(1, nonNullProtocolAlignedMessageLifetimeStatistics.instance_count);
