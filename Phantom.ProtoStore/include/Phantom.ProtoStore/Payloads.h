@@ -611,13 +611,18 @@ public:
     template<
         IsNativeTable NativeTable
     > ProtoValue(
-        const NativeTable& nativeFlatBufferMessage
+        const NativeTable* nativeFlatBufferMessage
     )
     {
+        if (!nativeFlatBufferMessage)
+        {
+            return;
+        }
+
         flatbuffers::FlatBufferBuilder builder;
         auto rootOffset = NativeTable::TableType::Pack(
             builder,
-            &nativeFlatBufferMessage);
+            nativeFlatBufferMessage);
         builder.Finish(rootOffset);
 
         auto alignment = static_cast<uint8_t>(builder.GetBufferMinAlignment());
@@ -761,6 +766,22 @@ public:
     bool pack(
         std::string* destination
     ) const;
+
+    template<
+        IsNativeTable NativeTable
+    >
+    bool unpack(
+        NativeTable* nativeTable
+    )
+    {
+        auto table = cast_if<typename NativeTable::TableType>();
+        if (table && nativeTable)
+        {
+            table->UnPackTo(nativeTable);
+            return true;
+        }
+        return false;
+    }
 
     ProtoValue& pack() &;
     ProtoValue&& pack() &&;

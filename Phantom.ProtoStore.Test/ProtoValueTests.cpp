@@ -162,10 +162,17 @@ TEST_F(ProtoValueTests, constructor_flatmessage_native_table)
 {
     FlatBuffers::ScalarTableT table;
     table.item = 5;
-    ProtoValue protoValue(table);
+    ProtoValue protoValue(&table);
     ExpectIsTable(
         protoValue,
         protoValue.as_table_if());
+}
+
+TEST_F(ProtoValueTests, constructor_flatmessage_native_table_null)
+{
+    FlatBuffers::ScalarTableT* table = nullptr;
+    ProtoValue protoValue(table);
+    ExpectEmpty(protoValue);
 }
 
 TEST_F(ProtoValueTests, constructor_flatmessage_monostate)
@@ -446,6 +453,30 @@ TEST_F(ProtoValueTests, pack_allocates_data_on_packed_message)
         protoValue.as_protocol_buffer_bytes_if());
     
     ExpectIsProtocolBuffer(copy, nullptr);
+}
+
+TEST_F(ProtoValueTests, unpack_table_null)
+{
+    ProtoValue protoValue;
+
+    FlatBuffers::ScalarTableT native;
+    EXPECT_EQ(false, protoValue.unpack(&native));
+    EXPECT_EQ(0, native.item);
+}
+
+TEST_F(ProtoValueTests, unpack_table_get_table)
+{
+    ProtoValue protoValue = ProtoValue::FlatBuffer(
+        nonNullFlatMessageSpan
+    );
+
+    FlatBuffers::ScalarTableT native;
+    EXPECT_EQ(true, protoValue.unpack(&native));
+    EXPECT_EQ(5, native.item);
+
+    native = {};
+    EXPECT_EQ(false, protoValue.unpack<FlatBuffers::ScalarTableT>(nullptr));
+    EXPECT_EQ(0, native.item);
 }
 
 }
