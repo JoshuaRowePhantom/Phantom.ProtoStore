@@ -83,3 +83,11 @@ table TestKey {
 
     descending_table : TestKeyDescendingTable;
 }
+
+table FlatStringKey {
+    value : string;
+}
+
+table FlatStringValue {
+    value : string;
+}

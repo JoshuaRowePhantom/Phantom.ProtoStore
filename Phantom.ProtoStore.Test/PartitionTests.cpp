@@ -118,11 +118,11 @@ protected:
     {
         PartitionTestKey keyMessage;
         keyMessage.set_key(key);
-        ProtoValue keyProto{ &keyMessage, true };
+        auto keyProto = ProtoValue{ &keyMessage }.pack();
 
         auto enumeration = partition->Read(
             readSequenceNumber,
-            keyProto.as_bytes_if(),
+            keyProto.as_protocol_buffer_bytes_if(),
             ReadValueDisposition::ReadValue
         );
 
@@ -132,9 +132,9 @@ protected:
             EXPECT_NE(enumeration.end(), iterator);
 
             PartitionTestKey resultKeyMessage;
-            ProtoValue{ iterator->Key }.unpack(&resultKeyMessage);
+            ProtoValue::FlatBuffer(iterator->Key).unpack(&resultKeyMessage);
             PartitionTestValue resultValueMessage;
-            ProtoValue{ iterator->Value }.unpack(&resultValueMessage);
+            ProtoValue::FlatBuffer(iterator->Value).unpack(&resultValueMessage);
 
             EXPECT_EQ(get<0>(expectedResult), resultKeyMessage.key());
             EXPECT_EQ(get<1>(expectedResult), resultValueMessage.key());
@@ -156,12 +156,12 @@ protected:
     {
         StringKey keyMessage;
         keyMessage.set_value(key);
-        ProtoValue keyProto{ &keyMessage, true };
+        auto keyProto = ProtoValue{ &keyMessage }.pack();
 
         auto actualResult = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             writeSequenceNumber,
-            keyProto.as_bytes_if()
+            keyProto.as_protocol_buffer_bytes_if()
         );
 
         EXPECT_EQ(actualResult, expectedResult);

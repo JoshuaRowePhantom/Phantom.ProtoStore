@@ -42,20 +42,21 @@ protected:
                 {
                     stringKey.set_value(get<0>(testRow));
 
-                    shared_ptr<ProtoValue> stringKeyProto = std::make_shared<ProtoValue>(&stringKey, true);
+                    shared_ptr<ProtoValue> stringKeyProto = std::make_shared<ProtoValue>(&stringKey);
+                    stringKeyProto->pack();
                     shared_ptr<ProtoValue> stringValueProto = std::make_shared<ProtoValue>();
 
                     if (get<1>(testRow))
                     {
                         stringValue.set_value(*get<1>(testRow));
-                        *stringValueProto = { &stringValue, true };
+                        *stringValueProto = ProtoValue{ &stringValue }.pack();
                     }
 
                     ResultRow resultRow =
                     {
-                        .Key = { stringKeyProto, { 1, stringKeyProto->as_bytes_if() } },
+                        .Key = { stringKeyProto, { 1, stringKeyProto->as_protocol_buffer_bytes_if() } },
                         .WriteSequenceNumber = ToSequenceNumber(get<2>(testRow)),
-                        .Value = { stringValueProto, { 1, stringValueProto->as_bytes_if() } },
+                        .Value = { stringValueProto, { 1, stringValueProto->as_protocol_buffer_bytes_if() } },
                     };
 
                     co_yield resultRow;
@@ -80,8 +81,8 @@ protected:
                 rowMergerIterator != rowMergerEnumeration.end();
                 co_await ++rowMergerIterator)
             {
-                ProtoValue keyProto(rowMergerIterator->Key);
-                ProtoValue valueProto(rowMergerIterator->Value);
+                ProtoValue keyProto = ProtoValue::ProtocolBuffer(rowMergerIterator->Key);
+                ProtoValue valueProto = ProtoValue::ProtocolBuffer(rowMergerIterator->Value);
                 StringKey key;
                 StringValue value;
 

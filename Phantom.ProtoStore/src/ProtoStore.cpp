@@ -592,8 +592,8 @@ public:
             auto unownedKey = key.pack_unowned();
             auto unownedValue = value.pack_unowned();
 
-            auto keySpan = unownedKey.as_bytes_if();
-            auto valueSpan = unownedValue.as_bytes_if();
+            auto keySpan = unownedKey.as_protocol_buffer_bytes_if();
+            auto valueSpan = unownedValue.as_protocol_buffer_bytes_if();
 
             flatbuffers::FlatBufferBuilder loggedRowWriteBuilder;
 

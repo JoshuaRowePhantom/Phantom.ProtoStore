@@ -71,8 +71,8 @@ protected:
         StringValue rowValue;
         rowValue.set_value(value);
 
-        ProtoValue rowKeyProto(&rowKey, true);
-        ProtoValue rowValueProto(&rowValue, true);
+        auto rowKeyProto = ProtoValue(&rowKey).pack();
+        auto rowValueProto = ProtoValue (&rowValue).pack();
 
         FlatBuffers::LoggedRowWriteT loggedRowWrite;
         if (transactionId)
@@ -81,10 +81,10 @@ protected:
                 get_byte_span(*transactionId));
         }
         loggedRowWrite.key = ToDataValue(
-            rowKeyProto.as_bytes_if());
+            rowKeyProto.as_protocol_buffer_bytes_if());
 
         loggedRowWrite.value = ToDataValue(
-            rowValueProto.as_bytes_if());
+            rowValueProto.as_protocol_buffer_bytes_if());
         loggedRowWrite.sequence_number = writeSequenceNumber;
 
         FlatMessage loggedRowWriteMessage{ &loggedRowWrite };
@@ -132,7 +132,7 @@ protected:
         {
             keyLowMessage.set_value(
                 keyLow.value());
-            keyLowProto = ProtoValue(&keyLowMessage, true);
+            keyLowProto = ProtoValue(&keyLowMessage).pack();
         }
 
         StringKey keyHighMessage;
@@ -140,18 +140,18 @@ protected:
         {
             keyHighMessage.set_value(
                 keyHigh.value());
-            keyHighProto = ProtoValue(&keyHighMessage, true);
+            keyHighProto = ProtoValue(&keyHighMessage).pack();
         }
 
         auto enumeration = memoryTable.Enumerate(
             delayedTransactionOutcome,
             ToSequenceNumber(readSequenceNumber),
             {
-                .Key = keyLowProto.as_bytes_if(),
+                .Key = keyLowProto.as_protocol_buffer_bytes_if(),
                 .Inclusivity = keyLowInclusivity,
             },
             {
-                .Key = keyHighProto.as_bytes_if(),
+                .Key = keyHighProto.as_protocol_buffer_bytes_if(),
                 .Inclusivity = keyHighInclusivity
             });
 
@@ -164,9 +164,9 @@ protected:
             ResultRow& row = *iterator;
 
             StringKey resultKey;
-            ProtoValue{ row.Key }.unpack(&resultKey);
+            ProtoValue::ProtocolBuffer( row.Key ).unpack(&resultKey);
             StringValue resultValue;
-            ProtoValue{ row.Value }.unpack(&resultValue);
+            ProtoValue::ProtocolBuffer( row.Value ).unpack(&resultValue);
             
             storedRows.push_back(
                 ExpectedRow

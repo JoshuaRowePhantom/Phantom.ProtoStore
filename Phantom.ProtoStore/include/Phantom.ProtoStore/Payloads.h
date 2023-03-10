@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <variant>
 #include "Primitives.h"
+#include "Phantom.System/concepts.h"
 
 namespace Phantom::ProtoStore
 {
@@ -225,6 +226,10 @@ struct StoredMessage
 template<
     typename T
 > concept IsFlatBufferTable = std::is_base_of<flatbuffers::Table, T>::value;
+
+template<
+    typename T
+> concept IsProtocolBufferMessage = std::is_base_of<google::protobuf::Message, T>::value;
 
 template<
     typename T
@@ -457,24 +462,89 @@ template<
 
 class ProtoValue
 {
+    static constexpr size_t nothing = 0;
+
+    // These constants correspond to the values in message_data_type variant.
+    static constexpr size_t protocol_buffers_span = 1;
+    static constexpr size_t protocol_buffers_string = 2;
+    static constexpr size_t protocol_buffers_aligned_message_data = 3;
+    static constexpr size_t flat_buffers_span = 4;
+    static constexpr size_t flat_buffers_string = 5;
+    static constexpr size_t flat_buffers_aligned_message_data = 6;
+
+    // The backing store for a message.
     typedef std::variant<
+        std::monostate,
+
+        // protocol buffer values
+        std::span<const std::byte>,
+        std::string,
+        AlignedMessageData,
+        
+        // flat buffer values
+        std::span<const std::byte>,
+        std::string,
+        AlignedMessageData,
+        std::shared_ptr<flatbuffers::DetachedBuffer>
+    > message_data_type;
+
+    // These constants correspond to the values in message_type variant.
+    static constexpr size_t protocol_buffers_message_pointer = 1;
+    static constexpr size_t protocol_buffers_message_shared_ptr = 2;
+    static constexpr size_t flat_buffers_table_pointer = 3;
+    static constexpr size_t key_min = 4;
+    static constexpr size_t key_max = 5;
+
+    // The actual message represented in a ProtoValue.
+    typedef std::variant<
+        std::monostate,
+        // protocol buffer values
+        const google::protobuf::Message*,
+        std::shared_ptr<const google::protobuf::Message>,
+        // flat buffer values
+        const flatbuffers::Table*,
+        // placeholder key values
+        // key-min
+        std::monostate,
+        // key-max
+        std::monostate
+    > message_type;
+
+    message_data_type message_data;
+    message_type message;
+
+    static constexpr size_t backing_store_span = 1;
+    static constexpr size_t backing_store_string = 2;
+    static constexpr size_t backing_store_aligned_message_data = 3;
+
+public:
+
+    using backing_store = std::variant<
         std::monostate,
         std::span<const std::byte>,
         std::string,
         AlignedMessageData
-    > message_data_type;
-
-    typedef std::variant<
-        std::monostate,
-        const google::protobuf::Message*,
-        std::shared_ptr<const google::protobuf::Message>,
-        const flatbuffers::Table*
-    > message_type;
+    >;
 
 public:
 
-    message_data_type message_data;
-    message_type message;
+    using backing_store = std::variant<
+        std::monostate,
+        std::span<const std::byte>,
+        std::string,
+        AlignedMessageData
+    >;
+
+    using protocol_buffer_message = std::variant<
+        std::monostate,
+        const google::protobuf::Message*,
+        std::shared_ptr<const google::protobuf::Message>
+    >;
+
+    using flat_buffer_message = std::variant<
+        std::monostate,
+        const flatbuffers::Table*
+    >;
 
     ProtoValue();
 
@@ -487,25 +557,99 @@ public:
     ProtoValue& operator=(ProtoValue&&);
 
     ProtoValue(
-        AlignedMessageData,
-        const flatbuffers::Table*
+        flat_buffer_message flatBufferMessage
+    );
+
+    template<
+        IsFlatBufferTable Table
+    >
+    ProtoValue(
+        const Table* flatBufferMessage
+    )
+        :
+        ProtoValue(
+            flat_buffer_message{ reinterpret_cast<const flatbuffers::Table*>(flatBufferMessage) })
+    {
+    }
+
+    ProtoValue(
+        backing_store backingStore,
+        flat_buffer_message flatBufferMessage
+    );
+
+    template<
+        IsFlatBufferTable Table
+    >
+    ProtoValue(
+        backing_store backingStore,
+        const Table* flatBufferMessage
+    )
+        :
+        ProtoValue(
+            std::move(backingStore),
+            flat_buffer_message{ reinterpret_cast<const flatbuffers::Table*>(flatBufferMessage) })
+    {
+    }
+
+    ProtoValue(
+        protocol_buffer_message protocolBufferMessage
     );
 
     ProtoValue(
-        std::shared_ptr<google::protobuf::Message> other);
+        backing_store backingStore,
+        protocol_buffer_message protocolBufferMessage
+    );
 
     ProtoValue(
-        std::string bytes);
+        const google::protobuf::Message* protocolBufferMessage
+    );
 
     ProtoValue(
-        std::span<const std::byte> bytes);
+        backing_store backingStore,
+        const google::protobuf::Message* protocolBufferMessage
+    );
 
-    ProtoValue(
-        AlignedMessageData bytes);
+    static ProtoValue FlatBuffer(
+        flat_buffer_message flatBufferBufferMessage
+    );
 
-    ProtoValue(
-        const google::protobuf::Message* other,
-        bool pack = false);
+    template<
+        IsFlatBufferTable Table
+    >
+    static ProtoValue FlatBuffer(
+        const Table* flatBufferMessage
+    )
+    {
+        return FlatBuffer(
+            flat_buffer_message{ reinterpret_cast<const flatbuffers::Table*>(flatBufferMessage) });
+    }
+
+    static ProtoValue FlatBuffer(
+        backing_store backingStore,
+        flat_buffer_message flatBufferBufferMessage = {}
+    );
+
+    template<
+        IsFlatBufferTable Table
+    >
+    static ProtoValue FlatBuffer(
+        backing_store backingStore,
+        const Table* flatBufferMessage
+    )
+    {
+        return FlatBuffer(
+            std::move(backingStore),
+            flat_buffer_message{ reinterpret_cast<const flatbuffers::Table*>(flatBufferMessage) });
+    }
+
+    static ProtoValue ProtocolBuffer(
+        protocol_buffer_message protocolBufferMessage
+    );
+
+    static ProtoValue ProtocolBuffer(
+        backing_store backingStore,
+        protocol_buffer_message protocolBufferMessage = {}
+    );
 
     ~ProtoValue();
 
@@ -516,10 +660,14 @@ public:
     bool operator !() const;
     bool has_value() const;
 
+    bool is_protocol_buffer() const;
+    bool is_flat_buffer() const;
+
     const google::protobuf::Message* as_message_if() const;
+    const flatbuffers::Table* as_table_if() const;
 
     template<
-        std::derived_from<google::protobuf::Message> TMessage
+        IsProtocolBufferMessage TMessage
     > const TMessage* cast_if() const
     {
         auto message = as_message_if();
@@ -541,13 +689,30 @@ public:
         IsFlatBufferTable Table
     > const Table* cast_if() const
     {
-        if (holds_alternative<const flatbuffers::Table*>(message))
+        return reinterpret_cast<const Table*>(as_table_if());
+    }
+
+    template<
+        IsProtocolBufferMessage Message
+    > ProtoValue& unpack()&
+    {
+        if (is_protocol_buffer()
+            && !cast_if<Message>())
         {
-            return reinterpret_cast<const Table*>(
-                get<const flatbuffers::Table*>(message));
+            auto unpackedMessage = std::make_shared<Message>();
+            unpack(&*unpackedMessage);
+            message.emplace<protocol_buffers_message_shared_ptr>(
+                std::move(unpackedMessage));
         }
 
-        return nullptr;
+        return *this;
+    }
+    
+    template<
+        IsProtocolBufferMessage Message
+    > ProtoValue&& unpack()&&
+    {
+        return std::move(this->unpack<Message>());
     }
 
     void unpack(
@@ -558,9 +723,13 @@ public:
         std::string* destination
     ) const;
 
+    ProtoValue& pack() &;
+    ProtoValue&& pack() &&;
+
     ProtoValue pack_unowned() const;
 
-    std::span<const std::byte> as_bytes_if() const;
+    std::span<const std::byte> as_protocol_buffer_bytes_if() const;
+    std::span<const std::byte> as_flat_buffer_bytes_if() const;
 
     bool IsKeyMin() const;
     bool IsKeyMax() const;

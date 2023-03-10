@@ -158,7 +158,7 @@ operation_task<ReadResult> Index::Read(
 
     KeyRangeEnd keyLow
     {
-        .Key = unowningKey.as_bytes_if(),
+        .Key = unowningKey.as_protocol_buffer_bytes_if(),
         .Inclusivity = Inclusivity::Inclusive,
     };
 
@@ -224,7 +224,7 @@ operation_task<ReadResult> Index::Read(
         co_return ReadResult
         {
             .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-            .Value = std::move(resultRow.Value),
+            .Value = ProtoValue::ProtocolBuffer(std::move(resultRow.Value)),
             .ReadStatus = ReadStatus::HasValue,
         };
     }
@@ -245,13 +245,13 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
 
     KeyRangeEnd keyLow
     {
-        .Key = unowningKeyLow.as_bytes_if(),
+        .Key = unowningKeyLow.as_protocol_buffer_bytes_if(),
         .Inclusivity = enumerateRequest.KeyLowInclusivity,
     };
 
     KeyRangeEnd keyHigh
     {
-        .Key = unowningKeyHigh.as_bytes_if(),
+        .Key = unowningKeyHigh.as_protocol_buffer_bytes_if(),
         .Inclusivity = enumerateRequest.KeyHighInclusivity,
     };
 
@@ -300,10 +300,10 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
         {
             {
                 .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-                .Value = std::move(resultRow.Value),
+                .Value = ProtoValue::ProtocolBuffer(std::move(resultRow.Value)),
                 .ReadStatus = ReadStatus::HasValue,
             },
-            std::move(resultRow.Key),
+            ProtoValue::ProtocolBuffer(std::move(resultRow.Key)),
         };
     }
 }

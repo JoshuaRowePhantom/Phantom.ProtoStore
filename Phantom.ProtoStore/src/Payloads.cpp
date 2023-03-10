@@ -5,115 +5,240 @@
 namespace Phantom::ProtoStore
 {
 
-extern const Serialization::PlaceholderKey KeyMinMessage;
-extern const Serialization::PlaceholderKey KeyMaxMessage;
-extern const std::span<const std::byte> KeyMinSpan;
-extern const std::span<const std::byte> KeyMaxSpan;
-
 ProtoValue ProtoValue::KeyMin()
 {
-    return &KeyMinMessage;
+    ProtoValue result;
+    result.message.emplace<key_min>();
+    return result;
 }
 
 ProtoValue ProtoValue::KeyMax()
 {
-    return &KeyMaxMessage;
+    ProtoValue result;
+    result.message.emplace<key_max>();
+    return result;
 }
 
 ProtoValue::ProtoValue() = default;
 
-ProtoValue::ProtoValue(
-    std::shared_ptr<google::protobuf::Message> other)
-{
-    if (other)
-    {
-        message = move(other);
-    }
-}
-
-ProtoValue::ProtoValue(
-    std::string bytes)
-    :
-    message_data(move(bytes))
-{
-}
-
-ProtoValue::ProtoValue(
-    std::span<const std::byte> bytes)
-{
-    if (bytes.data())
-    {
-        message_data = bytes;
-    }
-}
-
-ProtoValue::ProtoValue(
-    AlignedMessageData message)
-{
-    if (message)
-    {
-        message_data = std::move(message);
-    }
-}
-
-ProtoValue::ProtoValue(
-    const google::protobuf::Message* other,
-    bool pack)
-{
-    if (other)
-    {
-        message = other;
-        if (pack)
-        {
-            message_data = std::string{};
-            other->SerializeToString(
-                &get<std::string>(message_data));
-        }
-    }
-}
-
 ProtoValue::~ProtoValue() = default;
+
+ProtoValue::ProtoValue(
+    ProtoValue&& other
+)
+{
+    std::swap(message_data, other.message_data);
+    std::swap(message, other.message);
+}
+
+ProtoValue::ProtoValue(
+    const ProtoValue& other
+) = default;
+
+ProtoValue& ProtoValue::operator=(ProtoValue&& other)
+{
+    if (&other == this)
+    {
+        return *this;
+    }
+
+    ProtoValue temp(std::move(*this));
+    std::swap(message_data, other.message_data);
+    std::swap(message, other.message);
+
+    return *this;
+}
+
+ProtoValue::ProtoValue(
+    flat_buffer_message flatBufferMessage
+)
+    :
+    ProtoValue
+{
+    backing_store{},
+    std::move(flatBufferMessage)
+}
+{
+}
+
+ProtoValue::ProtoValue(
+    const google::protobuf::Message* protocolBufferMessage
+) :
+    ProtoValue
+{
+    protocol_buffer_message{ protocolBufferMessage }
+}
+{}
+
+ProtoValue::ProtoValue(
+    protocol_buffer_message protocolBufferMessage
+) :
+    ProtoValue
+{
+    backing_store{},
+    std::move(protocolBufferMessage)
+}
+{}
+
+ProtoValue::ProtoValue(
+    backing_store backingStore,
+    protocol_buffer_message protocolBufferMessage
+)
+{
+    switch (backingStore.index())
+    {
+    case 0:
+        break;
+    case 1:
+        if (get<1>(backingStore).data())
+        {
+            message_data.emplace<protocol_buffers_span>(get<1>(std::move(backingStore)));
+        }
+        break;
+    case 2:
+        message_data.emplace<protocol_buffers_string>(get<2>(std::move(backingStore)));
+        break;
+    case 3:
+        if (get<3>(backingStore))
+        {
+            message_data.emplace<protocol_buffers_aligned_message_data>(get<3>(std::move(backingStore)));
+        }
+        break;
+    }
+
+    switch (protocolBufferMessage.index())
+    {
+    case 1:
+        if (get<1>(protocolBufferMessage))
+        {
+            message.emplace<protocol_buffers_message_pointer>(get<1>(std::move(protocolBufferMessage)));
+        }
+        break;
+    case 2:
+        if (get<2>(protocolBufferMessage))
+        {
+            message.emplace<protocol_buffers_message_shared_ptr>(get<2>(std::move(protocolBufferMessage)));
+        }
+        break;
+    }
+}
+
+ProtoValue ProtoValue::ProtocolBuffer(
+    backing_store backingStore,
+    protocol_buffer_message protocolBufferMessage
+)
+{
+    return 
+    {
+        std::move(backingStore),
+        std::move(protocolBufferMessage),
+    };
+}
+
+ProtoValue::ProtoValue(
+    backing_store backingStore,
+    flat_buffer_message flatBufferMessage)
+{
+    switch (backingStore.index())
+    {
+    case 0:
+        break;
+    case 1:
+        if (get<1>(backingStore).data())
+        {
+            message_data.emplace<flat_buffers_span>(get<1>(std::move(backingStore)));
+        }
+        break;
+    case 2:
+        message_data.emplace<flat_buffers_string>(get<2>(std::move(backingStore)));
+        break;
+    case 3:
+        if (get<3>(backingStore))
+        {
+            message_data.emplace<flat_buffers_aligned_message_data>(get<3>(std::move(backingStore)));
+        }
+        break;
+    }
+
+    switch (flatBufferMessage.index())
+    {
+    case 1:
+        if (get<1>(flatBufferMessage))
+        {
+            message.emplace<flat_buffers_table_pointer>(get<1>(std::move(flatBufferMessage)));
+        }
+        break;
+    }
+
+    if (!as_table_if()
+        && as_flat_buffer_bytes_if().data())
+    {
+        message.emplace<flat_buffers_table_pointer>(
+            flatbuffers::GetRoot<flatbuffers::Table>(
+                as_flat_buffer_bytes_if().data()));
+    }
+}
+
+ProtoValue ProtoValue::FlatBuffer(
+    backing_store backingStore,
+    flat_buffer_message flatBufferMessage
+)
+{
+    return
+    {
+        std::move(backingStore),
+        std::move(flatBufferMessage),
+    };
+}
+
+ProtoValue::ProtoValue(
+    backing_store backingStore,
+    const google::protobuf::Message* protocolMessage
+) : ProtoValue
+{
+    std::move(backingStore),
+    protocol_buffer_message { protocolMessage },
+}
+{
+}
 
 bool ProtoValue::IsKeyMin() const
 {
-    return as_message_if() == &KeyMinMessage
-        || as_bytes_if().data() == KeyMinSpan.data();
+    return message.index() == key_min;
 }
 
 bool ProtoValue::IsKeyMax() const
 {
-    return as_message_if() == &KeyMaxMessage
-        || as_bytes_if().data() == KeyMaxSpan.data();
+    return message.index() == key_max;
+}
+
+ProtoValue&& ProtoValue::pack()&&
+{
+    return std::move(this->pack());
+}
+
+ProtoValue& ProtoValue::pack()&
+{
+    if (message_data.index() == 0
+        && as_message_if())
+    {
+        message_data.emplace<protocol_buffers_string>(
+            as_message_if()->SerializeAsString());
+    }
+
+    return *this;
 }
 
 ProtoValue ProtoValue::pack_unowned() const
 {
-    ProtoValue result;
-    result.message_data = this->message_data;
-    result.message = this->as_message_if();
-
-    if (IsKeyMin())
-    {
-        result.message_data = KeyMinSpan;
-    }
-    else if (IsKeyMax())
-    {
-        result.message_data = KeyMaxSpan;
-    }
-    else if (holds_alternative<std::monostate>(result.message_data)
-        && result.as_message_if())
-    {
-        result.message_data = result.as_message_if()->SerializeAsString();
-    }
-
-    return std::move(result);
+    return ProtoValue(*this).pack();
 }
 
 bool ProtoValue::pack(
     std::string* destination
 ) const
 {
-    auto bytes = as_bytes_if();
+    auto bytes = as_protocol_buffer_bytes_if();
     if (bytes.data())
     {
         destination->assign(
@@ -144,7 +269,7 @@ void ProtoValue::unpack(
         return;
     }
 
-    auto bytes = as_bytes_if();
+    auto bytes = as_protocol_buffer_bytes_if();
     if (bytes.data())
     {
         destination->ParseFromArray(
@@ -173,6 +298,16 @@ const google::protobuf::Message* ProtoValue::as_message_if() const
         {
             return source->get();
         }
+    }
+
+    return nullptr;
+}
+
+const flatbuffers::Table* ProtoValue::as_table_if() const
+{
+    if (holds_alternative<const flatbuffers::Table*>(message))
+    {
+        return get<const flatbuffers::Table*>(message);
     }
 
     return nullptr;
@@ -214,57 +349,52 @@ std::optional<FlatBuffers::MessageReference_V1> StoredMessage::Reference_V1() co
         std::nullopt;
 }
 
-std::span<const std::byte> ProtoValue::as_bytes_if() const
+std::span<const std::byte> ProtoValue::as_protocol_buffer_bytes_if() const
 {
-    if (holds_alternative<std::string>(message_data))
+    switch (message_data.index())
     {
-        return as_bytes(std::span{ get<std::string>(message_data) });
-    }
-    if (holds_alternative<std::span<const std::byte>>(message_data))
-    {
-        return get<std::span<const std::byte>>(message_data);
-    }
-    if (holds_alternative<AlignedMessageData>(message_data))
-    {
-        return get<AlignedMessageData>(message_data)->Payload;
+    case protocol_buffers_aligned_message_data:
+        return get<protocol_buffers_aligned_message_data>(message_data)->Payload;
+    case protocol_buffers_span:
+        return get<protocol_buffers_span>(message_data);
+    case protocol_buffers_string:
+        return as_bytes(std::span{ get<protocol_buffers_string>(message_data) });
     }
     return {};
 }
 
-ProtoValue::ProtoValue(
-    ProtoValue&& other
-)
+std::span<const std::byte> ProtoValue::as_flat_buffer_bytes_if() const
 {
-    std::swap(message_data, other.message_data);
-    std::swap(message, other.message);
-}
-
-ProtoValue::ProtoValue(
-    const ProtoValue& other
-) = default;
-
-ProtoValue& ProtoValue::operator=(ProtoValue&& other)
-{
-    if (&other == this)
+    switch (message_data.index())
     {
-        return *this;
+    case flat_buffers_aligned_message_data:
+        return get<flat_buffers_aligned_message_data>(message_data)->Payload;
+    case flat_buffers_span:
+        return get<flat_buffers_span>(message_data);
+    case flat_buffers_string:
+        return as_bytes(std::span{ get<flat_buffers_string>(message_data) });
     }
-
-    ProtoValue temp(std::move(*this));
-    std::swap(message_data, other.message_data);
-    std::swap(message, other.message);
-    
-    return *this;
+    return {};
 }
 
 
-ProtoValue::ProtoValue(
-    AlignedMessageData alignedMessageData,
-    const flatbuffers::Table* table
-) :
-    message_data(std::move(alignedMessageData)),
-    message(table)
+bool ProtoValue::is_protocol_buffer() const
 {
+    return
+        message_data.index() == protocol_buffers_aligned_message_data
+        || message_data.index() == protocol_buffers_span
+        || message_data.index() == protocol_buffers_string
+        || message.index() == protocol_buffers_message_pointer
+        || message.index() == protocol_buffers_message_shared_ptr;
+}
+
+bool ProtoValue::is_flat_buffer() const
+{
+    return
+        message_data.index() == flat_buffers_aligned_message_data
+        || message_data.index() == flat_buffers_span
+        || message_data.index() == flat_buffers_string
+        || message.index() == flat_buffers_table_pointer;
 }
 
 }
