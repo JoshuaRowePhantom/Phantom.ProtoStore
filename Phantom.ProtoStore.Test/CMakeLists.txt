@@ -23,16 +23,19 @@ add_executable(
     "MemoryTableTests.cpp"
     "MessageStoreTests.cpp"
     "PartitionTests.cpp"
-    "ProtoStoreTest.proto"
+    "pch.h"
     "ProtoStoreFlatBufferTests.cpp"
     "ProtoStoreProtocolBufferTests.cpp"
+    "ProtoStoreTest.proto"
     "ProtoValueTests.cpp"
+    "Resources.cpp"
+    "Resources.h"
     "RowMergerTests.cpp"
     "SchemaTests.cpp"
     "SkipListTest.cpp"
     "StandardIncludes.cpp"
     "StandardIncludes.h"
-)
+ )
     
 PROTOBUF_GENERATE(
     LANGUAGE cpp
@@ -92,6 +95,12 @@ target_include_directories(
     Phantom.ProtoStore.Test
     PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+target_precompile_headers(
+    Phantom.ProtoStore.Test
+    PRIVATE
+    "pch.h"
 )
 
 gtest_discover_tests(

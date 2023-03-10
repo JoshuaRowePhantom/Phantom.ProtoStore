@@ -58,6 +58,7 @@ add_library (
     "src/PartitionWriter.h"
     "src/PartitionWriterImpl.h"
     "src/Payloads.cpp"
+    "src/pch.h"
     "src/Phantom.ProtoStore.cpp"
     "src/ProtoStore.cpp"
     "src/ProtoStore.h"
@@ -127,6 +128,12 @@ target_compile_definitions(
     Phantom.ProtoStore
     PUBLIC
     "BOOST_ALL_NO_LIB=1"
+)
+
+target_precompile_headers(
+    Phantom.ProtoStore
+    PRIVATE
+    "src/pch.h"
 )
 
 target_link_libraries(

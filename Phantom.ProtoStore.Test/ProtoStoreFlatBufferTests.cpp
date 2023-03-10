@@ -8,10 +8,8 @@
 #define NOMINMAX
 #include "Windows.h"
 #include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
-#include <cmrc/cmrc.hpp>
 #include <flatbuffers/reflection.h>
-
-CMRC_DECLARE(Phantom::ProtoStore::Test::Resources);
+#include "Resources.h"
 
 using namespace std;
 
@@ -26,14 +24,6 @@ class ProtoStoreFlatBufferTests
     using FlatStringKeyT = Phantom::ProtoStore::FlatBuffers::FlatStringKeyT;
     using FlatStringValue = Phantom::ProtoStore::FlatBuffers::FlatStringValue;
     using FlatStringValueT = Phantom::ProtoStore::FlatBuffers::FlatStringValueT;
-
-    static inline const reflection::Schema* TestSchema =
-        flatbuffers::GetRoot<reflection::Schema>(
-            cmrc::Phantom::ProtoStore::Test::Resources::get_filesystem().open("ProtoStoreTest.bfbs").begin());
-    static inline const reflection::Object* TestKeySchema =
-        TestSchema->objects()->LookupByKey("Phantom.ProtoStore.Test.FlatBuffers.TestStringKey");
-    static inline const reflection::Object* TestValueSchema =
-        TestSchema->objects()->LookupByKey("Phantom.ProtoStore.Test.FlatBuffers.TestStringValue");
 
 public:
     CreateProtoStoreRequest GetCreateMemoryStoreRequest()
@@ -85,10 +75,10 @@ public:
     )
     {
         CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_ProtoIndex";
+        createIndexRequest.IndexName = "test_FlatIndex";
         createIndexRequest.Schema = Schema::Make(
-            { TestSchema, TestKeySchema },
-            { TestSchema, TestValueSchema });
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringKeySchema },
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringValueSchema });
 
         auto index = co_await store->CreateIndex(
             createIndexRequest
@@ -102,10 +92,10 @@ public:
     )
     {
         CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_ProtoIndex";
+        createIndexRequest.IndexName = "test_FlatIndex";
         createIndexRequest.Schema = Schema::Make(
-            { TestSchema, TestKeySchema },
-            { TestSchema, TestValueSchema });
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringKeySchema },
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringValueSchema });
 
         auto index = co_await store->GetIndex(
             createIndexRequest
