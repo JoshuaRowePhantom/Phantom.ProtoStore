@@ -769,6 +769,7 @@ public:
 
     std::span<const std::byte> as_protocol_buffer_bytes_if() const;
     std::span<const std::byte> as_flat_buffer_bytes_if() const;
+    AlignedMessage as_aligned_message_if() const;
 
     bool IsKeyMin() const;
     bool IsKeyMax() const;

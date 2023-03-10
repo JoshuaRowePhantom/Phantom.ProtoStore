@@ -81,7 +81,7 @@ protected:
         nonNullProtocolAlignedMessageData = AlignedMessageData(
             DataReference<char>(nonNullProtocolAlignedMessageString, 1),
             AlignedMessage(
-                16,
+                1,
                 get_byte_span(nonNullProtocolAlignedMessageString->value)));
 
         nonNullProtocolMessageSharedPointer = std::make_shared<StringKey>(
@@ -94,6 +94,7 @@ void ExpectEmptyData(
 {
     EXPECT_EQ(nullptr, protoValue.as_flat_buffer_bytes_if().data());
     EXPECT_EQ(nullptr, protoValue.as_protocol_buffer_bytes_if().data());
+    EXPECT_EQ(nullptr, protoValue.as_aligned_message_if().Payload.data());
 }
 
 void ExpectIsNotProtocolBuffer(
@@ -213,6 +214,11 @@ TEST_F(ProtoValueTests, constructor_backing_store_aligned_message_data_flatmessa
         std::move(nonNullFlatTableAlignedMessageData), 
         ProtoValue::flat_buffer_message{});
 
+    EXPECT_EQ(16, protoValue.as_aligned_message_if().Alignment);
+    EXPECT_EQ(
+        reinterpret_cast<const std::byte*>(nonNullFlatTableAlignedMessageString->value.data()),
+        protoValue.as_aligned_message_if().Payload.data());
+    
     ExpectIsTable(
         protoValue,
         nonNullAlignedMessageDataFlatTableRaw);
@@ -391,6 +397,11 @@ TEST_F(ProtoValueTests, constructor_backing_store_aligned_message_data_protocolm
     ProtoValue protoValue(
         std::move(nonNullProtocolAlignedMessageData),
         ProtoValue::protocol_buffer_message{ nonNullProtocolMessageSharedPointer });
+
+    EXPECT_EQ(1, protoValue.as_aligned_message_if().Alignment);
+    EXPECT_EQ(
+        reinterpret_cast<const std::byte*>(nonNullProtocolAlignedMessageString->value.data()), 
+        protoValue.as_aligned_message_if().Payload.data());
 
     ExpectIsProtocolBuffer(
         protoValue,

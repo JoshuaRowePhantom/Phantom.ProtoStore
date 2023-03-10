@@ -377,6 +377,39 @@ std::span<const std::byte> ProtoValue::as_flat_buffer_bytes_if() const
     return {};
 }
 
+AlignedMessage ProtoValue::as_aligned_message_if() const
+{
+    switch (message_data.index())
+    {
+    case protocol_buffers_aligned_message_data:
+        return *get<protocol_buffers_aligned_message_data>(message_data);
+    case flat_buffers_aligned_message_data:
+        return *get<flat_buffers_aligned_message_data>(message_data);
+    }
+
+    auto protocolBufferBytes = as_protocol_buffer_bytes_if();
+    if (protocolBufferBytes.data())
+    {
+        return AlignedMessage
+        {
+            1,
+            protocolBufferBytes
+        };
+    }
+
+    auto flatBufferBytes = as_flat_buffer_bytes_if();
+    if (protocolBufferBytes.data())
+    {
+        return AlignedMessage
+        {
+            32,
+            protocolBufferBytes
+        };
+    }
+
+    return AlignedMessage{};
+}
+
 
 bool ProtoValue::is_protocol_buffer() const
 {
