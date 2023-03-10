@@ -65,6 +65,8 @@ add_library (
     "src/ProtoStoreFactory.cpp"
     "src/ProtoStoreFactory.h"
     "src/ProtoStoreInternal.proto"
+    "src/Resources.cpp" 
+    "src/Resources.h"
     "src/RowMerger.cpp"
     "src/RowMerger.h"
     "src/Scheduler.cpp"
@@ -76,7 +78,7 @@ add_library (
     "src/StandardTypes.h"
     "src/UnresolvedTransactionsTracker.cpp"
     "src/UnresolvedTransactionsTracker.h" 
-    )
+)
     
 target_include_directories(
     Phantom.ProtoStore
@@ -142,6 +144,7 @@ target_link_libraries(
     flatbuffers::flatbuffers
     Phantom.Coroutines.cppcoro
     Phantom.ProtoStore.FlatBuffers
+    Phantom.ProtoStore.Resources
     Phantom.System
     protobuf::libprotobuf
 )
