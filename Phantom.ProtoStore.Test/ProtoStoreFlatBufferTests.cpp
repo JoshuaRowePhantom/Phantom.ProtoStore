@@ -1,4 +1,3 @@
-#if 0
 #include "StandardIncludes.h"
 
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
@@ -20,12 +19,12 @@ class ProtoStoreFlatBufferTests
     :
     public testing::Test
 {
+public:
     using FlatStringKey = Phantom::ProtoStore::FlatBuffers::FlatStringKey;
     using FlatStringKeyT = Phantom::ProtoStore::FlatBuffers::FlatStringKeyT;
     using FlatStringValue = Phantom::ProtoStore::FlatBuffers::FlatStringValue;
     using FlatStringValueT = Phantom::ProtoStore::FlatBuffers::FlatStringValueT;
 
-public:
     CreateProtoStoreRequest GetCreateMemoryStoreRequest()
     {
         CreateProtoStoreRequest createRequest;
@@ -147,8 +146,8 @@ public:
         SequenceNumber expectedSequenceNumber
     )
     {
-        FlatStringKey stringKey;
-        stringKey.set_value(key);
+        FlatStringKeyT stringKey;
+        stringKey.value = key;
 
         ReadRequest readRequest;
         readRequest.Key = &stringKey;
@@ -165,14 +164,14 @@ public:
         }
         else
         {
-            FlatStringValue actualValue;
+            FlatStringValueT actualValue;
             readResult->Value.unpack(&actualValue);
-            EXPECT_EQ(*expectedValue, actualValue.value());
+            EXPECT_EQ(*expectedValue, actualValue.value);
             EXPECT_EQ(expectedSequenceNumber, readResult->WriteSequenceNumber);
         }
     }
 
-    task<vector<row<FlatStringKey, FlatStringValue>>> EnumerateTestFlatBufferRows(
+    task<vector<row<FlatStringKeyT, FlatStringValueT>>> EnumerateTestFlatBufferRows(
         const shared_ptr<IProtoStore>& store,
         ProtoIndex index,
         optional<string> keyLow,
@@ -182,15 +181,15 @@ public:
         SequenceNumber readSequenceNumber
     )
     {
-        FlatStringKey keyLowStringKey;
-        FlatStringKey keyHighStringKey;
+        FlatStringKeyT keyLowStringKey;
+        FlatStringKeyT keyHighStringKey;
         if (keyLow)
         {
-            keyLowStringKey.set_value(*keyLow);
+            keyLowStringKey.value = *keyLow;
         }
         if (keyHigh)
         {
-            keyHighStringKey.set_value(*keyHigh);
+            keyHighStringKey.value = *keyHigh;
         }
 
         EnumerateRequest enumerateRequest;
@@ -204,13 +203,13 @@ public:
         auto enumeration = store->Enumerate(
             enumerateRequest);
 
-        vector<row<FlatStringKey, FlatStringValue>> result;
+        vector<row<FlatStringKeyT, FlatStringValueT>> result;
 
         for (auto iterator = co_await enumeration.begin();
             iterator != enumeration.end();
             co_await ++iterator)
         {
-            row<FlatStringKey, FlatStringValue> resultRow;
+            row<FlatStringKeyT, FlatStringValueT> resultRow;
             (*iterator)->Key.unpack(&resultRow.Key);
             (*iterator)->Value.unpack(&resultRow.Value);
             resultRow.ReadSequenceNumber = (*iterator)->WriteSequenceNumber;
@@ -243,11 +242,11 @@ public:
 
         for (auto& actualRow : actualRows)
         {
-            EXPECT_TRUE(expectedRows.contains(actualRow.Key.value()));
-            EXPECT_EQ(get<0>(expectedRows[actualRow.Key.value()]), actualRow.Value.value());
-            EXPECT_EQ(ToSequenceNumber(get<1>(expectedRows[actualRow.Key.value()])), actualRow.WriteSequenceNumber);
+            EXPECT_TRUE(expectedRows.contains(actualRow.Key.value));
+            EXPECT_EQ(get<0>(expectedRows[actualRow.Key.value]), actualRow.Value.value);
+            EXPECT_EQ(ToSequenceNumber(get<1>(expectedRows[actualRow.Key.value])), actualRow.WriteSequenceNumber);
 
-            expectedRows.erase(actualRow.Key.value());
+            expectedRows.erase(actualRow.Key.value);
         }
 
         EXPECT_TRUE(expectedRows.empty());
@@ -1007,10 +1006,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_read_written_row_during_ope
 {
     auto store = co_await CreateMemoryStore();
 
-    FlatStringKey key;
-    key.set_value("testKey1");
-    FlatStringValue expectedValue;
-    expectedValue.set_value("testValue1");
+    FlatStringKeyT key;
+    key.value = "testKey1";
+    FlatStringValueT expectedValue;
+    expectedValue.value = "testValue1";
 
     auto index = co_await CreateTestFlatBufferIndex(
         store);
@@ -1034,7 +1033,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_read_written_row_during_ope
             readRequest
         );
 
-        FlatStringValue actualValue;
+        FlatStringValueT actualValue;
         readResult->Value.unpack(&actualValue);
     }
 
@@ -1046,12 +1045,12 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_conflict_on_one_row_and_commits_firs
 {
     auto store = co_await CreateMemoryStore();
 
-    FlatStringKey key;
-    key.set_value("testKey1");
-    FlatStringValue expectedValue;
-    expectedValue.set_value("testValue1");
-    FlatStringValue unexpectedValue;
-    unexpectedValue.set_value("testValue2");
+    FlatStringKeyT key;
+    key.value = "testKey1";
+    FlatStringValueT expectedValue;
+    expectedValue.value = "testValue1";
+    FlatStringValueT unexpectedValue;
+    unexpectedValue.value = "testValue2";
 
     auto index = co_await CreateTestFlatBufferIndex(
         store);
@@ -1126,8 +1125,8 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_conflict_on_one_row_and_commits_firs
     co_await ExpectGetTestFlatBufferRow(
         store,
         index,
-        key.value(),
-        expectedValue.value(),
+        key.value,
+        expectedValue.value,
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
@@ -1135,12 +1134,12 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
 {
     auto store = co_await CreateMemoryStore();
 
-    FlatStringKey key;
-    key.set_value("testKey1");
-    FlatStringValue expectedValue;
-    expectedValue.set_value("testValue1");
-    FlatStringValue unexpectedValue;
-    unexpectedValue.set_value("testValue2");
+    FlatStringKeyT key;
+    key.value = "testKey1";
+    FlatStringValueT expectedValue;
+    expectedValue.value = "testValue1";
+    FlatStringValueT unexpectedValue;
+    unexpectedValue.value = "testValue2";
     TransactionId transactionId("transactionId1");
 
     auto index = co_await CreateTestFlatBufferIndex(
@@ -1207,7 +1206,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
             readRequest
         );
 
-        FlatStringValue actualValue;
+        FlatStringValueT actualValue;
         readResult->Value.unpack(&actualValue);
     }
 }
@@ -1216,12 +1215,12 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
     auto createRequest = GetCreateMemoryStoreRequest();
     auto store = co_await CreateStore(createRequest);
 
-    FlatStringKey key;
-    key.set_value("testKey1");
-    FlatStringValue expectedValue;
-    expectedValue.set_value("testValue1");
-    FlatStringValue unexpectedValue;
-    unexpectedValue.set_value("testValue2");
+    FlatStringKeyT key;
+    key.value = "testKey1";
+    FlatStringValueT expectedValue;
+    expectedValue.value = "testValue1";
+    FlatStringValueT unexpectedValue;
+    unexpectedValue.value = "testValue2";
     TransactionId transactionId("transactionId1");
 
     auto index = co_await CreateTestFlatBufferIndex(
@@ -1291,8 +1290,8 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         co_await ExpectGetTestFlatBufferRow(
             store,
             index,
-            key.value(),
-            expectedValue.value(),
+            key.value,
+            expectedValue.value,
             SequenceNumber::Latest,
             ToSequenceNumber(5)
         );
@@ -1306,23 +1305,19 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         co_await ExpectGetTestFlatBufferRow(
             store,
             index,
-            key.value(),
-            expectedValue.value(),
+            key.value,
+            expectedValue.value,
             SequenceNumber::Latest,
             ToSequenceNumber(1)
         );
     }
 }
 
-cppcoro::async_scope* m_perfScope;
-shared_ptr<IProtoStore>* m_perfStore;
-
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
 {
     cppcoro::static_thread_pool threadPool;
 
     auto store = co_await CreateMemoryStore();
-    m_perfStore = &store;
 
     auto index = co_await CreateTestFlatBufferIndex(
         store);
@@ -1347,10 +1342,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
         {
             co_await threadPool.schedule();
 
-        FlatStringKey key;
-        key.set_value(myKey);
-        FlatStringValue expectedValue;
-        expectedValue.set_value(myKey);
+        FlatStringKeyT key;
+        key.value = myKey;
+        FlatStringValueT expectedValue;
+        expectedValue.value = myKey;
 
         co_await store->ExecuteTransaction(
             BeginTransactionRequest(),
@@ -1377,10 +1372,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
         {
             co_await threadPool.schedule();
 
-        FlatStringKey key;
-        key.set_value(myKey);
-        FlatStringValue expectedValue;
-        expectedValue.set_value(myKey);
+        FlatStringKeyT key;
+        key.value = myKey;
+        FlatStringValueT expectedValue;
+        expectedValue.value = myKey;
 
         ReadRequest readRequest;
         readRequest.Key = &key;
@@ -1390,14 +1385,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
             readRequest
         );
 
-        FlatStringValue actualValue;
+        FlatStringValueT actualValue;
         readResult->Value.unpack(&actualValue);
 
-        auto messageDifferencerResult = MessageDifferencer::Equals(
-            expectedValue,
-            actualValue);
-
-        EXPECT_TRUE(messageDifferencerResult);
+        EXPECT_EQ(actualValue, expectedValue);
         }(value));
     }
 
@@ -1413,9 +1404,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
     std::cout << "ProtoStoreTests runtime: " << runtimeMs.count() << "\r\n";
 }
 
-std::atomic<long> Perf2_running_items(0);
-std::vector<shared_task<>> performanceTasks;
-
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
 {
     CreateProtoStoreRequest createRequest;
@@ -1430,7 +1418,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
 
     auto store = co_await CreateStore(
         createRequest);
-    m_perfStore = &store;
 
     auto index = co_await CreateTestFlatBufferIndex(
         store);
@@ -1466,7 +1453,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
     auto writeItemLambda = [&](size_t startKeyIndex, size_t endKeyIndex) -> task<>
     {
         co_await schedulers.ComputeScheduler->schedule();
-        Perf2_running_items.fetch_add(1);
 
         bool doCheckpoint = false;
 
@@ -1479,10 +1465,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
                 myKeyIndex++)
             {
                 auto& myKey = keys[myKeyIndex];
-                FlatStringKey key;
-                key.set_value(myKey);
-                FlatStringValue expectedValue;
-                expectedValue.set_value(myKey);
+                FlatStringKeyT key;
+                key.value = myKey;
+                FlatStringValueT expectedValue;
+                expectedValue.value = myKey;
 
                 co_await co_await operation->AddRow(
                     WriteOperationMetadata{},
@@ -1503,8 +1489,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
             //co_await store->Checkpoint();
             //co_await store->Merge();
         }
-
-        Perf2_running_items.fetch_sub(1);
     };
 
     auto keysPerInsert = 100;
@@ -1527,8 +1511,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
     auto readLambda = [&]() -> shared_task<>
     {
         auto startReadTime = chrono::high_resolution_clock::now();
-
-        Perf2_running_items.store(0);
 
 #ifdef NDEBUG
         int threadCount = valueCount;
@@ -1554,12 +1536,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
 
                 auto myKey = keys[keyIndex];
 
-                Perf2_running_items.fetch_add(1);
-
-                FlatStringKey key;
-                key.set_value(myKey);
-                FlatStringValue expectedValue;
-                expectedValue.set_value(myKey);
+                FlatStringKeyT key;
+                key.value = myKey;
+                FlatStringValueT expectedValue;
+                expectedValue.value = myKey;
 
                 ReadRequest readRequest;
                 readRequest.Key = &key;
@@ -1569,28 +1549,19 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
                     readRequest
                 );
 
-                FlatStringValue actualValue;
+                FlatStringValueT actualValue;
                 readResult->Value.unpack(&actualValue);
 
-                auto messageDifferencerResult = MessageDifferencer::Equals(
-                    expectedValue,
-                    actualValue);
-
-                EXPECT_TRUE(messageDifferencerResult);
-
-                Perf2_running_items.fetch_sub(1);
+                EXPECT_EQ(expectedValue, actualValue);
             }
         };
 
         cppcoro::async_scope asyncScopeRead;
-        m_perfScope = &asyncScopeRead;
 
         for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
         {
-            performanceTasks.push_back(
-                readItemLambda(threadNumber));
             asyncScopeRead.spawn(
-                performanceTasks.back());
+                readItemLambda(threadNumber));
         }
 
         co_await asyncScopeRead.join();
@@ -1607,8 +1578,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
     auto readNonExistentLambda = [&]() -> task<>
     {
         auto startReadTime = chrono::high_resolution_clock::now();
-
-        Perf2_running_items.store(0);
 
 #ifdef NDEBUG
         int threadCount = 50;
@@ -1632,12 +1601,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
 
                 auto myKey = nonExistentKeys[keyIndex];
 
-                Perf2_running_items.fetch_add(1);
-
-                FlatStringKey key;
-                key.set_value(myKey);
-                FlatStringValue expectedValue;
-                expectedValue.set_value(myKey);
+                FlatStringKeyT key;
+                key.value = myKey;
+                FlatStringValueT expectedValue;
+                expectedValue.value = myKey;
 
                 ReadRequest readRequest;
                 readRequest.Key = &key;
@@ -1648,18 +1615,15 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
                 );
 
                 EXPECT_EQ(true, !readResult->Value);
-
-                Perf2_running_items.fetch_sub(1);
             }
         };
 
         cppcoro::async_scope asyncScopeRead;
-        m_perfScope = &asyncScopeRead;
 
         for (int threadNumber = 0; threadNumber < threadCount; threadNumber++)
         {
-            performanceTasks.push_back(readItemsLambda(threadNumber));
-            asyncScopeRead.spawn(performanceTasks.back());
+            asyncScopeRead.spawn(
+                readItemsLambda(threadNumber));
         }
 
         co_await asyncScopeRead.join();
@@ -1701,4 +1665,3 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
 }
 
 }
-#endif
