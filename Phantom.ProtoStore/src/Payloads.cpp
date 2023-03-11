@@ -219,6 +219,11 @@ ProtoValue&& ProtoValue::pack()&&
 
 ProtoValue& ProtoValue::pack()&
 {
+    if (IsKeyMax() || IsKeyMin())
+    {
+        return *this;
+    }
+
     if (message_data.index() == 0
         && as_message_if())
     {

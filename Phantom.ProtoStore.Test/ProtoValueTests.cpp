@@ -441,6 +441,48 @@ TEST_F(ProtoValueTests, pack_does_nothing_on_flat_message)
     ExpectIsTable(protoValue, nonNullFlatTableRaw);
 }
 
+TEST_F(ProtoValueTests, pack_does_nothing_on_key_min)
+{
+    auto protoValue = ProtoValue::KeyMin();
+    EXPECT_TRUE(protoValue.IsKeyMin());
+    EXPECT_FALSE(protoValue.IsKeyMax());
+    EXPECT_FALSE(protoValue.is_flat_buffer());
+    EXPECT_FALSE(protoValue.is_protocol_buffer());
+
+    protoValue.pack();
+    EXPECT_TRUE(protoValue.IsKeyMin());
+    EXPECT_FALSE(protoValue.IsKeyMax());
+    EXPECT_FALSE(protoValue.is_flat_buffer());
+    EXPECT_FALSE(protoValue.is_protocol_buffer());
+
+    protoValue = ProtoValue::KeyMin().pack();
+    EXPECT_TRUE(protoValue.IsKeyMin());
+    EXPECT_FALSE(protoValue.IsKeyMax());
+    EXPECT_FALSE(protoValue.is_flat_buffer());
+    EXPECT_FALSE(protoValue.is_protocol_buffer());
+}
+
+TEST_F(ProtoValueTests, pack_does_nothing_on_key_max)
+{
+    auto protoValue = ProtoValue::KeyMax();
+    EXPECT_FALSE(protoValue.IsKeyMin());
+    EXPECT_TRUE(protoValue.IsKeyMax());
+    EXPECT_FALSE(protoValue.is_flat_buffer());
+    EXPECT_FALSE(protoValue.is_protocol_buffer());
+
+    protoValue.pack();
+    EXPECT_FALSE(protoValue.IsKeyMin());
+    EXPECT_TRUE(protoValue.IsKeyMax());
+    EXPECT_FALSE(protoValue.is_flat_buffer());
+    EXPECT_FALSE(protoValue.is_protocol_buffer());
+
+    protoValue = ProtoValue::KeyMax().pack();
+    EXPECT_FALSE(protoValue.IsKeyMin());
+    EXPECT_TRUE(protoValue.IsKeyMax());
+    EXPECT_FALSE(protoValue.is_flat_buffer());
+    EXPECT_FALSE(protoValue.is_protocol_buffer());
+}
+
 TEST_F(ProtoValueTests, pack_allocates_data_on_packed_message)
 {
     ProtoValue protoValue(
