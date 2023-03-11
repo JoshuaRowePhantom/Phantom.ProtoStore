@@ -56,6 +56,8 @@ public:
         vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
         vector<shared_ptr<IPartition>> partitions
     ) = 0;
+
+    virtual const Schema& GetSchema() const = 0;
 };
 
 }

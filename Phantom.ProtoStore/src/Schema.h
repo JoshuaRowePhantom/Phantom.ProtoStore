@@ -23,16 +23,53 @@ class SchemaDescriptions
         google::protobuf::FileDescriptorSet* fileDescriptorSet,
         const google::protobuf::FileDescriptor* fileDescriptor);
 
-    static shared_ptr<KeyComparer> MakeProtocolBuffersKeyComparer(
-        const Serialization::ProtocolBuffersSchemaDescription& messageDescription);
 public:
+    static void MakeSchemaDescription(
+        Serialization::IndexSchemaDescription& schemaDescription,
+        const Schema& schema
+    );
+
     static void MakeSchemaDescription(
         Serialization::SchemaDescription& messageDescription,
         const Descriptor* messageDescriptor
     );
+    
+    static void MakeSchemaDescription(
+        Serialization::SchemaDescription& schemaDescription,
+        const FlatBuffersObjectSchema& objectSchema
+    );
+
+    static void MakeSchemaDescription(
+        Serialization::IndexSchemaDescription& schemaDescription,
+        std::monostate
+    );
+
+    static void MakeSchemaDescription(
+        Serialization::IndexSchemaDescription& schemaDescription,
+        const FlatBuffersKeySchema& schema
+    );
+
+    static void MakeSchemaDescription(
+        Serialization::IndexSchemaDescription& schemaDescription,
+        const ProtocolBuffersKeySchema& schema
+    );
+
+    static void MakeSchemaDescription(
+        Serialization::IndexSchemaDescription& schemaDescription,
+        const FlatBuffersValueSchema& schema
+    );
+
+    static void MakeSchemaDescription(
+        Serialization::IndexSchemaDescription& schemaDescription,
+        const ProtocolBuffersValueSchema& schema
+    );
+    
+    static shared_ptr<const Schema> MakeSchema(
+        Serialization::IndexSchemaDescription indexSchemaDescription
+    );
 
     static shared_ptr<KeyComparer> MakeKeyComparer(
-        const Serialization::SchemaDescription& messageDescription);
+        std::shared_ptr<const Schema> schema);
 };
 
 

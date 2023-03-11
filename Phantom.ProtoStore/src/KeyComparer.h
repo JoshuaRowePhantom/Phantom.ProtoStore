@@ -57,10 +57,6 @@ class ProtoKeyComparer
     :
     public KeyComparer
 {
-public:
-    template<typename T>
-    struct compare_tag {};
-
 private:
     const google::protobuf::Descriptor* m_messageDescriptor;
     using MessageSortOrderMap = std::unordered_map<const google::protobuf::Descriptor*, SortOrder>;
@@ -90,10 +86,6 @@ class FlatBufferPointerKeyComparer
     :
     public BaseKeyComparer
 {
-public:
-    template<typename T>
-    struct compare_tag {};
-
 private:
     class InternalObjectComparer;
     using ComparerMap = std::map<const ::reflection::Object*, InternalObjectComparer>;
@@ -258,6 +250,7 @@ private:
         ) const;
     };
     
+    std::shared_ptr<flatbuffers::DetachedBuffer> m_schemaBuffer;
     std::shared_ptr<ComparerMap> m_internalComparers = std::make_shared<ComparerMap>();
     const InternalObjectComparer* m_rootComparer;
 
@@ -270,6 +263,21 @@ public:
         const void* value1,
         const void* value2
     ) const;
+};
+
+class FlatBufferKeyComparer :
+    public KeyComparer
+{
+    FlatBufferPointerKeyComparer m_comparer;
+
+public:
+    FlatBufferKeyComparer(
+        FlatBufferPointerKeyComparer comparer);
+
+    virtual std::weak_ordering Compare(
+        std::span<const byte> value1,
+        std::span<const byte> value2
+    ) const override;
 };
 
 struct KeyAndSequenceNumberComparerArgument

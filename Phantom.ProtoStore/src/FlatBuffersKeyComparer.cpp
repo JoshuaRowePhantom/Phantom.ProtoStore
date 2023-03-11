@@ -1,5 +1,6 @@
 #include "StandardTypes.h"
 #include "KeyComparer.h"
+#include "Resources.h"
 #include "ProtoStoreInternal.pb.h"
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <google/protobuf/io/coded_stream.h>
@@ -15,12 +16,40 @@ FlatBufferPointerKeyComparer::FlatBufferPointerKeyComparer(
     const ::reflection::Object* flatBuffersReflectionObject
 )
 {
+    // Copy the incoming schema so that we guarantee its lifetime.
     flatbuffers::FlatBufferBuilder schemaBuilder;
+    auto rootOffset = flatbuffers::CopyTable(
+        schemaBuilder,
+        *FlatBuffersSchemas::ReflectionSchema,
+        *FlatBuffersSchemas::ReflectionSchema_Schema,
+        *reinterpret_cast<const flatbuffers::Table*>(flatBuffersReflectionSchema)
+    );
+    schemaBuilder.Finish(rootOffset);
+    
+    m_schemaBuffer = std::make_shared<flatbuffers::DetachedBuffer>(
+        schemaBuilder.Release());
+
+    auto schema = flatbuffers::GetRoot<::reflection::Schema>(
+        m_schemaBuffer->data());
+    const ::reflection::Object* object = nullptr;
+
+    for (auto index = 0; index < flatBuffersReflectionSchema->objects()->size(); index++)
+    {
+        if (flatBuffersReflectionSchema->objects()->Get(index) == flatBuffersReflectionObject)
+        { 
+            object = flatBuffersReflectionSchema->objects()->Get(index);
+        }
+    }
+
+    if (!object)
+    {
+        throw std::range_error("flatBuffersReflectionObject not in flatBuffersReflectionSchema->objects()");
+    }
 
     m_rootComparer = InternalObjectComparer::GetObjectComparer(
         *m_internalComparers,
-        flatBuffersReflectionSchema,
-        flatBuffersReflectionObject
+        schema,
+        object
     );
 }
 
@@ -976,6 +1005,23 @@ SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
 )
 {
     return GetSortOrder(flatBuffersReflectionField->attributes());
+}
+
+
+FlatBufferKeyComparer::FlatBufferKeyComparer(
+    FlatBufferPointerKeyComparer comparer
+) : m_comparer{ std::move(comparer) }
+{}
+
+std::weak_ordering FlatBufferKeyComparer::Compare(
+    std::span<const byte> value1,
+    std::span<const byte> value2
+) const
+{
+    return m_comparer.Compare(
+        flatbuffers::GetRoot<flatbuffers::Table>(value1.data()),
+        flatbuffers::GetRoot<flatbuffers::Table>(value2.data())
+    );
 }
 
 }

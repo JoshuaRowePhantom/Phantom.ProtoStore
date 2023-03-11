@@ -15,7 +15,8 @@ Index::Index(
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
     shared_ptr<KeyComparer> keyComparer,
-    IUnresolvedTransactionsTracker* unresolvedTransactionsTracker
+    IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
+    std::shared_ptr<const Schema> schema
 )
     :
     m_indexName(indexName),
@@ -23,7 +24,8 @@ Index::Index(
     m_createSequenceNumber(createSequenceNumber),
     m_keyComparer(std::move(keyComparer)),
     m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
-    m_unresolvedTransactionsTracker(unresolvedTransactionsTracker)
+    m_unresolvedTransactionsTracker(unresolvedTransactionsTracker),
+    m_schema(std::move(schema))
 {
 }
 
@@ -358,6 +360,11 @@ task<> Index::SetDataSources(
         activeMemoryTable);
     m_partitions = make_shared<vector<shared_ptr<IPartition>>>(
         partitions);
+}
+
+const Schema& Index::GetSchema() const
+{
+    return *m_schema;
 }
 
 task<> Index::Join()

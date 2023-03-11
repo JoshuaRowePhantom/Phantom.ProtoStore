@@ -10,18 +10,25 @@ namespace Phantom::ProtoStore
 
 TEST(SchemaTests, Can_round_trip_to_key_comparer_with_compiled_class)
 {
-    Serialization::SchemaDescription schemaDescription;
+    Serialization::IndexSchemaDescription indexSchemaDescription;
 
     SchemaDescriptions::MakeSchemaDescription(
-        schemaDescription,
-        TestKey::descriptor());
+        indexSchemaDescription,
+        Schema
+        {
+            { TestKey::descriptor() },
+            { TestKey::descriptor() }
+        });
 
     EXPECT_EQ(
         "Phantom.ProtoStore.TestKey", 
-        schemaDescription.protocolbuffersdescription().messagedescription().messagename());
+        indexSchemaDescription.key().description().protocolbuffersdescription().messagedescription().messagename());
+
+    auto schema = SchemaDescriptions::MakeSchema(
+        indexSchemaDescription);
 
     auto keyComparer = SchemaDescriptions::MakeKeyComparer(
-        schemaDescription);
+        schema);
 
     TestKey low;
     TestKey high;

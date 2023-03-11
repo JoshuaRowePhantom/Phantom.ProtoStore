@@ -12,7 +12,7 @@ message ProtocolBuffersMessageDescription {
 
 message FlatBuffersObjectDescription {
     bytes SchemaBytes = 1;
-    uint32 ObjectsIndex = 2;
+    uint32 ObjectIndex = 2;
 }
 
 message FlatBuffersSchemaDescription {

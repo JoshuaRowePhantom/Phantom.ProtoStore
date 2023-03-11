@@ -101,7 +101,9 @@ namespace Serialization
 class SchemaDescription;
 class ProtocolBuffersMessageDescription;
 class ProtocolBuffersSchemaDescription;
+class FlatBuffersSchemaDescription;
 class LogRecord;
+class IndexSchemaDescription;
 class IndexesByNameKey;
 class IndexesByNameValue;
 class IndexesByNumberKey;

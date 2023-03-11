@@ -589,29 +589,94 @@ public:
 
         auto createLoggedRowWrite = [&](CheckpointNumber checkpointNumber) -> task<FlatMessage<LoggedRowWrite>>
         {
-            auto unownedKey = key.pack_unowned();
-            auto unownedValue = value.pack_unowned();
-
-            auto keySpan = unownedKey.as_protocol_buffer_bytes_if();
-            auto valueSpan = unownedValue.as_protocol_buffer_bytes_if();
-
             flatbuffers::FlatBufferBuilder loggedRowWriteBuilder;
 
-            auto keyOffset = CreateDataValue(
-                loggedRowWriteBuilder,
+            auto formatValue = [&](
+                const ProtoValue& protoValue,
+                const auto& schema
+                )
+            {
+                if (!protoValue)
                 {
-                    1,
-                    keySpan
+                    return Offset<DataValue>{};
                 }
-            );
 
-            auto valueOffset = CreateDataValue(
-                loggedRowWriteBuilder,
+                if constexpr (std::same_as<const std::monostate&, decltype(schema)>)
                 {
-                    1,
-                    valueSpan
+                    throw std::range_error("Invalid schema");
                 }
-            );
+                else if constexpr (std::same_as<ProtocolBuffersObjectSchema, decltype(schema.ObjectSchema)>)
+                {
+                    if (!protoValue.is_protocol_buffer())
+                    {
+                        throw std::range_error("object is not a protocol buffer");
+                    }
+
+                    if (protoValue.as_aligned_message_if())
+                    {
+                        return CreateDataValue(
+                            loggedRowWriteBuilder,
+                            protoValue.as_aligned_message_if());
+                    }
+
+                    auto unownedValue = protoValue.pack_unowned();
+                    auto span = unownedValue.as_protocol_buffer_bytes_if();
+                    return CreateDataValue(
+                        loggedRowWriteBuilder,
+                        {
+                            1,
+                            span
+                        }
+                    );
+                }
+                else
+                {
+                    static_assert(std::same_as<FlatBuffersObjectSchema, decltype(schema.ObjectSchema)>);
+
+                    if (!protoValue.is_flat_buffer())
+                    {
+                        throw std::range_error("object is not a flat buffer");
+                    }
+
+                    if (protoValue.as_aligned_message_if())
+                    {
+                        return CreateDataValue(
+                            loggedRowWriteBuilder,
+                            protoValue.as_aligned_message_if());
+                    }
+
+                    flatbuffers::FlatBufferBuilder builder;
+                    auto rootOffset = flatbuffers::CopyTable(
+                        builder,
+                        *schema.ObjectSchema.Schema,
+                        *schema.ObjectSchema.Object,
+                        *protoValue.as_table_if()
+                    );
+                    builder.Finish(rootOffset);
+
+                    auto span = as_bytes(builder.GetBufferSpan());
+
+                    return CreateDataValue(
+                        loggedRowWriteBuilder,
+                        {
+                            static_cast<uint8_t>(builder.GetBufferMinAlignment()),
+                            span
+                        });
+                }
+            };
+
+            auto keyOffset = visit(
+                std::bind_front(formatValue, key),
+                index->GetSchema().KeySchema.FormatSchema);
+
+            if (keyOffset.IsNull())
+            {
+                throw std::range_error("key is empty");
+            }
+
+            auto valueOffset = visit(
+                std::bind_front(formatValue, value),
+                index->GetSchema().ValueSchema.FormatSchema);
 
             Offset<DataValue> transactionIdOffset;
             if (writeOperationMetadata.TransactionId)
@@ -1088,12 +1153,8 @@ void ProtoStore::MakeIndexesByNumberRow(
     indexesByNumberValue.set_createsequencenumber(ToUint64(createSequenceNumber));
 
     SchemaDescriptions::MakeSchemaDescription(
-        *(indexesByNumberValue.mutable_schema()->mutable_key()->mutable_description()),
-        get<ProtocolBuffersKeySchema>(schema.KeySchema.FormatSchema).ObjectSchema.MessageDescriptor);
-
-    SchemaDescriptions::MakeSchemaDescription(
-        *(indexesByNumberValue.mutable_schema()->mutable_value()->mutable_description()),
-        get<ProtocolBuffersValueSchema>(schema.ValueSchema.FormatSchema).ObjectSchema.MessageDescriptor);
+        *(indexesByNumberValue.mutable_schema()),
+        schema);
 }
 
 ProtoStore::IndexEntry ProtoStore::MakeIndex(
@@ -1101,8 +1162,12 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     const IndexesByNumberValue& indexesByNumberValue
 )
 {
+    auto schema = SchemaDescriptions::MakeSchema(
+        indexesByNumberValue.schema()
+    );
+
     auto keyComparer = SchemaDescriptions::MakeKeyComparer(
-        indexesByNumberValue.schema().key().description()
+        schema
     );
 
     auto index = make_shared<Index>(
@@ -1110,8 +1175,8 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
         indexesByNumberKey.indexnumber(),
         ToSequenceNumber(indexesByNumberValue.createsequencenumber()),
         keyComparer,
-        m_unresolvedTransactionsTracker.get()
-        );
+        m_unresolvedTransactionsTracker.get(),
+        schema);
 
     auto makeMemoryTable = [=]()
     {

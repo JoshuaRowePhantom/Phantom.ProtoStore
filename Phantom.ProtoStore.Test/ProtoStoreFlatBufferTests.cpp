@@ -76,8 +76,8 @@ public:
         CreateIndexRequest createIndexRequest;
         createIndexRequest.IndexName = "test_FlatIndex";
         createIndexRequest.Schema = Schema::Make(
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringKeySchema },
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringValueSchema });
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema });
 
         auto index = co_await store->CreateIndex(
             createIndexRequest
@@ -93,8 +93,8 @@ public:
         CreateIndexRequest createIndexRequest;
         createIndexRequest.IndexName = "test_FlatIndex";
         createIndexRequest.Schema = Schema::Make(
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringKeySchema },
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestStringValueSchema });
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema });
 
         auto index = co_await store->GetIndex(
             createIndexRequest

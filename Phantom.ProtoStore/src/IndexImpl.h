@@ -18,6 +18,7 @@ class Index
     const SequenceNumber m_createSequenceNumber;
     const shared_ptr<KeyComparer> m_keyComparer;
     const shared_ptr<RowMerger> m_rowMerger;
+    const shared_ptr<const Schema> m_schema;
     IUnresolvedTransactionsTracker* const m_unresolvedTransactionsTracker;
 
     // This lock control access to the following members:
@@ -55,7 +56,8 @@ public:
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
         shared_ptr<KeyComparer> keyComparer,
-        IUnresolvedTransactionsTracker* unresolvedTransactionsTracker
+        IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
+        std::shared_ptr<const Schema> schema
     );
 
     virtual shared_ptr<KeyComparer> GetKeyComparer(
@@ -100,8 +102,12 @@ public:
         vector<shared_ptr<IPartition>> partitions
     ) override;
 
+    virtual const Schema& GetSchema(
+    ) const override;
+
     virtual task<> Join(
     ) override;
+
 
 };
 

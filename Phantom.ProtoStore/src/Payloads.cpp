@@ -424,10 +424,7 @@ bool ProtoValue::is_protocol_buffer() const
 bool ProtoValue::is_flat_buffer() const
 {
     return
-        message_data.index() == flat_buffers_aligned_message_data
-        || message_data.index() == flat_buffers_span
-        || message_data.index() == flat_buffers_string
-        || message.index() == flat_buffers_table_pointer;
+        message.index() == flat_buffers_table_pointer;
 }
 
 }
