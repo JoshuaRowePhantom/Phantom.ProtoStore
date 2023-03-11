@@ -39,9 +39,8 @@ TEST(SchemaTests, Can_round_trip_to_key_comparer_with_compiled_class)
     auto highString = high.SerializeAsString();
 
     auto result = keyComparer->Compare(
-        as_bytes(std::span<char>{ lowString.data(), lowString.size() }),
-        as_bytes(std::span<char>{ highString.data(), highString.size() })
-    );
+        ProtoValue(&low).pack(),
+        ProtoValue(&high).pack());
 
     EXPECT_EQ(std::weak_ordering::less, result);
 }

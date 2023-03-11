@@ -10,10 +10,12 @@ namespace Phantom::ProtoStore
 
 class RowMerger
 {
-    KeyComparer* const m_keyComparer;
+    const std::shared_ptr<const Schema> m_schema;
+    const std::shared_ptr<const KeyComparer> m_keyComparer;
 public:
     RowMerger(
-        KeyComparer* keyComparer
+        std::shared_ptr<const Schema> schema,
+        std::shared_ptr<const KeyComparer> keyComparer
     );
 
     // Merge multiple row sources into a single row source.

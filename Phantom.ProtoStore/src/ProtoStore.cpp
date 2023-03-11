@@ -667,7 +667,7 @@ public:
 
             auto keyOffset = visit(
                 std::bind_front(formatValue, key),
-                index->GetSchema().KeySchema.FormatSchema);
+                index->GetSchema()->KeySchema.FormatSchema);
 
             if (keyOffset.IsNull())
             {
@@ -676,7 +676,7 @@ public:
 
             auto valueOffset = visit(
                 std::bind_front(formatValue, value),
-                index->GetSchema().ValueSchema.FormatSchema);
+                index->GetSchema()->ValueSchema.FormatSchema);
 
             Offset<DataValue> transactionIdOffset;
             if (writeOperationMetadata.TransactionId)
@@ -1181,7 +1181,8 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     auto makeMemoryTable = [=]()
     {
         return make_shared<MemoryTable>(
-            &*index->GetKeyComparer());
+            index->GetSchema(),
+            index->GetKeyComparer());
     };
 
     auto indexDataSources = make_shared<IndexDataSources>(
@@ -1218,6 +1219,7 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
         dataExtentName);
     
     auto partition = make_shared<Partition>(
+        index->GetSchema(),
         index->GetKeyComparer(),
         std::move(headerReader),
         std::move(dataReader)
@@ -1329,6 +1331,8 @@ task<> ProtoStore::Checkpoint(
     co_await OpenPartitionWriter(
         indexEntry.IndexNumber,
         indexEntry.Index->GetIndexName(),
+        indexEntry.Index->GetSchema(),
+        indexEntry.Index->GetKeyComparer(),
         0,
         headerExtentName,
         dataExtentName,
@@ -1596,6 +1600,8 @@ task<> ProtoStore::AllocatePartitionExtents(
 task<> ProtoStore::OpenPartitionWriter(
     IndexNumber indexNumber,
     IndexName indexName,
+    std::shared_ptr<const Schema> schema,
+    std::shared_ptr<const KeyComparer> keyComparer,
     LevelNumber levelNumber,
     ExtentName& out_headerExtentName,
     ExtentName& out_dataExtentName,
@@ -1615,8 +1621,10 @@ task<> ProtoStore::OpenPartitionWriter(
         out_dataExtentName);
 
     out_partitionWriter = make_shared<PartitionWriter>(
-        dataWriter,
-        headerWriter
+        std::move(schema),
+        std::move(keyComparer),
+        std::move(dataWriter),
+        std::move(headerWriter)
         );
 }
 

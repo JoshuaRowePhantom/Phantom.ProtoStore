@@ -41,16 +41,25 @@ protected:
 
 class KeyComparer : public BaseKeyComparer
 {
-public:
-    virtual std::weak_ordering Compare(
-        std::span<const byte> value1,
-        std::span<const byte> value2
+    virtual std::weak_ordering CompareImpl(
+        const ProtoValue& value1,
+        const ProtoValue& value2
     ) const = 0;
 
+public:
+    std::weak_ordering Compare(
+        const ProtoValue& value1,
+        const ProtoValue& value2
+    ) const;
+
     std::weak_ordering operator()(
-        std::span<const byte> value1,
-        std::span<const byte> value2
+        const ProtoValue& value1,
+        const ProtoValue& value2
         ) const;
+
+    virtual uint64_t Hash(
+        const ProtoValue& value
+    ) const = 0;
 };
 
 class ProtoKeyComparer
@@ -72,221 +81,31 @@ private:
         const google::protobuf::Descriptor*,
         FieldSortOrderMap source = {});
 
+    virtual std::weak_ordering CompareImpl(
+        const ProtoValue& value1,
+        const ProtoValue& value2
+    ) const override;
+
 public:
     ProtoKeyComparer(
         const google::protobuf::Descriptor* messageDescriptor);
 
-    virtual std::weak_ordering Compare(
-        std::span<const byte> value1,
-        std::span<const byte> value2
+    virtual uint64_t Hash(
+        const ProtoValue& value
     ) const override;
 };
 
-class FlatBufferPointerKeyComparer
-    :
-    public BaseKeyComparer
-{
-private:
-    class InternalObjectComparer;
-    using ComparerMap = std::map<const ::reflection::Object*, InternalObjectComparer>;
-
-    class InternalObjectComparer
-        :
-        public BaseKeyComparer
-    {
-        struct ComparerFunction
-        {
-            const ::reflection::Field* flatBuffersReflectionField = nullptr;
-            const InternalObjectComparer* elementComparer = nullptr;
-
-            std::weak_ordering(*comparerFunction)(
-                const ::reflection::Field*,
-                const InternalObjectComparer*,
-                const void* value1,
-                const void* value2);
-
-            const SortOrder sortOrder = SortOrder::Ascending;
-
-            ComparerFunction ApplySortOrder(
-                SortOrder objectSortOrder,
-                SortOrder fieldSortOrder
-            )
-            {
-                return
-                {
-                    flatBuffersReflectionField,
-                    elementComparer,
-                    comparerFunction,
-                    BaseKeyComparer::CombineSortOrder(
-                        objectSortOrder,
-                        fieldSortOrder)
-                };
-            }
-        };
-
-        std::vector<ComparerFunction> m_comparers;
-
-        static SortOrder GetSortOrder(
-            const flatbuffers::Vector<flatbuffers::Offset<reflection::KeyValue>>* attributes
-        );
-
-        static SortOrder GetSortOrder(
-            const ::reflection::Object* flatBuffersReflectionField
-        );
-
-        static SortOrder GetSortOrder(
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-            typename Value
-        > static std::weak_ordering ComparePrimitive(
-            Value value1,
-            Value value2
-        );
-
-        template<
-            typename Container,
-            typename Value
-        > static Value GetFieldI(
-            const Container* container,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-            typename Container,
-            typename Value
-        > static Value GetFieldF(
-            const Container* container,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-            typename Container,
-            auto fieldRetriever
-        > static ComparerFunction GetPrimitiveFieldComparer(
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-            typename Container
-        > static ComparerFunction GetFieldComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        static ComparerFunction GetVectorFieldComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-            typename Value
-        > static ComparerFunction GetTypedVectorFieldComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-        > static ComparerFunction GetTypedVectorFieldComparer<
-            flatbuffers::Struct
-            >(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        static ComparerFunction GetArrayFieldComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-            typename Value
-        > static ComparerFunction GetTypedArrayFieldComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-        > static ComparerFunction GetTypedArrayFieldComparer<
-            flatbuffers::Struct
-        >(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        InternalObjectComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject
-        );
-
-    public:
-        InternalObjectComparer();
-
-        static InternalObjectComparer* GetObjectComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject
-        );
-
-        std::weak_ordering Compare(
-            const void* value1,
-            const void* value2
-        ) const;
-    };
-    
-    std::shared_ptr<flatbuffers::DetachedBuffer> m_schemaBuffer;
-    std::shared_ptr<ComparerMap> m_internalComparers = std::make_shared<ComparerMap>();
-    const InternalObjectComparer* m_rootComparer;
-
-public:
-    FlatBufferPointerKeyComparer(
-        const ::reflection::Schema* flatBuffersReflectionSchema,
-        const ::reflection::Object* flatBuffersReflectionObject);
-
-    std::weak_ordering Compare(
-        const void* value1,
-        const void* value2
-    ) const;
-};
-
-class FlatBufferKeyComparer :
-    public KeyComparer
-{
-    FlatBufferPointerKeyComparer m_comparer;
-
-public:
-    FlatBufferKeyComparer(
-        FlatBufferPointerKeyComparer comparer);
-
-    virtual std::weak_ordering Compare(
-        std::span<const byte> value1,
-        std::span<const byte> value2
-    ) const override;
-};
+std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
+    const ::reflection::Schema* flatBuffersReflectionSchema,
+    const ::reflection::Object* flatBuffersReflectionObject);
 
 struct KeyAndSequenceNumberComparerArgument
 {
-    std::span<const std::byte> Key;
+    const ProtoValue& Key;
     SequenceNumber SequenceNumber;
 
     KeyAndSequenceNumberComparerArgument(
-        std::span<const std::byte> key,
+        const ProtoValue& key,
         Phantom::ProtoStore::SequenceNumber sequenceNumber
     ) :
         Key(key),
@@ -351,12 +170,12 @@ public:
 
 struct KeyRangeComparerArgument
 {
-    std::span<const std::byte> Key;
+    const ProtoValue& Key;
     SequenceNumber SequenceNumber;
     Inclusivity Inclusivity;
 
     KeyRangeComparerArgument(
-        std::span<const std::byte> key,
+        const ProtoValue& key,
         Phantom::ProtoStore::SequenceNumber sequenceNumber,
         Phantom::ProtoStore::Inclusivity inclusivity
     ) :

@@ -109,7 +109,7 @@ class MemoryTable
 
     struct EnumerationKey
     {
-        std::optional<std::span<const byte>> KeyLow;
+        ProtoValue KeyLow;
         Inclusivity KeyLowInclusivity;
         SequenceNumber ReadSequenceNumber;
         optional<SequenceNumber> SequenceNumberToSkipForKeyLow;
@@ -117,14 +117,34 @@ class MemoryTable
 
     class MemoryTableRowComparer
     {
-        const KeyComparer* const m_keyComparer;
+        const shared_ptr<const Schema> m_schema;
+        const shared_ptr<const KeyComparer> m_keyComparer;
+
+        ProtoValue MakeProtoValueKey(
+            const InsertionKey&
+        ) const;
+
+        const ProtoValue& MakeProtoValueKey(
+            const EnumerationKey&
+        ) const;
+
+        const ProtoValue& MakeProtoValueKey(
+            const KeyRangeEnd&
+        ) const;
+
+        ProtoValue MakeProtoValueKey(
+            const ReplayInsertionKey&
+        ) const;
+
     public:
         MemoryTableRowComparer(
-            const KeyComparer* keyComparer
-        )
-            : m_keyComparer(
-                keyComparer)
-        {}
+            shared_ptr<const Schema> schema,
+            shared_ptr<const KeyComparer> keyComparer
+        );
+
+        ProtoValue MakeProtoValueKey(
+            const MemoryTableValue&
+        ) const;
 
         std::weak_ordering operator()(
             const MemoryTableValue& key1,
@@ -154,7 +174,10 @@ class MemoryTable
 
     // m_comparer must be declared before m_skipList,
     // so that m_skipList can point to it.
+    const shared_ptr<const Schema> m_schema;
+    const shared_ptr<const KeyComparer> m_keyComparer;
     const MemoryTableRowComparer m_comparer;
+
     SkipList<MemoryTableValue, void, 32, MemoryTableRowComparer> m_skipList;
 
     // Resolve a memory table row's outcome when the transaction it is in completes.
@@ -180,7 +203,8 @@ class MemoryTable
 
 public:
     MemoryTable(
-        const KeyComparer* keyComparer
+        shared_ptr<const Schema> schema,
+        shared_ptr<const KeyComparer> keyComparer
     );
 
     ~MemoryTable();

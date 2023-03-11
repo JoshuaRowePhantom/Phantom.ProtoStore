@@ -10,9 +10,13 @@ namespace Phantom::ProtoStore
 class PartitionWriterBase : SerializationTypes
 {
 protected:
+    const shared_ptr<const Schema> m_schema;
+    const shared_ptr<const KeyComparer> m_keyComparer;
     shared_ptr<ISequentialMessageWriter> m_dataWriter;
 
     PartitionWriterBase(
+        const shared_ptr<const Schema> schema,
+        const shared_ptr<const KeyComparer> keyComparer,
         shared_ptr<ISequentialMessageWriter> dataWriter);
 
     task<FlatBuffers::MessageReference_V1> Write(
@@ -58,6 +62,8 @@ private:
 
 public:
     PartitionTreeWriter(
+        shared_ptr<const Schema> schema,
+        shared_ptr<const KeyComparer> keyComparer,
         shared_ptr<ISequentialMessageWriter> dataWriter,
         WriteRowsRequest& writeRowsRequest,
         WriteRowsResult& writeRowsResult,
@@ -75,6 +81,8 @@ class PartitionWriter :
 
 public:
     PartitionWriter(
+        shared_ptr<const Schema> schema,
+        shared_ptr<const KeyComparer> keyComparer,
         shared_ptr<ISequentialMessageWriter> dataWriter,
         shared_ptr<ISequentialMessageWriter> headerWriter
     );

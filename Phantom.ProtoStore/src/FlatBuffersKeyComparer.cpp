@@ -1,10 +1,6 @@
 #include "StandardTypes.h"
-#include "KeyComparer.h"
+#include "FlatBuffersKeyComparer.h"
 #include "Resources.h"
-#include "ProtoStoreInternal.pb.h"
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/wire_format_lite.h>
 #include <compare>
 #include <set>
 
@@ -61,6 +57,19 @@ std::weak_ordering FlatBufferPointerKeyComparer::Compare(
     return m_rootComparer->Compare(
         value1,
         value2);
+}
+
+uint64_t FlatBufferPointerKeyComparer::Hash(
+    const void* value
+) const
+{
+    crc_hash_v1_type hash;
+
+    m_rootComparer->Hash(
+        hash,
+        value);
+
+    return hash.checksum();
 }
 
 FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer()
@@ -147,6 +156,21 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare
     }
 
     return std::weak_ordering::equivalent;
+}
+
+void FlatBufferPointerKeyComparer::InternalObjectComparer::Hash(
+    crc_hash_v1_type& hash,
+    const void* value
+) const
+{
+    for (auto& hasher : m_hashers)
+    {
+        hasher.hasherFunction(
+            hash,
+            hasher.flatBuffersReflectionField,
+            hasher.elementComparer,
+            value);
+    }
 }
 
 FlatBufferPointerKeyComparer::InternalObjectComparer* FlatBufferPointerKeyComparer::InternalObjectComparer::GetObjectComparer(
@@ -1013,15 +1037,38 @@ FlatBufferKeyComparer::FlatBufferKeyComparer(
 ) : m_comparer{ std::move(comparer) }
 {}
 
-std::weak_ordering FlatBufferKeyComparer::Compare(
-    std::span<const byte> value1,
-    std::span<const byte> value2
+std::weak_ordering FlatBufferKeyComparer::CompareImpl(
+    const ProtoValue& value1,
+    const ProtoValue& value2
 ) const
 {
+    auto table1 = value1.as_table_if();
+    auto table2 = value2.as_table_if();
+
     return m_comparer.Compare(
-        flatbuffers::GetRoot<flatbuffers::Table>(value1.data()),
-        flatbuffers::GetRoot<flatbuffers::Table>(value2.data())
+        table1,
+        table2
     );
+}
+
+uint64_t FlatBufferKeyComparer::Hash(
+    const ProtoValue& value
+) const
+{
+    auto table = value.as_table_if();
+    return m_comparer.Hash(table);
+}
+
+std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
+    const ::reflection::Schema* flatBuffersReflectionSchema,
+    const ::reflection::Object* flatBuffersReflectionObject)
+{
+    return std::make_shared<FlatBufferKeyComparer>(
+        FlatBufferPointerKeyComparer
+        {
+            flatBuffersReflectionSchema,
+            flatBuffersReflectionObject
+        });
 }
 
 }

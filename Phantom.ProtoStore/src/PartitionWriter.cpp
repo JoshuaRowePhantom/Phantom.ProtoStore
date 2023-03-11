@@ -1,18 +1,25 @@
 #pragma once
 
+#include "BloomFilter.h"
+#include "KeyComparer.h"
+#include "MessageStore.h"
 #include "PartitionImpl.h"
 #include "PartitionWriterImpl.h"
-#include "MessageStore.h"
-#include <vector>
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
-#include "BloomFilter.h"
+#include "Schema.h"
+#include <vector>
 
 namespace Phantom::ProtoStore
 {
 
 PartitionWriterBase::PartitionWriterBase(
-    shared_ptr<ISequentialMessageWriter> dataWriter)
-    : m_dataWriter{ dataWriter }
+    const shared_ptr<const Schema> schema,
+    const shared_ptr<const KeyComparer> keyComparer,
+    shared_ptr<ISequentialMessageWriter> dataWriter
+) :
+    m_schema{ std::move(schema) },
+    m_keyComparer{ std::move(keyComparer) },
+    m_dataWriter{ std::move(dataWriter) }
 {}
 
 task<FlatBuffers::MessageReference_V1> PartitionWriterBase::Write(
@@ -36,12 +43,17 @@ task<FlatBuffers::MessageReference_V1> PartitionWriterBase::Write(
 }
 
 PartitionTreeWriter::PartitionTreeWriter(
+    shared_ptr<const Schema> schema,
+    shared_ptr<const KeyComparer> keyComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter,
     WriteRowsRequest& writeRowsRequest,
     WriteRowsResult& writeRowsResult,
     BloomFilterVersion1<std::span<char>>& bloomFilter
 ) :
-    PartitionWriterBase(std::move(dataWriter)),
+    PartitionWriterBase(
+        std::move(schema),
+        std::move(keyComparer),
+        std::move(dataWriter)),
     m_writeRowsRequest(writeRowsRequest),
     m_writeRowsResult(writeRowsResult),
     m_bloomFilter(bloomFilter)
@@ -258,7 +270,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         current().highestKey = std::move(row.Key);
         current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
         m_bloomFilter.add(
-            current().highestKey->Payload);
+            m_keyComparer->Hash(
+                SchemaDescriptions::MakeProtoValueKey(*m_schema, *current().highestKey)));
 
         auto valueDataOffset = CreateDataValue(
             partitionTreeNodeBuilder,
@@ -296,10 +309,17 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 }
 
 PartitionWriter::PartitionWriter(
+    shared_ptr<const Schema> schema,
+    shared_ptr<const KeyComparer> keyComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter,
     shared_ptr<ISequentialMessageWriter> headerWriter
 ) :
-    PartitionWriterBase { std::move(dataWriter) },
+    PartitionWriterBase 
+    { 
+        std::move(schema), 
+        std::move(keyComparer),
+        std::move(dataWriter),
+    },
     m_headerWriter{ std::move(headerWriter) }
 {
 }
@@ -351,6 +371,8 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     );
 
     PartitionTreeWriter treeWriter(
+        m_schema,
+        m_keyComparer,
         m_dataWriter,
         writeRowsRequest,
         writeRowsResult,

@@ -7,6 +7,7 @@
 #include <google/protobuf/wire_format_lite.h>
 #include <compare>
 #include <set>
+#include "Checksum.h"
 
 namespace Phantom::ProtoStore
 {
@@ -174,48 +175,55 @@ std::weak_ordering KeyRangeComparer::operator()(
     return result;
 }
 
-
-std::weak_ordering ProtoKeyComparer::Compare(
-    std::span<const byte> value1,
-    std::span<const byte> value2
+std::weak_ordering KeyComparer::Compare(
+    const ProtoValue& value1,
+    const ProtoValue& value2
 ) const
 {
-    if (value1.data() == KeyMinSpan.data())
+    if (value1.IsKeyMin() && value2.IsKeyMin())
     {
-        if (value2.data() == KeyMinSpan.data())
-        {
-            return std::weak_ordering::equivalent;
-        }
-        return std::weak_ordering::less;
+        return std::weak_ordering::equivalent;
     }
-
-    if (value2.data() == KeyMinSpan.data())
+    if (value2.IsKeyMax() && value2.IsKeyMax())
     {
-        return std::weak_ordering::greater;
+        return std::weak_ordering::equivalent;
     }
-
-    if (value1.data() == KeyMaxSpan.data())
-    {
-        if (value2.data() == KeyMaxSpan.data())
-        {
-            return std::weak_ordering::equivalent;
-        }
-        return std::weak_ordering::greater;
-    }
-
-    if (value2.data() == KeyMaxSpan.data())
+    if (value1.IsKeyMin())
     {
         return std::weak_ordering::less;
     }
+    if (value1.IsKeyMax())
+    {
+        return std::weak_ordering::greater;
+    }
+    if (value2.IsKeyMin())
+    {
+        return std::weak_ordering::greater;
+    }
+    if (value2.IsKeyMax())
+    {
+        return std::weak_ordering::less;
+    }
 
+    return CompareImpl(value1, value2);
+}
+
+std::weak_ordering ProtoKeyComparer::CompareImpl(
+    const ProtoValue& value1,
+    const ProtoValue& value2
+) const
+{
     using google::protobuf::internal::WireFormatLite;
 
+    auto span1 = get_uint8_t_span(value1.as_protocol_buffer_bytes_if());
+    auto span2 = get_uint8_t_span(value2.as_protocol_buffer_bytes_if());
+
     google::protobuf::io::CodedInputStream coded1(
-        reinterpret_cast<const uint8_t*>(value1.data()), 
-        value1.size());
+        span1.data(),
+        span1.size());
     google::protobuf::io::CodedInputStream coded2(
-        reinterpret_cast<const uint8_t*>(value2.data()),
-        value2.size());
+        span2.data(),
+        span2.size());
     
     struct Context
     {
@@ -538,9 +546,18 @@ std::weak_ordering ProtoKeyComparer::Compare(
     }
 }
 
+uint64_t ProtoKeyComparer::Hash(
+    const ProtoValue& value
+) const
+{
+    return hash_v1(
+        value.as_protocol_buffer_bytes_if()
+    );
+}
+
 std::weak_ordering KeyComparer::operator()(
-    std::span<const byte> value1,
-    std::span<const byte> value2
+    const ProtoValue& value1,
+    const ProtoValue& value2
     ) const
 {
     return Compare(value1, value2);

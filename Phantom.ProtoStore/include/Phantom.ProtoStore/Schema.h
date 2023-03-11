@@ -76,6 +76,16 @@ struct KeySchema
 
     format_schema_type FormatSchema;
 
+    bool IsProtocolBuffersSchema() const noexcept
+    {
+        return holds_alternative<ProtocolBuffersKeySchema>(FormatSchema);
+    }
+
+    bool IsFlatBuffersSchema() const noexcept
+    {
+        return holds_alternative<ProtocolBuffersKeySchema>(FormatSchema);
+    }
+
     friend bool operator==(
         const KeySchema&,
         const KeySchema&
@@ -115,6 +125,16 @@ struct ValueSchema
     > format_schema_type;
 
     format_schema_type FormatSchema;
+
+    bool IsProtocolBuffersSchema() const noexcept
+    {
+        return holds_alternative<ProtocolBuffersValueSchema>(FormatSchema);
+    }
+
+    bool IsFlatBuffersSchema() const noexcept
+    {
+        return holds_alternative<FlatBuffersValueSchema>(FormatSchema);
+    }
 
     friend bool operator==(
         const ValueSchema&,

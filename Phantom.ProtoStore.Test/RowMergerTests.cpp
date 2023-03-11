@@ -27,11 +27,13 @@ protected:
     {
         run_async([&]() -> task<>
         {
-            ProtoKeyComparer keyComparer(
-                StringKey::descriptor());
-
             RowMerger rowMerger(
-                &keyComparer);
+                std::make_shared<Schema>(
+                    KeySchema{ StringKey::descriptor() },
+                    ValueSchema{ StringValue::descriptor() }
+                ),
+                std::make_shared<ProtoKeyComparer>(
+                    StringKey::descriptor()));
 
             auto convertTestRowsToRowGenerator = [](test_row_list_type& sourceRows) -> row_generator
             {

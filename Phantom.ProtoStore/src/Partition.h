@@ -8,7 +8,7 @@ namespace Phantom::ProtoStore
 
 struct PartitionCheckpointStartKey
 {
-    RawData Key;
+    ProtoValue Key;
     SequenceNumber WriteSequenceNumber;
 };
 
@@ -28,7 +28,7 @@ public:
     // with the WriteSequenceNumber the same key from other sources.
     virtual row_generator Read(
         SequenceNumber readSequenceNumber,
-        std::span<const byte> key,
+        const ProtoValue& key,
         ReadValueDisposition readValueDisposition
     ) = 0;
 
@@ -58,7 +58,7 @@ public:
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
         SequenceNumber writeSequenceNumber,
-        std::span<const byte> key
+        const ProtoValue& key
     ) = 0;
 
     virtual task<IntegrityCheckErrorList> CheckIntegrity(

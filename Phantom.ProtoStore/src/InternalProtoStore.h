@@ -95,6 +95,8 @@ public:
     virtual task<> OpenPartitionWriter(
         IndexNumber indexNumber,
         IndexName indexName,
+        std::shared_ptr<const Schema> schema,
+        std::shared_ptr<const KeyComparer> keyComparer,
         LevelNumber levelNumber,
         ExtentName& out_headerExtentName,
         ExtentName& out_dataExtentName,

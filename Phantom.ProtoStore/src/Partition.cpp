@@ -12,11 +12,9 @@
 namespace Phantom::ProtoStore
 {
 
-size_t BloomFilterV1Hash::operator()(std::span<const std::byte> value) const
+size_t BloomFilterV1Hash::operator()(uint64_t value) const
 {
-    return checksum_v1(
-        value
-    );
+    return value;
 }
 
 struct Partition::EnumerateLastReturnedKey
@@ -25,10 +23,12 @@ struct Partition::EnumerateLastReturnedKey
 };
 
 Partition::Partition(
-    shared_ptr<KeyComparer> keyComparer,
+    shared_ptr<const Schema> schema,
+    shared_ptr<const KeyComparer> keyComparer,
     shared_ptr<IRandomMessageReader> partitionHeaderReader,
     shared_ptr<IRandomMessageReader> partitionDataReader
 ) :
+    m_schema(std::move(schema)),
     m_keyComparer(std::move(keyComparer)),
     m_partitionHeaderReader(std::move(partitionHeaderReader)),
     m_partitionDataReader(std::move(partitionDataReader))
@@ -91,12 +91,12 @@ task<ExtentOffset> Partition::GetApproximateDataSize()
 
 row_generator Partition::Read(
     SequenceNumber readSequenceNumber,
-    std::span<const byte> key,
+    const ProtoValue& key,
     ReadValueDisposition readValueDisposition
 )
 {
     if (!m_bloomFilter->test(
-        key))
+        m_keyComparer->Hash(key)))
     {
         co_return;
     }
@@ -155,21 +155,15 @@ row_generator Partition::Checkpoint(
 
     KeyRangeEnd low =
     {
-        .Key = KeyMinSpan,
+        .Key = startKey ? startKey->Key : ProtoValue::KeyMin(),
         .Inclusivity = Inclusivity::Inclusive,
     };
 
     KeyRangeEnd high =
     {
-        .Key = KeyMaxSpan,
+        .Key = ProtoValue::KeyMax(),
         .Inclusivity = Inclusivity::Inclusive,
     };
-
-    if (startKey)
-    {
-        low.Key = *startKey->Key;
-        readSequenceNumber = startKey->WriteSequenceNumber;
-    }
 
     EnumerateLastReturnedKey unusedEnumerateLastReturnedKey;
 
@@ -193,11 +187,15 @@ row_generator Partition::Checkpoint(
 struct Partition::FindTreeEntryKeyLessThanComparer
     : SerializationTypes
 {
+    const Schema& m_schema;
     const KeyComparer& m_keyComparer;
     
     FindTreeEntryKeyLessThanComparer(
+        const Schema& schema,
         const KeyComparer& keyComparer
-    ) : m_keyComparer(keyComparer)
+    ) : 
+        m_schema(schema),
+        m_keyComparer(keyComparer)
     {}
 
     bool operator()(
@@ -208,12 +206,14 @@ struct Partition::FindTreeEntryKeyLessThanComparer
         KeyRangeLessThanComparer comparer(
             m_keyComparer);
 
-        auto keySpan = get_byte_span(
-            keyEntry->key()->data());
+        auto keyEntryProtoValue = SchemaDescriptions::MakeProtoValueKey(
+            m_schema,
+            keyEntry->key()
+        );
 
         KeyAndSequenceNumberComparerArgument cacheEntryKey
         {
-            keySpan,
+            keyEntryProtoValue,
             ToSequenceNumber(keyEntry->lowest_write_sequence_number_for_key())
         };
 
@@ -228,12 +228,14 @@ struct Partition::FindTreeEntryKeyLessThanComparer
         KeyRangeLessThanComparer comparer(
             m_keyComparer);
 
-        auto keySpan = get_byte_span(
-            keyEntry->key()->data());
+        auto keyEntryProtoValue = SchemaDescriptions::MakeProtoValueKey(
+            m_schema,
+            keyEntry->key()
+        );
 
         KeyAndSequenceNumberComparerArgument cacheEntryKey
         {
-            keySpan,
+            keyEntryProtoValue,
             ToSequenceNumber(keyEntry->lowest_write_sequence_number_for_key()),
         };
 
@@ -263,7 +265,7 @@ int Partition::FindLowTreeEntryIndex(
         treeNode->tree_node()->keys()->begin(),
         treeNode->tree_node()->keys()->end(),
         key,
-        FindTreeEntryKeyLessThanComparer { *m_keyComparer }
+        FindTreeEntryKeyLessThanComparer { *m_schema, *m_keyComparer }
     );
 #pragma warning (pop)
 
@@ -292,7 +294,7 @@ int Partition::FindHighTreeEntryIndex(
         treeNode->tree_node()->keys()->begin(),
         treeNode->tree_node()->keys()->end(),
         key,
-        FindTreeEntryKeyLessThanComparer{ *m_keyComparer }
+        FindTreeEntryKeyLessThanComparer{ *m_schema, *m_keyComparer }
     );
 
     return lowerBound - treeNode->tree_node()->keys()->begin();
@@ -410,7 +412,9 @@ row_generator Partition::Enumerate(
             {
                 low =
                 {
-                    childEnumerateLastReturnedKey.Key->Payload,
+                    SchemaDescriptions::MakeProtoValueKey(
+                        *m_schema,
+                        childEnumerateLastReturnedKey.Key.data()),
                     Inclusivity::Exclusive,
                 };
 
@@ -485,7 +489,9 @@ row_generator Partition::Enumerate(
                 {
                     low =
                     {
-                        key->Payload,
+                        SchemaDescriptions::MakeProtoValueKey(
+                            *m_schema,
+                            *key),
                         Inclusivity::Exclusive,
                     };
 
@@ -518,7 +524,7 @@ SequenceNumber Partition::GetLatestSequenceNumber()
 task<optional<SequenceNumber>> Partition::CheckForWriteConflict(
     SequenceNumber readSequenceNumber,
     SequenceNumber writeSequenceNumber,
-    std::span<const byte> key
+    const ProtoValue& key
 )
 {
     auto generator = Read(
@@ -702,7 +708,10 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     }
 
     if (!m_bloomFilter->test(
-        get_byte_span(treeEntry->key()->data())))
+            m_keyComparer->Hash(
+                SchemaDescriptions::MakeProtoValueKey(
+                    *m_schema,
+                    treeEntry->key()))))
     {
         auto error = errorPrototype;
         error.Code = IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter;
@@ -716,8 +725,8 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     if (minKeyExclusive)
     {
         auto keyComparisonResult = keyAndSequenceNumberComparer(
-            { minKeyExclusive->Payload, minKeyExclusiveLowestSequenceNumber },
-            { currentKey->Payload, currentLowestSequenceNumber });
+            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *minKeyExclusive), minKeyExclusiveLowestSequenceNumber },
+            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *currentKey), currentLowestSequenceNumber });
 
         if (keyComparisonResult != std::weak_ordering::less)
         {
@@ -734,8 +743,8 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     // if (maxKeyInclusive)
     {
         auto maxKeyComparisonResult = keyAndSequenceNumberComparer(
-            { currentKey->Payload, currentLowestSequenceNumber },
-            { maxKeyInclusive->Payload, maxKeyInclusiveLowestSequenceNumber});
+            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *currentKey), currentLowestSequenceNumber },
+            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *maxKeyInclusive), maxKeyInclusiveLowestSequenceNumber});
 
         if (maxKeyComparisonResult == std::weak_ordering::greater)
         {

@@ -102,7 +102,7 @@ public:
         vector<shared_ptr<IPartition>> partitions
     ) override;
 
-    virtual const Schema& GetSchema(
+    virtual const shared_ptr<const Schema>& GetSchema(
     ) const override;
 
     virtual task<> Join(

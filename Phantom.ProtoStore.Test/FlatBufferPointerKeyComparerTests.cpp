@@ -1,6 +1,6 @@
 #include "StandardIncludes.h"
 #include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
-#include "Phantom.ProtoStore/src/KeyComparer.h"
+#include "Phantom.ProtoStore/src/FlatBuffersKeyComparer.h"
 #include <limits>
 #include <fstream>
 #include <cmrc/cmrc.hpp>

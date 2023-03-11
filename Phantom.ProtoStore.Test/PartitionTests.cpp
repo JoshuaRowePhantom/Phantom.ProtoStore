@@ -21,20 +21,14 @@ class PartitionTests :
 protected:
     PartitionTests()
     {
+        schema = make_shared<Schema>
+        (
+            KeySchema { PartitionTestKey::descriptor() },
+            ValueSchema {PartitionTestValue::descriptor() }
+        );
+
         keyComparer = make_shared<ProtoKeyComparer>(
             PartitionTestKey::descriptor());
-
-        SchemaDescription keySchemaDescription;
-
-        SchemaDescriptions::MakeSchemaDescription(
-            keySchemaDescription,
-            PartitionTestKey::descriptor());
-
-        SchemaDescription valueSchemaDescription;
-
-        SchemaDescriptions::MakeSchemaDescription(
-            valueSchemaDescription,
-            PartitionTestValue::descriptor());
 
         extentStore = make_shared<MemoryExtentStore>(
             Schedulers::Inline());
@@ -97,6 +91,7 @@ protected:
             dataExtentName);
 
         auto partition = make_shared<Partition>(
+            schema,
             keyComparer,
             headerReader,
             dataReader
@@ -122,7 +117,7 @@ protected:
 
         auto enumeration = partition->Read(
             readSequenceNumber,
-            keyProto.as_protocol_buffer_bytes_if(),
+            keyProto,
             ReadValueDisposition::ReadValue
         );
 
@@ -161,12 +156,13 @@ protected:
         auto actualResult = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             writeSequenceNumber,
-            keyProto.as_protocol_buffer_bytes_if()
+            keyProto
         );
 
         EXPECT_EQ(actualResult, expectedResult);
     }
 
+    shared_ptr<Schema> schema;
     shared_ptr<KeyComparer> keyComparer;
     shared_ptr<MemoryExtentStore> extentStore;
     shared_ptr<MessageStore> messageStore;

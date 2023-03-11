@@ -57,7 +57,7 @@ public:
         vector<shared_ptr<IPartition>> partitions
     ) = 0;
 
-    virtual const Schema& GetSchema() const = 0;
+    virtual const shared_ptr<const Schema>& GetSchema() const = 0;
 };
 
 }

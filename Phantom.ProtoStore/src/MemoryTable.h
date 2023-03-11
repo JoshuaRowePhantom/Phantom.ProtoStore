@@ -11,7 +11,7 @@ namespace Phantom::ProtoStore
 
 struct KeyRangeEnd
 {
-    std::span<const byte> Key;
+    ProtoValue Key;
     Inclusivity Inclusivity;
 };
 

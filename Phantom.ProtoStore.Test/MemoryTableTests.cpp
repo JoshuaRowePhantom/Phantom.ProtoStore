@@ -14,16 +14,24 @@ namespace Phantom::ProtoStore
 class MemoryTableTests : public ::testing::Test
 {
 protected:
-    ProtoKeyComparer keyComparer;
+    std::shared_ptr<Schema> schema;
+    std::shared_ptr<ProtoKeyComparer> keyComparer;
     MemoryTable memoryTable;
 
 public:
     MemoryTableTests()
         : 
+        schema(
+            std::make_shared<Schema>(
+                KeySchema{ StringKey::descriptor() },
+                ValueSchema{ StringValue::descriptor() }
+            )),
         keyComparer(
-            StringKey::descriptor()),
+            std::make_shared<ProtoKeyComparer>(
+                StringKey::descriptor())),
         memoryTable(
-            &keyComparer)
+            schema,
+            keyComparer)
     {}
 
 protected:
@@ -147,11 +155,11 @@ protected:
             delayedTransactionOutcome,
             ToSequenceNumber(readSequenceNumber),
             {
-                .Key = keyLowProto.as_protocol_buffer_bytes_if(),
+                .Key = keyLowProto,
                 .Inclusivity = keyLowInclusivity,
             },
             {
-                .Key = keyHighProto.as_protocol_buffer_bytes_if(),
+                .Key = keyHighProto,
                 .Inclusivity = keyHighInclusivity
             });
 

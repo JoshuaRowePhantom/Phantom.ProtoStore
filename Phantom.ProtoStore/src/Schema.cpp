@@ -273,12 +273,9 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
     }
     else if (holds_alternative<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema))
     {
-        keyComparer = std::make_shared<FlatBufferKeyComparer>(
-            FlatBufferPointerKeyComparer
-            {
-                get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema.Schema,
-                get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema.Object
-            });
+        keyComparer = MakeFlatBufferKeyComparer(
+            get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema.Schema,
+            get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema.Object);
     }
     else
     {
@@ -351,6 +348,43 @@ void SchemaDescriptions::MakeSchemaDescription(
         *schemaDescription.mutable_value()->mutable_description(),
         schema.ObjectSchema.MessageDescriptor
     );
+}
+
+ProtoValue SchemaDescriptions::MakeProtoValueKey(
+    const Schema& schema,
+    const FlatBuffers::DataValue* value
+)
+{
+    return MakeProtoValueKey(
+        schema,
+        GetAlignedMessage(value));
+}
+
+ProtoValue SchemaDescriptions::MakeProtoValueKey(
+    const Schema& schema,
+    const AlignedMessage& value
+)
+{
+    if (schema.KeySchema.IsProtocolBuffersSchema())
+    {
+        return ProtoValue::ProtocolBuffer(
+            AlignedMessageData
+            {
+                nullptr,
+                value,
+            });
+    }
+    else
+    {
+        assert(schema.KeySchema.IsFlatBuffersSchema());
+
+        return ProtoValue::FlatBuffer(
+            AlignedMessageData
+            {
+                nullptr,
+                value,
+            });
+    }
 }
 
 }

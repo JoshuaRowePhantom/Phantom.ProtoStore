@@ -15,7 +15,7 @@ namespace Phantom::ProtoStore
 
 struct BloomFilterV1Hash
 {
-    size_t operator()(std::span<const std::byte> value) const;
+    size_t operator()(uint64_t value) const;
 };
 
 template<
@@ -30,7 +30,8 @@ class Partition
     private SerializationTypes,
     public virtual IJoinable
 {
-    shared_ptr<KeyComparer> m_keyComparer;
+    shared_ptr<const Schema> m_schema;
+    shared_ptr<const KeyComparer> m_keyComparer;
     shared_ptr<IRandomMessageReader> m_partitionDataReader;
     shared_ptr<IRandomMessageReader> m_partitionHeaderReader;
 
@@ -117,7 +118,8 @@ class Partition
 
 public:
     Partition(
-        shared_ptr<KeyComparer> keyComparer,
+        shared_ptr<const Schema> schema,
+        shared_ptr<const KeyComparer> keyComparer,
         shared_ptr<IRandomMessageReader> partitionData,
         shared_ptr<IRandomMessageReader> partitionHeader
     );
@@ -134,7 +136,7 @@ public:
 
     virtual row_generator Read(
         SequenceNumber readSequenceNumber,
-        std::span<const byte> key,
+        const ProtoValue& key,
         ReadValueDisposition readValueDisposition
     ) override;
 
@@ -155,7 +157,7 @@ public:
     virtual task<optional<SequenceNumber>> CheckForWriteConflict(
         SequenceNumber readSequenceNumber,
         SequenceNumber writeSequenceNumber,
-        std::span<const byte> key
+        const ProtoValue& key
     ) override;
 
     virtual task<IntegrityCheckErrorList> CheckIntegrity(

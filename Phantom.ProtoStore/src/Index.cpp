@@ -23,7 +23,9 @@ Index::Index(
     m_indexNumber(indexNumber),
     m_createSequenceNumber(createSequenceNumber),
     m_keyComparer(std::move(keyComparer)),
-    m_rowMerger(make_shared<RowMerger>(&*m_keyComparer)),
+    m_rowMerger(make_shared<RowMerger>(
+        m_schema,
+        m_keyComparer)),
     m_unresolvedTransactionsTracker(unresolvedTransactionsTracker),
     m_schema(std::move(schema))
 {
@@ -96,7 +98,9 @@ operation_task<CheckpointNumber> Index::AddRow(
         auto conflictingSequenceNumber = co_await partition->CheckForWriteConflict(
             readSequenceNumber,
             writeSequenceNumber,
-            get_byte_span(row->key()->data()));
+            SchemaDescriptions::MakeProtoValueKey(
+                *m_schema,
+                row->key()));
 
         if (conflictingSequenceNumber.has_value())
         {
@@ -160,7 +164,7 @@ operation_task<ReadResult> Index::Read(
 
     KeyRangeEnd keyLow
     {
-        .Key = unowningKey.as_protocol_buffer_bytes_if(),
+        .Key = unowningKey,
         .Inclusivity = Inclusivity::Inclusive,
     };
 
@@ -247,18 +251,15 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
 
     KeyRangeEnd keyLow
     {
-        .Key = unowningKeyLow.as_protocol_buffer_bytes_if(),
+        .Key = unowningKeyLow,
         .Inclusivity = enumerateRequest.KeyLowInclusivity,
     };
 
     KeyRangeEnd keyHigh
     {
-        .Key = unowningKeyHigh.as_protocol_buffer_bytes_if(),
+        .Key = unowningKeyHigh,
         .Inclusivity = enumerateRequest.KeyHighInclusivity,
     };
-
-    assert(keyLow.Key.data());
-    assert(keyHigh.Key.data());
 
     MemoryTablesEnumeration memoryTablesEnumeration;
     PartitionsEnumeration partitionsEnumeration;
@@ -362,9 +363,9 @@ task<> Index::SetDataSources(
         partitions);
 }
 
-const Schema& Index::GetSchema() const
+const shared_ptr<const Schema>& Index::GetSchema() const
 {
-    return *m_schema;
+    return m_schema;
 }
 
 task<> Index::Join()

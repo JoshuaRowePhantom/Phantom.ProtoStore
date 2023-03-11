@@ -191,6 +191,17 @@ ProtoValue ProtoValue::FlatBuffer(
     };
 }
 
+ProtoValue ProtoValue::FlatBuffer(
+    flat_buffer_message flatBufferMessage
+)
+{
+    return
+    {
+        {},
+        std::move(flatBufferMessage),
+    };
+}
+
 ProtoValue::ProtoValue(
     backing_store backingStore,
     const google::protobuf::Message* protocolMessage

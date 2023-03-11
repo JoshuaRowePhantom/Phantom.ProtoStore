@@ -1,5 +1,6 @@
 #include "MemoryTableImpl.h"
 #include "Phantom.System/atomic.h"
+#include "Schema.h"
 
 namespace Phantom::ProtoStore
 {
@@ -50,11 +51,19 @@ MemoryTableOutcomeAndSequenceNumber MemoryTable::ToOutcomeUnknownSubsequentInser
 }
 
 MemoryTable::MemoryTable(
-    const KeyComparer* keyComparer
+    shared_ptr<const Schema> schema,
+    shared_ptr<const KeyComparer> keyComparer
 )
     : 
+    m_schema(
+        std::move(schema)
+    ),
+    m_keyComparer(
+        std::move(keyComparer)
+    ),
     m_comparer(
-        keyComparer
+        m_schema,
+        m_keyComparer
     ),
     m_skipList(
         m_comparer),
@@ -310,7 +319,8 @@ row_generator MemoryTable::Enumerate(
 
         // No matter what, the next key to enumerate will be at least as large
         // as the current key.
-        enumerationKey.KeyLow = memoryTableValue.GetKeyMessage().Payload;
+        enumerationKey.KeyLow = m_comparer.MakeProtoValueKey(
+            memoryTableValue);
 
         // The rowTransactionOutcome value needs to be acquired
         // before reading the sequence number for return determination.
@@ -592,15 +602,63 @@ MemoryTable::InsertionKey& MemoryTable::InsertionKey::InsertionKey::operator=(
     return *this;
 }
 
+MemoryTable::MemoryTableRowComparer::MemoryTableRowComparer(
+    shared_ptr<const Schema> schema,
+    shared_ptr<const KeyComparer> keyComparer
+) :
+    m_schema(std::move(schema)),
+    m_keyComparer(std::move(keyComparer))
+{}
+
+ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
+    const MemoryTableValue& value
+) const
+{
+    return SchemaDescriptions::MakeProtoValueKey(
+        *m_schema,
+        value.GetKeyMessage());
+}
+
+ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
+    const InsertionKey& value
+) const
+{
+    return SchemaDescriptions::MakeProtoValueKey(
+        *m_schema,
+        value.Row->key());
+}
+
+const ProtoValue& MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
+    const EnumerationKey& value
+) const
+{
+    return value.KeyLow;
+}
+
+const ProtoValue& MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
+    const KeyRangeEnd& value
+) const
+{
+    return value.Key;
+}
+
+ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
+    const ReplayInsertionKey& value
+) const
+{
+    return SchemaDescriptions::MakeProtoValueKey(
+        *m_schema,
+        value.Row->key());
+}
 
 std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const MemoryTableValue& key1,
     const MemoryTableValue& key2
     ) const
 {
-    auto comparisonResult = (*m_keyComparer)(
-        key1.GetKeyMessage().Payload,
-        key2.GetKeyMessage().Payload);
+    auto comparisonResult = m_keyComparer->Compare(
+        MakeProtoValueKey(key1),
+        MakeProtoValueKey(key2));
 
     return comparisonResult;
 }
@@ -610,9 +668,9 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const InsertionKey& key2
     ) const
 {
-    auto comparisonResult = (*m_keyComparer)(
-        key1.GetKeyMessage().Payload,
-        get_byte_span(key2.Row->key()->data()));
+    auto comparisonResult = m_keyComparer->Compare(
+        MakeProtoValueKey(key1),
+        MakeProtoValueKey(key2));
 
     if (comparisonResult != std::weak_ordering::equivalent)
     {
@@ -638,14 +696,10 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const EnumerationKey& key2
     ) const
 {
-    auto comparisonResult = 
-        !key2.KeyLow
-        ?
-        std::weak_ordering::greater
-        :
-        (*m_keyComparer)(
-            key1.GetKeyMessage().Payload,
-            *key2.KeyLow);
+    auto comparisonResult = m_keyComparer->Compare(
+        MakeProtoValueKey(key1),
+        MakeProtoValueKey(key2)
+    );
 
     if (comparisonResult == std::weak_ordering::equivalent
         &&
@@ -688,14 +742,10 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const KeyRangeEnd& key2
     ) const
 {
-    auto comparisonResult =
-        !key2.Key.data()
-        ?
-        std::weak_ordering::less
-        :
-        (*m_keyComparer)(
-            key1.GetKeyMessage().Payload,
-            key2.Key);
+    auto comparisonResult = m_keyComparer->Compare(
+        MakeProtoValueKey(key1),
+        MakeProtoValueKey(key2)
+    );
 
     if (comparisonResult == std::weak_ordering::equivalent
         &&
@@ -712,11 +762,9 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const ReplayInsertionKey& key2
     ) const
 {
-    auto comparisonResult =
-        (*m_keyComparer)(
-            key1.GetKeyMessage().Payload,
-            GetAlignedMessage(key2.Row->key()).Payload
-            );
+    auto comparisonResult = m_keyComparer->Compare(
+        MakeProtoValueKey(key1),
+        MakeProtoValueKey(key2));
 
     if (comparisonResult == std::weak_ordering::equivalent)
     {

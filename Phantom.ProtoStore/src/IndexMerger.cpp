@@ -79,7 +79,13 @@ task<> IndexMerger::RestartIncompleteMerge(
     {
         partitionCheckpointStartKey =
         {
-            .Key = RawData(nullptr, as_bytes(std::span{ incompleteMerge.Merge.Value.resumekey().key() })),
+            .Key = SchemaDescriptions::MakeProtoValueKey(
+                *index->GetSchema(),
+                AlignedMessage
+                {
+                    16,
+                    get_byte_span(incompleteMerge.Merge.Value.resumekey().key()),
+                }),
             .WriteSequenceNumber = ToSequenceNumber(
                 incompleteMerge.Merge.Value.resumekey().writesequencenumber()),
         };
@@ -107,7 +113,8 @@ task<> IndexMerger::RestartIncompleteMerge(
         };
 
         RowMerger rowMerger(
-            index->GetKeyComparer().get());
+            index->GetSchema(),
+            index->GetKeyComparer());
 
         auto rowGenerator = rowMerger.Merge(
             rowGenerators());
@@ -119,6 +126,8 @@ task<> IndexMerger::RestartIncompleteMerge(
         co_await m_protoStore->OpenPartitionWriter(
             index->GetIndexNumber(),
             index->GetIndexName(),
+            index->GetSchema(),
+            index->GetKeyComparer(),
             incompleteMerge.Merge.Value.destinationlevelnumber(),
             headerExtentName,
             dataExtentName,
