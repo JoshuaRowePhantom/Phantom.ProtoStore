@@ -402,7 +402,8 @@ struct IntegrityCheckError
     ExtentLocation Location;
     std::optional<int> TreeNodeEntryIndex;
     std::optional<int> TreeNodeValueIndex;
-    std::shared_ptr<FlatMessage<flatbuffers::Table>> PartitionMessage;
+    // std::shared_ptr<FlatMessage<flatbuffers::Table>>
+    std::shared_ptr<void> PartitionMessage;
 
     friend bool operator==(
         const IntegrityCheckError&,

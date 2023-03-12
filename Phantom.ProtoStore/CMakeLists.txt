@@ -24,6 +24,7 @@ add_library (
     "src/ExtentStore.h"
     "src/FlatBuffersKeyComparer.cpp"
     "src/FlatBuffersKeyComparer.h"
+    "src/FlatMessage.h"
     "src/HeaderAccessor.cpp"
     "src/HeaderAccessor.h"
     "src/HeaderAccessorImpl.h"
@@ -79,7 +80,7 @@ add_library (
     "src/StandardTypes.h"
     "src/UnresolvedTransactionsTracker.cpp"
     "src/UnresolvedTransactionsTracker.h" 
- )
+  )
     
 target_include_directories(
     Phantom.ProtoStore

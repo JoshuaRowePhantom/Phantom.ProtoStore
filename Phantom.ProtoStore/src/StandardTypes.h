@@ -19,6 +19,7 @@
 #include "Phantom.System/pooled_ptr.h"
 #include <flatbuffers/flatbuffers.h>
 #include <Phantom.ProtoStore/Phantom.ProtoStore.h>
+#include "FlatMessage.h"
 
 namespace google::protobuf
 {
