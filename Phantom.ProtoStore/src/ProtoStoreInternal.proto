@@ -67,14 +67,6 @@ message InternalValue {
     }
 }
 
-message IndexesByNameKey {
-    string IndexName = 1;
-}
-
-message IndexesByNameValue {
-    uint64 IndexNumber = 1;
-}
-
 message IndexesByNumberKey {
     uint64 IndexNumber = 1;
 }

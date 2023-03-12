@@ -12,6 +12,7 @@
 #include "ProtoStore.h"
 #include "ProtoStoreInternal.pb.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
+#include "Resources.h"
 #include "Schema.h"
 #include "StandardTypes.h"
 #include "UnresolvedTransactionsTracker.h"
@@ -118,8 +119,9 @@ task<> ProtoStore::Open(
             2,
             SequenceNumber::Earliest,
             Schema::Make(
-                IndexesByNameKey::descriptor(),
-                IndexesByNameValue::descriptor()));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameKey_Object },
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameValue_Object }
+        ));
 
         m_indexesByNameIndex = MakeIndex(
             indexesByNumberKey,
@@ -964,16 +966,15 @@ task<> ProtoStore::Publish(
 }
 
 task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
-    const string& indexName,
+    string indexName,
     SequenceNumber sequenceNumber
 )
 {
-    IndexesByNameKey indexesByNameKey;
-    indexesByNameKey.set_indexname(
-        indexName);
+    IndexesByNameKeyT indexesByNameKey;
+    indexesByNameKey.index_name = std::move(indexName);
 
     ReadRequest readRequest;
-    readRequest.Key = &indexesByNameKey;
+    readRequest.Key = ProtoValue{ &indexesByNameKey };
     readRequest.ReadValueDisposition = ReadValueDisposition::DontReadValue;
     readRequest.SequenceNumber = sequenceNumber;
 
@@ -994,11 +995,8 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
         co_return nullptr;
     }
 
-    IndexesByNameValue indexesByNameValue;
-    readResult->Value.unpack(&indexesByNameValue);
-
     co_return (co_await GetIndexEntryInternal(
-        indexesByNameValue.indexnumber(),
+        readResult->Value.cast_if<IndexesByNameValue>()->index_number(),
         DoReplayPartitions)
         )->Index;
 }
@@ -1039,13 +1037,11 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
             &indexesByNumberValue
         );
 
-        IndexesByNameKey indexesByNameKey;
-        IndexesByNameValue indexesByNameValue;
+        IndexesByNameKeyT indexesByNameKey;
+        IndexesByNameValueT indexesByNameValue;
 
-        indexesByNameKey.set_indexname(
-            createIndexRequest.IndexName);
-        indexesByNameValue.set_indexnumber(
-            indexNumber);
+        indexesByNameKey.index_name = createIndexRequest.IndexName;
+        indexesByNameValue.index_number = indexNumber;
 
         co_await co_await operation->AddRow(
             metadata,

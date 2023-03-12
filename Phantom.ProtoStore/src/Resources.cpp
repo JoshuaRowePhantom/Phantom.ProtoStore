@@ -21,4 +21,10 @@ const reflection::Schema* FlatBuffersSchemas::ProtoStoreInternalSchema =
     flatbuffers::GetRoot<reflection::Schema>(
         cmrc::Phantom::ProtoStore::Resources::get_filesystem().open("ProtoStoreInternal.bfbs").begin());
 
+const reflection::Object* FlatBuffersSchemas::IndexesByNameKey_Object =
+    ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.IndexesByNameKey");
+
+const reflection::Object* FlatBuffersSchemas::IndexesByNameValue_Object =
+    ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.IndexesByNameValue");
+
 }

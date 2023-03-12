@@ -105,8 +105,6 @@ class ProtocolBuffersSchemaDescription;
 class FlatBuffersSchemaDescription;
 class LogRecord;
 class IndexSchemaDescription;
-class IndexesByNameKey;
-class IndexesByNameValue;
 class IndexesByNumberKey;
 class IndexesByNumberValue;
 class PartitionsKey;
@@ -177,6 +175,11 @@ struct PartitionTreeEntryValueT;
 struct PartitionBloomFilter;
 struct PartitionBloomFilterT;
 
+struct IndexesByNameKey;
+struct IndexesByNameKeyT;
+struct IndexesByNameValue;
+struct IndexesByNameValueT;
+
 enum class ExtentFormatVersion : int8_t;
 
 struct ExtentName;
@@ -221,8 +224,12 @@ class SerializationTypes
 {
 public:
     using uoffset_t = flatbuffers::uoffset_t;
-    using IndexesByNameKey = Serialization::IndexesByNameKey;
-    using IndexesByNameValue = Serialization::IndexesByNameValue;
+    
+    using IndexesByNameKey = FlatBuffers::IndexesByNameKey;
+    using IndexesByNameKeyT = FlatBuffers::IndexesByNameKeyT;
+    using IndexesByNameValue = FlatBuffers::IndexesByNameValue;
+    using IndexesByNameValueT = FlatBuffers::IndexesByNameValueT;
+
     using IndexesByNumberKey = Serialization::IndexesByNumberKey;
     using IndexesByNumberValue = Serialization::IndexesByNumberValue;
     using LogRecord = FlatBuffers::LogRecord;

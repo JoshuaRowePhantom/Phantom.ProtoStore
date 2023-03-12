@@ -83,7 +83,7 @@ class ProtoStore
     IndexesByNumberMap m_indexesByNumber;
 
     task<shared_ptr<IIndex>> GetIndexInternal(
-        const string& indexName,
+        string indexName,
         SequenceNumber sequenceNumber
     );
 

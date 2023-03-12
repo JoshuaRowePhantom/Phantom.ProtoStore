@@ -246,4 +246,12 @@ table PartitionMessage {
     bloom_filter : PartitionBloomFilter;
 }
 
+table IndexesByNameKey {
+    index_name : string;
+}
+
+table IndexesByNameValue {
+    index_number : uint64;
+}
+
 file_identifier "PSEX";
