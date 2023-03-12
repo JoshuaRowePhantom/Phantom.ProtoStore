@@ -90,11 +90,21 @@ private:
             const void* value2
         ) const;
 
+        std::weak_ordering CompareStringField(
+            const void* value1,
+            const void* value2
+        ) const;
+
         template<
             typename Container,
             auto fieldRetriever
         >
         void HashPrimitiveField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        void HashStringField(
             hash_v1_type& hash,
             const void* value
         ) const;
@@ -203,6 +213,10 @@ private:
             typename Container,
             auto fieldRetriever
         > static InternalFieldComparer GetPrimitiveFieldComparer(
+            const ::reflection::Field* flatBuffersReflectionField
+        );
+
+        static InternalFieldComparer GetStringFieldComparer(
             const ::reflection::Field* flatBuffersReflectionField
         );
 

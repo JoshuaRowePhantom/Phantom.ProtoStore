@@ -36,16 +36,23 @@ void DoFlatBufferPointerKeyComparerTest(
     auto keyComparer = GetTestKeyFlatBufferPointerKeyComparer();
 
     FlatMessage lesserFlatMessage{ &lesser };
+    FlatMessage lesserFlatMessage2{ &lesser };
     FlatMessage greaterFlatMessage{ &greater };
 
     EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserFlatMessage.get(), greaterFlatMessage.get()));
+    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserFlatMessage2.get(), greaterFlatMessage.get()));
     EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(greaterFlatMessage.get(), lesserFlatMessage.get()));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserFlatMessage.get(), lesserFlatMessage.get()));
+    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserFlatMessage.get(), lesserFlatMessage2.get()));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterFlatMessage.get(), greaterFlatMessage.get()));
 
     EXPECT_EQ(
         keyComparer.Hash(lesserFlatMessage.get()),
         keyComparer.Hash(lesserFlatMessage.get()));
+
+    EXPECT_EQ(
+        keyComparer.Hash(lesserFlatMessage.get()),
+        keyComparer.Hash(lesserFlatMessage2.get()));
 
     EXPECT_EQ(
         keyComparer.Hash(greaterFlatMessage.get()),

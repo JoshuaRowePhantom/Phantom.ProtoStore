@@ -283,11 +283,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
     case BaseType::String:
         if constexpr (std::same_as<Container, flatbuffers::Table>)
         {
-            return GetPrimitiveFieldComparer<Container, [](auto table, auto field)
-            {
-                return flatbuffers::GetStringView(flatbuffers::GetFieldS(*table, *field));
-            }
-            >(
+            return GetStringFieldComparer(
                 flatBuffersReflectionField);
         }
         else
@@ -374,6 +370,20 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
         nullptr,
         &InternalFieldComparer::ComparePrimitiveField<Container, fieldRetriever>,
         &InternalFieldComparer::HashPrimitiveField<Container, fieldRetriever>
+    };
+}
+
+FlatBufferPointerKeyComparer::InternalFieldComparer 
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetStringFieldComparer(
+    const ::reflection::Field* flatBuffersReflectionField
+)
+{
+    return InternalFieldComparer
+    {
+        flatBuffersReflectionField,
+        nullptr,
+        &InternalFieldComparer::CompareStringField,
+        &InternalFieldComparer::HashStringField
     };
 }
 
@@ -973,6 +983,24 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareP
     return ComparePrimitive(fieldValue1, fieldValue2);
 }
 
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareStringField(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto fieldValue1 = flatbuffers::GetStringView(
+        flatbuffers::GetFieldS(
+            *reinterpret_cast<const flatbuffers::Table*>(value1),
+            *flatBuffersReflectionField));
+
+    auto fieldValue2 = flatbuffers::GetStringView(
+        flatbuffers::GetFieldS(
+            *reinterpret_cast<const flatbuffers::Table*>(value2),
+            *flatBuffersReflectionField));
+
+    return fieldValue1 <=> fieldValue2;
+}
+
 template<
     typename Container,
     auto fieldRetriever
@@ -990,6 +1018,29 @@ void FlatBufferPointerKeyComparer::InternalFieldComparer::HashPrimitiveField(
     HashPrimitive(
         hash,
         fieldValue);
+}
+
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashStringField(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto stringView = flatbuffers::GetStringView(
+        flatbuffers::GetFieldS(
+            *reinterpret_cast<const flatbuffers::Table*>(value),
+            *flatBuffersReflectionField));
+
+    auto span = std::span<const char>{ stringView };
+    if (!span.data())
+    {
+        HashPrimitive(hash, 0);
+    }
+    else
+    {
+        HashPrimitive(
+            hash,
+            span);
+    }
 }
 
 template<
