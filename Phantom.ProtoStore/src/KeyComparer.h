@@ -19,11 +19,6 @@ concept IsOrderedBy = requires (T t)
     { t <=> t } -> std::same_as<O>;
 };
 
-extern const Serialization::PlaceholderKey KeyMinMessage;
-extern const Serialization::PlaceholderKey KeyMaxMessage;
-extern const std::span<const std::byte> KeyMinSpan;
-extern const std::span<const std::byte> KeyMaxSpan;
-
 class BaseKeyComparer
 {
 protected:

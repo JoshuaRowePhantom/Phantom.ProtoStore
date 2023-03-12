@@ -14,11 +14,6 @@ namespace Phantom::ProtoStore
 
 using namespace google::protobuf;
 
-const Serialization::PlaceholderKey KeyMinMessage = [] { Serialization::PlaceholderKey key; key.set_iskeymin(true); return key; }();
-const Serialization::PlaceholderKey KeyMaxMessage = [] { Serialization::PlaceholderKey key; key.set_iskeymax(true); return key; }();
-const std::span<const byte> KeyMinSpan = as_bytes(KeyMinMessage);
-const std::span<const byte> KeyMaxSpan = as_bytes(KeyMaxMessage);
-
 ProtoKeyComparer::ProtoKeyComparer(
     const Descriptor* messageDescriptor)
     :

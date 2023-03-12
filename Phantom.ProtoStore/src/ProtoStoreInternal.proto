@@ -165,10 +165,3 @@ enum UnresolvedTransactionStatus
     Aborted = 1;
 }
 
-// Used for KeyMin, KeyMax
-message PlaceholderKey {
-oneof PlaceholderKeyType {
-    bool IsKeyMin = 1;
-    bool IsKeyMax = 2;
-}
-}

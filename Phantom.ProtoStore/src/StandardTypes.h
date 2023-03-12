@@ -115,7 +115,6 @@ class MergesKey;
 class MergesValue;
 class MergeProgressKey;
 class MergeProgressValue;
-class PlaceholderKey;
 class PartitionMessage;
 class LoggedPartitionsData;
 enum TransactionOutcome;
@@ -248,7 +247,6 @@ public:
     using MergesValue = Serialization::MergesValue;
     using MergeProgressKey = Serialization::MergeProgressKey;
     using MergeProgressValue = Serialization::MergeProgressValue;
-    using PlaceholderKey = Serialization::PlaceholderKey;
     using PartitionMessage = FlatBuffers::PartitionMessage;
     using PartitionMessageT = FlatBuffers::PartitionMessageT;
     using PartitionRoot = FlatBuffers::PartitionRoot;
