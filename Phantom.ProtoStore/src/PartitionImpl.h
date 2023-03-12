@@ -90,9 +90,9 @@ class Partition
         IntegrityCheckErrorList& errorList,
         const IntegrityCheckError& errorPrototype,
         const FlatBuffers::MessageReference_V1* messageReference,
-        AlignedMessageData minKeyExclusive,
+        ProtoValue minKeyExclusive,
         SequenceNumber lowestKeyHighestSequenceNumber,
-        AlignedMessageData maxKeyInclusive,
+        ProtoValue maxKeyInclusive,
         SequenceNumber highestSequenceNumberForMaxKey);
 
     task<> CheckChildTreeEntryIntegrity(
@@ -100,15 +100,15 @@ class Partition
         const IntegrityCheckError& errorPrototype,
         const FlatMessage<PartitionMessage>&parent,
         size_t treeEntryIndex,
-        AlignedMessageData currentKey,
-        AlignedMessageData expectedCurrentKey,
+        ProtoValue currentKey,
+        ProtoValue expectedCurrentKey,
         SequenceNumber expectedHighestSequenceNumber,
-        AlignedMessageData maxKeyExclusive,
+        ProtoValue maxKeyExclusive,
         SequenceNumber highestSequenceNumberForMaxKey);
 
     void GetKeyValues(
         const FlatMessage<FlatBuffers::PartitionTreeEntryKey>& keyEntry,
-        AlignedMessageData& key,
+        ProtoValue& key,
         SequenceNumber& highestSequenceNumber,
         SequenceNumber& lowestSequenceNumber);
 

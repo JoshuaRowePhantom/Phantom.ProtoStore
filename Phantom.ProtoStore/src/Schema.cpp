@@ -357,33 +357,48 @@ ProtoValue SchemaDescriptions::MakeProtoValueKey(
 {
     return MakeProtoValueKey(
         schema,
-        GetAlignedMessage(value));
+        AlignedMessageData
+        {
+            nullptr,
+            GetAlignedMessage(value),
+        });
 }
 
 ProtoValue SchemaDescriptions::MakeProtoValueKey(
     const Schema& schema,
-    const AlignedMessage& value
+    AlignedMessageData value
 )
 {
     if (schema.KeySchema.IsProtocolBuffersSchema())
     {
         return ProtoValue::ProtocolBuffer(
-            AlignedMessageData
-            {
-                nullptr,
-                value,
-            });
+            value);
     }
     else
     {
         assert(schema.KeySchema.IsFlatBuffersSchema());
 
         return ProtoValue::FlatBuffer(
-            AlignedMessageData
-            {
-                nullptr,
-                value,
-            });
+            value);
+    }
+}
+
+ProtoValue SchemaDescriptions::MakeProtoValueValue(
+    const Schema& schema,
+    AlignedMessageData value
+)
+{
+    if (schema.ValueSchema.IsProtocolBuffersSchema())
+    {
+        return ProtoValue::ProtocolBuffer(
+            value);
+    }
+    else
+    {
+        assert(schema.ValueSchema.IsFlatBuffersSchema());
+
+        return ProtoValue::FlatBuffer(
+            value);
     }
 }
 

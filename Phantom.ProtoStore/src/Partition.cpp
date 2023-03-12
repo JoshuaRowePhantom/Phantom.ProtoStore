@@ -19,7 +19,7 @@ size_t BloomFilterV1Hash::operator()(uint64_t value) const
 
 struct Partition::EnumerateLastReturnedKey
 {
-    AlignedMessageData Key;
+    ProtoValue Key;
 };
 
 Partition::Partition(
@@ -376,9 +376,12 @@ row_generator Partition::Enumerate(
     {
         const FlatBuffers::PartitionTreeEntryKey* keyEntry = treeNode->tree_node()->keys()->Get(lowTreeEntryIndex);
         
-        AlignedMessageData key = GetAlignedMessageData(
+        AlignedMessageData keyMessageData = GetAlignedMessageData(
             treeNode,
             keyEntry->key());
+        ProtoValue key = SchemaDescriptions::MakeProtoValueKey(
+            *m_schema,
+            std::move(keyMessageData));
 
         if (keyEntry->child_tree_node())
         {
@@ -412,9 +415,7 @@ row_generator Partition::Enumerate(
             {
                 low =
                 {
-                    SchemaDescriptions::MakeProtoValueKey(
-                        *m_schema,
-                        childEnumerateLastReturnedKey.Key.data()),
+                    childEnumerateLastReturnedKey.Key,
                     Inclusivity::Exclusive,
                 };
 
@@ -482,16 +483,16 @@ row_generator Partition::Enumerate(
                 {
                     .Key = key,
                     .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->write_sequence_number()),
-                    .Value = std::move(value),
+                    .Value = SchemaDescriptions::MakeProtoValueValue(
+                        *m_schema,
+                        std::move(value)),
                 };
 
                 if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)
                 {
                     low =
                     {
-                        SchemaDescriptions::MakeProtoValueKey(
-                            *m_schema,
-                            *key),
+                        key,
                         Inclusivity::Exclusive,
                     };
 
@@ -553,9 +554,9 @@ task<> Partition::CheckTreeNodeIntegrity(
     IntegrityCheckErrorList& errorList,
     const IntegrityCheckError& errorPrototype,
     const FlatBuffers::MessageReference_V1* messageReference,
-    AlignedMessageData minKeyExclusive,
+    ProtoValue minKeyExclusive,
     SequenceNumber minKeyExclusiveLowestSequenceNumber,
-    AlignedMessageData maxKeyInclusive,
+    ProtoValue maxKeyInclusive,
     SequenceNumber maxKeyInclusiveLowestSequenceNumber)
 {
     auto treeNodeMessage = co_await ReadData(messageReference);
@@ -585,7 +586,7 @@ task<> Partition::CheckTreeNodeIntegrity(
         );
     }
 
-    AlignedMessageData previousKey = minKeyExclusive;
+    ProtoValue previousKey = minKeyExclusive;
     SequenceNumber previousKeyLowestSequenceNumber = minKeyExclusiveLowestSequenceNumber;
 
     for (auto index = 0;
@@ -595,9 +596,11 @@ task<> Partition::CheckTreeNodeIntegrity(
         auto treeEntryErrorPrototype = errorPrototype;
         treeEntryErrorPrototype.Location.extentOffset = errorLocationExtentOffset;
         treeEntryErrorPrototype.TreeNodeEntryIndex = index;
-        treeEntryErrorPrototype.Key = GetAlignedMessageData(
-            treeNodeMessage,
-            treeNodeMessage->tree_node()->keys()->Get(index)->key());
+        treeEntryErrorPrototype.Key = SchemaDescriptions::MakeProtoValueKey(
+            *m_schema,
+            GetAlignedMessageData(
+                treeNodeMessage,
+                treeNodeMessage->tree_node()->keys()->Get(index)->key()));
         
         treeEntryErrorPrototype.PartitionMessage = make_shared<FlatMessage<flatbuffers::Table>>(
             treeNodeMessage,
@@ -606,7 +609,7 @@ task<> Partition::CheckTreeNodeIntegrity(
 
         auto treeEntry = treeNodeMessage->tree_node()->keys()->Get(index);
 
-        AlignedMessageData currentKey;
+        ProtoValue currentKey;
         SequenceNumber currentKeyHighestSequenceNumber;
         SequenceNumber currentKeyLowestSequenceNumber;
 
@@ -634,12 +637,12 @@ task<> Partition::CheckTreeNodeIntegrity(
 
 void Partition::GetKeyValues(
     const FlatMessage<FlatBuffers::PartitionTreeEntryKey>& keyEntry,
-    AlignedMessageData& key,
+    ProtoValue& key,
     SequenceNumber& highestSequenceNumber,
     SequenceNumber& lowestSequenceNumber)
 {
-    key = GetAlignedMessageData(
-        keyEntry,
+    key = SchemaDescriptions::MakeProtoValueKey(
+        *m_schema,
         keyEntry->key());
 
     if (keyEntry->values())
@@ -663,10 +666,10 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     const IntegrityCheckError& errorPrototype,
     const FlatMessage<PartitionMessage>& parent,
     size_t treeEntryIndex,
-    AlignedMessageData currentKey,
-    AlignedMessageData minKeyExclusive,
+    ProtoValue currentKey,
+    ProtoValue minKeyExclusive,
     SequenceNumber minKeyExclusiveLowestSequenceNumber,
-    AlignedMessageData maxKeyInclusive,
+    ProtoValue maxKeyInclusive,
     SequenceNumber maxKeyInclusiveLowestSequenceNumber)
 {
     FlatMessage<FlatBuffers::PartitionTreeEntryKey> treeEntry
@@ -725,8 +728,8 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     if (minKeyExclusive)
     {
         auto keyComparisonResult = keyAndSequenceNumberComparer(
-            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *minKeyExclusive), minKeyExclusiveLowestSequenceNumber },
-            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *currentKey), currentLowestSequenceNumber });
+            { minKeyExclusive, minKeyExclusiveLowestSequenceNumber },
+            { currentKey, currentLowestSequenceNumber });
 
         if (keyComparisonResult != std::weak_ordering::less)
         {
@@ -743,8 +746,8 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     // if (maxKeyInclusive)
     {
         auto maxKeyComparisonResult = keyAndSequenceNumberComparer(
-            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *currentKey), currentLowestSequenceNumber },
-            { SchemaDescriptions::MakeProtoValueKey(*m_schema, *maxKeyInclusive), maxKeyInclusiveLowestSequenceNumber});
+            { currentKey, currentLowestSequenceNumber },
+            { maxKeyInclusive, maxKeyInclusiveLowestSequenceNumber});
 
         if (maxKeyComparisonResult == std::weak_ordering::greater)
         {

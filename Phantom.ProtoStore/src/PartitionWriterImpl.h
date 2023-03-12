@@ -31,7 +31,7 @@ private:
     struct StackEntry
     {
         flatbuffers::FlatBufferBuilder partitionTreeNodeBuilder;
-        DataReference<AlignedMessage> highestKey;
+        ProtoValue highestKey;
         SequenceNumber lowestSequenceNumberForKey;
         std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryKey>> keyOffsets;
     };

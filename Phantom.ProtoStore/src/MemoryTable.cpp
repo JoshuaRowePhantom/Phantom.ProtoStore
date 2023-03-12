@@ -400,7 +400,7 @@ row_generator MemoryTable::Enumerate(
             {
                 // The row resolved as Committed and the write sequence number is good.
                 // Yield it to the caller.
-                co_yield memoryTableValue.GetResultRow();
+                co_yield memoryTableValue.GetResultRow(*m_schema);
 
                 // Change the enumeration key to be exclusive so that we'll
                 // skip all lower sequence numbers for the same row.
@@ -466,7 +466,7 @@ row_generator MemoryTable::Checkpoint()
 
         if (outcome == TransactionOutcome::Committed)
         {
-            co_yield iterator->GetResultRow();
+            co_yield iterator->GetResultRow(*m_schema);
         }
     }
 }
@@ -502,7 +502,9 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     assert(KeyRow.get());
 }
 
-ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
+ResultRow MemoryTable::MemoryTableValue::GetResultRow(
+    const Schema& schema
+) const
 {
     auto* valueRow = &KeyRow;
     if (ValueRow)
@@ -515,18 +517,24 @@ ResultRow MemoryTable::MemoryTableValue::GetResultRow() const
     auto transactionIdAlignedMessage = GetTransactionIdMessage();
 
     ResultRow resultRow;
-    resultRow.Key = AlignedMessageData
-    {
-        DataReference<StoredMessage>(KeyRow),
-        keyAlignedMessage
-    };
+    resultRow.Key = SchemaDescriptions::MakeProtoValueKey(
+        schema,
+        AlignedMessageData
+        {
+            DataReference<StoredMessage>(KeyRow),
+            keyAlignedMessage
+        }
+    );
 
     resultRow.WriteSequenceNumber = GetWriteSequenceNumber();
-    resultRow.Value =
-    {
-        DataReference<StoredMessage>(*valueRow),
-        valueAlignedMessage,
-    };
+    resultRow.Value = SchemaDescriptions::MakeProtoValueValue(
+        schema,
+        AlignedMessageData
+        {
+            DataReference<StoredMessage>(*valueRow),
+            valueAlignedMessage
+        });
+
     if (transactionIdAlignedMessage)
     {
         resultRow.TransactionId =
@@ -624,7 +632,11 @@ ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
 {
     return SchemaDescriptions::MakeProtoValueKey(
         *m_schema,
-        value.GetKeyMessage());
+        AlignedMessageData
+        {
+            nullptr,
+            value.GetKeyMessage()
+        });
 }
 
 ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(

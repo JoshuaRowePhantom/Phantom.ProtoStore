@@ -172,9 +172,9 @@ protected:
             ResultRow& row = *iterator;
 
             StringKey resultKey;
-            ProtoValue::ProtocolBuffer( row.Key ).unpack(&resultKey);
+            row.Key.unpack(&resultKey);
             StringValue resultValue;
-            ProtoValue::ProtocolBuffer( row.Value ).unpack(&resultValue);
+            row.Value.unpack(&resultValue);
             
             storedRows.push_back(
                 ExpectedRow

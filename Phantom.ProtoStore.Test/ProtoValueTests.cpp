@@ -210,7 +210,7 @@ TEST_F(ProtoValueTests, constructor_backing_store_string_flatmessage_monostate)
 {
     ProtoValue protoValue(nonNullFlatTableString, ProtoValue::flat_buffer_message{});
     ExpectIsTable(
-        protoValue, 
+        protoValue,
         // 12 bytes for root, file type, root vtable.
         reinterpret_cast<const flatbuffers::Table*>(protoValue.as_flat_buffer_bytes_if().data() + 12));
 }
@@ -218,14 +218,14 @@ TEST_F(ProtoValueTests, constructor_backing_store_string_flatmessage_monostate)
 TEST_F(ProtoValueTests, constructor_backing_store_aligned_message_data_flatmessage_monostate)
 {
     ProtoValue protoValue(
-        std::move(nonNullFlatTableAlignedMessageData), 
+        std::move(nonNullFlatTableAlignedMessageData),
         ProtoValue::flat_buffer_message{});
 
     EXPECT_EQ(16, protoValue.as_aligned_message_if().Alignment);
     EXPECT_EQ(
         reinterpret_cast<const std::byte*>(nonNullFlatTableAlignedMessageString->value.data()),
         protoValue.as_aligned_message_if().Payload.data());
-    
+
     ExpectIsTable(
         protoValue,
         nonNullAlignedMessageDataFlatTableRaw);
@@ -255,7 +255,7 @@ TEST_F(ProtoValueTests, constructor_backing_store_string_flatmessage_pointer)
     ExpectIsTable(
         protoValue,
         nonNullFlatTableRaw
-        );
+    );
 }
 
 TEST_F(ProtoValueTests, constructor_backing_store_aligned_message_data_flatmessage_pointer)
@@ -407,7 +407,7 @@ TEST_F(ProtoValueTests, constructor_backing_store_aligned_message_data_protocolm
 
     EXPECT_EQ(1, protoValue.as_aligned_message_if().Alignment);
     EXPECT_EQ(
-        reinterpret_cast<const std::byte*>(nonNullProtocolAlignedMessageString->value.data()), 
+        reinterpret_cast<const std::byte*>(nonNullProtocolAlignedMessageString->value.data()),
         protoValue.as_aligned_message_if().Payload.data());
 
     ExpectIsProtocolBuffer(
@@ -433,7 +433,7 @@ TEST_F(ProtoValueTests, pack_does_nothing_on_packed_message)
 TEST_F(ProtoValueTests, pack_does_nothing_on_flat_message)
 {
     ProtoValue protoValue(
-        ProtoValue::backing_store {},
+        ProtoValue::backing_store{},
         nonNullFlatTable
     );
     protoValue.pack();
@@ -493,7 +493,7 @@ TEST_F(ProtoValueTests, pack_allocates_data_on_packed_message)
 
     auto copy = ProtoValue::ProtocolBuffer(
         protoValue.as_protocol_buffer_bytes_if());
-    
+
     ExpectIsProtocolBuffer(copy, nullptr);
 }
 
@@ -521,4 +521,21 @@ TEST_F(ProtoValueTests, unpack_table_get_table)
     EXPECT_EQ(0, native.item);
 }
 
+TEST_F(ProtoValueTests, assignment_copies_data_reference)
+{
+    StringKey key;
+    key.set_value("hello world");
+
+    ProtoValue protoValue = ProtoValue::ProtocolBuffer(
+        { &key }
+    ).pack().unpack<StringKey>();
+
+    ProtoValue protoValue2;
+    protoValue2 = protoValue;
+
+    EXPECT_EQ(
+        protoValue.as_aligned_message_if().Payload.data(),
+        protoValue2.as_aligned_message_if().Payload.data()
+    );
+}
 }

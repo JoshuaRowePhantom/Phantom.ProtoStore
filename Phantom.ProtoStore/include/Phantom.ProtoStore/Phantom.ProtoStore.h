@@ -398,7 +398,7 @@ struct ExtentLocation
 struct IntegrityCheckError
 {
     IntegrityCheckErrorCode Code;
-    std::optional<AlignedMessageData> Key;
+    ProtoValue Key;
     ExtentLocation Location;
     std::optional<int> TreeNodeEntryIndex;
     std::optional<int> TreeNodeValueIndex;

@@ -35,6 +35,8 @@ ProtoValue::ProtoValue(
     const ProtoValue& other
 ) = default;
 
+ProtoValue& ProtoValue::operator=(const ProtoValue&) = default;
+
 ProtoValue& ProtoValue::operator=(ProtoValue&& other)
 {
     if (&other == this)
@@ -131,6 +133,17 @@ ProtoValue ProtoValue::ProtocolBuffer(
     return 
     {
         std::move(backingStore),
+        std::move(protocolBufferMessage),
+    };
+}
+
+ProtoValue ProtoValue::ProtocolBuffer(
+    protocol_buffer_message protocolBufferMessage
+)
+{
+    return
+    {
+        {},
         std::move(protocolBufferMessage),
     };
 }

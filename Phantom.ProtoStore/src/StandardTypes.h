@@ -291,9 +291,9 @@ using LocalTransactionNumber = uint64_t;
 
 struct ResultRow
 {
-    AlignedMessageData Key;
+    ProtoValue Key;
     SequenceNumber WriteSequenceNumber;
-    AlignedMessageData Value;
+    ProtoValue Value;
     AlignedMessageData TransactionId;
 };
 

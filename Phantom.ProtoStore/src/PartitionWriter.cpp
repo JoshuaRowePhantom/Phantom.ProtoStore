@@ -64,7 +64,7 @@ void PartitionTreeWriter::FinishKey(
     PartitionTreeEntryValueOffsetVector& treeEntryValues
 )
 {
-    if (!*current().highestKey)
+    if (!current().highestKey)
     {
         assert(treeEntryValues.empty());
         return;
@@ -76,7 +76,7 @@ void PartitionTreeWriter::FinishKey(
 
     auto keyOffset = CreateDataValue(
         builder,
-        *current().highestKey);
+        current().highestKey.as_aligned_message_if());
 
     auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
         builder,
@@ -117,7 +117,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     if (propagateKeyToParent)
     {
         StackEntry& next = m_treeNodeStack[level + 1];
-        auto approximateSize = current->highestKey->Payload.size() + 100;
+        auto approximateSize = current->highestKey.as_aligned_message_if().Payload.size() + 100;
         if (next.partitionTreeNodeBuilder.GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize)
         {
             // Note that we don't forward the value of "isFinishing",
@@ -162,7 +162,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
 
         auto nextKeyDataOffset = CreateDataValue(
             parent->partitionTreeNodeBuilder,
-            *parent->highestKey
+            parent->highestKey.as_aligned_message_if()
         );
 
         auto nextPartitionTreeEntryKey = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
@@ -212,8 +212,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         ResultRow& row = *iterator;
 
         auto approximateRowSize =
-            row.Key->Payload.size()
-            + row.Value->Payload.size()
+            row.Key.as_aligned_message_if().Payload.size()
+            + row.Value.as_aligned_message_if().Payload.size()
             + row.TransactionId->Payload.size()
             + 100;
 
@@ -260,7 +260,11 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             earliestSequenceNumber = row.WriteSequenceNumber;
         }
         
-        if (current().highestKey->Payload.data() && !std::ranges::equal(current().highestKey->Payload, row.Key->Payload))
+        if (current().highestKey
+            && m_keyComparer->Compare(
+                current().highestKey,
+                row.Key
+            ) != std::weak_ordering::equivalent)
         {
             FinishKey(
                 currentValues
@@ -270,12 +274,11 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         current().highestKey = std::move(row.Key);
         current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
         m_bloomFilter.add(
-            m_keyComparer->Hash(
-                SchemaDescriptions::MakeProtoValueKey(*m_schema, *current().highestKey)));
+            m_keyComparer->Hash(current().highestKey));
 
         auto valueDataOffset = CreateDataValue(
             partitionTreeNodeBuilder,
-            *row.Value);
+            row.Value.as_aligned_message_if());
 
         auto transactionIdOffset = CreateDataValue(
             partitionTreeNodeBuilder,

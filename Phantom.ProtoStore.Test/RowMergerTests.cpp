@@ -44,21 +44,19 @@ protected:
                 {
                     stringKey.set_value(get<0>(testRow));
 
-                    shared_ptr<ProtoValue> stringKeyProto = std::make_shared<ProtoValue>(&stringKey);
-                    stringKeyProto->pack();
-                    shared_ptr<ProtoValue> stringValueProto = std::make_shared<ProtoValue>();
+                    ProtoValue stringValueProto;
 
                     if (get<1>(testRow))
                     {
                         stringValue.set_value(*get<1>(testRow));
-                        *stringValueProto = ProtoValue{ &stringValue }.pack();
+                        stringValueProto = ProtoValue{ &stringValue }.pack();
                     }
 
                     ResultRow resultRow =
                     {
-                        .Key = { stringKeyProto, { 1, stringKeyProto->as_protocol_buffer_bytes_if() } },
+                        .Key = ProtoValue(&stringKey).pack(),
                         .WriteSequenceNumber = ToSequenceNumber(get<2>(testRow)),
-                        .Value = { stringValueProto, { 1, stringValueProto->as_protocol_buffer_bytes_if() } },
+                        .Value = std::move(stringValueProto),
                     };
 
                     co_yield resultRow;
@@ -83,19 +81,16 @@ protected:
                 rowMergerIterator != rowMergerEnumeration.end();
                 co_await ++rowMergerIterator)
             {
-                ProtoValue keyProto = ProtoValue::ProtocolBuffer(rowMergerIterator->Key);
-                ProtoValue valueProto = ProtoValue::ProtocolBuffer(rowMergerIterator->Value);
                 StringKey key;
                 StringValue value;
-
-                keyProto.unpack(&key);
-                valueProto.unpack(&value);
+                rowMergerIterator->Key.unpack(&key);
+                rowMergerIterator->Value.unpack(&value);
 
                 auto writeSequenceNumber = (*rowMergerIterator).WriteSequenceNumber;
 
                 auto testRow = std::make_tuple(
                     key.value(),
-                    !valueProto ? optional<string>() : value.value(),
+                    !rowMergerIterator->Value ? optional<string>() : value.value(),
                     ToUint64(writeSequenceNumber));
 
                 actualMergedTestRows.push_back(testRow);

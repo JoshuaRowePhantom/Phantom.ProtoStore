@@ -230,7 +230,7 @@ operation_task<ReadResult> Index::Read(
         co_return ReadResult
         {
             .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-            .Value = ProtoValue::ProtocolBuffer(std::move(resultRow.Value)),
+            .Value = std::move(resultRow.Value),
             .ReadStatus = ReadStatus::HasValue,
         };
     }
@@ -303,10 +303,10 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
         {
             {
                 .WriteSequenceNumber = resultRow.WriteSequenceNumber,
-                .Value = ProtoValue::ProtocolBuffer(std::move(resultRow.Value)),
+                .Value = std::move(resultRow.Value),
                 .ReadStatus = ReadStatus::HasValue,
             },
-            ProtoValue::ProtocolBuffer(std::move(resultRow.Key)),
+            std::move(resultRow.Key),
         };
     }
 }

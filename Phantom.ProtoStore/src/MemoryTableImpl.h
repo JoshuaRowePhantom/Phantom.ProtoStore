@@ -104,7 +104,9 @@ class MemoryTable
         AlignedMessage GetTransactionIdMessage() const;
         SequenceNumber GetWriteSequenceNumber() const;
 
-        ResultRow GetResultRow() const;
+        ResultRow GetResultRow(
+            const Schema& schema
+        ) const;
     };
 
     struct EnumerationKey

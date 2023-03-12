@@ -78,7 +78,12 @@ public:
 
     static ProtoValue MakeProtoValueKey(
         const Schema& schema,
-        const AlignedMessage& alignedMessage
+        AlignedMessageData alignedMessage
+    );
+
+    static ProtoValue MakeProtoValueValue(
+        const Schema& schema,
+        AlignedMessageData alignedMessage
     );
 };
 

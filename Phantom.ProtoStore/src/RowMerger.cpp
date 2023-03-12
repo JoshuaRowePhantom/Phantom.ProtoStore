@@ -25,18 +25,9 @@ row_generator RowMerger::Merge(
         const ResultRow& row2
         )
     {
-        ProtoValue key1 = SchemaDescriptions::MakeProtoValueKey(
-            *m_schema,
-            *row1.Key
-        );
-        ProtoValue key2 = SchemaDescriptions::MakeProtoValueKey(
-            *m_schema,
-            *row2.Key
-        );
-
         auto keyOrdering = m_keyComparer->Compare(
-            key1,
-            key2
+            row1.Key,
+            row2.Key
         );
 
         if (keyOrdering == std::weak_ordering::less)
@@ -78,10 +69,10 @@ row_generator RowMerger::Enumerate(
         iterator != mergeEnumeration.end();
         co_await ++iterator)
     {
-        auto& row = *iterator;
+        ResultRow& row = *iterator;
 
         if (previousRow.Key
-            && std::ranges::equal(previousRow.Key->Payload, row.Key->Payload))
+            && m_keyComparer->Compare(previousRow.Key, row.Key) == std::weak_ordering::equivalent)
         {
             continue;
         }

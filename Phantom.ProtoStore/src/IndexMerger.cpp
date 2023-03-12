@@ -81,10 +81,13 @@ task<> IndexMerger::RestartIncompleteMerge(
         {
             .Key = SchemaDescriptions::MakeProtoValueKey(
                 *index->GetSchema(),
-                AlignedMessage
+                AlignedMessageData
                 {
-                    16,
-                    get_byte_span(incompleteMerge.Merge.Value.resumekey().key()),
+                    nullptr,
+                    {
+                        32,
+                        get_byte_span(incompleteMerge.Merge.Value.resumekey().key()),
+                    }
                 }),
             .WriteSequenceNumber = ToSequenceNumber(
                 incompleteMerge.Merge.Value.resumekey().writesequencenumber()),
@@ -239,7 +242,7 @@ task<> IndexMerger::WriteMergeProgress(
     MergesValue mergesValue;
     mergesValue.CopyFrom(incompleteMerge.Merge.Value);
     
-    auto keySpan = get_char_span((*writeRowsResult.resumptionRow).Key->Payload);
+    auto keySpan = get_char_span((*writeRowsResult.resumptionRow).Key.as_aligned_message_if().Payload);
     mergesValue.mutable_resumekey()->mutable_key()->assign(
         keySpan.data(),
         keySpan.size());

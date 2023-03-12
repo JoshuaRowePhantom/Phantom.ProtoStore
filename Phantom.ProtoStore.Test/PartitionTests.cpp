@@ -127,9 +127,9 @@ protected:
             EXPECT_NE(enumeration.end(), iterator);
 
             PartitionTestKey resultKeyMessage;
-            ProtoValue::FlatBuffer(iterator->Key).unpack(&resultKeyMessage);
+            iterator->Key.unpack(&resultKeyMessage);
             PartitionTestValue resultValueMessage;
-            ProtoValue::FlatBuffer(iterator->Value).unpack(&resultValueMessage);
+            iterator->Value.unpack(&resultValueMessage);
 
             EXPECT_EQ(get<0>(expectedResult), resultKeyMessage.key());
             EXPECT_EQ(get<1>(expectedResult), resultValueMessage.key());

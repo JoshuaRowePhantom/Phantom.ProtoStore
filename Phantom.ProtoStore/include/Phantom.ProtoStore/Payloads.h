@@ -549,11 +549,12 @@ public:
 
     ProtoValue(
         const ProtoValue&);
+    ProtoValue& operator=(const ProtoValue&);
 
     ProtoValue(
         ProtoValue&&);
-
     ProtoValue& operator=(ProtoValue&&);
+
 
     ProtoValue(
         flat_buffer_message flatBufferMessage
