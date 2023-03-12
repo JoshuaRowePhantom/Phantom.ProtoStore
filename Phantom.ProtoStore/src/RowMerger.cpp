@@ -1,6 +1,7 @@
 #include "RowMerger.h"
 #include "Phantom.System/merge.h"
 #include "KeyComparer.h"
+#include "Schema.h"
 #include <flatbuffers/flatbuffers.h>
 
 namespace Phantom::ProtoStore
@@ -24,28 +25,14 @@ row_generator RowMerger::Merge(
         const ResultRow& row2
         )
     {
-        ProtoValue key1;
-        ProtoValue key2;
-
-        if (holds_alternative<ProtocolBuffersKeySchema>(m_schema->KeySchema.FormatSchema))
-        {
-            key1 = ProtoValue::ProtocolBuffer(
-                row1.Key->Payload
-            );
-            key2 = ProtoValue::ProtocolBuffer(
-                row1.Key->Payload
-            );
-        }
-        else
-        {
-            assert(holds_alternative<FlatBuffersKeySchema>(m_schema->KeySchema.FormatSchema));
-            key1 = ProtoValue::FlatBuffer(
-                flatbuffers::GetRoot<flatbuffers::Table>(row1.Key->Payload.data())
-            );
-            key2 = ProtoValue::FlatBuffer(
-                flatbuffers::GetRoot<flatbuffers::Table>(row2.Key->Payload.data())
-            );
-        }
+        ProtoValue key1 = SchemaDescriptions::MakeProtoValueKey(
+            *m_schema,
+            *row1.Key
+        );
+        ProtoValue key2 = SchemaDescriptions::MakeProtoValueKey(
+            *m_schema,
+            *row2.Key
+        );
 
         auto keyOrdering = m_keyComparer->Compare(
             key1,
