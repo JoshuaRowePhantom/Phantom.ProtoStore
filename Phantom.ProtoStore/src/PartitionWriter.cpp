@@ -274,7 +274,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         current().highestKey = std::move(row.Key);
         current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
         m_bloomFilter.add(
-            m_keyComparer->Hash(current().highestKey));
+            current().highestKey);
 
         auto valueDataOffset = CreateDataValue(
             partitionTreeNodeBuilder,
@@ -370,7 +370,11 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
 
     BloomFilterVersion1<std::span<char>> bloomFilter(
         bloomFilterSpan,
-        bloomFilterHashFunctionCount
+        SeedingPrngBloomFilterHashFunction
+        {
+            bloomFilterHashFunctionCount,
+            BloomFilterV1Hash { m_keyComparer }
+        }
     );
 
     PartitionTreeWriter treeWriter(

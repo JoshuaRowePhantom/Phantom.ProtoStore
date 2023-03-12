@@ -12,9 +12,16 @@
 namespace Phantom::ProtoStore
 {
 
-size_t BloomFilterV1Hash::operator()(uint64_t value) const
+BloomFilterV1Hash::BloomFilterV1Hash(
+    std::shared_ptr<const KeyComparer> keyComparer
+) : 
+    m_keyComparer { std::move(keyComparer) }
 {
-    return value;
+}
+
+size_t BloomFilterV1Hash::operator()(const ProtoValue& value) const
+{
+    return m_keyComparer->Hash(value);
 }
 
 struct Partition::EnumerateLastReturnedKey
@@ -72,7 +79,11 @@ task<> Partition::Open()
 
     m_bloomFilter.emplace(
         bloomFilterSpan,
-        m_partitionBloomFilterMessage->bloom_filter()->hash_function_count()
+        SeedingPrngBloomFilterHashFunction
+        {
+            m_partitionBloomFilterMessage->bloom_filter()->hash_function_count(),
+            BloomFilterV1Hash { m_keyComparer }
+        }
     );
 
     m_partitionRootTreeNodeMessage = co_await ReadData(
@@ -95,8 +106,7 @@ row_generator Partition::Read(
     ReadValueDisposition readValueDisposition
 )
 {
-    if (!m_bloomFilter->test(
-        m_keyComparer->Hash(key)))
+    if (!m_bloomFilter->test(key))
     {
         co_return;
     }
@@ -711,10 +721,9 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     }
 
     if (!m_bloomFilter->test(
-            m_keyComparer->Hash(
-                SchemaDescriptions::MakeProtoValueKey(
-                    *m_schema,
-                    treeEntry->key()))))
+            SchemaDescriptions::MakeProtoValueKey(
+                *m_schema,
+                treeEntry->key())))
     {
         auto error = errorPrototype;
         error.Code = IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter;

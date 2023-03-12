@@ -13,9 +13,13 @@
 namespace Phantom::ProtoStore
 {
 
-struct BloomFilterV1Hash
+class BloomFilterV1Hash
 {
-    size_t operator()(uint64_t value) const;
+    const std::shared_ptr<const KeyComparer> m_keyComparer;
+public:
+    BloomFilterV1Hash(
+        std::shared_ptr<const KeyComparer> keyComparer);
+    size_t operator()(const ProtoValue&) const;
 };
 
 template<
