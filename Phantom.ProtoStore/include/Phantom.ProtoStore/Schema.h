@@ -83,7 +83,7 @@ struct KeySchema
 
     bool IsFlatBuffersSchema() const noexcept
     {
-        return holds_alternative<ProtocolBuffersKeySchema>(FormatSchema);
+        return holds_alternative<FlatBuffersKeySchema>(FormatSchema);
     }
 
     friend bool operator==(
