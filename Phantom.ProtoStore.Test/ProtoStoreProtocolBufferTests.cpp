@@ -1412,7 +1412,7 @@ std::vector<shared_task<>> performanceTasks;
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, PerformanceTest(Perf2))
 {
     CreateProtoStoreRequest createRequest;
-    createRequest.ExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "Perf2", 4096);
+    createRequest.ExtentStore = UseFilesystemStore("ProtoStoreProtocolBufferTests_Perf2", "Perf2", 4096);
     createRequest.Schedulers = Schedulers::Default();
 
 #ifdef NDEBUG

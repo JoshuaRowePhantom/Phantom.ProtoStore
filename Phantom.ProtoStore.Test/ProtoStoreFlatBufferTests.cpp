@@ -1407,7 +1407,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
 {
     CreateProtoStoreRequest createRequest;
-    createRequest.ExtentStore = UseFilesystemStore("ProtoStoreTests_Perf2", "Perf2", 4096);
+    createRequest.ExtentStore = UseFilesystemStore("ProtoStoreFlatBufferTests_Perf2", "Perf2", 4096);
     createRequest.Schedulers = Schedulers::Default();
 
 #ifdef NDEBUG
