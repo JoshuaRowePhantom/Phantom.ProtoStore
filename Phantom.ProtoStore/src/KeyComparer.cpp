@@ -184,7 +184,7 @@ std::weak_ordering KeyComparer::Compare(
     {
         return std::weak_ordering::equivalent;
     }
-    if (value2.IsKeyMax() && value2.IsKeyMax())
+    if (value1.IsKeyMax() && value2.IsKeyMax())
     {
         return std::weak_ordering::equivalent;
     }

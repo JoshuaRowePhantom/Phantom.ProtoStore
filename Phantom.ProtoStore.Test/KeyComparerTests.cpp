@@ -16,6 +16,16 @@ void DoProtoKeyComparerTest(
     auto lesserProto = ProtoValue(&lesser).pack();
     auto greaterProto = ProtoValue(&greater).pack();
 
+    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(ProtoValue::KeyMin(), lesserProto));
+    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(ProtoValue::KeyMin(), greaterProto));
+    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(lesserProto, ProtoValue::KeyMin()));
+    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(greaterProto, ProtoValue::KeyMin()));
+
+    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(ProtoValue::KeyMax(), lesserProto));
+    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(ProtoValue::KeyMax(), greaterProto));
+    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserProto, ProtoValue::KeyMax()));
+    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(greaterProto, ProtoValue::KeyMax()));
+
     EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserProto, greaterProto));
     EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(greaterProto, lesserProto));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserProto, lesserProto));
@@ -436,6 +446,17 @@ TEST(KeyRangeComparerTests, Uses_sequence_number_second)
         KeyAndSequenceNumberComparerArgument(lesserProtoValue, SequenceNumber::Latest),
         KeyRangeComparerArgument(lesserProtoValue, SequenceNumber::Earliest, Inclusivity::Inclusive)
         );
+}
+
+TEST(ProtoKeyComparerTests, Compare_KeyMin_and_KeyMax)
+{
+    ProtoKeyComparer keyComparer(
+        TestKey::GetDescriptor());
+
+    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(ProtoValue::KeyMin(), ProtoValue::KeyMin()));
+    EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(ProtoValue::KeyMin(), ProtoValue::KeyMax()));
+    EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(ProtoValue::KeyMax(), ProtoValue::KeyMax()));
+    EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(ProtoValue::KeyMax(), ProtoValue::KeyMin()));
 }
 
 }

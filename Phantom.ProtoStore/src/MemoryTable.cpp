@@ -294,6 +294,14 @@ row_generator MemoryTable::Enumerate(
     KeyRangeEnd high
 )
 {
+    if (!low.Key)
+    {
+        low.Key = ProtoValue::KeyMin();
+    }
+    if (!high.Key)
+    {
+        high.Key = ProtoValue::KeyMax();
+    }
     EnumerationKey enumerationKey
     {
         .KeyLow = low.Key,
