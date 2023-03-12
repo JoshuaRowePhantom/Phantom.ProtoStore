@@ -13,12 +13,12 @@ namespace Phantom::ProtoStore
 class Index
     : public IIndex
 {
+    const shared_ptr<const Schema> m_schema;
+    const shared_ptr<KeyComparer> m_keyComparer;
     const IndexName m_indexName;
     const IndexNumber m_indexNumber;
     const SequenceNumber m_createSequenceNumber;
-    const shared_ptr<KeyComparer> m_keyComparer;
     const shared_ptr<RowMerger> m_rowMerger;
-    const shared_ptr<const Schema> m_schema;
     IUnresolvedTransactionsTracker* const m_unresolvedTransactionsTracker;
 
     // This lock control access to the following members:
