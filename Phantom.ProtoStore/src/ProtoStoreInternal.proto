@@ -44,29 +44,6 @@ message IndexSchemaDescription {
     ValueSchemaDescription Value = 2;
 }
 
-message InternalKeyPrefixMetadata {
-}
-
-message InternalKeySuffixMetadata {
-    uint64 SequenceNumber = 1 [(FieldOptions) = {
-        SortOrder: Descending;
-    }];
-}
-
-message InternalKey {
-    bytes KeyMessage = 20;
-
-    uint64 SequenceNumber = 30 [(FieldOptions) = {
-        SortOrder: Descending;
-    }];
-}
-
-message InternalValue {
-    oneof Value {
-        bytes ValueMessage = 20;
-    }
-}
-
 message IndexesByNumberKey {
     uint64 IndexNumber = 1;
 }
