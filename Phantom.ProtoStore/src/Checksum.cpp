@@ -19,7 +19,7 @@ uint64_t hash_v1(
     std::span<const byte> data
 )
 {
-    crc_hash_v1_type crc;
+    hash_v1_type crc;
     crc.process_bytes(
         data.data(),
         data.size()

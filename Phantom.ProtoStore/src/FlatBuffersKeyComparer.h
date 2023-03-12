@@ -13,54 +13,156 @@ private:
     class InternalObjectComparer;
     using ComparerMap = std::map<const ::reflection::Object*, InternalObjectComparer>;
 
+    template<
+        typename Value
+    > static void HashPrimitive(
+        hash_v1_type& hash,
+        Value value
+    );
+
+    struct InternalFieldComparer
+    {
+        const ::reflection::Field* flatBuffersReflectionField = nullptr;
+        const InternalObjectComparer* elementObjectComparer = nullptr;
+
+        using ComparerFunction = std::weak_ordering (InternalFieldComparer::*)(
+            const void* value1,
+            const void* value2
+            ) const;
+
+        using HasherFunction = void (InternalFieldComparer::*)(
+            hash_v1_type& hash,
+            const void* value
+            ) const;
+
+        ComparerFunction comparerFunction = nullptr;
+        HasherFunction hasherFunction = nullptr;
+
+        uint32_t elementSize = 0;
+        uint16_t fixedLength = 0;
+
+        SortOrder sortOrder = SortOrder::Ascending;
+        
+        void HashStructObject(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        template<
+            typename Value
+        > static std::weak_ordering ComparePrimitive(
+            Value value1,
+            Value value2
+        );
+        
+        template<
+            typename Container
+        >
+        std::weak_ordering CompareStructField(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        template<
+            typename Container
+        >
+        void HashStructField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        std::weak_ordering CompareTableField(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        void HashTableField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        template<
+            typename Container,
+            auto fieldRetriever
+        >
+        std::weak_ordering ComparePrimitiveField(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        template<
+            typename Container,
+            auto fieldRetriever
+        >
+        void HashPrimitiveField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        template<
+            typename Value
+        >
+        std::weak_ordering CompareVectorField(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        template<
+            typename Value
+        >
+        void HashVectorField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        template<
+        >
+        std::weak_ordering CompareVectorField<flatbuffers::Struct>(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        template<
+        >
+        void HashVectorField<flatbuffers::Struct>(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        template<
+            typename Value
+        >
+        std::weak_ordering CompareArrayField(
+            const void* value1,
+            const void* value2
+        ) const;
+        
+        template<
+        >
+        std::weak_ordering CompareArrayField<flatbuffers::Struct>(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        InternalFieldComparer ApplySortOrder(
+            this InternalFieldComparer result,
+            SortOrder objectSortOrder,
+            SortOrder fieldSortOrder
+        )
+        {
+            result.sortOrder = BaseKeyComparer::CombineSortOrder(
+                objectSortOrder,
+                fieldSortOrder);
+            return result;
+        }
+    };
+
     class InternalObjectComparer
         :
         public BaseKeyComparer
     {
-        struct ComparerFunction
-        {
-            const ::reflection::Field* flatBuffersReflectionField = nullptr;
-            const InternalObjectComparer* elementComparer = nullptr;
-
-            std::weak_ordering(*comparerFunction)(
-                const ::reflection::Field*,
-                const InternalObjectComparer*,
-                const void* value1,
-                const void* value2);
-
-            const SortOrder sortOrder = SortOrder::Ascending;
-
-            ComparerFunction ApplySortOrder(
-                SortOrder objectSortOrder,
-                SortOrder fieldSortOrder
-            )
-            {
-                return
-                {
-                    flatBuffersReflectionField,
-                    elementComparer,
-                    comparerFunction,
-                    BaseKeyComparer::CombineSortOrder(
-                        objectSortOrder,
-                        fieldSortOrder)
-                };
-            }
-        };
-
-        struct HasherFunction
-        {
-            const ::reflection::Field* flatBuffersReflectionField = nullptr;
-            const InternalObjectComparer* elementComparer = nullptr;
-
-            std::span<std::byte>(*hasherFunction)(
-                crc_hash_v1_type& hash,
-                const ::reflection::Field*,
-                const InternalObjectComparer*,
-                const void* value);
-        };
-
-        std::vector<ComparerFunction> m_comparers;
-        std::vector<HasherFunction> m_hashers;
+        std::vector<InternalFieldComparer> m_comparers;
+        std::vector<InternalFieldComparer> m_hashers;
 
         static SortOrder GetSortOrder(
             const flatbuffers::Vector<flatbuffers::Offset<reflection::KeyValue>>* attributes
@@ -100,46 +202,20 @@ private:
         template<
             typename Container,
             auto fieldRetriever
-        > static ComparerFunction GetPrimitiveFieldComparer(
+        > static InternalFieldComparer GetPrimitiveFieldComparer(
             const ::reflection::Field* flatBuffersReflectionField
         );
 
         template<
             typename Container
-        > static ComparerFunction GetFieldComparer(
+        > static InternalFieldComparer GetFieldComparer(
             ComparerMap& internalComparers,
             const ::reflection::Schema* flatBuffersReflectionSchema,
             const ::reflection::Object* flatBuffersReflectionObject,
             const ::reflection::Field* flatBuffersReflectionField
         );
 
-        static ComparerFunction GetVectorFieldComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-            typename Value
-        > static ComparerFunction GetTypedVectorFieldComparer(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        template<
-        > static ComparerFunction GetTypedVectorFieldComparer<
-            flatbuffers::Struct
-        >(
-            ComparerMap& internalComparers,
-            const ::reflection::Schema* flatBuffersReflectionSchema,
-            const ::reflection::Object* flatBuffersReflectionObject,
-            const ::reflection::Field* flatBuffersReflectionField
-        );
-
-        static ComparerFunction GetArrayFieldComparer(
+        static InternalFieldComparer GetVectorFieldComparer(
             ComparerMap& internalComparers,
             const ::reflection::Schema* flatBuffersReflectionSchema,
             const ::reflection::Object* flatBuffersReflectionObject,
@@ -148,7 +224,14 @@ private:
 
         template<
             typename Value
-        > static ComparerFunction GetTypedArrayFieldComparer(
+        > static InternalFieldComparer GetTypedVectorFieldComparer(
+            ComparerMap& internalComparers,
+            const ::reflection::Schema* flatBuffersReflectionSchema,
+            const ::reflection::Object* flatBuffersReflectionObject,
+            const ::reflection::Field* flatBuffersReflectionField
+        );
+
+        static InternalFieldComparer GetArrayFieldComparer(
             ComparerMap& internalComparers,
             const ::reflection::Schema* flatBuffersReflectionSchema,
             const ::reflection::Object* flatBuffersReflectionObject,
@@ -156,9 +239,8 @@ private:
         );
 
         template<
-        > static ComparerFunction GetTypedArrayFieldComparer<
-            flatbuffers::Struct
-        >(
+            typename Value
+        > static InternalFieldComparer GetTypedArrayFieldComparer(
             ComparerMap& internalComparers,
             const ::reflection::Schema* flatBuffersReflectionSchema,
             const ::reflection::Object* flatBuffersReflectionObject,
@@ -180,7 +262,7 @@ private:
         ) const;
 
         void Hash(
-            crc_hash_v1_type& hash,
+            hash_v1_type& hash,
             const void* value
         ) const;
 

@@ -42,6 +42,21 @@ void DoFlatBufferPointerKeyComparerTest(
     EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(greaterFlatMessage.get(), lesserFlatMessage.get()));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserFlatMessage.get(), lesserFlatMessage.get()));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterFlatMessage.get(), greaterFlatMessage.get()));
+
+    EXPECT_EQ(
+        keyComparer.Hash(lesserFlatMessage.get()),
+        keyComparer.Hash(lesserFlatMessage.get()));
+
+    EXPECT_EQ(
+        keyComparer.Hash(greaterFlatMessage.get()),
+        keyComparer.Hash(greaterFlatMessage.get()));
+
+    // Technically, hashes are allowed to collide,
+    // but we don't expect it in this small sample set.
+    // If they -do- collide, choose a better hash function.
+    EXPECT_NE(
+        keyComparer.Hash(lesserFlatMessage.get()),
+        keyComparer.Hash(greaterFlatMessage.get()));
 }
 
 void DoFlatBufferPointerKeyComparerTableFieldTest(

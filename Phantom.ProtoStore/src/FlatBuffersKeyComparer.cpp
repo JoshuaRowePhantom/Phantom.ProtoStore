@@ -63,13 +63,15 @@ uint64_t FlatBufferPointerKeyComparer::Hash(
     const void* value
 ) const
 {
-    crc_hash_v1_type hash;
+    hash_v1_type hash;
 
     m_rootComparer->Hash(
         hash,
         value);
 
-    return hash.checksum();
+    auto checksum = hash.checksum();
+
+    return checksum;
 }
 
 FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer()
@@ -117,6 +119,24 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer(
                 .ApplySortOrder(objectSortOrder, fieldSortOrder));
         }
     });
+
+    if (flatBuffersReflectionObject->is_struct())
+    {
+        m_hashers.push_back(
+            InternalFieldComparer
+            {
+                nullptr,
+                nullptr,
+                {},
+                &InternalFieldComparer::HashStructObject,
+                static_cast<uint32_t>(flatBuffersReflectionObject->bytesize()),
+            }
+        );
+    }
+    else
+    {
+        m_hashers = m_comparers;
+    }
 }
 
 std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare(
@@ -141,9 +161,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare
 
     for (auto& comparer : m_comparers)
     {
-        auto result = comparer.comparerFunction(
-            comparer.flatBuffersReflectionField,
-            comparer.elementComparer,
+        auto result = (comparer.*comparer.comparerFunction)(
             value1,
             value2);
 
@@ -159,16 +177,20 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare
 }
 
 void FlatBufferPointerKeyComparer::InternalObjectComparer::Hash(
-    crc_hash_v1_type& hash,
+    hash_v1_type& hash,
     const void* value
 ) const
 {
+    if (!value)
+    {
+        HashPrimitive(hash, 0);
+        return;
+    }
+
     for (auto& hasher : m_hashers)
     {
-        hasher.hasherFunction(
+        (hasher.*hasher.hasherFunction)(
             hash,
-            hasher.flatBuffersReflectionField,
-            hasher.elementComparer,
             value);
     }
 }
@@ -195,7 +217,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer* FlatBufferPointerKeyCompar
 
 template<
     typename Container
-> static FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction 
+> static FlatBufferPointerKeyComparer::InternalFieldComparer 
 FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
@@ -220,60 +242,22 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
 
         if (fieldObject->is_struct())
         {
-            return ComparerFunction
+            return InternalFieldComparer
             {
                 flatBuffersReflectionField,
                 elementObjectComparer,
-                [](
-                    const ::reflection::Field* flatBuffersReflectionField,
-                    const InternalObjectComparer* elementObjectComparer,
-                    const void* value1,
-                    const void* value2
-                ) -> std::weak_ordering
-            {
-                auto field1 = flatbuffers::GetFieldStruct(
-                    *reinterpret_cast<const Container*>(value1),
-                    *flatBuffersReflectionField
-                );
-
-                auto field2 = flatbuffers::GetFieldStruct(
-                    *reinterpret_cast<const Container*>(value2),
-                    *flatBuffersReflectionField
-                );
-
-                return elementObjectComparer->Compare(
-                    field1,
-                    field2);
-            }
+                &InternalFieldComparer::CompareStructField<Container>,
+                &InternalFieldComparer::HashStructField<Container>
             };
         }
         else if constexpr (std::same_as<Container, flatbuffers::Table>)
         {
-            return ComparerFunction
+            return InternalFieldComparer
             {
                 flatBuffersReflectionField,
                 elementObjectComparer,
-                [](
-                    const ::reflection::Field* flatBuffersReflectionField,
-                    const InternalObjectComparer* elementObjectComparer,
-                    const void* value1,
-                    const void* value2
-                ) -> std::weak_ordering
-            {
-                auto field1 = flatbuffers::GetFieldT(
-                    *reinterpret_cast<const Container*>(value1),
-                    *flatBuffersReflectionField
-                );
-
-                auto field2 = flatbuffers::GetFieldT(
-                    *reinterpret_cast<const Container*>(value2),
-                    *flatBuffersReflectionField
-                );
-
-                return elementObjectComparer->Compare(
-                    field1,
-                    field2);
-            }
+                &InternalFieldComparer::CompareTableField,
+                &InternalFieldComparer::HashTableField
             };
         }
 
@@ -379,40 +363,23 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
 template<
     typename Container,
     auto fieldRetriever
-> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction 
+> FlatBufferPointerKeyComparer::InternalFieldComparer 
 FlatBufferPointerKeyComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
-    return ComparerFunction
+    return InternalFieldComparer
     {
         flatBuffersReflectionField,
         nullptr,
-        [](
-            const ::reflection::Field* flatBuffersReflectionField,
-            const InternalObjectComparer* elementObjectComparer,
-            const void* value1,
-            const void* value2
-        ) -> std::weak_ordering
-    {
-        auto fieldValue1 = fieldRetriever(
-            reinterpret_cast<const Container*>(value1),
-            flatBuffersReflectionField
-        );
-
-        auto fieldValue2 = fieldRetriever(
-            reinterpret_cast<const Container*>(value2),
-            flatBuffersReflectionField
-        );
-
-        return ComparePrimitive(fieldValue1, fieldValue2);
-    }
+        &InternalFieldComparer::ComparePrimitiveField<Container, fieldRetriever>,
+        &InternalFieldComparer::HashPrimitiveField<Container, fieldRetriever>
     };
 }
 
 template<
     typename Value
-> std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::ComparePrimitive(
+> std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::ComparePrimitive(
     Value value1,
     Value value2
 )
@@ -466,7 +433,23 @@ template<
     }
 }
 
-FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetVectorFieldComparer(
+template<
+    typename Value
+> void FlatBufferPointerKeyComparer::HashPrimitive(
+    hash_v1_type& hash,
+    Value value
+)
+{
+    auto span = as_bytes(value);
+
+    hash.process_bytes(
+        span.data(),
+        span.size()
+    );
+}
+
+FlatBufferPointerKeyComparer::InternalFieldComparer 
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetVectorFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -587,16 +570,17 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBuffe
 
 template<
     typename Value
-> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldComparer(
+> FlatBufferPointerKeyComparer::InternalFieldComparer 
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
-    using reflection::BaseType;
     InternalObjectComparer* elementObjectComparer = nullptr;
-    if (flatBuffersReflectionField->type()->element() == BaseType::Obj)
+    
+    if (flatBuffersReflectionField->type()->element() == reflection::BaseType::Obj)
     {
         elementObjectComparer = GetObjectComparer(
             internalComparers,
@@ -605,149 +589,18 @@ template<
                 flatBuffersReflectionField->type()->index()));
     }
 
-    return ComparerFunction
+    return InternalFieldComparer
     {
         flatBuffersReflectionField,
         elementObjectComparer,
-        [](
-            const ::reflection::Field* flatBuffersReflectionField,
-            const InternalObjectComparer* elementObjectComparer,
-            const void* value1,
-            const void* value2
-        ) -> std::weak_ordering
-    {
-        auto vector1 = flatbuffers::GetFieldV<Value>(
-            *reinterpret_cast<const flatbuffers::Table*>(value1),
-            *flatBuffersReflectionField);
-
-        auto vector2 = flatbuffers::GetFieldV<Value>(
-            *reinterpret_cast<const flatbuffers::Table*>(value2),
-            *flatBuffersReflectionField);
-
-        if (vector1 == vector2)
-        {
-            return std::weak_ordering::equivalent;
-        }
-
-        auto size1 = flatbuffers::VectorLength(vector1);
-        auto size2 = flatbuffers::VectorLength(vector2);
-
-        auto sizeToCompare = std::min(
-            size1,
-            size2
-        );
-
-        for (int32_t index = 0; index < sizeToCompare; ++index)
-        {
-            auto value1 = vector1->Get(index);
-            auto value2 = vector2->Get(index);
-
-            std::weak_ordering result;
-
-            if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::Table>, Value>
-                || std::same_as<flatbuffers::Offset<flatbuffers::Struct>, Value>)
-            {
-                result = elementObjectComparer->Compare(
-                    value1,
-                    value2);
-            }
-            else if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::String>, Value>)
-            {
-                result = ComparePrimitive(
-                    value1->string_view(),
-                    value2->string_view());
-            }
-            else
-            {
-                result = ComparePrimitive(
-                    value1,
-                    value2);
-            }
-
-            if (result != std::weak_ordering::equivalent)
-            {
-                return result;
-            }
-        }
-
-        return size1 <=> size2;
-    }
+        &InternalFieldComparer::CompareVectorField<Value>,
+        &InternalFieldComparer::HashVectorField<Value>,
+        flatBuffersReflectionField->type()->element_size(),
     };
 }
 
-template<
-> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldComparer<
-    flatbuffers::Struct
->(
-    ComparerMap& internalComparers,
-    const ::reflection::Schema* flatBuffersReflectionSchema,
-    const ::reflection::Object* flatBuffersReflectionObject,
-    const ::reflection::Field* flatBuffersReflectionField
-    )
-{
-    using reflection::BaseType;
-    InternalObjectComparer* elementObjectComparer = GetObjectComparer(
-        internalComparers,
-        flatBuffersReflectionSchema,
-        flatBuffersReflectionSchema->objects()->Get(
-            flatBuffersReflectionField->type()->index()));
-
-    return ComparerFunction
-    {
-        flatBuffersReflectionField,
-        elementObjectComparer,
-        [](
-            const ::reflection::Field* flatBuffersReflectionField,
-            const InternalObjectComparer* elementObjectComparer,
-            const void* value1,
-            const void* value2
-        ) -> std::weak_ordering
-    {
-        auto vector1 = flatbuffers::GetFieldAnyV(
-            *reinterpret_cast<const flatbuffers::Table*>(value1),
-            *flatBuffersReflectionField);
-
-        auto vector2 = flatbuffers::GetFieldAnyV(
-            *reinterpret_cast<const flatbuffers::Table*>(value2),
-            *flatBuffersReflectionField);
-
-        if (vector1 == vector2)
-        {
-            return std::weak_ordering::equivalent;
-        }
-
-        auto size1 = vector1 ? vector1->size() : 0;
-        auto size2 = vector2 ? vector2->size() : 0;
-
-        auto sizeToCompare = std::min(
-            size1,
-            size2
-        )
-            * flatBuffersReflectionField->type()->element_size();
-
-        for (int32_t index = 0; index < sizeToCompare; index += flatBuffersReflectionField->type()->element_size())
-        {
-            auto value1 = vector1->Data() + index;
-            auto value2 = vector2->Data() + index;
-
-            std::weak_ordering result;
-
-            result = elementObjectComparer->Compare(
-                value1,
-                value2);
-
-            if (result != std::weak_ordering::equivalent)
-            {
-                return result;
-            }
-        }
-
-        return size1 <=> size2;
-    }
-    };
-}
-
-FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetArrayFieldComparer(
+FlatBufferPointerKeyComparer::InternalFieldComparer 
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetArrayFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -854,101 +707,37 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBuffe
         throw std::range_error("flatBuffersReflectionField->type()->element()");
     }
 }
-
 template<
     typename Value
-> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedArrayFieldComparer(
+> FlatBufferPointerKeyComparer::InternalFieldComparer 
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedArrayFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
-    return ComparerFunction
+    InternalObjectComparer* elementObjectComparer = nullptr;
+
+    if (flatBuffersReflectionField->type()->element() == reflection::BaseType::Obj)
     {
-        flatBuffersReflectionField,
-        nullptr,
-        [](
-            const ::reflection::Field* flatBuffersReflectionField,
-            const InternalObjectComparer* elementObjectComparer,
-            const void* value1,
-            const void* value2
-        ) -> std::weak_ordering
-    {
-        auto array1 = flatbuffers::GetAnyFieldAddressOf<const Value>(
-            *reinterpret_cast<const flatbuffers::Struct*>(value1),
-            *flatBuffersReflectionField);
-
-        auto array2 = flatbuffers::GetAnyFieldAddressOf<const Value>(
-            *reinterpret_cast<const flatbuffers::Struct*>(value2),
-            *flatBuffersReflectionField);
-
-        for (int32_t index = 0; index < flatBuffersReflectionField->type()->fixed_length(); ++index)
-        {
-            auto value1 = *(array1 + index);
-            auto value2 = *(array2 + index);
-
-            return ComparePrimitive(
-                value1,
-                value2);
-        }
-
-        return std::weak_ordering::equivalent;
+        elementObjectComparer = GetObjectComparer(
+            internalComparers,
+            flatBuffersReflectionSchema,
+            flatBuffersReflectionSchema->objects()->Get(
+                flatBuffersReflectionField->type()->index()));
     }
-    };
-}
 
-// Specialization for arrays of structures.
-template<
-> FlatBufferPointerKeyComparer::InternalObjectComparer::ComparerFunction FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedArrayFieldComparer<
-    flatbuffers::Struct
->(
-    ComparerMap& internalComparers,
-    const ::reflection::Schema* flatBuffersReflectionSchema,
-    const ::reflection::Object* flatBuffersReflectionObject,
-    const ::reflection::Field* flatBuffersReflectionField
-    )
-{
-    auto elementObjectType = flatBuffersReflectionSchema->objects()->Get(
-        flatBuffersReflectionField->type()->index());
-
-    using reflection::BaseType;
-    InternalObjectComparer* elementObjectComparer = GetObjectComparer(
-        internalComparers,
-        flatBuffersReflectionSchema,
-        elementObjectType);
-
-    return
+    return InternalFieldComparer
     {
         flatBuffersReflectionField,
         elementObjectComparer,
-        [](
-                    const ::reflection::Field* flatBuffersReflectionField,
-                    const InternalObjectComparer* elementObjectComparer,
-                    const void* value1,
-                    const void* value2
-                ) -> std::weak_ordering
-    {
-        const uint8_t* array1 = flatbuffers::GetAnyFieldAddressOf<const uint8_t>(
-            *reinterpret_cast<const flatbuffers::Struct*>(value1),
-            *flatBuffersReflectionField);
-
-        const uint8_t* array2 = flatbuffers::GetAnyFieldAddressOf<const uint8_t>(
-            *reinterpret_cast<const flatbuffers::Struct*>(value2),
-            *flatBuffersReflectionField);
-
-        for (int32_t index = 0; index < flatBuffersReflectionField->type()->fixed_length(); ++index)
-        {
-            auto value1 = array1 + index * flatBuffersReflectionField->type()->element_size();
-            auto value2 = array2 + index * flatBuffersReflectionField->type()->element_size();
-
-            elementObjectComparer->Compare(
-                value1,
-                value2);
-        }
-
-        return std::weak_ordering::equivalent;
-    }
+        &InternalFieldComparer::CompareArrayField<Value>,
+        // No need to hash array fields, since they are hashed as part
+        // of the parent struct.
+        nullptr,
+        flatBuffersReflectionField->type()->element_size(),
+        flatBuffersReflectionField->type()->fixed_length(),
     };
 }
 
@@ -1069,6 +858,415 @@ std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
             flatBuffersReflectionSchema,
             flatBuffersReflectionObject
         });
+}
+
+
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashStructObject(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto span = std::span<const std::byte>
+    {
+        reinterpret_cast<const std::byte*>(value),
+        elementSize
+    };
+
+    HashPrimitive(hash, span);
+}
+
+template<
+    typename Container
+>
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareStructField(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto field1 = flatbuffers::GetFieldStruct(
+        *reinterpret_cast<const Container*>(value1),
+        *flatBuffersReflectionField
+    );
+
+    auto field2 = flatbuffers::GetFieldStruct(
+        *reinterpret_cast<const Container*>(value2),
+        *flatBuffersReflectionField
+    );
+
+    return elementObjectComparer->Compare(
+        field1,
+        field2);
+}
+
+template<
+    typename Container
+>
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashStructField(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto field = flatbuffers::GetFieldStruct(
+        *reinterpret_cast<const Container*>(value),
+        *flatBuffersReflectionField
+    );
+
+    return elementObjectComparer->Hash(
+        hash,
+        field);
+}
+
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareTableField(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto field1 = flatbuffers::GetFieldT(
+        *reinterpret_cast<const flatbuffers::Table*>(value1),
+        *flatBuffersReflectionField
+    );
+
+    auto field2 = flatbuffers::GetFieldT(
+        *reinterpret_cast<const flatbuffers::Table*>(value2),
+        *flatBuffersReflectionField
+    );
+
+    return elementObjectComparer->Compare(
+        field1,
+        field2);
+}
+
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashTableField(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto field = flatbuffers::GetFieldT(
+        *reinterpret_cast<const flatbuffers::Table*>(value),
+        *flatBuffersReflectionField
+    );
+
+    return elementObjectComparer->Hash(
+        hash,
+        field);
+}
+
+template<
+    typename Container,
+    auto fieldRetriever
+>
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::ComparePrimitiveField(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto fieldValue1 = fieldRetriever(
+        reinterpret_cast<const Container*>(value1),
+        flatBuffersReflectionField
+    );
+
+    auto fieldValue2 = fieldRetriever(
+        reinterpret_cast<const Container*>(value2),
+        flatBuffersReflectionField
+    );
+
+    return ComparePrimitive(fieldValue1, fieldValue2);
+}
+
+template<
+    typename Container,
+    auto fieldRetriever
+>
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashPrimitiveField(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto fieldValue = fieldRetriever(
+        reinterpret_cast<const Container*>(value),
+        flatBuffersReflectionField
+    );
+
+    HashPrimitive(
+        hash,
+        fieldValue);
+}
+
+template<
+    typename Value
+>
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareVectorField(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto vector1 = flatbuffers::GetFieldV<Value>(
+        *reinterpret_cast<const flatbuffers::Table*>(value1),
+        *flatBuffersReflectionField);
+
+    auto vector2 = flatbuffers::GetFieldV<Value>(
+        *reinterpret_cast<const flatbuffers::Table*>(value2),
+        *flatBuffersReflectionField);
+
+    if (vector1 == vector2)
+    {
+        return std::weak_ordering::equivalent;
+    }
+
+    auto size1 = flatbuffers::VectorLength(vector1);
+    auto size2 = flatbuffers::VectorLength(vector2);
+
+    auto sizeToCompare = std::min(
+        size1,
+        size2
+    );
+
+    for (int32_t index = 0; index < sizeToCompare; ++index)
+    {
+        auto value1 = vector1->Get(index);
+        auto value2 = vector2->Get(index);
+
+        std::weak_ordering result;
+
+        if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::Table>, Value>
+            || std::same_as<flatbuffers::Offset<flatbuffers::Struct>, Value>)
+        {
+            result = elementObjectComparer->Compare(
+                value1,
+                value2);
+        }
+        else if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::String>, Value>)
+        {
+            result = ComparePrimitive(
+                value1->string_view(),
+                value2->string_view());
+        }
+        else
+        {
+            result = ComparePrimitive(
+                value1,
+                value2);
+        }
+
+        if (result != std::weak_ordering::equivalent)
+        {
+            return result;
+        }
+    }
+
+    return size1 <=> size2;
+}
+
+template<
+    typename Value
+>
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashVectorField(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto vector = flatbuffers::GetFieldV<Value>(
+        *reinterpret_cast<const flatbuffers::Table*>(value),
+        *flatBuffersReflectionField);
+
+    if (!vector)
+    {
+        HashPrimitive(hash, 0);
+        return;
+    }
+
+    HashPrimitive(
+        hash,
+        vector->size());
+
+    if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::Table>, Value>)
+    {
+        for (auto table : *vector)
+        {
+            elementObjectComparer->Hash(
+                hash,
+                table);
+        }
+    }
+    else if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::String>, Value>)
+    {
+        for (auto string : *vector)
+        {
+            auto string_view = string->string_view();
+            auto span = std::span
+            {
+                string_view.data(),
+                string_view.size(),
+            };
+
+            HashPrimitive(
+                hash,
+                string_view.size());
+
+            HashPrimitive(
+                hash,
+                span);
+        }
+    }
+    else
+    {
+        // It's a vector of primitive values.
+        // Hash the entire vector.
+        auto span = std::span<Value>
+        {
+            vector->data(),
+            vector->size()
+        };
+
+        HashPrimitive(
+            hash,
+            span
+        );
+    }
+}
+
+
+template<
+>
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareVectorField<flatbuffers::Struct>(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto vector1 = flatbuffers::GetFieldAnyV(
+        *reinterpret_cast<const flatbuffers::Table*>(value1),
+        *flatBuffersReflectionField);
+
+    auto vector2 = flatbuffers::GetFieldAnyV(
+        *reinterpret_cast<const flatbuffers::Table*>(value2),
+        *flatBuffersReflectionField);
+
+    if (vector1 == vector2)
+    {
+        return std::weak_ordering::equivalent;
+    }
+
+    auto size1 = vector1 ? vector1->size() : 0;
+    auto size2 = vector2 ? vector2->size() : 0;
+
+    auto sizeToCompare = std::min(
+        size1,
+        size2
+    )
+        * elementSize;
+
+    for (int32_t index = 0; index < sizeToCompare; index += elementSize)
+    {
+        auto value1 = vector1->Data() + index;
+        auto value2 = vector2->Data() + index;
+
+        std::weak_ordering result;
+
+        result = elementObjectComparer->Compare(
+            value1,
+            value2);
+
+        if (result != std::weak_ordering::equivalent)
+        {
+            return result;
+        }
+    }
+
+    return size1 <=> size2;
+}
+template<
+>
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashVectorField<flatbuffers::Struct>(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto vector = flatbuffers::GetFieldAnyV(
+        *reinterpret_cast<const flatbuffers::Table*>(value),
+        *flatBuffersReflectionField);
+
+    if (!vector)
+    {
+        HashPrimitive(hash, 0);
+        return;
+    }
+
+    HashPrimitive(
+        hash,
+        vector->size());
+
+    // It's a vector of struct values.
+    // Hash the entire vector.
+    auto span = std::span
+    {
+        vector->Data(),
+        vector->size() * elementSize
+    };
+
+    HashPrimitive(
+        hash,
+        span
+    );
+}
+
+template<
+    typename Value
+>
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareArrayField(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto array1 = flatbuffers::GetAnyFieldAddressOf<const Value>(
+        *reinterpret_cast<const flatbuffers::Struct*>(value1),
+        *flatBuffersReflectionField);
+
+    auto array2 = flatbuffers::GetAnyFieldAddressOf<const Value>(
+        *reinterpret_cast<const flatbuffers::Struct*>(value2),
+        *flatBuffersReflectionField);
+
+    for (int32_t index = 0; index < elementSize; ++index)
+    {
+        auto value1 = *(array1 + index);
+        auto value2 = *(array2 + index);
+
+        return ComparePrimitive(
+            value1,
+            value2);
+    }
+
+    return std::weak_ordering::equivalent;
+}
+
+template<
+>
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareArrayField<
+    flatbuffers::Struct
+    >(
+    const void* value1,
+    const void* value2
+) const
+{
+    const uint8_t* array1 = flatbuffers::GetAnyFieldAddressOf<const uint8_t>(
+        *reinterpret_cast<const flatbuffers::Struct*>(value1),
+        *flatBuffersReflectionField);
+
+    const uint8_t* array2 = flatbuffers::GetAnyFieldAddressOf<const uint8_t>(
+        *reinterpret_cast<const flatbuffers::Struct*>(value2),
+        *flatBuffersReflectionField);
+
+    for (int32_t index = 0; index < fixedLength; ++index)
+    {
+        auto value1 = array1 + index * elementSize;
+        auto value2 = array2 + index * elementSize;
+
+        elementObjectComparer->Compare(
+            value1,
+            value2);
+    }
+
+    return std::weak_ordering::equivalent;
+
 }
 
 }
