@@ -602,7 +602,7 @@ std::string MemoryMappedFileExtentStore::GetFilename(
             << indexExtentName->partition_number()
             << "_"
             << std::setw(8)
-            << indexExtentName->level()
+            << static_cast<uint64_t>(indexExtentName->level())
             << ".dat";
     }
     else if (extentName->extent_name_as_IndexHeaderExtentName())
@@ -620,7 +620,7 @@ std::string MemoryMappedFileExtentStore::GetFilename(
             << indexExtentName->partition_number()
             << "_"
             << std::setw(8)
-            << indexExtentName->level()
+            << static_cast<uint64_t>(indexExtentName->level())
             << ".part";
     }
     else if (extentName->extent_name_as_LogExtentName())
