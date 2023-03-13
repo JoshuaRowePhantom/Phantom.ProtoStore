@@ -115,7 +115,7 @@ flatbuffers_generate_headers(
 
 phantom_flatbuffers_generate_natvis(
     TARGET Phantom.ProtoStore.FlatBuffers
-    NATVIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+    NATVIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/FlatBuffersNatvis"
 )
 
 cmrc_add_resource_library(
