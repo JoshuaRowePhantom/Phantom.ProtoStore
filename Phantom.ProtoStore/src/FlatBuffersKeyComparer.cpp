@@ -225,8 +225,6 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
-    using ::reflection::BaseType;
-
     switch (flatBuffersReflectionField->type()->base_type())
     {
     case BaseType::Obj:
@@ -351,6 +349,20 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
             flatBuffersReflectionField
             );
 
+    case BaseType::Union:
+        if constexpr (std::same_as<Container, flatbuffers::Table>)
+        {
+            return GetUnionFieldComparer(
+                internalComparers,
+                flatBuffersReflectionSchema,
+                flatBuffersReflectionObject,
+                flatBuffersReflectionField);
+        }
+        else
+        {
+            throw std::range_error("flatBuffersReflectionField->type()->base_type()");
+        }
+
     default:
         throw std::range_error("flatBuffersReflectionFieldType");
     }
@@ -385,6 +397,179 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetStringFieldComparer(
         &InternalFieldComparer::CompareStringField,
         &InternalFieldComparer::HashStringField
     };
+}
+
+FlatBufferPointerKeyComparer::InternalFieldComparer
+FlatBufferPointerKeyComparer::InternalObjectComparer::GetUnionFieldComparer(
+    ComparerMap& internalComparers,
+    const ::reflection::Schema* flatBuffersReflectionSchema,
+    const ::reflection::Object* flatBuffersReflectionObject,
+    const ::reflection::Field* flatBuffersReflectionField
+)
+{
+    auto typeField = std::find_if(
+        flatBuffersReflectionObject->fields()->begin(),
+        flatBuffersReflectionObject->fields()->end(),
+        [&](const ::reflection::Field* field)
+    {
+        return field->id() == flatBuffersReflectionField->id() - 1;
+    });
+
+    auto typeEnumeration = flatBuffersReflectionSchema->enums()->Get(
+        typeField->type()->index()
+    );
+    if (typeEnumeration->underlying_type()->base_type() != BaseType::UType
+        || typeEnumeration->underlying_type()->base_size() != 1)
+    {
+        throw std::range_error("Union type discriminator must be UByte");
+    }
+
+    auto comparer = InternalFieldComparer
+    {
+        *typeField,
+        nullptr,
+        &InternalFieldComparer::CompareUnionField,
+        &InternalFieldComparer::HashUnionField
+    };
+
+    for (auto typeEnumerationValue : *typeEnumeration->values())
+    {
+        // Skip the "NONE" value.
+        if (typeEnumerationValue->value() == 0)
+        {
+            continue;
+        }
+
+        auto unionValueType = typeEnumerationValue->union_type();
+        if (unionValueType->base_type() != BaseType::Obj)
+        {
+            throw std::range_error("Unions must be of table type");
+        }
+        
+        auto unionTableType = flatBuffersReflectionSchema->objects()->Get(
+            unionValueType->index());
+        if (unionTableType->is_struct())
+        {
+            throw std::range_error("Unions must be of table type");
+        }
+
+        auto unionComparer = GetObjectComparer(
+            internalComparers,
+            flatBuffersReflectionSchema,
+            unionTableType);
+
+        auto unionFieldComparer = InternalFieldComparer
+        {
+            flatBuffersReflectionField,
+            unionComparer,
+            &InternalFieldComparer::CompareUnionFieldValue,
+            &InternalFieldComparer::HashUnionFieldValue,
+        };
+
+        comparer.unionComparers[typeEnumerationValue->value()] = unionFieldComparer;
+    }
+
+    comparer.unionComparers[0] =
+        InternalFieldComparer
+    {
+        nullptr,
+        nullptr,
+        &InternalFieldComparer::CompareEmptyUnionField,
+        &InternalFieldComparer::HashEmptyUnionField
+    };
+
+    return comparer;
+}
+
+
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareUnionField(
+    const void* value1,
+    const void* value2
+) const
+{
+    // The enumeration type field will have already been compared,
+    // so we don't need to worry about the values being of different types.
+    auto unionType = flatbuffers::GetFieldI<uint8_t>(
+        *reinterpret_cast<const ::flatbuffers::Table*>(value1),
+        *flatBuffersReflectionField
+    );
+
+    auto& comparer = unionComparers.at(unionType);
+    
+    return (comparer.*comparer.comparerFunction)(
+        value1,
+        value2
+    );
+}
+
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashUnionField(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto unionType = flatbuffers::GetFieldI<uint8_t>(
+        *reinterpret_cast<const ::flatbuffers::Table*>(value),
+        *flatBuffersReflectionField
+    );
+
+    auto& comparer = unionComparers.at(unionType);
+
+    return (comparer.*comparer.hasherFunction)(
+        hash,
+        value
+    );
+}
+
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareEmptyUnionField(
+    const void* value1,
+    const void* value2
+) const
+{
+    // Do nothing.
+    return std::weak_ordering::equivalent;
+}
+
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashEmptyUnionField(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    // Do nothing.
+}
+
+std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareUnionFieldValue(
+    const void* value1,
+    const void* value2
+) const
+{
+    auto fieldValue1 = flatbuffers::GetFieldT(
+        *reinterpret_cast<const ::flatbuffers::Table*>(value1),
+        *flatBuffersReflectionField
+    );
+
+    auto fieldValue2 = flatbuffers::GetFieldT(
+        *reinterpret_cast<const ::flatbuffers::Table*>(value2),
+        *flatBuffersReflectionField
+    );
+
+    return elementObjectComparer->Compare(
+        fieldValue1,
+        fieldValue2);
+}
+
+void FlatBufferPointerKeyComparer::InternalFieldComparer::HashUnionFieldValue(
+    hash_v1_type& hash,
+    const void* value
+) const
+{
+    auto fieldValue = flatbuffers::GetFieldT(
+        *reinterpret_cast<const ::flatbuffers::Table*>(value),
+        *flatBuffersReflectionField
+    );
+
+    elementObjectComparer->Hash(
+        hash,
+        fieldValue);
 }
 
 template<

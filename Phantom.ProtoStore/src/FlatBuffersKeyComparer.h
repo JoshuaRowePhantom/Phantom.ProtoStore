@@ -9,6 +9,8 @@ class FlatBufferPointerKeyComparer
     :
     public BaseKeyComparer
 {
+    using BaseType = ::reflection::BaseType;
+
 private:
     class InternalObjectComparer;
     using ComparerMap = std::map<const ::reflection::Object*, InternalObjectComparer>;
@@ -40,6 +42,8 @@ private:
 
         uint32_t elementSize = 0;
         uint16_t fixedLength = 0;
+
+        std::unordered_map<uint8_t, InternalFieldComparer> unionComparers;
 
         SortOrder sortOrder = SortOrder::Ascending;
         
@@ -77,6 +81,36 @@ private:
         ) const;
 
         void HashTableField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        std::weak_ordering CompareUnionField(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        void HashUnionField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        std::weak_ordering CompareEmptyUnionField(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        void HashEmptyUnionField(
+            hash_v1_type& hash,
+            const void* value
+        ) const;
+
+        std::weak_ordering CompareUnionFieldValue(
+            const void* value1,
+            const void* value2
+        ) const;
+
+        void HashUnionFieldValue(
             hash_v1_type& hash,
             const void* value
         ) const;
@@ -217,6 +251,13 @@ private:
         );
 
         static InternalFieldComparer GetStringFieldComparer(
+            const ::reflection::Field* flatBuffersReflectionField
+        );
+
+        static InternalFieldComparer GetUnionFieldComparer(
+            ComparerMap& internalComparers,
+            const ::reflection::Schema* flatBuffersReflectionSchema,
+            const ::reflection::Object* flatBuffersReflectionObject,
             const ::reflection::Field* flatBuffersReflectionField
         );
 

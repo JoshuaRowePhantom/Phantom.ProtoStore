@@ -14,6 +14,12 @@ table TestKeyDescendingTable (SortOrder: "Descending") {
     descending_value : int (SortOrder: "Descending");
 }
 
+union TestKeyUnion
+{
+    ScalarTable,
+    TestKey
+}
+
 struct TestKeyStruct {
     byte_value : byte;
     ubyte_value : ubyte;
@@ -82,6 +88,8 @@ table TestKey {
     struct_vector : [TestKeyStruct];
 
     descending_table : TestKeyDescendingTable;
+
+    union_value : TestKeyUnion;
 }
 
 table FlatStringKey {

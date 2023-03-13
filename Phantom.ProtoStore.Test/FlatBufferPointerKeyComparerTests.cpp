@@ -13,6 +13,7 @@ namespace Phantom::ProtoStore
 using FlatBuffers::TestKeyT;
 using FlatBuffers::TestKeyStruct;
 using FlatBuffers::TestKeyDescendingTableT;
+using FlatBuffers::ScalarTableT;
 
 FlatBufferPointerKeyComparer GetTestKeyFlatBufferPointerKeyComparer()
 {
@@ -483,6 +484,77 @@ TEST(FlatBufferPointerKeyComparerTests, descending_table)
     DoFlatBufferPointerKeyComparerTest(
         low,
         high
+    );
+}
+
+TEST(FlatBufferPointerKeyComparerTests, union_value)
+{
+    TestKeyT no_value;
+    TestKeyT low_scalar;
+    TestKeyT high_scalar;
+    TestKeyT low_testKey;
+    TestKeyT high_testKey;
+
+    low_scalar.union_value.Set(ScalarTableT());
+    low_scalar.union_value.AsScalarTable()->item = 1;
+    high_scalar.union_value.Set(ScalarTableT());
+    high_scalar.union_value.AsScalarTable()->item = 2;
+    low_testKey.union_value.Set(TestKeyT());
+    low_testKey.union_value.AsTestKey()->byte_value = 1;
+    high_testKey.union_value.Set(TestKeyT());
+    high_testKey.union_value.AsTestKey()->byte_value = 2;
+
+    DoFlatBufferPointerKeyComparerTest(
+        no_value,
+        low_scalar
+    );
+    
+    DoFlatBufferPointerKeyComparerTest(
+        no_value,
+        high_scalar
+    );
+
+    DoFlatBufferPointerKeyComparerTest(
+        no_value,
+        low_testKey
+    );
+
+    DoFlatBufferPointerKeyComparerTest(
+        no_value,
+        high_testKey
+    );
+
+
+    DoFlatBufferPointerKeyComparerTest(
+        low_scalar,
+        high_scalar
+    );
+
+    DoFlatBufferPointerKeyComparerTest(
+        low_scalar,
+        low_testKey
+    );
+
+    DoFlatBufferPointerKeyComparerTest(
+        low_scalar,
+        high_testKey
+    );
+
+
+    DoFlatBufferPointerKeyComparerTest(
+        high_scalar,
+        low_testKey
+    );
+
+    DoFlatBufferPointerKeyComparerTest(
+        high_scalar,
+        high_testKey
+    );
+
+
+    DoFlatBufferPointerKeyComparerTest(
+        low_testKey,
+        high_testKey
     );
 }
 
