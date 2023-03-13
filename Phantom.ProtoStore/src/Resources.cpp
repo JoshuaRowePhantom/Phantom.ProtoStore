@@ -55,13 +55,22 @@ const reflection::Object* const ExtentName_Object
 const reflection::Object* const IndexHeaderExtentName_Object
 = ProtoStoreSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.IndexHeaderExtentName");
 
-const ProtoValueComparers ExtentNameComparers
+const ProtoValueComparers ExtentNameComparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreSchema, ExtentName_Object }.MakeComparers();
 
-const ProtoValueComparers IndexHeaderExtentNameComparers
+const ProtoValueComparers ExtentNameComparers
+= ExtentNameComparers_Owning.MakeUnowningCopy();
+
+const ProtoValueComparers IndexHeaderExtentNameComparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreSchema, IndexHeaderExtentName_Object }.MakeComparers();
 
-const ProtoValueComparers MergesKeyComparers
+const ProtoValueComparers IndexHeaderExtentNameComparers
+= IndexHeaderExtentNameComparers_Owning.MakeUnowningCopy();
+
+const ProtoValueComparers MergesKeyComparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreInternalSchema, MergesKey_Object }.MakeComparers();
+
+const ProtoValueComparers MergesKeyComparers
+= MergesKeyComparers_Owning.MakeUnowningCopy();
 
 }
