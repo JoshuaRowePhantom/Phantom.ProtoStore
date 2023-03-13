@@ -30,157 +30,38 @@ void SchemaDescriptions::AddFileToMessageDescription(
     }
 }
 
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::SchemaDescription& schemaDescription,
-    const Descriptor* messageDescriptor
-)
-{
-    schemaDescription.Clear();
-    auto messageDescription = schemaDescription.mutable_protocolbuffersdescription()->mutable_messagedescription();
-    messageDescription->set_messagename(
-        messageDescriptor->full_name());
-    
-    std::set<const google::protobuf::FileDescriptor*> addedFileDescriptors;
-
-    AddFileToMessageDescription(
-        addedFileDescriptors,
-        messageDescription->mutable_filedescriptors(),
-        messageDescriptor->file()
-    );
-}
-
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::SchemaDescription& schemaDescription,
-    const FlatBuffersObjectSchema& objectSchema
-)
-{
-    schemaDescription.Clear();
-    auto objectDescription = schemaDescription.mutable_flatbuffersdescription()->mutable_objectdescription();
-
-    flatbuffers::FlatBufferBuilder schemaBytesBuilder;
-    auto rootOffset = flatbuffers::CopyTable(
-        schemaBytesBuilder,
-        *FlatBuffersSchemas::ReflectionSchema,
-        *FlatBuffersSchemas::ReflectionSchema_Schema,
-        *reinterpret_cast<const flatbuffers::Table*>(objectSchema.Schema),
-        true
-    );
-    schemaBytesBuilder.Finish(rootOffset);
-
-    auto bufferSpan = schemaBytesBuilder.GetBufferSpan();
-
-    objectDescription->set_schemabytes(
-        reinterpret_cast<const char*>(bufferSpan.data()),
-        bufferSpan.size());
-
-    bool foundObject = false;
-    for (auto index = 0; index < objectSchema.Schema->objects()->size(); index++)
-    {
-        if (objectSchema.Schema->objects()->Get(index) == objectSchema.Object)
-        {
-            objectDescription->set_objectindex(
-                index
-            );
-            foundObject = true;
-        }
-    }
-
-    if (!foundObject)
-    {
-        throw std::range_error("objectSchema.Object is not in objectSchema.Schema");
-    }
-}
-
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::IndexSchemaDescription& schemaDescription,
-    const Schema& schema
-)
-{
-    visit(
-        [&](const auto& format)
-        {
-            MakeSchemaDescription(schemaDescription, format);
-        },
-        schema.KeySchema.FormatSchema);
-    
-    visit(
-        [&](const auto& format)
-        {
-            MakeSchemaDescription(schemaDescription, format);
-        },
-        schema.ValueSchema.FormatSchema);
-}
-
-class ProtoStoreMessageFactory
-    : public IMessageFactory
-{
-    std::any m_extraData;
-    const Message* m_prototype;
-    const Descriptor* m_descriptor;
-
-public:
-    ProtoStoreMessageFactory(
-        const Message* protoType,
-        const Descriptor* descriptor,
-        std::any extraData
-        );
-    
-    virtual const Descriptor* GetDescriptor(
-    ) const override;
-
-    virtual const Message* GetPrototype(
-    ) const override;
-};
-
-ProtoStoreMessageFactory::ProtoStoreMessageFactory(
-    const Message* protoType,
-    const Descriptor* descriptor,
-    std::any extraData
-)
-:
-    m_extraData(extraData),
-    m_prototype(protoType),
-    m_descriptor(descriptor)
-{}
-
-const Descriptor* ProtoStoreMessageFactory::GetDescriptor(
-) const
-{
-    return m_descriptor;
-}
-
-
-const Message* ProtoStoreMessageFactory::GetPrototype(
-) const
-{
-    return m_prototype;
-}
-
 shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
-    Serialization::IndexSchemaDescription indexSchemaDescription)
+    FlatValue<FlatBuffers::IndexSchemaDescription> indexSchemaDescription)
 {
     // Construct a set of objects to hold references to as long
     // as part of the shared_ptr holding the Schema.
     struct SchemaHolder
     {
         Schema schema;
-        Serialization::IndexSchemaDescription description;
+        FlatValue<FlatBuffers::IndexSchemaDescription> indexSchemaDescription;
         std::list<std::any> objects;
     };
 
     auto schema = std::make_shared<SchemaHolder>();
-    schema->description = std::move(indexSchemaDescription);
+    schema->indexSchemaDescription = std::move(indexSchemaDescription);
 
-    auto getProtocolBufferDescriptor = [&](const Serialization::ProtocolBuffersSchemaDescription& description)
+    auto getProtocolBufferDescriptor = [&](const FlatBuffers::ProtocolBuffersSchemaDescription* description)
     {
-        auto& messageDescription = description.messagedescription();
+        auto messageDescription = description->message_description();
         auto generatedDescriptorPool = google::protobuf::DescriptorPool::generated_pool();
         auto generatedDescriptor = generatedDescriptorPool->FindMessageTypeByName(
-            messageDescription.messagename());
+            messageDescription->message_name()->str());
+
+        std::string fileDescriptorSetString(
+            reinterpret_cast<const char*>(messageDescription->file_descriptors()->data()),
+            messageDescription->file_descriptors()->size());
+
+        google::protobuf::FileDescriptorSet fileDescriptorSet;
+        fileDescriptorSet.ParseFromString(
+            fileDescriptorSetString);
 
         auto descriptorPool = make_shared<google::protobuf::DescriptorPool>();
-
-        for (const auto& fileDescriptorProto : messageDescription.filedescriptors().file())
+        for (const auto& fileDescriptorProto : fileDescriptorSet.file())
         {
             if (!descriptorPool->BuildFile(
                 fileDescriptorProto))
@@ -190,7 +71,7 @@ shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
         }
 
         auto messageDescriptor = descriptorPool->FindMessageTypeByName(
-            messageDescription.messagename());
+            messageDescription->message_name()->str());
         if (!messageDescriptor)
         {
             throw std::exception("Error finding message descriptor");
@@ -203,53 +84,51 @@ shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
         return messageDescriptor;
     };
 
-    auto getFlatBufferObjectSchema = [&](const Serialization::FlatBuffersObjectDescription& description)
+    auto getFlatBufferObjectSchema = [&](const FlatBuffers::FlatBuffersObjectDescription* description)
     {
-        auto schema = flatbuffers::GetRoot<reflection::Schema>(
-            description.schemabytes().data());
-        auto object = schema->objects()->Get(
-            description.objectindex());
+        auto schema = reinterpret_cast<const reflection::Schema*>(
+            description->schema());
 
         return FlatBuffersObjectSchema
         {
-            .Schema = schema,
-            .Object = object,
+            schema,
+            schema->objects()->Get(description->object_index())
         };
     };
 
-    if (schema->description.key().description().has_protocolbuffersdescription())
+    if (schema->indexSchemaDescription->key()->description_as_ProtocolBuffersSchemaDescription())
     {
         ProtocolBuffersKeySchema keySchema;
         keySchema.ObjectSchema.MessageDescriptor = getProtocolBufferDescriptor(
-            schema->description.key().description().protocolbuffersdescription());
+            schema->indexSchemaDescription->key()->description_as_ProtocolBuffersSchemaDescription());
 
         schema->schema.KeySchema.FormatSchema = keySchema;
     }
 
-    if (schema->description.key().description().has_flatbuffersdescription())
+    if (schema->indexSchemaDescription->key()->description_as_FlatBuffersSchemaDescription())
     {
         schema->schema.KeySchema.FormatSchema = FlatBuffersKeySchema
         {
             .ObjectSchema = getFlatBufferObjectSchema(
-                schema->description.key().description().flatbuffersdescription().objectdescription()),
+                schema->indexSchemaDescription->key()->description_as_FlatBuffersSchemaDescription()->object_description()),
         };
     }
 
-    if (schema->description.value().description().has_protocolbuffersdescription())
+    if (schema->indexSchemaDescription->value()->description_as_ProtocolBuffersSchemaDescription())
     {
         ProtocolBuffersValueSchema valueSchema;
         valueSchema.ObjectSchema.MessageDescriptor = getProtocolBufferDescriptor(
-            schema->description.value().description().protocolbuffersdescription());
+            schema->indexSchemaDescription->value()->description_as_ProtocolBuffersSchemaDescription());
 
         schema->schema.ValueSchema.FormatSchema = valueSchema;
     }
 
-    if (schema->description.value().description().has_flatbuffersdescription())
+    if (schema->indexSchemaDescription->value()->description_as_FlatBuffersSchemaDescription())
     {
         schema->schema.ValueSchema.FormatSchema = FlatBuffersValueSchema
         {
             .ObjectSchema = getFlatBufferObjectSchema(
-                schema->description.key().description().flatbuffersdescription().objectdescription()),
+                schema->indexSchemaDescription->value()->description_as_FlatBuffersSchemaDescription()->object_description()),
         };
     }
 
@@ -295,58 +174,6 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
     return shared_ptr<KeyComparer>(
         holderPointer,
         holderPointer->keyComparer.get()
-    );
-}
-
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::IndexSchemaDescription& schemaDescription,
-    std::monostate
-)
-{
-    throw std::range_error("Invalid schema");
-}
-
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::IndexSchemaDescription& schemaDescription,
-    const FlatBuffersKeySchema& schema
-)
-{
-    MakeSchemaDescription(
-        *schemaDescription.mutable_key()->mutable_description(),
-        schema.ObjectSchema
-    );
-}
-
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::IndexSchemaDescription& schemaDescription,
-    const ProtocolBuffersKeySchema& schema
-)
-{
-    MakeSchemaDescription(
-        *schemaDescription.mutable_key()->mutable_description(),
-        schema.ObjectSchema.MessageDescriptor
-    );
-}
-
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::IndexSchemaDescription& schemaDescription,
-    const FlatBuffersValueSchema& schema
-)
-{
-    MakeSchemaDescription(
-        *schemaDescription.mutable_value()->mutable_description(),
-        schema.ObjectSchema
-    );
-}
-
-void SchemaDescriptions::MakeSchemaDescription(
-    Serialization::IndexSchemaDescription& schemaDescription,
-    const ProtocolBuffersValueSchema& schema
-)
-{
-    MakeSchemaDescription(
-        *schemaDescription.mutable_value()->mutable_description(),
-        schema.ObjectSchema.MessageDescriptor
     );
 }
 
@@ -455,5 +282,159 @@ ProtoValueComparers FlatBuffersObjectSchema::MakeComparers() const
         std::move(schema)
     );
 }
+
+flatbuffers::Offset<FlatBuffers::ProtocolBuffersMessageDescription> SchemaDescriptions::CreateProtocolBuffersObjectDescription(
+    flatbuffers::FlatBufferBuilder& builder,
+    const ProtocolBuffersObjectSchema& objectSchema
+)
+{
+    google::protobuf::FileDescriptorSet fileDescriptorSet;
+
+    auto messageNameOffset = builder.CreateString(
+        objectSchema.MessageDescriptor->full_name()
+    );
+
+    std::set<const google::protobuf::FileDescriptor*> addedFileDescriptors;
+
+    AddFileToMessageDescription(
+        addedFileDescriptors,
+        &fileDescriptorSet,
+        objectSchema.MessageDescriptor->file()
+    );
+
+    auto fileDescriptorSetString = fileDescriptorSet.SerializeAsString();
+
+    auto fileDescriptorSetOffset = builder.CreateVector(
+        reinterpret_cast<const uint8_t*>(fileDescriptorSetString.data()),
+        fileDescriptorSetString.size()
+    );
+
+    return FlatBuffers::CreateProtocolBuffersMessageDescription(
+        builder,
+        fileDescriptorSetOffset,
+        messageNameOffset
+    );
+}
+
+flatbuffers::Offset<FlatBuffers::FlatBuffersObjectDescription> SchemaDescriptions::CreateFlatBuffersObjectDescription(
+    flatbuffers::FlatBufferBuilder& builder,
+    const FlatBuffersObjectSchema& objectSchema
+)
+{
+    auto keySchema = objectSchema.Schema;
+
+    auto keySchemaOffset = flatbuffers::CopyTable(
+        builder,
+        *FlatBuffersSchemas::ReflectionSchema,
+        *FlatBuffersSchemas::ReflectionSchema_Schema,
+        *reinterpret_cast<const flatbuffers::Table*>(keySchema)
+    );
+
+    return FlatBuffers::CreateFlatBuffersObjectDescription(
+        builder,
+        { keySchemaOffset.o },
+        FindObjectIndex(keySchema, objectSchema.Object));
+}
+
+flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> SchemaDescriptions::CreateSchemaDescription(
+    flatbuffers::FlatBufferBuilder& builder,
+    const Schema& schema
+)
+{
+    using flatbuffers::Offset;
+    
+    FlatBuffers::SchemaDescription keySchemaDescriptionType = FlatBuffers::SchemaDescription::NONE;
+    Offset<void> keySchemaDescriptionTypeOffset;
+
+    auto flatbuffersKeySchema = schema.KeySchema.AsFlatBuffersKeySchema();
+    if (flatbuffersKeySchema)
+    {
+        keySchemaDescriptionType = FlatBuffers::SchemaDescription::FlatBuffersSchemaDescription;
+        keySchemaDescriptionTypeOffset = CreateFlatBuffersObjectDescription(
+            builder,
+            flatbuffersKeySchema->ObjectSchema
+        ).Union();
+    }
+
+    auto protocolBuffersKeySchema = schema.KeySchema.AsProtocolBuffersKeySchema();
+    if (protocolBuffersKeySchema)
+    {
+        keySchemaDescriptionType = FlatBuffers::SchemaDescription::ProtocolBuffersSchemaDescription;
+        keySchemaDescriptionTypeOffset = CreateProtocolBuffersObjectDescription(
+            builder,
+            protocolBuffersKeySchema->ObjectSchema
+        ).Union();
+    }
+
+    if (keySchemaDescriptionType == FlatBuffers::SchemaDescription::NONE)
+    {
+        throw std::runtime_error("Invalid key schema");
+    }
+
+    auto keySchemaDescriptionOffset = FlatBuffers::CreateKeySchemaDescription(
+        builder,
+        keySchemaDescriptionType,
+        keySchemaDescriptionTypeOffset
+    );
+
+    FlatBuffers::SchemaDescription valueSchemaDescriptionType = FlatBuffers::SchemaDescription::NONE;
+    Offset<void> valueSchemaDescriptionTypeOffset;
+
+    auto flatbuffersValueSchema = schema.ValueSchema.AsFlatBuffersValueSchema();
+    if (flatbuffersValueSchema)
+    {
+        valueSchemaDescriptionType = FlatBuffers::SchemaDescription::FlatBuffersSchemaDescription;
+        valueSchemaDescriptionTypeOffset = CreateFlatBuffersObjectDescription(
+            builder,
+            flatbuffersValueSchema->ObjectSchema
+        ).Union();
+    }
+
+    auto protocolBuffersValueSchema = schema.ValueSchema.AsProtocolBuffersValueSchema();
+    if (protocolBuffersValueSchema)
+    {
+        valueSchemaDescriptionType = FlatBuffers::SchemaDescription::ProtocolBuffersSchemaDescription;
+        valueSchemaDescriptionTypeOffset = CreateProtocolBuffersObjectDescription(
+            builder,
+            protocolBuffersValueSchema->ObjectSchema
+        ).Union();
+    }
+
+    if (valueSchemaDescriptionType == FlatBuffers::SchemaDescription::NONE)
+    {
+        throw std::runtime_error("Invalid value schema");
+    }
+
+    auto valueSchemaDescriptionOffset = FlatBuffers::CreateValueSchemaDescription(
+        builder,
+        valueSchemaDescriptionType,
+        valueSchemaDescriptionTypeOffset
+    );
+
+    auto schemaOffset = FlatBuffers::CreateIndexSchemaDescription(
+        builder,
+        keySchemaDescriptionOffset,
+        valueSchemaDescriptionOffset
+    );
+
+    return schemaOffset;
+}
+
+uint32_t SchemaDescriptions::FindObjectIndex(
+    const reflection::Schema* schema,
+    const reflection::Object* object
+)
+{
+    for (auto index = 0; index < schema->objects()->size(); ++index)
+    {
+        if (object == schema->objects()->Get(index))
+        {
+            return index;
+        }
+    }
+
+    throw std::range_error("object is not in schema");
+}
+
 
 }

@@ -107,8 +107,8 @@ class ProtoStore
         override;
 
     void MakeIndexesByNumberRow(
-        IndexesByNumberKey& indexesByNumberKey,
-        IndexesByNumberValue& indexesByNumberValue,
+        FlatValue<IndexesByNumberKey> indexesByNumberKey,
+        FlatValue<IndexesByNumberValue> indexesByNumberValue,
         const IndexName& indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
@@ -116,8 +116,8 @@ class ProtoStore
     );
 
     IndexEntry MakeIndex(
-        const IndexesByNumberKey& indexesKey,
-        const IndexesByNumberValue& indexesValue
+        FlatValue<IndexesByNumberKey> indexesByNumberKey,
+        FlatValue<IndexesByNumberValue> indexesByNumberValue
     );
 
     task<IndexNumber> AllocateIndexNumber();

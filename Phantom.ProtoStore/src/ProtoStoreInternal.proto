@@ -5,55 +5,6 @@ import "Phantom.ProtoStore/ProtoStore.proto";
 
 package Phantom.ProtoStore.Serialization;
 
-message ProtocolBuffersMessageDescription {
-    google.protobuf.FileDescriptorSet FileDescriptors = 1;
-    string MessageName = 2;
-}
-
-message FlatBuffersObjectDescription {
-    bytes SchemaBytes = 1;
-    uint32 ObjectIndex = 2;
-}
-
-message FlatBuffersSchemaDescription {
-    FlatBuffersObjectDescription ObjectDescription = 1;
-}
-
-message ProtocolBuffersSchemaDescription {
-    ProtocolBuffersMessageDescription MessageDescription = 1;
-}
-
-message SchemaDescription {
-    oneof Description
-    {
-        FlatBuffersSchemaDescription FlatBuffersDescription = 1;
-        ProtocolBuffersSchemaDescription ProtocolBuffersDescription = 2;
-    }
-}
-
-message KeySchemaDescription {
-    SchemaDescription Description = 1;
-}
-
-message ValueSchemaDescription {
-    SchemaDescription Description = 1;
-}
-
-message IndexSchemaDescription {
-    KeySchemaDescription Key = 1;
-    ValueSchemaDescription Value = 2;
-}
-
-message IndexesByNumberKey {
-    uint64 IndexNumber = 1;
-}
-
-message IndexesByNumberValue {
-    IndexSchemaDescription Schema = 1;
-    string IndexName = 2;
-    uint64 CreateSequenceNumber = 3;
-}
-
 // The UnresolvedTransactions table holds the transactions whose
 // outcomes are unresolved or aborted. Transactions that have
 // committed are removed from the UnresolvedTransactions table completely.

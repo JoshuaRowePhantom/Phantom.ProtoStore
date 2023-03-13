@@ -105,7 +105,7 @@ PROTOBUF_GENERATE(
 flatbuffers_generate_headers(
     TARGET Phantom.ProtoStore.FlatBuffers
     INCLUDE_PREFIX Phantom.ProtoStore
-    INCLUDE include
+    INCLUDE include src
     FLAGS --reflect-names --gen-name-strings --gen-compare --cpp-std c++17 --gen-object-api --scoped-enums --gen-mutable
     BINARY_SCHEMAS_DIR "${CMAKE_CURRENT_BINARY_DIR}"
     SCHEMAS

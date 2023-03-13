@@ -94,8 +94,8 @@ task<> ProtoStore::Open(
         m_header->next_index_number);
 
     {
-        IndexesByNumberKey indexesByNumberKey;
-        IndexesByNumberValue indexesByNumberValue;
+        FlatValue<IndexesByNumberKey> indexesByNumberKey;
+        FlatValue<IndexesByNumberValue> indexesByNumberValue;
 
         MakeIndexesByNumberRow(
             indexesByNumberKey,
@@ -104,8 +104,9 @@ task<> ProtoStore::Open(
             1,
             SequenceNumber::Earliest,
             Schema::Make(
-                IndexesByNumberKey::descriptor(),
-                IndexesByNumberValue::descriptor()));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberKey_Object },
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberValue_Object }
+        ));
 
         m_indexesByNumberIndex = MakeIndex(
             indexesByNumberKey,
@@ -114,8 +115,8 @@ task<> ProtoStore::Open(
     }
 
     {
-        IndexesByNumberKey indexesByNumberKey;
-        IndexesByNumberValue indexesByNumberValue;
+        FlatValue<IndexesByNumberKey> indexesByNumberKey;
+        FlatValue<IndexesByNumberValue> indexesByNumberValue;
 
         MakeIndexesByNumberRow(
             indexesByNumberKey,
@@ -135,8 +136,8 @@ task<> ProtoStore::Open(
     }
 
     {
-        IndexesByNumberKey indexesByNumberKey;
-        IndexesByNumberValue indexesByNumberValue;
+        FlatValue<IndexesByNumberKey> indexesByNumberKey;
+        FlatValue<IndexesByNumberValue> indexesByNumberValue;
 
         MakeIndexesByNumberRow(
             indexesByNumberKey,
@@ -146,7 +147,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsValue_Object }));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsValue_Object }
+        ));
 
         m_partitionsIndex = MakeIndex(
             indexesByNumberKey,
@@ -155,8 +157,8 @@ task<> ProtoStore::Open(
     }
 
     {
-        IndexesByNumberKey indexesByNumberKey;
-        IndexesByNumberValue indexesByNumberValue;
+        FlatValue<IndexesByNumberKey> indexesByNumberKey;
+        FlatValue<IndexesByNumberValue> indexesByNumberValue;
 
         MakeIndexesByNumberRow(
             indexesByNumberKey,
@@ -166,7 +168,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesValue_Object }));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesValue_Object }
+        ));
 
         m_mergesIndex = MakeIndex(
             indexesByNumberKey,
@@ -175,8 +178,8 @@ task<> ProtoStore::Open(
     }
 
     {
-        IndexesByNumberKey indexesByNumberKey;
-        IndexesByNumberValue indexesByNumberValue;
+        FlatValue<IndexesByNumberKey> indexesByNumberKey;
+        FlatValue<IndexesByNumberValue> indexesByNumberValue;
 
         MakeIndexesByNumberRow(
             indexesByNumberKey,
@@ -186,7 +189,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressValue_Object }));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressValue_Object }
+        ));
 
         m_mergeProgressIndex = MakeIndex(
             indexesByNumberKey,
@@ -1017,8 +1021,8 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
 {
     auto indexNumber = co_await AllocateIndexNumber();
 
-    IndexesByNumberKey indexesByNumberKey;
-    IndexesByNumberValue indexesByNumberValue;
+    FlatValue<IndexesByNumberKey> indexesByNumberKey;
+    FlatValue<IndexesByNumberValue> indexesByNumberValue;
 
     MakeIndexesByNumberRow(
         indexesByNumberKey,
@@ -1038,8 +1042,8 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
         co_await co_await operation->AddRow(
             metadata,
             m_indexesByNumberIndex.Index,
-            &indexesByNumberKey,
-            &indexesByNumberValue
+            indexesByNumberKey,
+            indexesByNumberValue
         );
 
         IndexesByNameKeyT indexesByNameKey;
@@ -1084,9 +1088,8 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
 
     // The index didn't exist, so it's likely we'll have to create it.
     // Gather the information about the index before we create it.
-    IndexesByNumberKey indexesByNumberKey;
-    indexesByNumberKey.set_indexnumber(
-        indexNumber);
+    FlatBuffers::IndexesByNumberKeyT indexesByNumberKey;
+    indexesByNumberKey.index_number = indexNumber;
 
     ReadRequest readRequest;
     readRequest.Key = &indexesByNumberKey;
@@ -1101,8 +1104,7 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
         readResult.error().throw_exception();
     }
 
-    IndexesByNumberValue indexesByNumberValue;
-    readResult->Value.unpack(&indexesByNumberValue);
+    FlatValue<IndexesByNumberValue> indexesByNumberValue = readResult->Value;
     
     // Look for the index using a write lock, and create the index if it doesn't exist.
     {
@@ -1137,34 +1139,50 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
 }
 
 void ProtoStore::MakeIndexesByNumberRow(
-    IndexesByNumberKey& indexesByNumberKey,
-    IndexesByNumberValue& indexesByNumberValue,
+    FlatValue<IndexesByNumberKey> indexesByNumberKey,
+    FlatValue<IndexesByNumberValue> indexesByNumberValue,
     const IndexName& indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
     const Schema& schema
 )
 {
-    indexesByNumberKey.Clear();
-    indexesByNumberValue.Clear();
+    flatbuffers::FlatBufferBuilder indexesByNumberKeyBuilder;
+    
+    auto indexesByNumberKeyOffset = FlatBuffers::CreateIndexesByNumberKey(
+        indexesByNumberKeyBuilder,
+        indexNumber);
 
-    indexesByNumberKey.set_indexnumber(indexNumber);
+    indexesByNumberKeyBuilder.Finish(
+        indexesByNumberKeyOffset);
 
-    indexesByNumberValue.set_indexname(indexName);
-    indexesByNumberValue.set_createsequencenumber(ToUint64(createSequenceNumber));
+    indexesByNumberKey = FlatValue<IndexesByNumberKey>{ std::move(indexesByNumberKeyBuilder) };
 
-    SchemaDescriptions::MakeSchemaDescription(
-        *(indexesByNumberValue.mutable_schema()),
+    flatbuffers::FlatBufferBuilder indexesByNumberValueBuilder;
+
+    auto indexSchemaDescriptionOffset = SchemaDescriptions::CreateSchemaDescription(
+        indexesByNumberValueBuilder,
         schema);
+
+    auto indexNameOffset = indexesByNumberValueBuilder.CreateString(
+        indexName);
+
+    auto indexesByNumberValueOffset = FlatBuffers::CreateIndexesByNumberValue(
+        indexesByNumberValueBuilder,
+        indexSchemaDescriptionOffset,
+        indexNameOffset,
+        ToUint64(createSequenceNumber));
+
+    indexesByNumberValue = FlatValue<IndexesByNumberValue>{ std::move(indexesByNumberValueBuilder) };
 }
 
 ProtoStore::IndexEntry ProtoStore::MakeIndex(
-    const IndexesByNumberKey& indexesByNumberKey,
-    const IndexesByNumberValue& indexesByNumberValue
+    FlatValue<IndexesByNumberKey> indexesByNumberKey,
+    FlatValue<IndexesByNumberValue> indexesByNumberValue
 )
 {
     auto schema = SchemaDescriptions::MakeSchema(
-        indexesByNumberValue.schema()
+        indexesByNumberValue->schema()
     );
 
     auto keyComparer = SchemaDescriptions::MakeKeyComparer(
@@ -1172,9 +1190,9 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     );
 
     auto index = make_shared<Index>(
-        indexesByNumberValue.indexname(),
-        indexesByNumberKey.indexnumber(),
-        ToSequenceNumber(indexesByNumberValue.createsequencenumber()),
+        indexesByNumberValue->index_name()->str(),
+        indexesByNumberKey->index_number(),
+        ToSequenceNumber(indexesByNumberValue->create_sequence_number()),
         keyComparer,
         m_unresolvedTransactionsTracker.get(),
         schema);
@@ -1194,7 +1212,7 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
 
     return IndexEntry
     {
-        .IndexNumber = indexesByNumberKey.indexnumber(),
+        .IndexNumber = indexesByNumberKey->index_number(),
         .DataSources = indexDataSources,
         .Index = index,
         .MergeGenerator = mergeGenerator,

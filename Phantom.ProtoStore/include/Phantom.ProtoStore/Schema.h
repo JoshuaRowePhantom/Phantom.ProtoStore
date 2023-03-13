@@ -83,6 +83,16 @@ struct KeySchema
 
     format_schema_type FormatSchema;
 
+    auto AsProtocolBuffersKeySchema(this auto& self) noexcept
+    {
+        return std::get_if<ProtocolBuffersKeySchema>(&self.FormatSchema);
+    }
+
+    auto AsFlatBuffersKeySchema(this auto& self) noexcept
+    {
+        return std::get_if<FlatBuffersKeySchema>(&self.FormatSchema);
+    }
+
     bool IsProtocolBuffersSchema() const noexcept
     {
         return holds_alternative<ProtocolBuffersKeySchema>(FormatSchema);
@@ -132,6 +142,16 @@ struct ValueSchema
     > format_schema_type;
 
     format_schema_type FormatSchema;
+
+    auto AsProtocolBuffersValueSchema(this auto& self) noexcept
+    {
+        return get_if<ProtocolBuffersValueSchema>(&self.FormatSchema);
+    }
+
+    auto AsFlatBuffersValueSchema(this auto& self) noexcept
+    {
+        return get_if<FlatBuffersValueSchema>(&self.FormatSchema);
+    }
 
     bool IsProtocolBuffersSchema() const noexcept
     {

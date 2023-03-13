@@ -100,20 +100,6 @@ class MergeParameters;
 
 namespace Serialization
 {
-class SchemaDescription;
-class ProtocolBuffersMessageDescription;
-class ProtocolBuffersSchemaDescription;
-class FlatBuffersSchemaDescription;
-class LogRecord;
-class IndexSchemaDescription;
-class IndexesByNumberKey;
-class IndexesByNumberValue;
-class MergesKey;
-class MergesValue;
-class MergeProgressKey;
-class MergeProgressValue;
-class PartitionMessage;
-class LoggedPartitionsData;
 enum TransactionOutcome;
 class UnresolvedTransactionKey;
 class UnresolvedTransactionValue;
@@ -121,6 +107,21 @@ class UnresolvedTransactionValue;
 
 namespace FlatBuffers
 {
+struct ProtocolBuffersMessageDescription;
+struct ProtocolBuffersSchemaDescription;
+struct FlatBuffersSchemaDescription;
+struct IndexSchemaDescription;
+struct IndexesByNumberKey;
+struct IndexesByNumberValue;
+
+struct SchemaDescriptionT;
+struct ProtocolBuffersMessageDescriptionT;
+struct ProtocolBuffersSchemaDescriptionT;
+struct FlatBuffersSchemaDescriptionT;
+struct IndexSchemaDescriptionT;
+struct IndexesByNumberKeyT;
+struct IndexesByNumberValue;
+
 struct DatabaseHeaderExtentName;
 struct DatabaseHeaderExtentNameBuilder;
 struct IndexExtentName;
@@ -239,8 +240,8 @@ public:
     using PartitionsValue = FlatBuffers::PartitionsValue;
     using PartitionsValueT = FlatBuffers::PartitionsValueT;
 
-    using IndexesByNumberKey = Serialization::IndexesByNumberKey;
-    using IndexesByNumberValue = Serialization::IndexesByNumberValue;
+    using IndexesByNumberKey = FlatBuffers::IndexesByNumberKey;
+    using IndexesByNumberValue = FlatBuffers::IndexesByNumberValue;
     using LogRecord = FlatBuffers::LogRecord;
     using LogEntry = FlatBuffers::LogEntry;
     using LoggedRowWrite = FlatBuffers::LoggedRowWrite;
@@ -257,10 +258,10 @@ public:
     using LoggedUnresolvedTransactions = FlatBuffers::LoggedUnresolvedTransactions;
     using LoggedPartitionsData = FlatBuffers::LoggedPartitionsData;
     using LoggedPartitionsDataT = FlatBuffers::LoggedPartitionsDataT;
-    using MergesKey = Serialization::MergesKey;
-    using MergesValue = Serialization::MergesValue;
-    using MergeProgressKey = Serialization::MergeProgressKey;
-    using MergeProgressValue = Serialization::MergeProgressValue;
+    using MergesKey = FlatBuffers::MergesKey;
+    using MergesValue = FlatBuffers::MergesValue;
+    using MergeProgressKey = FlatBuffers::MergeProgressKey;
+    using MergeProgressValue = FlatBuffers::MergeProgressValue;
     using PartitionMessage = FlatBuffers::PartitionMessage;
     using PartitionMessageT = FlatBuffers::PartitionMessageT;
     using PartitionRoot = FlatBuffers::PartitionRoot;

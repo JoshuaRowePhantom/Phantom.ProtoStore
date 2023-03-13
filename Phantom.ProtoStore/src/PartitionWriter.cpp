@@ -81,6 +81,7 @@ void PartitionTreeWriter::FinishKey(
     auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
         builder,
         keyOffset,
+        {},
         ToUint64(current().lowestSequenceNumberForKey),
         &treeEntryValues
     );
@@ -169,6 +170,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
             parent->partitionTreeNodeBuilder,
             nextKeyDataOffset,
             ToUint64(parent->lowestSequenceNumberForKey),
+            {},
             nullptr,
             &messageReference
         );
@@ -288,6 +290,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             partitionTreeNodeBuilder,
             ToUint64(row.WriteSequenceNumber),
             valueDataOffset,
+            {},
             nullptr,
             transactionIdOffset);
 

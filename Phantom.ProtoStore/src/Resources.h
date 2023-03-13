@@ -12,6 +12,10 @@ namespace FlatBuffersSchemas
     extern const reflection::Object* const ReflectionSchema_Object;
     
     extern const reflection::Schema* const ProtoStoreInternalSchema;
+
+    extern const reflection::Object* const IndexesByNumberKey_Object;
+    extern const reflection::Object* const IndexesByNumberValue_Object;
+
     extern const reflection::Object* const IndexesByNameKey_Object;
     extern const reflection::Object* const IndexesByNameValue_Object;
     

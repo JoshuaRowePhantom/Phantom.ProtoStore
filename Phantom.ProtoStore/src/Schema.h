@@ -23,49 +23,29 @@ class SchemaDescriptions
         google::protobuf::FileDescriptorSet* fileDescriptorSet,
         const google::protobuf::FileDescriptor* fileDescriptor);
 
+    static uint32_t FindObjectIndex(
+        const reflection::Schema* schema,
+        const reflection::Object* object
+    );
+
 public:
-    static void MakeSchemaDescription(
-        Serialization::IndexSchemaDescription& schemaDescription,
+    static flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> CreateSchemaDescription(
+        flatbuffers::FlatBufferBuilder& builder,
         const Schema& schema
     );
 
-    static void MakeSchemaDescription(
-        Serialization::SchemaDescription& messageDescription,
-        const Descriptor* messageDescriptor
+    static flatbuffers::Offset<FlatBuffers::ProtocolBuffersMessageDescription> CreateProtocolBuffersObjectDescription(
+        flatbuffers::FlatBufferBuilder& builder,
+        const ProtocolBuffersObjectSchema& objectSchema
     );
     
-    static void MakeSchemaDescription(
-        Serialization::SchemaDescription& schemaDescription,
+    static flatbuffers::Offset<FlatBuffers::FlatBuffersObjectDescription> CreateFlatBuffersObjectDescription(
+        flatbuffers::FlatBufferBuilder& builder,
         const FlatBuffersObjectSchema& objectSchema
     );
 
-    static void MakeSchemaDescription(
-        Serialization::IndexSchemaDescription& schemaDescription,
-        std::monostate
-    );
-
-    static void MakeSchemaDescription(
-        Serialization::IndexSchemaDescription& schemaDescription,
-        const FlatBuffersKeySchema& schema
-    );
-
-    static void MakeSchemaDescription(
-        Serialization::IndexSchemaDescription& schemaDescription,
-        const ProtocolBuffersKeySchema& schema
-    );
-
-    static void MakeSchemaDescription(
-        Serialization::IndexSchemaDescription& schemaDescription,
-        const FlatBuffersValueSchema& schema
-    );
-
-    static void MakeSchemaDescription(
-        Serialization::IndexSchemaDescription& schemaDescription,
-        const ProtocolBuffersValueSchema& schema
-    );
-    
     static shared_ptr<const Schema> MakeSchema(
-        Serialization::IndexSchemaDescription indexSchemaDescription
+        FlatValue<FlatBuffers::IndexSchemaDescription> indexSchemaDescription
     );
 
     static shared_ptr<KeyComparer> MakeKeyComparer(

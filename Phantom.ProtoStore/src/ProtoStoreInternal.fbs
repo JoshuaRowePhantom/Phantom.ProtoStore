@@ -138,11 +138,15 @@ table LogRecord
 {
     log_entry : [LogEntry];
 }
+
 table PartitionTreeEntryValue {
     write_sequence_number : uint64;
 
-    // Value is not set if this is a delete.
+    // Both "value" and "rewritten_value" are not set if this is a delete.
     value : DataValue;
+
+    // The re-encoded flatbuffers value.
+    flat_value : Placeholder;
 
     // The value is large, and was not put directly into the row.
     big_value : MessageReference_V1;
@@ -163,8 +167,13 @@ struct MessageReference_V1 {
 }
 
 table PartitionTreeEntryKey {
+
     // The highest key in the tree entry.
     key : DataValue;
+
+    // The re-encoded flatbuffers key.
+    flat_key : Placeholder;
+
     lowest_write_sequence_number_for_key : uint64;
 
     // The values if this is a leaf node.
@@ -273,6 +282,58 @@ table MergeProgressKey {
 
 table MergeProgressValue {
     data_size : uint64;
+}
+
+// Placeholder is used to represent an arbitrary table of arbitrary type.
+table Placeholder {
+}
+
+table ProtocolBuffersMessageDescription {
+    // google.protobuf.FileDescriptorSet
+    file_descriptors : [uint8];
+    message_name : string;
+}
+
+table FlatBuffersObjectDescription {
+    // Actually a reflection.Schema object.
+    schema : Placeholder;
+    object_index : uint32;
+}
+
+table FlatBuffersSchemaDescription {
+    object_description : FlatBuffersObjectDescription;
+}
+
+table ProtocolBuffersSchemaDescription {
+    message_description : ProtocolBuffersMessageDescription;
+}
+
+union SchemaDescription {
+    FlatBuffersSchemaDescription, 
+    ProtocolBuffersSchemaDescription
+}
+
+table KeySchemaDescription {
+    description : SchemaDescription;
+}
+
+table ValueSchemaDescription {
+    description : SchemaDescription ;
+}
+
+table IndexSchemaDescription {
+    key : KeySchemaDescription;
+    value : ValueSchemaDescription;
+}
+
+table IndexesByNumberKey {
+    index_number : uint64;
+}
+
+table IndexesByNumberValue {
+    schema : IndexSchemaDescription;
+    index_name : string;
+    create_sequence_number : uint64;
 }
 
 file_identifier "PSEX";
