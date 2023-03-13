@@ -216,7 +216,9 @@ task<> ProtoStore::Open(
     m_indexesByNumber[m_partitionsIndex.IndexNumber] = m_partitionsIndex;
     m_indexesByNumber[m_mergesIndex.IndexNumber] = m_mergesIndex;
     m_indexesByNumber[m_mergeProgressIndex.IndexNumber] = m_mergeProgressIndex;
+#if 0
     m_indexesByNumber[m_unresolvedTransactionIndex.IndexNumber] = m_unresolvedTransactionIndex;
+#endif
 
     m_unresolvedTransactionsTracker = MakeUnresolvedTransactionsTracker(
         this);
