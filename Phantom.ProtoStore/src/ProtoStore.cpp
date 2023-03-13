@@ -1139,8 +1139,8 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
 }
 
 void ProtoStore::MakeIndexesByNumberRow(
-    FlatValue<IndexesByNumberKey> indexesByNumberKey,
-    FlatValue<IndexesByNumberValue> indexesByNumberValue,
+    FlatValue<IndexesByNumberKey>& indexesByNumberKey,
+    FlatValue<IndexesByNumberValue>& indexesByNumberValue,
     const IndexName& indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
@@ -1172,6 +1172,9 @@ void ProtoStore::MakeIndexesByNumberRow(
         indexSchemaDescriptionOffset,
         indexNameOffset,
         ToUint64(createSequenceNumber));
+
+    indexesByNumberValueBuilder.Finish(
+        indexesByNumberValueOffset);
 
     indexesByNumberValue = FlatValue<IndexesByNumberValue>{ std::move(indexesByNumberValueBuilder) };
 }

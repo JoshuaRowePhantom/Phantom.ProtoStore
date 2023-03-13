@@ -107,8 +107,8 @@ class ProtoStore
         override;
 
     void MakeIndexesByNumberRow(
-        FlatValue<IndexesByNumberKey> indexesByNumberKey,
-        FlatValue<IndexesByNumberValue> indexesByNumberValue,
+        FlatValue<IndexesByNumberKey>& indexesByNumberKey,
+        FlatValue<IndexesByNumberValue>& indexesByNumberValue,
         const IndexName& indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,

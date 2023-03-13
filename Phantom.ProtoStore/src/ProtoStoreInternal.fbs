@@ -146,7 +146,7 @@ table PartitionTreeEntryValue {
     value : DataValue;
 
     // The re-encoded flatbuffers value.
-    flat_value : Placeholder;
+    flat_value : ValuePlaceholder;
 
     // The value is large, and was not put directly into the row.
     big_value : MessageReference_V1;
@@ -172,7 +172,7 @@ table PartitionTreeEntryKey {
     key : DataValue;
 
     // The re-encoded flatbuffers key.
-    flat_key : Placeholder;
+    flat_key : ValuePlaceholder;
 
     lowest_write_sequence_number_for_key : uint64;
 
@@ -284,8 +284,13 @@ table MergeProgressValue {
     data_size : uint64;
 }
 
-// Placeholder is used to represent an arbitrary table of arbitrary type.
-table Placeholder {
+// ValuePlaceholder is used to represent an arbitrary table of arbitrary type
+// provided by a user
+table ValuePlaceholder {
+}
+
+// SchemaPlaceholder is used to represent a reflection::Schema object.
+table SchemaPlaceholder {
 }
 
 table ProtocolBuffersMessageDescription {
@@ -296,7 +301,7 @@ table ProtocolBuffersMessageDescription {
 
 table FlatBuffersObjectDescription {
     // Actually a reflection.Schema object.
-    schema : Placeholder;
+    schema : SchemaPlaceholder;
     object_index : uint32;
 }
 

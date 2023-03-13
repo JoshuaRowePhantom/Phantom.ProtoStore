@@ -6,4 +6,12 @@
             </ExpandedItem>
         </Expand>
     </Type>
+
+    <Type Name="Phantom::ProtoStore::FlatBuffers::SchemaPlaceholder">
+        <Expand>
+            <ExpandedItem>
+                reinterpret_cast&lt;const reflection::Schema*&gt;(this)
+            </ExpandedItem>
+        </Expand>
+    </Type>
 </AutoVisualizer>

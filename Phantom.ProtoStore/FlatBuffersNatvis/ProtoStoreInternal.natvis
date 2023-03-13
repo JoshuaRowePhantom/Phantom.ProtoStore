@@ -77,7 +77,7 @@
             <!-- If schema is not present -->
             <Item Optional="true" Name="schema" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
             <!-- If schema present -->
-            <Item Optional="true" Name="schema" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::Placeholder*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <Item Optional="true" Name="schema" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::SchemaPlaceholder*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
             <!-- If object_index is not present -->
             <Item Optional="true" Name="object_index" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
             <!-- If object_index present -->
@@ -500,7 +500,7 @@
             <!-- If flat_key is not present -->
             <Item Optional="true" Name="flat_key" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
             <!-- If flat_key present -->
-            <Item Optional="true" Name="flat_key" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::Placeholder*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3])))</Item>
+            <Item Optional="true" Name="flat_key" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::ValuePlaceholder*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3])))</Item>
             <!-- If lowest_write_sequence_number_for_key is not present -->
             <Item Optional="true" Name="lowest_write_sequence_number_for_key" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">"Not Present"</Item>
             <!-- If lowest_write_sequence_number_for_key present -->
@@ -528,7 +528,7 @@
             <!-- If flat_value is not present -->
             <Item Optional="true" Name="flat_value" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">"Not Present"</Item>
             <!-- If flat_value present -->
-            <Item Optional="true" Name="flat_value" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::Placeholder*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4])))</Item>
+            <Item Optional="true" Name="flat_value" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::ValuePlaceholder*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4])))</Item>
             <!-- If big_value is not present -->
             <Item Optional="true" Name="big_value" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (3 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) != 0)">"Not Present"</Item>
             <!-- If big_value present -->
@@ -599,10 +599,6 @@
             <Item Optional="true" Name="latest_checkpoint_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]))</Item>
         </Expand>
     </Type>
-    <Type Name="Phantom::ProtoStore::FlatBuffers::Placeholder">
-        <Expand>
-        </Expand>
-    </Type>
     <Type Name="Phantom::ProtoStore::FlatBuffers::ProtocolBuffersMessageDescription">
         <Expand>
             <!-- If file_descriptors is not present -->
@@ -621,6 +617,14 @@
             <Item Optional="true" Name="message_description" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
             <!-- If message_description present -->
             <Item Optional="true" Name="message_description" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::ProtocolBuffersMessageDescription*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::SchemaPlaceholder">
+        <Expand>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::ValuePlaceholder">
+        <Expand>
         </Expand>
     </Type>
     <Type Name="Phantom::ProtoStore::FlatBuffers::ValueSchemaDescription">
