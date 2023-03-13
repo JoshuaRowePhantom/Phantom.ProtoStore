@@ -605,9 +605,9 @@ std::string MemoryMappedFileExtentStore::GetFilename(
             << indexExtentName->level()
             << ".dat";
     }
-    else if (extentName->extent_name_as_IndexDataExtentName())
+    else if (extentName->extent_name_as_IndexHeaderExtentName())
     {
-        auto indexExtentName = extentName->extent_name_as_IndexDataExtentName()->index_extent_name();
+        auto indexExtentName = extentName->extent_name_as_IndexHeaderExtentName()->index_extent_name();
 
         result
             << std::setw(8)
