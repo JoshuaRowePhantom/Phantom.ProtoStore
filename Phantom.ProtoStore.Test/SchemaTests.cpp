@@ -6,25 +6,30 @@
 #include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
 #include "Resources.h"
 #include <span>
+#include <flatbuffers/flatbuffers.h>
 
 namespace Phantom::ProtoStore
 {
 
 TEST(SchemaTests, Can_round_trip_ProtocolBuffers_schema_to_key_comparer_with_compiled_class)
 {
-    Serialization::IndexSchemaDescription indexSchemaDescription;
-
-    SchemaDescriptions::MakeSchemaDescription(
-        indexSchemaDescription,
+    flatbuffers::FlatBufferBuilder indexSchemaDescriptionBuilder;
+    auto indexSchemaDescriptionOffset = SchemaDescriptions::CreateSchemaDescription(
+        indexSchemaDescriptionBuilder,
         Schema
         {
             { TestKey::descriptor() },
             { TestKey::descriptor() }
-        });
+        }
+    );
+    indexSchemaDescriptionBuilder.Finish(
+        indexSchemaDescriptionOffset);
+
+    FlatValue<FlatBuffers::IndexSchemaDescription> indexSchemaDescription{ std::move(indexSchemaDescriptionBuilder) };
 
     EXPECT_EQ(
         "Phantom.ProtoStore.TestKey", 
-        indexSchemaDescription.key().description().protocolbuffersdescription().messagedescription().messagename());
+        indexSchemaDescription->key()->description_as_ProtocolBuffersSchemaDescription()->message_description()->message_name()->str());
 
     auto schema = SchemaDescriptions::MakeSchema(
         indexSchemaDescription);
@@ -55,15 +60,19 @@ TEST(SchemaTests, Can_round_trip_ProtocolBuffers_schema_to_key_comparer_with_com
 
 TEST(SchemaTests, Can_round_trip_FlatBuffers_schema_to_key_comparer_with_compiled_class)
 {
-    Serialization::IndexSchemaDescription indexSchemaDescription;
-
-    SchemaDescriptions::MakeSchemaDescription(
-        indexSchemaDescription,
+    flatbuffers::FlatBufferBuilder indexSchemaDescriptionBuilder;
+    auto indexSchemaDescriptionOffset = SchemaDescriptions::CreateSchemaDescription(
+        indexSchemaDescriptionBuilder,
         Schema
         {
             { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
             { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema },
-        });
+        }
+    );
+    indexSchemaDescriptionBuilder.Finish(
+        indexSchemaDescriptionOffset);
+
+    FlatValue<FlatBuffers::IndexSchemaDescription> indexSchemaDescription{ std::move(indexSchemaDescriptionBuilder) };
 
     auto schema = SchemaDescriptions::MakeSchema(
         indexSchemaDescription);
