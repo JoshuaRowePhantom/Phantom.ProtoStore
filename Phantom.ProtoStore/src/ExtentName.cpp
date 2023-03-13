@@ -49,9 +49,9 @@ ExtentNameT MakePartitionHeaderExtentName(
     indexExtentName.partition_number = partitionNumber;
     indexExtentName.level = levelNumber;
     indexExtentName.index_name = std::move(indexName);
-    FlatBuffers::IndexDataExtentNameT indexDataExtentName;
-    indexDataExtentName.index_extent_name = copy_unique(indexExtentName);
-    extentName.extent_name.Set(indexExtentName);
+    FlatBuffers::IndexHeaderExtentNameT indexHeaderExtentName;
+    indexHeaderExtentName.index_extent_name = copy_unique(indexExtentName);
+    extentName.extent_name.Set(indexHeaderExtentName);
     return std::move(extentName);
 }
 

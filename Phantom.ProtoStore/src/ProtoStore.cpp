@@ -33,7 +33,12 @@ ProtoStore::ProtoStore(
     m_messageStore(MakeMessageStore(m_schedulers, m_extentStore)),
     m_headerAccessor(MakeHeaderAccessor(m_messageStore)),
     m_encompassingCheckpointTask(),
-    m_mergeTask([=] { return InternalMerge(); })
+    m_mergeTask([=] { return InternalMerge(); }),
+    m_activePartitions(
+        0,
+        FlatBuffersSchemas::IndexHeaderExtentNameComparers.hash,
+        FlatBuffersSchemas::IndexHeaderExtentNameComparers.equal_to
+    )
 {
     m_writeSequenceNumberBarrier.publish(0);
 }
@@ -1409,7 +1414,7 @@ task<> ProtoStore::Checkpoint(
         partitionsKey.header_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexHeaderExtentName());
 
         PartitionsValueT partitionsValue;
-        partitionsValue.data_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexDataExtentName());
+        partitionsValue.data_extent_name = copy_unique(*dataExtentName.extent_name.AsIndexDataExtentName());
         partitionsValue.size = writeRowsResult.writtenDataSize;
         partitionsValue.level = 0;
         partitionsValue.latest_checkpoint_number = highestCheckpointNumber;
