@@ -1243,7 +1243,12 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
             throw IntegrityException(errorList);
         }
     }
-    m_activePartitions[headerExtentName] = partition;
+
+    auto headerExtentNameClone = FlatValue(headerExtentName).Clone(
+        *FlatBuffersSchemas::ProtoStoreSchema,
+        *FlatBuffersSchemas::IndexHeaderExtentName_Object);
+
+    m_activePartitions[headerExtentNameClone] = partition;
 
     co_return partition;
 }

@@ -569,7 +569,10 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
         *m_schedulers.LockScheduler,
         [&](auto hasWriteLock) -> task<bool>
     {
-        reader = m_readableExtents[extentName];
+        if (m_readableExtents.contains(extentName))
+        {
+            reader = m_readableExtents[extentName];
+        }
         co_return reader != nullptr;
     },
         [&]() -> task<>
