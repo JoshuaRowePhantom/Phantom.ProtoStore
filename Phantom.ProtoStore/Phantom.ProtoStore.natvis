@@ -1,0 +1,9 @@
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="Phantom::ProtoStore::FlatValue&lt;*&gt;">
+        <Expand>
+            <ExpandedItem>
+                reinterpret_cast&lt;const $T1*&gt;(m_protoValue.message._Tail._Tail._Tail._Head)
+            </ExpandedItem>
+        </Expand>
+    </Type>
+</AutoVisualizer>
