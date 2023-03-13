@@ -1,39 +1,6 @@
+include "Phantom.ProtoStore/ProtoStore.fbs";
+
 namespace Phantom.ProtoStore.FlatBuffers;
-
-table DatabaseHeaderExtentName {
-    header_copy_number : uint64;
-}
-
-table IndexExtentName {
-    partition_number : uint64;
-    index_number : uint64;
-    level : uint8;
-    index_name : string;
-}
-
-table IndexDataExtentName {
-    index_extent_name : IndexExtentName;
-}
-
-table IndexHeaderExtentName {
-    index_extent_name : IndexExtentName;
-}
-
-table LogExtentName {
-    log_extent_sequence_number : uint64;
-}
-
-union ExtentNameUnion {
-    IndexHeaderExtentName,
-    IndexDataExtentName,
-    DatabaseHeaderExtentName,
-    LogExtentName
-}
-
-table ExtentName
-{
-    extent_name : ExtentNameUnion;
-}
 
 table DatabaseHeader {
     version : uint32;
@@ -143,7 +110,7 @@ table LoggedUpdatePartitions
 
 table LoggedPartitionsData
 {
-    header_extent_names : [ExtentName];
+    header_extent_names : [IndexHeaderExtentName];
     partitions_table_checkpoint_number : uint64;
 }
 
@@ -252,6 +219,60 @@ table IndexesByNameKey {
 
 table IndexesByNameValue {
     index_number : uint64;
+}
+
+table PartitionsKey {
+    index_number : uint64;
+    header_extent_name : IndexHeaderExtentName;
+}
+
+table PartitionsValue {
+    data_extent_name : IndexDataExtentName;
+    level : uint64;
+    size : uint64;
+    // The merge that generated the partition.
+    merge_unique_id : MergesKey;
+    // The latest checkpoint number that is in the partition
+    latest_checkpoint_number : uint64;
+}
+
+table MergesKey {
+    index_number : uint64;
+    // This will be the name of an extent in the merge.
+    merges_unique_id : IndexHeaderExtentName;
+}
+
+table MergeResumeKey {
+    key : DataValue;
+    write_sequence_number : uint64;
+}
+
+table MergesValue {
+    source_header_extent_names : [IndexHeaderExtentName];
+    source_level_number : uint64;
+    destination_level_number : uint64;
+    // The checkpoint number to report for the generated partitions.
+    latest_checkpoint_number : uint64;
+
+    // If StartKey is set, then resume the merge at the
+    // given start key.  Otherwise, resume the merge
+    // at the beginning of the key space.
+    resume_key : MergeResumeKey;
+}
+
+table MergeProgressKey {
+    merges_key : MergesKey;
+    
+    // This field is used only for query purposes.
+    // All rows have a value of 0.  One can query for a value of 1 at the high end of a range
+    // to get all the rows with the same MergesKey but different HeaderExtentName values.
+    range_discriminator : uint8;
+
+    header_extent_name : IndexHeaderExtentName;
+}
+
+table MergeProgressValue {
+    data_size : uint64;
 }
 
 file_identifier "PSEX";

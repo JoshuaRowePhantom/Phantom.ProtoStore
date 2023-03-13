@@ -23,10 +23,10 @@ private:
     const ExtentDeleteAction m_extentDeleteAction;
 
     std::string GetSanitizedIndexName(
-        const string& indexName);
+        std::string_view indexName);
 
     std::string GetFilename(
-        ExtentName extentName);
+        const ExtentName* extentName);
 
 public:
     MemoryMappedFileExtentStore(
@@ -43,19 +43,19 @@ public:
 
     task<shared_ptr<IReadableExtent>> OpenExtentForRead(
         std::filesystem::path path,
-        ExtentName extentName
+        const ExtentName* extentName
     );
 
     virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-        ExtentName extentName
+        const FlatBuffers::ExtentName* extentName
     ) override;
 
     virtual task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-        ExtentName extentName
+        const FlatBuffers::ExtentName* extentName
     ) override;
 
     virtual task<> DeleteExtent(
-        ExtentName extentName
+        const FlatBuffers::ExtentName* extentName
     ) override;
 };
 

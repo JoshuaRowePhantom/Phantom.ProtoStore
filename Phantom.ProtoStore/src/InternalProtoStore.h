@@ -62,7 +62,7 @@ public:
         cppcoro::async_mutex_lock& acquiredUpdatePartitionsLock
     ) = 0;
 
-    virtual task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
+    virtual task<partition_row_list_type> GetPartitionsForIndex(
         IndexNumber indexNumber
     ) = 0;
 
@@ -89,7 +89,7 @@ public:
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentName>& headerExtentNames
+        const vector<FlatValue<FlatBuffers::IndexHeaderExtentName>>& headerExtentNames
     ) = 0;
 
     virtual task<> OpenPartitionWriter(
@@ -98,8 +98,8 @@ public:
         std::shared_ptr<const Schema> schema,
         std::shared_ptr<const KeyComparer> keyComparer,
         LevelNumber levelNumber,
-        ExtentName& out_headerExtentName,
-        ExtentName& out_dataExtentName,
+        FlatBuffers::ExtentNameT& out_headerExtentName,
+        FlatBuffers::ExtentNameT& out_dataExtentName,
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) = 0;
 

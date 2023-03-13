@@ -20,6 +20,7 @@
 #include <flatbuffers/flatbuffers.h>
 #include <Phantom.ProtoStore/Phantom.ProtoStore.h>
 #include "FlatMessage.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 namespace google::protobuf
 {
@@ -107,8 +108,6 @@ class LogRecord;
 class IndexSchemaDescription;
 class IndexesByNumberKey;
 class IndexesByNumberValue;
-class PartitionsKey;
-class PartitionsValue;
 class MergesKey;
 class MergesValue;
 class MergeProgressKey;
@@ -180,6 +179,11 @@ struct IndexesByNameKeyT;
 struct IndexesByNameValue;
 struct IndexesByNameValueT;
 
+struct PartitionsKey;
+struct PartitionsKeyT;
+struct PartitionsValue;
+struct PartitionsValueT;
+
 enum class ExtentFormatVersion : int8_t;
 
 struct ExtentName;
@@ -230,6 +234,11 @@ public:
     using IndexesByNameValue = FlatBuffers::IndexesByNameValue;
     using IndexesByNameValueT = FlatBuffers::IndexesByNameValueT;
 
+    using PartitionsKey = FlatBuffers::PartitionsKey;
+    using PartitionsKeyT = FlatBuffers::PartitionsKeyT;
+    using PartitionsValue = FlatBuffers::PartitionsValue;
+    using PartitionsValueT = FlatBuffers::PartitionsValueT;
+
     using IndexesByNumberKey = Serialization::IndexesByNumberKey;
     using IndexesByNumberValue = Serialization::IndexesByNumberValue;
     using LogRecord = FlatBuffers::LogRecord;
@@ -248,8 +257,6 @@ public:
     using LoggedUnresolvedTransactions = FlatBuffers::LoggedUnresolvedTransactions;
     using LoggedPartitionsData = FlatBuffers::LoggedPartitionsData;
     using LoggedPartitionsDataT = FlatBuffers::LoggedPartitionsDataT;
-    using PartitionsKey = Serialization::PartitionsKey;
-    using PartitionsValue = Serialization::PartitionsValue;
     using MergesKey = Serialization::MergesKey;
     using MergesValue = Serialization::MergesValue;
     using MergeProgressKey = Serialization::MergeProgressKey;
@@ -317,13 +324,26 @@ template<
     TValue Value;
     SequenceNumber WriteSequenceNumber;
     SequenceNumber ReadSequenceNumber;
+
+    static row FromResultRow(
+        auto&& resultRow
+    )
+    {
+        return
+        {
+            .Key = std::forward_like<decltype(resultRow)>(resultRow.Key),
+            .Value = std::forward_like<decltype(resultRow)>(resultRow.Value),
+            .WriteSequenceNumber = std::forward_like<decltype(resultRow)>(resultRow.WriteSequenceNumber),
+            .ReadSequenceNumber = std::forward_like<decltype(resultRow)>(resultRow.WriteSequenceNumber),
+        };
+    }
 };
 
-typedef row<Serialization::PartitionsKey, Serialization::PartitionsValue> partition_row_type;
+typedef row<FlatValue<FlatBuffers::PartitionsKey>, FlatValue<FlatBuffers::PartitionsValue>> partition_row_type;
 typedef vector<partition_row_type> partition_row_list_type;
-typedef row<Serialization::MergesKey, Serialization::MergesValue> merges_row_type;
+typedef row< FlatValue<FlatBuffers::MergesKey>, FlatValue<FlatBuffers::MergesValue>> merges_row_type;
 typedef vector<merges_row_type> merges_row_list_type;
-typedef row<Serialization::MergeProgressKey, Serialization::MergeProgressValue> merge_progress_row_type;
+typedef row< FlatValue<FlatBuffers::MergeProgressKey>, FlatValue<FlatBuffers::MergeProgressValue>> merge_progress_row_type;
 typedef vector<merge_progress_row_type> merge_progress_row_list_type;
 
 flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(

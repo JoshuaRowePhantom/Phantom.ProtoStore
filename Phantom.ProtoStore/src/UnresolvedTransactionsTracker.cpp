@@ -22,6 +22,7 @@ public:
         const TransactionId& transactionId
     ) override
     {
+        #if 0
         UnresolvedTransactionKey unresolvedTransactionKey;
         unresolvedTransactionKey.set_transactionid(transactionId);
 
@@ -53,6 +54,9 @@ public:
             co_return TransactionOutcome::Unknown;
         }
         co_return TransactionOutcome::Aborted;
+#else
+        co_return TransactionOutcome::Committed;
+#endif
     }
 
     virtual task<> ResolveTransaction(

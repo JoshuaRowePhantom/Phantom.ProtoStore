@@ -348,7 +348,7 @@ task<> LogManager::DeleteExtents()
 {
     for (auto logExtentSequenceNumberToRemove : m_logExtentSequenceNumbersToRemove)
     {
-        auto extentNameToRemove = MakeLogExtentName(
+        FlatValue extentNameToRemove = MakeLogExtentName(
             logExtentSequenceNumberToRemove);
 
         co_await m_logExtentStore->DeleteExtent(
@@ -384,7 +384,7 @@ task<> LogManager::DeleteExtents()
             m_partitionsCheckpointNumberToExtentsToDelete.erase(
                 m_partitionsCheckpointNumberToExtentsToDelete.begin());
             co_await m_logExtentStore->DeleteExtent(
-                MakeExtentName(extentName));
+                FlatValue{ extentName });
         }
     }
 
@@ -407,7 +407,7 @@ task<> LogManager::OpenNewLogWriter()
 
     m_currentLogExtentSequenceNumber = m_nextLogExtentSequenceNumber++;
     
-    auto logExtentName = MakeLogExtentName(
+    FlatValue logExtentName = MakeLogExtentName(
         m_currentLogExtentSequenceNumber);
 
     m_logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(

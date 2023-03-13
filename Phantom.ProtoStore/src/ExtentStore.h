@@ -40,14 +40,14 @@ class IExtentStore
 {
 public:
     virtual task<shared_ptr<IReadableExtent>> OpenExtentForRead(
-        ExtentName extentName)
+        const FlatBuffers::ExtentName* extentName)
         = 0;
 
     virtual task<shared_ptr<IWritableExtent>> OpenExtentForWrite(
-        ExtentName extentName) = 0;
+        const FlatBuffers::ExtentName* extentName) = 0;
 
     virtual task<> DeleteExtent(
-        ExtentName extentName) = 0;
+        const FlatBuffers::ExtentName* extentName) = 0;
 };
 
 class MemoryExtentStore;

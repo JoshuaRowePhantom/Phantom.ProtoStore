@@ -1,17 +1,32 @@
+#pragma once
+
 #include <flatbuffers/reflection.h>
 
 namespace Phantom::ProtoStore
 {
 
-struct FlatBuffersSchemas
+namespace FlatBuffersSchemas
 {
-    static const reflection::Schema* ReflectionSchema;
-    static const reflection::Object* ReflectionSchema_Schema;
-    static const reflection::Object* ReflectionSchema_Object;
+    extern const reflection::Schema* const ReflectionSchema;
+    extern const reflection::Object* const ReflectionSchema_Schema;
+    extern const reflection::Object* const ReflectionSchema_Object;
     
-    static const reflection::Schema* ProtoStoreInternalSchema;
-    static const reflection::Object* IndexesByNameKey_Object;
-    static const reflection::Object* IndexesByNameValue_Object;
+    extern const reflection::Schema* const ProtoStoreInternalSchema;
+    extern const reflection::Object* const IndexesByNameKey_Object;
+    extern const reflection::Object* const IndexesByNameValue_Object;
+    
+    extern const reflection::Object* const PartitionsKey_Object;
+    extern const reflection::Object* const PartitionsValue_Object;
+    
+    extern const reflection::Object* const MergesKey_Object;
+    extern const reflection::Object* const MergesValue_Object;
+    
+    extern const reflection::Object* const MergeProgressKey_Object;
+    extern const reflection::Object* const MergeProgressValue_Object;
+
+    extern const ProtoValueComparers PartitionsKeyComparers;
+    extern const ProtoValueComparers IndexHeaderExtentNameComparers;
+    extern const ProtoValueComparers MergesKeyComparers;
 };
 
 }

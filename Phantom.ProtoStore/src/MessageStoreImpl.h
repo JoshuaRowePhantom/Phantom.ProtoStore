@@ -153,16 +153,21 @@ class MessageStore
     Schedulers m_schedulers;
     const shared_ptr<IExtentStore> m_extentStore;
     async_reader_writer_lock m_extentsLock;
-    std::unordered_map<ExtentName, shared_ptr<RandomMessageReader>> m_readableExtents;
+    std::unordered_map<
+        FlatValue<ExtentName>,
+        shared_ptr<RandomMessageReader>,
+        ProtoValueStlHash,
+        ProtoValueStlEqual
+    > m_readableExtents;
 
     task<shared_ptr<RandomMessageReader>> OpenExtentForRandomReadAccessImpl(
         shared_ptr<IReadableExtent> readableExtent);
 
     task<shared_ptr<RandomMessageReader>> OpenExtentForRandomReadAccessImpl(
-        const ExtentName& ExtentName);
+        const ExtentName* ExtentName);
 
     task<shared_ptr<RandomMessageWriter>> OpenExtentForRandomWriteAccessImpl(
-        ExtentName ExtentName);
+        const ExtentName* ExtentName);
 
 public:
     MessageStore(
@@ -175,11 +180,11 @@ public:
     ) override;
 
     virtual task<shared_ptr<IRandomMessageReader>> OpenExtentForRandomReadAccess(
-        ExtentName extentName
+        const FlatBuffers::ExtentName* extentName
     ) override;
 
     virtual task<shared_ptr<IRandomMessageWriter>> OpenExtentForRandomWriteAccess(
-        ExtentName extentName
+        const FlatBuffers::ExtentName* extentName
     ) override;
 
     virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
@@ -187,11 +192,11 @@ public:
     ) override;
 
     virtual task<shared_ptr<ISequentialMessageReader>> OpenExtentForSequentialReadAccess(
-        ExtentName extentName
+        const FlatBuffers::ExtentName* extentName
     ) override;
 
     virtual task<shared_ptr<ISequentialMessageWriter>> OpenExtentForSequentialWriteAccess(
-        ExtentName extentName
+        const FlatBuffers::ExtentName* extentName
     ) override;
 };
 }

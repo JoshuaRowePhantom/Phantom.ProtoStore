@@ -1,4 +1,39 @@
-namespace Phantom.ProtoStore;
+namespace Phantom.ProtoStore.FlatBuffers;
 
 // Expect to be in the range ("Ascending", "Descending")
 attribute SortOrder;
+
+table DatabaseHeaderExtentName {
+    header_copy_number : uint64;
+}
+
+table IndexExtentName {
+    partition_number : uint64;
+    index_number : uint64;
+    level : uint8;
+    index_name : string;
+}
+
+table IndexDataExtentName {
+    index_extent_name : IndexExtentName;
+}
+
+table IndexHeaderExtentName {
+    index_extent_name : IndexExtentName;
+}
+
+table LogExtentName {
+    log_extent_sequence_number : uint64;
+}
+
+union ExtentNameUnion {
+    IndexHeaderExtentName,
+    IndexDataExtentName,
+    DatabaseHeaderExtentName,
+    LogExtentName
+}
+
+table ExtentName
+{
+    extent_name : ExtentNameUnion;
+}

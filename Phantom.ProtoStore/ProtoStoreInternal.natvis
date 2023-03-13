@@ -229,7 +229,7 @@
             <!-- If header_extent_names is not present -->
             <Item Optional="true" Name="header_extent_names" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
             <!-- If header_extent_names present -->
-            <Item Optional="true" Name="header_extent_names" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;flatbuffers::Vector&lt;flatbuffers::Offset&lt;Phantom::ProtoStore::FlatBuffers::ExtentName&gt; &gt;*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <Item Optional="true" Name="header_extent_names" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;flatbuffers::Vector&lt;flatbuffers::Offset&lt;Phantom::ProtoStore::FlatBuffers::IndexHeaderExtentName&gt; &gt;*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
             <!-- If partitions_table_checkpoint_number is not present -->
             <Item Optional="true" Name="partitions_table_checkpoint_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
             <!-- If partitions_table_checkpoint_number present -->
@@ -278,6 +278,78 @@
             <Item Optional="true" Name="index_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
             <!-- If index_number present -->
             <Item Optional="true" Name="index_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::MergeProgressKey">
+        <Expand>
+            <!-- If merges_key is not present -->
+            <Item Optional="true" Name="merges_key" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If merges_key present -->
+            <Item Optional="true" Name="merges_key" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::MergesKey*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <!-- If range_discriminator is not present -->
+            <Item Optional="true" Name="range_discriminator" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
+            <!-- If range_discriminator present -->
+            <Item Optional="true" Name="range_discriminator" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">*reinterpret_cast&lt;unsigned char*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]))</Item>
+            <!-- If header_extent_name is not present -->
+            <Item Optional="true" Name="header_extent_name" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">"Not Present"</Item>
+            <!-- If header_extent_name present -->
+            <Item Optional="true" Name="header_extent_name" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::IndexHeaderExtentName*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4])))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::MergeProgressValue">
+        <Expand>
+            <!-- If data_size is not present -->
+            <Item Optional="true" Name="data_size" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If data_size present -->
+            <Item Optional="true" Name="data_size" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::MergeResumeKey">
+        <Expand>
+            <!-- If key is not present -->
+            <Item Optional="true" Name="key" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If key present -->
+            <Item Optional="true" Name="key" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::DataValue*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <!-- If write_sequence_number is not present -->
+            <Item Optional="true" Name="write_sequence_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
+            <!-- If write_sequence_number present -->
+            <Item Optional="true" Name="write_sequence_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::MergesKey">
+        <Expand>
+            <!-- If index_number is not present -->
+            <Item Optional="true" Name="index_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If index_number present -->
+            <Item Optional="true" Name="index_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]))</Item>
+            <!-- If merges_unique_id is not present -->
+            <Item Optional="true" Name="merges_unique_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
+            <!-- If merges_unique_id present -->
+            <Item Optional="true" Name="merges_unique_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::IndexHeaderExtentName*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3])))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::MergesValue">
+        <Expand>
+            <!-- If source_header_extent_names is not present -->
+            <Item Optional="true" Name="source_header_extent_names" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If source_header_extent_names present -->
+            <Item Optional="true" Name="source_header_extent_names" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;flatbuffers::Vector&lt;flatbuffers::Offset&lt;Phantom::ProtoStore::FlatBuffers::IndexHeaderExtentName&gt; &gt;*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <!-- If source_level_number is not present -->
+            <Item Optional="true" Name="source_level_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
+            <!-- If source_level_number present -->
+            <Item Optional="true" Name="source_level_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]))</Item>
+            <!-- If destination_level_number is not present -->
+            <Item Optional="true" Name="destination_level_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">"Not Present"</Item>
+            <!-- If destination_level_number present -->
+            <Item Optional="true" Name="destination_level_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]))</Item>
+            <!-- If latest_checkpoint_number is not present -->
+            <Item Optional="true" Name="latest_checkpoint_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (3 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) != 0)">"Not Present"</Item>
+            <!-- If latest_checkpoint_number present -->
+            <Item Optional="true" Name="latest_checkpoint_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (3 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]))</Item>
+            <!-- If resume_key is not present -->
+            <Item Optional="true" Name="resume_key" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">"Not Present"</Item>
+            <!-- If resume_key present -->
+            <Item Optional="true" Name="resume_key" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::MergeResumeKey*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6])))</Item>
         </Expand>
     </Type>
     <Type Name="Phantom::ProtoStore::FlatBuffers::PartitionBloomFilter">
@@ -414,6 +486,42 @@
             <Item Optional="true" Name="approximate_key_count_running_total" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">"Not Present"</Item>
             <!-- If approximate_key_count_running_total present -->
             <Item Optional="true" Name="approximate_key_count_running_total" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::PartitionsKey">
+        <Expand>
+            <!-- If index_number is not present -->
+            <Item Optional="true" Name="index_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If index_number present -->
+            <Item Optional="true" Name="index_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]))</Item>
+            <!-- If header_extent_name is not present -->
+            <Item Optional="true" Name="header_extent_name" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
+            <!-- If header_extent_name present -->
+            <Item Optional="true" Name="header_extent_name" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::IndexHeaderExtentName*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3])))</Item>
+        </Expand>
+    </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::PartitionsValue">
+        <Expand>
+            <!-- If data_extent_name is not present -->
+            <Item Optional="true" Name="data_extent_name" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If data_extent_name present -->
+            <Item Optional="true" Name="data_extent_name" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::IndexDataExtentName*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <!-- If level is not present -->
+            <Item Optional="true" Name="level" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
+            <!-- If level present -->
+            <Item Optional="true" Name="level" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]))</Item>
+            <!-- If size is not present -->
+            <Item Optional="true" Name="size" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">"Not Present"</Item>
+            <!-- If size present -->
+            <Item Optional="true" Name="size" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (2 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[4]))</Item>
+            <!-- If merge_unique_id is not present -->
+            <Item Optional="true" Name="merge_unique_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (3 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) != 0)">"Not Present"</Item>
+            <!-- If merge_unique_id present -->
+            <Item Optional="true" Name="merge_unique_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (3 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::MergesKey*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5])))</Item>
+            <!-- If latest_checkpoint_number is not present -->
+            <Item Optional="true" Name="latest_checkpoint_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">"Not Present"</Item>
+            <!-- If latest_checkpoint_number present -->
+            <Item Optional="true" Name="latest_checkpoint_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]))</Item>
         </Expand>
     </Type>
 </AutoVisualizer>

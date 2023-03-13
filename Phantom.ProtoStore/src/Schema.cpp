@@ -402,4 +402,58 @@ ProtoValue SchemaDescriptions::MakeProtoValueValue(
     }
 }
 
+ProtoValueComparers SchemaDescriptions::MakeComparers(
+    std::shared_ptr<const Schema> schema
+)
+{
+    auto keyComparer = MakeKeyComparer(
+        schema);
+
+    return ProtoValueComparers
+    {
+        .comparer = [=](auto& value1, auto& value2)
+    {
+        return keyComparer->Compare(value1, value2);
+    },
+        .equal_to = [=](auto& value1, auto& value2)
+    {
+        return keyComparer->Compare(value1, value2) == std::weak_ordering::equivalent;
+    },
+        .hash = [=](auto& value1)
+    {
+        return keyComparer->Hash(value1);
+    },
+        .less = [=](auto& value1, auto& value2)
+    {
+        return keyComparer->Compare(value1, value2) == std::weak_ordering::less;
+    },
+    };
+}
+
+ProtoValueComparers ProtocolBuffersObjectSchema::MakeComparers() const
+{
+    auto schema = std::make_shared<Phantom::ProtoStore::Schema>(
+        Schema::Make(
+            KeySchema{ ProtocolBuffersKeySchema{.ObjectSchema = *this, } },
+            ValueSchema {}
+    ));
+
+    return SchemaDescriptions::MakeComparers(
+        std::move(schema)
+    );
+}
+
+ProtoValueComparers FlatBuffersObjectSchema::MakeComparers() const
+{
+    auto schema = std::make_shared<Phantom::ProtoStore::Schema>(
+        Schema::Make(
+            KeySchema{ FlatBuffersKeySchema { .ObjectSchema = *this, } },
+            ValueSchema{}
+    ));
+
+    return SchemaDescriptions::MakeComparers(
+        std::move(schema)
+    );
+}
+
 }

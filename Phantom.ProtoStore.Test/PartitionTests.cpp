@@ -81,14 +81,14 @@ protected:
     typedef std::tuple<shared_ptr<PartitionTestKey>, SequenceNumber, shared_ptr<PartitionTestValue>> ScenarioRow;
 
     task<shared_ptr<Partition>> OpenPartition(
-        ExtentName headerExtentName,
-        ExtentName dataExtentName)
+        const ExtentNameT& headerExtentName,
+        const ExtentNameT& dataExtentName)
     {
         auto headerReader = co_await messageStore->OpenExtentForRandomReadAccess(
-            headerExtentName);
+            FlatValue(headerExtentName));
 
         auto dataReader = co_await messageStore->OpenExtentForRandomReadAccess(
-            dataExtentName);
+            FlatValue(dataExtentName));
 
         auto partition = make_shared<Partition>(
             schema,
@@ -177,8 +177,10 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
         auto headerExtentName = MakeLogExtentName(0);
         auto dataExtentName = MakeLogExtentName(1);
 
-        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(headerExtentName);
-        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(dataExtentName);
+        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
+            FlatValue(headerExtentName));
+        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
+            FlatValue(dataExtentName));
 
         PartitionMessageT treeMessage;
         auto& treeNode = treeMessage.tree_node = std::make_unique<PartitionTreeNodeT>();

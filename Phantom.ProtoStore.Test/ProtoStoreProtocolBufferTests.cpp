@@ -928,11 +928,11 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Checkpoint_deletes_old_logs)
 
     // Checkpoint twice to ensure old log is delete.
     co_await store->Checkpoint();
-    EXPECT_EQ(true, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
+    EXPECT_EQ(true, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(0))));
 
     co_await store->Checkpoint();
 
-    EXPECT_EQ(false, co_await memoryStore->ExtentExists(MakeLogExtentName(0)));
+    EXPECT_EQ(false, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(0))));
 }
 
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_one_row_after_checkpoint)

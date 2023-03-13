@@ -1,6 +1,7 @@
 #pragma once
 
 #include <flatbuffers/flatbuffers.h>
+#include <flatbuffers/reflection.h>
 #include <google/protobuf/message.h>
 #include <memory>
 #include <span>
@@ -151,7 +152,7 @@ struct AlignedMessage
         Payload{ payload }
     {}
 
-    AlignedMessage(
+    explicit AlignedMessage(
         const flatbuffers::FlatBufferBuilder& builder
     ) :
         Alignment(builder.GetBufferMinAlignment()),
@@ -234,6 +235,12 @@ template<
 template<
     typename T
 > concept IsNativeTable = std::derived_from<T, flatbuffers::NativeTable>;
+
+template<
+    typename NativeTable,
+    typename Table
+> concept IsNativeTableFor = IsNativeTable<NativeTable>
+&& std::same_as<typename NativeTable::TableType, Table>;
 
 class ProtoValue
 {
@@ -401,32 +408,7 @@ public:
             nativeFlatBufferMessage);
         builder.Finish(rootOffset);
 
-        auto alignment = static_cast<uint8_t>(builder.GetBufferMinAlignment());
-        auto detachedBuffer = std::make_shared<flatbuffers::DetachedBuffer>(
-            builder.Release());
-        auto span = std::span<const uint8_t>
-        {
-            detachedBuffer->data(),
-            detachedBuffer->size()
-        };
-
-        AlignedMessage alignedMessageData
-        {
-            alignment,
-            as_bytes(span),
-        };
-
-        message_data.emplace<flat_buffers_aligned_message_data>(
-            AlignedMessageData
-            {
-                detachedBuffer,
-                alignedMessageData
-            });
-
-        auto table = ::flatbuffers::GetRoot<flatbuffers::Table>(
-            span.data());
-
-        message.emplace<flat_buffers_table_pointer>(table);
+        *this = FlatBuffer(std::move(builder));
     }
 
     static ProtoValue FlatBuffer(
@@ -443,6 +425,10 @@ public:
         return FlatBuffer(
             flat_buffer_message{ reinterpret_cast<const flatbuffers::Table*>(flatBufferMessage) });
     }
+
+    static ProtoValue FlatBuffer(
+        flatbuffers::FlatBufferBuilder builder
+    );
 
     static ProtoValue FlatBuffer(
         backing_store backingStore,
@@ -571,5 +557,167 @@ public:
     bool IsKeyMin() const;
     bool IsKeyMax() const;
 };
+
+template<
+    IsFlatBufferTable Table
+>
+class FlatValue
+{
+    ProtoValue m_protoValue;
+
+public:
+    FlatValue() = default;
+
+    FlatValue(
+        const Table* table
+    ) :
+        m_protoValue{ ProtoValue::FlatBuffer(table) }
+    {}
+
+    FlatValue(
+        ProtoValue protoValue
+    ) :
+        m_protoValue { std::move(protoValue) }
+    {}
+
+    FlatValue(
+        flatbuffers::FlatBufferBuilder builder
+    ) :
+        m_protoValue{ ProtoValue::FlatBuffer(std::move(builder)) }
+    {
+    }
+
+    template<
+        IsNativeTableFor<Table> NativeTable
+    >
+    FlatValue(
+        const NativeTable* nativeTable
+    ) :
+        m_protoValue { nativeTable }
+    {}
+
+    template<
+        IsNativeTableFor<Table> NativeTable
+    >
+    FlatValue(
+        const NativeTable& nativeTable
+    ) :
+        m_protoValue{ &nativeTable }
+    {}
+
+    const Table* get() const
+    {
+        return m_protoValue.cast_if<Table>();
+    }
+
+    const Table* operator->() const
+    {
+        return get();
+    }
+
+    operator const Table* () const
+    {
+        return get();
+    }
+
+    operator const ProtoValue& () const
+    {
+        return m_protoValue;
+    }
+
+    operator ProtoValue&& ()&&
+    {
+        return std::move(m_protoValue);
+    }
+
+    // Clone the Table, copying the underlying data to a new shared_ptr.
+    // The schema is required in case the original is not backed
+    // by a data buffer already.
+    FlatValue Clone(
+        const reflection::Schema& schema,
+        const reflection::Object& object
+        ) const
+    {
+        if (!get())
+        {
+            return {};
+        }
+
+        auto alignedMessage = m_protoValue.as_aligned_message_if();
+        if (alignedMessage)
+        {
+            auto newBytes = std::make_shared<std::byte[]>(alignedMessage.Payload.size());
+            
+            std::copy_n(
+                alignedMessage.Payload.data(), 
+                alignedMessage.Payload.size(), 
+                newBytes.get());
+
+            auto alignedMessageData = DataReference
+            {
+                newBytes,
+                alignedMessage
+            };
+
+            return ProtoValue::FlatBuffer(
+                alignedMessageData
+            );
+        }
+
+        flatbuffers::FlatBufferBuilder builder;
+        flatbuffers::CopyTable(
+            builder,
+            schema,
+            object,
+            *m_protoValue.as_table_if());
+
+        return std::move(builder);
+    }
+};
+
+template<
+    IsNativeTable NativeTable
+> FlatValue(const NativeTable*) -> FlatValue<typename NativeTable::TableType>;
+
+template<
+    IsNativeTable NativeTable
+> FlatValue(const NativeTable&) -> FlatValue<typename NativeTable::TableType>;
+
+using ProtoValueComparer = std::function<std::weak_ordering(const ProtoValue&, const ProtoValue&)>;
+using ProtoValueStlEqual = std::function<bool(const ProtoValue&, const ProtoValue&)>;
+using ProtoValueStlHash = std::function<size_t(const ProtoValue&)>;
+using ProtoValueStlLess = std::function<bool(const ProtoValue&, const ProtoValue&)>;
+
+template<
+    typename Function
+> std::function<Function> MakeUnowningFunctor(
+    const std::function<Function>* function
+)
+{
+    return [=](auto&&... args)
+    {
+        return (*function)(std::forward<decltype(args)>(args)...);
+    };
+}
+
+struct ProtoValueComparers
+{
+    ProtoValueComparer comparer;
+    ProtoValueStlEqual equal_to;
+    ProtoValueStlHash hash;
+    ProtoValueStlLess less;
+
+    ProtoValueComparers MakeUnowningCopy() const
+    {
+        return ProtoValueComparers
+        {
+            MakeUnowningFunctor(&comparer),
+            MakeUnowningFunctor(&equal_to),
+            MakeUnowningFunctor(&hash),
+            MakeUnowningFunctor(&less),
+        };
+    }
+};
+
 
 }

@@ -13,14 +13,14 @@ task<> ExtentStoreTests::OpenExtentForRead_succeeds_on_NonExistentExtent(
     IExtentStore& store
 )
 {
-    auto extent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto extent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
 }
 
 task<> ExtentStoreTests::OpenExtentForRead_cannot_read_past_end_of_zero_length_extent(
     IExtentStore& store
 )
 {
-    auto extent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto extent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
     EXPECT_EQ(nullptr, (co_await extent->Read(
         0,
         1))->data());
@@ -31,7 +31,7 @@ task<> ExtentStoreTests::OpenExtentForRead_can_read_data_written_by_OpenExtentFo
 )
 {
     vector<uint8_t> expectedData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-    auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    auto writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
     auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
     auto rawData = co_await writeBuffer->Write(0, expectedData.size());
     google::protobuf::io::ArrayOutputStream outputStream(
@@ -46,7 +46,7 @@ task<> ExtentStoreTests::OpenExtentForRead_can_read_data_written_by_OpenExtentFo
     }
     co_await writeBuffer->Flush();
 
-    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto readExtent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
     auto readBuffer = co_await readExtent->Read(0, expectedData.size());
     CodedInputStream readStream(
         reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
@@ -66,7 +66,7 @@ task<> ExtentStoreTests::OpenExtentForWrite_can_do_Flush_after_grow(IExtentStore
     std::basic_string<uint8_t> writeData1(50, '1');
     std::basic_string<uint8_t> writeData2(500, '2');
 
-    auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    auto writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
     auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
     auto rawData1 = co_await writeBuffer1->Write(0, writeData1.size());
     google::protobuf::io::ArrayOutputStream outputStream1(
@@ -98,7 +98,7 @@ task<> ExtentStoreTests::OpenExtentForWrite_can_do_Flush_after_grow(IExtentStore
 
     auto expectedData = writeData1 + writeData2;
 
-    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto readExtent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
     auto readBuffer = co_await readExtent->Read(0, expectedData.size());
     CodedInputStream readStream(
         reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
@@ -120,7 +120,7 @@ task<> ExtentStoreTests::DeleteExtent_erases_the_content(
     vector<uint8_t> writeData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
     {
-        auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+        auto writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
         auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
         auto rawData = co_await writeBuffer->Write(0, writeData.size());
         
@@ -133,9 +133,9 @@ task<> ExtentStoreTests::DeleteExtent_erases_the_content(
         co_await writeBuffer->Flush();
     }
 
-    co_await store.DeleteExtent(MakeLogExtentName(0));
+    co_await store.DeleteExtent(FlatValue(MakeLogExtentName(0)));
 
-    auto extent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto extent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
 
     EXPECT_EQ(nullptr, (co_await extent->Read(
         0,
@@ -152,7 +152,7 @@ task<> ExtentStoreTests::DeleteExtent_erases_the_content_while_a_DataReference_e
     WritableRawData rawData;
 
     {
-        auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+        auto writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
         auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
         rawData = co_await writeBuffer->Write(0, writeData.size());
 
@@ -165,9 +165,9 @@ task<> ExtentStoreTests::DeleteExtent_erases_the_content_while_a_DataReference_e
         co_await writeBuffer->Flush();
     }
 
-    co_await store.DeleteExtent(MakeLogExtentName(0));
+    co_await store.DeleteExtent(FlatValue(MakeLogExtentName(0)));
 
-    auto extent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto extent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
 
     EXPECT_EQ(nullptr, (co_await extent->Read(
         0,
@@ -189,7 +189,7 @@ task<> ExtentStoreTests::Data_is_readable_after_Commit_and_Flush(
 
     WritableRawData rawData;
 
-    auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    auto writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
     auto writeBuffer = co_await writeExtent->CreateWriteBuffer();
     rawData = co_await writeBuffer->Write(0, writeData.size());
 
@@ -217,7 +217,7 @@ task<> ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(
     WritableRawData rawData1;
     WritableRawData rawData2;
 
-    auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    auto writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
     auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
     rawData1 = co_await writeBuffer1->Write(0, writeData1.size());
     std::ranges::copy(expectedData1, rawData1->data());
@@ -226,7 +226,7 @@ task<> ExtentStoreTests::Can_extend_extent_while_data_reference_is_held(
     rawData2 = co_await writeBuffer2->Write(65536, writeData2.size());
     std::ranges::copy(expectedData2, rawData2->data());
 
-    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto readExtent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
 
     co_await writeBuffer1->Commit();
     co_await writeBuffer2->Flush();
@@ -247,15 +247,15 @@ task<> ExtentStoreTests::Open_extent_for_write_erases_previous_content(
 {
     vector<uint8_t> writeData1 = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     auto writeDataExtent1 = as_bytes(std::span<uint8_t>{ writeData1 });
-    auto writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    auto writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
     auto writeBuffer1 = co_await writeExtent->CreateWriteBuffer();
     auto rawData1 = co_await writeBuffer1->Write(0, writeData1.size());
     std::ranges::copy(writeDataExtent1, rawData1->data());
     co_await writeBuffer1->Flush();
 
-    writeExtent = co_await store.OpenExtentForWrite(MakeLogExtentName(0));
+    writeExtent = co_await store.OpenExtentForWrite(FlatValue(MakeLogExtentName(0)));
 
-    auto readExtent = co_await store.OpenExtentForRead(MakeLogExtentName(0));
+    auto readExtent = co_await store.OpenExtentForRead(FlatValue(MakeLogExtentName(0)));
     auto actualData1 = co_await readExtent->Read(0, writeData1.size());
     EXPECT_TRUE(!actualData1->data());
     EXPECT_EQ(0, actualData1->size());

@@ -15,6 +15,7 @@
 #include <google/protobuf/message.h>
 #include <Phantom.System/concepts.h>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
+#include "Phantom.ProtoStore/ProtoStore_generated.h"
 #include "Async.h"
 #include "Errors.h"
 #include "Payloads.h"
@@ -24,6 +25,17 @@
 
 namespace Phantom::ProtoStore
 {
+
+namespace FlatBuffersSchemas
+{
+extern const reflection::Schema* const ProtoStoreSchema;
+extern const reflection::Object* const ExtentName_Object;
+extern const reflection::Object* const IndexHeaderExtentName_Object;
+extern const ProtoValueComparers ExtentNameComparers;
+}
+
+using FlatBuffers::ExtentNameT;
+using FlatBuffers::ExtentName;
 
 template<typename T>
 concept IsMessage = std::is_convertible_v<T*, google::protobuf::Message*>;
@@ -386,7 +398,7 @@ enum class IntegrityCheckErrorCode
 
 struct ExtentLocation
 {
-    ExtentName extentName;
+    FlatValue<FlatBuffers::ExtentName> extentName;
     ExtentOffset extentOffset;
 
     friend bool operator==(

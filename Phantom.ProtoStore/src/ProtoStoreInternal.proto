@@ -54,83 +54,28 @@ message IndexesByNumberValue {
     uint64 CreateSequenceNumber = 3;
 }
 
-message PartitionsKey {
-    uint64 IndexNumber = 1;
-    ExtentName HeaderExtentName = 2;
-}
-
-message PartitionsValue {
-    ExtentName DataExtentName = 1;
-    uint64 Level = 2;
-    uint64 Size = 3;
-    // The merge that generated the partition.
-    ExtentName MergeUniqueId = 4;
-    // The latest checkpoint number that is in the partition
-    uint64 CheckpointNumber = 5;
-}
-
-message MergesKey {
-    uint64 IndexNumber = 1;
-    // This will be the name of an extent in the merge.
-    ExtentName MergesUniqueId = 2;
-}
-
-message MergeResumeKey {
-    bytes Key = 1;
-    uint64 WriteSequenceNumber = 2;
-}
-
-message MergesValue {
-    repeated ExtentName SourceHeaderExtentNames = 1;
-    uint64 SourceLevelNumber = 2;
-    uint64 DestinationLevelNumber = 3;
-
-    // The checkpoint number to report for the generated partitions.
-    uint64 CheckpointNumber = 4;
-
-    // If StartKey is set, then resume the merge at the
-    // given start key.  Otherwise, resume the merge
-    // at the beginning of the key space.
-    oneof MergeResumeKeyType {
-        MergeResumeKey ResumeKey = 5;
-    }
-}
-
-message MergeProgressKey {
-    MergesKey MergesKey = 1;
-    // This field is used only for query purposes.
-    // All rows have a value of 0.  One can query for a value of 1 at the high end of a range
-    // to get all the rows with the same MergesKey but different HeaderExtentName values.
-    uint32 RangeDiscriminator = 2;
-    ExtentName HeaderExtentName = 3;
-}
-
-message MergeProgressValue {
-    uint64 DataSize = 1;
-}
-
 // The UnresolvedTransactions table holds the transactions whose
 // outcomes are unresolved or aborted. Transactions that have
 // committed are removed from the UnresolvedTransactions table completely.
 // The unresolved transactions table has special pruning logic to remove
 // rows for which all the referencing partitions are gone.
-message UnresolvedTransactionKey
-{
-    bytes TransactionId = 1;
-    oneof Reference {
-        PartitionsKey Partition = 2;
-
-    }
-}
-
-message UnresolvedTransactionValue
-{
-    UnresolvedTransactionStatus Status = 1;
-}
-
-enum UnresolvedTransactionStatus
-{
-    Unresolved = 0;
-    Aborted = 1;
-}
+// message UnresolvedTransactionKey
+// {
+//     bytes TransactionId = 1;
+//     oneof Reference {
+//         PartitionsKey Partition = 2;
+// 
+//     }
+// }
+// 
+// message UnresolvedTransactionValue
+// {
+//     UnresolvedTransactionStatus Status = 1;
+// }
+// 
+// enum UnresolvedTransactionStatus
+// {
+//     Unresolved = 0;
+//     Aborted = 1;
+// }
 

@@ -140,8 +140,8 @@ task<> ProtoStore::Open(
             3,
             SequenceNumber::Earliest,
             Schema::Make(
-                PartitionsKey::descriptor(),
-                PartitionsValue::descriptor()));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsKey_Object },
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsValue_Object }));
 
         m_partitionsIndex = MakeIndex(
             indexesByNumberKey,
@@ -160,8 +160,8 @@ task<> ProtoStore::Open(
             4,
             SequenceNumber::Earliest,
             Schema::Make(
-                MergesKey::descriptor(),
-                MergesValue::descriptor()));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesKey_Object },
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesValue_Object }));
 
         m_mergesIndex = MakeIndex(
             indexesByNumberKey,
@@ -180,8 +180,8 @@ task<> ProtoStore::Open(
             5,
             SequenceNumber::Earliest,
             Schema::Make(
-                MergeProgressKey::descriptor(),
-                MergeProgressValue::descriptor()));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressKey_Object },
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressValue_Object }));
 
         m_mergeProgressIndex = MakeIndex(
             indexesByNumberKey,
@@ -189,6 +189,7 @@ task<> ProtoStore::Open(
         );
     }
 
+#if 0
     {
         IndexesByNumberKey indexesByNumberKey;
         IndexesByNumberValue indexesByNumberValue;
@@ -208,6 +209,7 @@ task<> ProtoStore::Open(
             indexesByNumberValue
         );
     }
+#endif
 
     m_indexesByNumber[m_indexesByNumberIndex.IndexNumber] = m_indexesByNumberIndex;
     m_indexesByNumber[m_indexesByNameIndex.IndexNumber] = m_indexesByNameIndex;
@@ -263,15 +265,15 @@ task<> ProtoStore::ReplayPartitionsForOpenedIndexes()
 task<> ProtoStore::ReplayPartitionsForIndex(
     const IndexEntry& indexEntry)
 {
-    auto partitionKeyValues = co_await GetPartitionsForIndex(
+    auto partitionList = co_await GetPartitionsForIndex(
         indexEntry.IndexNumber);
 
-    vector<ExtentName> headerExtentNames;
+    vector<FlatValue<FlatBuffers::IndexHeaderExtentName>> headerExtentNames;
 
-    for (auto& partitionKeyValue : partitionKeyValues)
+    for (auto& partitionListItem : partitionList)
     {
         headerExtentNames.push_back(
-            get<PartitionsKey>(partitionKeyValue).headerextentname());
+            partitionListItem.Key->header_extent_name());
     }
 
     auto partitions = co_await OpenPartitionsForIndex(
@@ -303,12 +305,12 @@ task<> ProtoStore::UpdateHeader(
 }
 
 task<> ProtoStore::Replay(
-    const ExtentName& logExtent,
+    const ExtentNameT& logExtent,
     const FlatBuffers::LogExtentNameT* extentName
 )
 {
     auto logReader = co_await m_messageStore->OpenExtentForSequentialReadAccess(
-        logExtent
+        FlatValue{ &logExtent }
     );
 
     while (true)
@@ -421,17 +423,13 @@ task<> ProtoStore::Replay(
 task<> ProtoStore::Replay(
     const FlatMessage<LoggedPartitionsData>& logRecord)
 {
-    std::vector<ExtentName> headerExtentNames;
+    std::vector<FlatValue<FlatBuffers::IndexHeaderExtentName>> headerExtentNames;
 
     if (logRecord->header_extent_names())
     {
-        std::ranges::transform(
-            *logRecord->header_extent_names(),
-            std::back_inserter(headerExtentNames),
-            [&](const auto& extentName)
-        {
-            return MakeExtentName(*extentName);
-        });
+        headerExtentNames.assign_range(
+            *logRecord->header_extent_names()
+        );
     }
 
     auto partitions = co_await OpenPartitionsForIndex(
@@ -974,7 +972,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
     indexesByNameKey.index_name = std::move(indexName);
 
     ReadRequest readRequest;
-    readRequest.Key = ProtoValue{ &indexesByNameKey };
+    readRequest.Key = &indexesByNameKey;
     readRequest.ReadValueDisposition = ReadValueDisposition::DontReadValue;
     readRequest.SequenceNumber = sequenceNumber;
 
@@ -1198,7 +1196,7 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
 
 task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     const shared_ptr<IIndex>& index,
-    ExtentName headerExtentName)
+    const FlatBuffers::IndexHeaderExtentName* headerExtentName)
 {
     if (m_activePartitions.contains(headerExtentName))
     {
@@ -1209,10 +1207,10 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
         headerExtentName);
 
     auto headerReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
-        headerExtentName);
+        FlatValue(MakeExtentName(headerExtentName)));
 
     auto dataReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
-        dataExtentName);
+        FlatValue(dataExtentName));
     
     auto partition = make_shared<Partition>(
         index->GetSchema(),
@@ -1320,8 +1318,8 @@ task<> ProtoStore::Checkpoint(
         co_return;
     }
 
-    ExtentName headerExtentName;
-    ExtentName dataExtentName;
+    FlatBuffers::ExtentNameT headerExtentName;
+    FlatBuffers::ExtentNameT dataExtentName;
     shared_ptr<IPartitionWriter> partitionWriter;
 
     co_await OpenPartitionWriter(
@@ -1349,9 +1347,9 @@ task<> ProtoStore::Checkpoint(
             LogEntry::LoggedCommitExtent,
             [&](auto& builder)
         {
-            auto headerExtentNameOffset = CreateExtentName(
+            auto headerExtentNameOffset = FlatBuffers::CreateExtentName(
                 builder,
-                headerExtentName);
+                &headerExtentName);
 
             return FlatBuffers::CreateLoggedCommitExtent(
                 builder,
@@ -1363,9 +1361,9 @@ task<> ProtoStore::Checkpoint(
             LogEntry::LoggedCommitExtent,
             [&](auto& builder)
         {
-            auto dataExtentNameOffset = CreateExtentName(
+            auto dataExtentNameOffset = FlatBuffers::CreateExtentName(
                 builder,
-                dataExtentName);
+                &dataExtentName);
 
             return FlatBuffers::CreateLoggedCommitExtent(
                 builder,
@@ -1403,38 +1401,43 @@ task<> ProtoStore::Checkpoint(
                 highestCheckpointNumber;
         }
 
-        PartitionsKey partitionsKey;
-        partitionsKey.set_indexnumber(indexEntry.IndexNumber);
-        *partitionsKey.mutable_headerextentname() = headerExtentName;
-        PartitionsValue partitionsValue;
-        *partitionsValue.mutable_dataextentname() = dataExtentName;
-        partitionsValue.set_size(writeRowsResult.writtenDataSize);
-        partitionsValue.set_level(0);
-        partitionsValue.set_checkpointnumber(highestCheckpointNumber);
+        PartitionsKeyT partitionsKey;
+        partitionsKey.index_number = indexEntry.IndexNumber;
+        
+        partitionsKey.header_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexHeaderExtentName());
+
+        PartitionsValueT partitionsValue;
+        partitionsValue.data_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexDataExtentName());
+        partitionsValue.size = writeRowsResult.writtenDataSize;
+        partitionsValue.level = 0;
+        partitionsValue.latest_checkpoint_number = highestCheckpointNumber;
 
         {
             auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();
 
-            auto partitionKeyValues = co_await GetPartitionsForIndex(
+            auto partitionRows = co_await GetPartitionsForIndex(
                 indexEntry.IndexNumber);
-            partitionKeyValues.push_back(std::make_tuple(
-                partitionsKey,
-                partitionsValue));
+            partitionRows.emplace_back(
+                FlatValue{ partitionsKey },
+                FlatValue{ partitionsValue },
+                SequenceNumber::Earliest,
+                SequenceNumber::Earliest);
 
-            vector<ExtentName> headerExtentNames;
+            vector<FlatValue<FlatBuffers::IndexHeaderExtentName>> headerExtentNames;
 
-            for (auto& partitionKeyValue : partitionKeyValues)
+            for (auto& partitionRow : partitionRows)
             {
-                auto existingHeaderExtentName = get<PartitionsKey>(partitionKeyValue).headerextentname();
-
+                const FlatBuffers::IndexHeaderExtentName* existingHeaderExtentName = 
+                    partitionRow.Key->header_extent_name();
+                
                 if (indexEntry.IndexNumber == m_partitionsIndex.IndexNumber)
                 {
                     addedLoggedPartitionsData->header_extent_names.push_back(
-                        std::make_unique<FlatBuffers::ExtentNameT>(MakeExtentName(existingHeaderExtentName)));
+                        std::unique_ptr<FlatBuffers::IndexHeaderExtentNameT>{ existingHeaderExtentName->UnPack() });
                 }
 
                 headerExtentNames.push_back(
-                    move(existingHeaderExtentName));
+                    existingHeaderExtentName);
             }
 
             if (addedLoggedPartitionsData)
@@ -1464,14 +1467,14 @@ task<> ProtoStore::Checkpoint(
     });
 }
 
-task<vector<std::tuple<Serialization::PartitionsKey, Serialization::PartitionsValue>>> ProtoStore::GetPartitionsForIndex(
+task<partition_row_list_type> ProtoStore::GetPartitionsForIndex(
     IndexNumber indexNumber)
 {
-    PartitionsKey partitionsKeyLow;
-    partitionsKeyLow.set_indexnumber(indexNumber);
+    PartitionsKeyT partitionsKeyLow;
+    partitionsKeyLow.index_number = indexNumber;
 
-    PartitionsKey partitionsKeyHigh;
-    partitionsKeyHigh.set_indexnumber(indexNumber + 1);
+    PartitionsKeyT partitionsKeyHigh;
+    partitionsKeyHigh.index_number = indexNumber + 1;
 
     EnumerateRequest enumerateRequest;
     enumerateRequest.KeyLow = &partitionsKeyLow;
@@ -1485,30 +1488,23 @@ task<vector<std::tuple<Serialization::PartitionsKey, Serialization::PartitionsVa
         nullptr,
         enumerateRequest);
 
-    vector<std::tuple<PartitionsKey, PartitionsValue>> result;
+    partition_row_list_type result;
 
     for(auto iterator = co_await enumeration.begin();
         iterator != enumeration.end();
         co_await ++iterator)
     {
-        PartitionsKey partitionsKey;
-        PartitionsValue partitionsValue;
-
-        (*iterator)->Key.unpack(&partitionsKey);
-        (*iterator)->Value.unpack(&partitionsValue);
-        
-        result.push_back(
-            std::make_tuple(
-                std::move(partitionsKey),
-                std::move(partitionsValue)));
+        result.emplace_back(
+            partition_row_type::FromResultRow(std::move(**iterator))
+        );
     }
 
-    co_return result;
+    co_return std::move(result);
 }
 
 task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
     const shared_ptr<IIndex>& index,
-    const vector<ExtentName>& headerExtentNames)
+    const vector<FlatValue<FlatBuffers::IndexHeaderExtentName>>& headerExtentNames)
 {
     vector<shared_ptr<IPartition>> partitions;
 
@@ -1552,8 +1548,8 @@ task<> ProtoStore::AllocatePartitionExtents(
     IndexNumber indexNumber,
     IndexName indexName,
     LevelNumber levelNumber,
-    ExtentName& out_partitionHeaderExtentName,
-    ExtentName& out_partitionDataExtentName)
+    ExtentNameT& out_partitionHeaderExtentName,
+    ExtentNameT& out_partitionDataExtentName)
 {
     auto partitionNumber = m_nextPartitionNumber.fetch_add(1);
 
@@ -1563,20 +1559,20 @@ task<> ProtoStore::AllocatePartitionExtents(
         levelNumber,
         indexName);
     out_partitionDataExtentName = MakePartitionDataExtentName(
-        out_partitionHeaderExtentName);
+        FlatValue(out_partitionHeaderExtentName.extent_name.AsIndexHeaderExtentName()));
 
     FlatBuffers::LogRecordT logRecord;
 
     FlatBuffers::LoggedCreateExtentT createHeaderExtent;
     createHeaderExtent.extent_name = std::make_unique<FlatBuffers::ExtentNameT>();
-    *createHeaderExtent.extent_name = MakeExtentName(out_partitionHeaderExtentName);
+    *createHeaderExtent.extent_name = MakeExtentName(FlatValue(out_partitionHeaderExtentName.extent_name.AsIndexHeaderExtentName()));
     FlatBuffers::LogEntryUnion createHeaderExtentUnion;
     createHeaderExtentUnion.Set(std::move(createHeaderExtent));
     logRecord.log_entry.push_back(std::move(createHeaderExtentUnion));
 
     FlatBuffers::LoggedCreateExtentT createDataExtent;
     createDataExtent.extent_name = std::make_unique<FlatBuffers::ExtentNameT>();
-    *createDataExtent.extent_name = MakeExtentName(out_partitionDataExtentName);
+    *createDataExtent.extent_name = out_partitionDataExtentName;
     FlatBuffers::LogEntryUnion createDataExtentUnion;
     createDataExtentUnion.Set(std::move(createDataExtent));
     logRecord.log_entry.push_back(std::move(createDataExtentUnion));
@@ -1599,8 +1595,8 @@ task<> ProtoStore::OpenPartitionWriter(
     std::shared_ptr<const Schema> schema,
     std::shared_ptr<const KeyComparer> keyComparer,
     LevelNumber levelNumber,
-    ExtentName& out_headerExtentName,
-    ExtentName& out_dataExtentName,
+    FlatBuffers::ExtentNameT& out_headerExtentName,
+    FlatBuffers::ExtentNameT& out_dataExtentName,
     shared_ptr<IPartitionWriter>& out_partitionWriter
 )
 {
@@ -1612,9 +1608,9 @@ task<> ProtoStore::OpenPartitionWriter(
         out_dataExtentName);
 
     auto headerWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
-        out_headerExtentName);
+        FlatValue(out_headerExtentName));
     auto dataWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
-        out_dataExtentName);
+        FlatValue(out_dataExtentName));
 
     out_partitionWriter = make_shared<PartitionWriter>(
         std::move(schema),

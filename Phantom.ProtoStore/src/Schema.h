@@ -85,6 +85,10 @@ public:
         const Schema& schema,
         AlignedMessageData alignedMessage
     );
+
+    static ProtoValueComparers MakeComparers(
+        std::shared_ptr<const Schema> schema
+    );
 };
 
 

@@ -1,3 +1,6 @@
+#pragma once
+
+#include <functional>
 #include <variant>
 #include <google/protobuf/descriptor.h>
 #include <flatbuffers/reflection.h>
@@ -13,6 +16,8 @@ struct ProtocolBuffersObjectSchema
         const ProtocolBuffersObjectSchema&,
         const ProtocolBuffersObjectSchema&
         ) = default;
+
+    ProtoValueComparers MakeComparers() const;
 };
 
 struct FlatBuffersObjectSchema
@@ -24,6 +29,8 @@ struct FlatBuffersObjectSchema
         const FlatBuffersObjectSchema&,
         const FlatBuffersObjectSchema&
         ) = default;
+
+    ProtoValueComparers MakeComparers() const;
 };
 
 struct ProtocolBuffersKeySchema

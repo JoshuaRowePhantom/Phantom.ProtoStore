@@ -560,7 +560,7 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
 }
 
 task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAccessImpl(
-    const ExtentName& extentName)
+    const ExtentName* extentName)
 {
     shared_ptr<RandomMessageReader> reader;
 
@@ -578,7 +578,7 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
             co_await m_extentStore->OpenExtentForRead(
                 extentName));
 
-        m_readableExtents[extentName]
+        m_readableExtents[Clone(extentName)]
             = reader;
     });
 
@@ -590,7 +590,12 @@ MessageStore::MessageStore(
     shared_ptr<IExtentStore> extentStore)
     :
     m_schedulers(schedulers),
-    m_extentStore(move(extentStore))
+    m_extentStore(move(extentStore)),
+    m_readableExtents(
+        0,
+        FlatBuffersSchemas::ExtentNameComparers.hash,
+        FlatBuffersSchemas::ExtentNameComparers.equal_to
+    )
 {
 }
 
@@ -604,7 +609,7 @@ task<shared_ptr<IRandomMessageReader>> MessageStore::OpenExtentForRandomReadAcce
 }
 
 task<shared_ptr<IRandomMessageReader>> MessageStore::OpenExtentForRandomReadAccess(
-    ExtentName extentName
+    const FlatBuffers::ExtentName* extentName
 )
 {
     co_return co_await OpenExtentForRandomReadAccessImpl(
@@ -612,14 +617,14 @@ task<shared_ptr<IRandomMessageReader>> MessageStore::OpenExtentForRandomReadAcce
 }
 
 task<shared_ptr<IRandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAccess(
-    ExtentName extentName
+    const FlatBuffers::ExtentName* extentName
 )
 {
     co_return co_await OpenExtentForRandomWriteAccessImpl(extentName);
 }
     
 task<shared_ptr<RandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAccessImpl(
-    ExtentName extentName
+    const FlatBuffers::ExtentName* extentName
 )
 {
     // Remove the existing cached readable extent
@@ -689,7 +694,7 @@ task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequential
 }
 
 task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequentialReadAccess(
-    ExtentName extentName
+    const FlatBuffers::ExtentName* extentName
 )
 {
     co_return co_await OpenExtentForSequentialReadAccess(
@@ -698,7 +703,7 @@ task<shared_ptr<ISequentialMessageReader>> MessageStore::OpenExtentForSequential
 }
 
 task<shared_ptr<ISequentialMessageWriter>> MessageStore::OpenExtentForSequentialWriteAccess(
-    ExtentName extentName
+    const FlatBuffers::ExtentName* extentName
 ) 
 {
     co_return make_shared<SequentialMessageWriter>(

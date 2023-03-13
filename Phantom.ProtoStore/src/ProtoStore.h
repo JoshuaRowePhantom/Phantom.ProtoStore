@@ -54,7 +54,12 @@ class ProtoStore
     async_reader_writer_lock m_indexesByNumberLock;
 
     cppcoro::async_mutex m_updatePartitionsMutex;
-    std::unordered_map<ExtentName, shared_ptr<IPartition>> m_activePartitions;
+    std::unordered_map<
+        FlatValue<FlatBuffers::IndexHeaderExtentName>, 
+        shared_ptr<IPartition>,
+        ProtoValueStlHash,
+        ProtoValueStlEqual
+    > m_activePartitions;
     vector<ExtentName> m_replayPartitionsActivePartitions;
 
     encompassing_pending_task<> m_encompassingCheckpointTask;
@@ -121,8 +126,8 @@ class ProtoStore
         IndexNumber indexNumber,
         IndexName indexName,
         LevelNumber levelNumber,
-        ExtentName& out_partitionHeaderExtentName,
-        ExtentName& out_partitionDataExtentName);
+        ExtentNameT& out_partitionHeaderExtentName,
+        ExtentNameT& out_partitionDataExtentName);
 
     virtual task<> OpenPartitionWriter(
         IndexNumber indexNumber,
@@ -130,13 +135,13 @@ class ProtoStore
         std::shared_ptr<const Schema> schema,
         std::shared_ptr<const KeyComparer> keyComparer,
         LevelNumber levelNumber,
-        ExtentName& out_headerExtentName,
-        ExtentName& out_dataExtentName,
+        FlatBuffers::ExtentNameT& out_headerExtentName,
+        FlatBuffers::ExtentNameT& out_dataExtentName,
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
     task<> Replay(
-        const ExtentName& logExtent,
+        const ExtentNameT& logExtent,
         const FlatBuffers::LogExtentNameT* fbLogExtent);
 
     task<> Replay(
@@ -180,15 +185,15 @@ class ProtoStore
 
     task<shared_ptr<IPartition>> OpenPartitionForIndex(
         const shared_ptr<IIndex>& index,
-        ExtentName headerExtentName);
+        const FlatBuffers::IndexHeaderExtentName* headerExtentName);
 
-    virtual task<vector<std::tuple<PartitionsKey, PartitionsValue>>> GetPartitionsForIndex(
+    virtual task<partition_row_list_type> GetPartitionsForIndex(
         IndexNumber indexNumber
     ) override;
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(
         const shared_ptr<IIndex>& index,
-        const vector<ExtentName>& headerExtentNumbers
+        const vector<FlatValue<FlatBuffers::IndexHeaderExtentName>>& headerExtentNames
     ) override;
 
     shared_task<TransactionResult> InternalExecuteTransaction(

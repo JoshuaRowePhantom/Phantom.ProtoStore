@@ -5,54 +5,25 @@
 
 namespace Phantom::ProtoStore
 {
-class ExtentName;
-
-bool operator==(
-    const ExtentName& left,
-    const ExtentName& right
-    ) noexcept;
-
-ExtentName MakeDatabaseHeaderExtentName(
+FlatBuffers::ExtentNameT MakeDatabaseHeaderExtentName(
     uint64_t copyNumber);
 
-ExtentName MakeLogExtentName(
+FlatBuffers::ExtentNameT MakeLogExtentName(
     uint64_t logExtentSequenceNumber);
 
-ExtentName MakePartitionHeaderExtentName(
+FlatBuffers::ExtentNameT MakePartitionHeaderExtentName(
     IndexNumber indexNumber,
     PartitionNumber partitionNumber,
     LevelNumber levelNumber,
     std::string indexName);
 
-ExtentName MakePartitionDataExtentName(
-    ExtentName partitionHeaderExtentName);
-
-ExtentName MakeExtentName(
-    const FlatBuffers::ExtentNameT& extentName
-);
-
-ExtentName MakeExtentName(
-    const FlatBuffers::ExtentName& extentName
-); 
+FlatBuffers::ExtentNameT MakePartitionDataExtentName(
+    const FlatBuffers::IndexHeaderExtentName* partitionHeaderExtentName);
 
 FlatBuffers::ExtentNameT MakeExtentName(
-    const ExtentName& extentName
-);
+    const FlatBuffers::IndexHeaderExtentName* partitionHeaderExtentName);
 
-flatbuffers::Offset<FlatBuffers::ExtentName> CreateExtentName(
-    flatbuffers::FlatBufferBuilder&,
-    const ExtentName&
-);
-
-}
-
-namespace std
-{
-template<>
-struct hash<Phantom::ProtoStore::ExtentName>
-{
-    size_t operator()(
-        const Phantom::ProtoStore::ExtentName&) const noexcept;
-};
+FlatValue<ExtentName> Clone(
+    const ExtentName* extentName);
 
 }

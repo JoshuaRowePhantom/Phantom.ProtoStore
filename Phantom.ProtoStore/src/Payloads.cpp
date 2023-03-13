@@ -215,6 +215,34 @@ ProtoValue ProtoValue::FlatBuffer(
     };
 }
 
+ProtoValue ProtoValue::FlatBuffer(
+    flatbuffers::FlatBufferBuilder builder
+)
+{
+    auto alignment = static_cast<uint8_t>(builder.GetBufferMinAlignment());
+    auto detachedBuffer = std::make_shared<flatbuffers::DetachedBuffer>(
+        builder.Release());
+    auto span = std::span<const uint8_t>
+    {
+        detachedBuffer->data(),
+        detachedBuffer->size()
+    };
+
+    AlignedMessage alignedMessage
+    {
+        alignment,
+        as_bytes(span),
+    };
+
+    return FlatBuffer(
+        AlignedMessageData
+        {
+            detachedBuffer,
+            alignedMessage
+        }
+    );
+}
+
 ProtoValue::ProtoValue(
     backing_store backingStore,
     const google::protobuf::Message* protocolMessage

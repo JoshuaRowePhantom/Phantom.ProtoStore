@@ -1,4 +1,5 @@
 #include "MemoryMappedFileExtentStore.h"
+#include "ExtentName.h"
 #include <iomanip>
 #include <map>
 #include <fstream>
@@ -23,14 +24,14 @@ class MemoryMappedReadableExtent
 {
     mapped_region m_mappedRegion;
     // This is here for debugging purposes.
-    ExtentName m_extentName;
+    FlatValue<ExtentName> m_extentName;
 
     friend class MemoryMappedReadBuffer;
 
 public:
     MemoryMappedReadableExtent(
         mapped_region mappedRegion,
-        ExtentName extentName
+        FlatValue<ExtentName> extentName
     );
 
     virtual task<RawData> Read(
@@ -180,7 +181,7 @@ public:
 
 MemoryMappedReadableExtent::MemoryMappedReadableExtent(
     mapped_region mappedRegion,
-    ExtentName extentName
+    FlatValue<ExtentName> extentName
 ) :
     m_mappedRegion(move(mappedRegion)),
     m_extentName(move(extentName))
@@ -571,56 +572,63 @@ MemoryMappedFileExtentStore::MemoryMappedFileExtentStore(
 }
 
 std::string MemoryMappedFileExtentStore::GetFilename(
-    ExtentName extentName)
+    const ExtentName* extentName)
 {
     std::ostringstream result;
 
     result
         << m_extentFilenamePrefix;
 
-    if (extentName.has_databaseheaderextentname())
+    if (extentName->extent_name_as_DatabaseHeaderExtentName())
     {
         result
             << std::setw(8)
             << std::setfill('0')
-            << extentName.databaseheaderextentname().headercopynumber()
+            << extentName->extent_name_as_DatabaseHeaderExtentName()->header_copy_number()
             << ".db";
     }
-    else if (extentName.has_indexdataextentname())
+    else if (extentName->extent_name_as_IndexDataExtentName())
     {
+        auto indexExtentName = extentName->extent_name_as_IndexDataExtentName()->index_extent_name();
+        
         result
             << std::setw(8)
             << std::setfill('0')
-            << extentName.indexdataextentname().indexnumber()
+            << indexExtentName->index_number()
             << "_"
-            << GetSanitizedIndexName(extentName.indexdataextentname().indexname())
+            << GetSanitizedIndexName(flatbuffers::GetStringView(indexExtentName->index_name()))
             << "_"
             << std::setw(8)
-            << extentName.indexdataextentname().partitionnumber()
+            << indexExtentName->partition_number()
+            << "_"
+            << std::setw(8)
+            << indexExtentName->level()
             << ".dat";
     }
-    else if (extentName.has_indexheaderextentname())
+    else if (extentName->extent_name_as_IndexDataExtentName())
     {
+        auto indexExtentName = extentName->extent_name_as_IndexDataExtentName()->index_extent_name();
+
         result
             << std::setw(8)
             << std::setfill('0')
-            << extentName.indexheaderextentname().indexnumber()
+            << indexExtentName->index_number()
             << "_"
-            << GetSanitizedIndexName(extentName.indexheaderextentname().indexname())
-            << "_"
-            << std::setw(8)
-            << extentName.indexheaderextentname().partitionnumber()
+            << GetSanitizedIndexName(flatbuffers::GetStringView(indexExtentName->index_name()))
             << "_"
             << std::setw(8)
-            << extentName.indexheaderextentname().level()
+            << indexExtentName->partition_number()
+            << "_"
+            << std::setw(8)
+            << indexExtentName->level()
             << ".part";
     }
-    else if (extentName.has_logextentname())
+    else if (extentName->extent_name_as_LogExtentName())
     {
         result
             << std::setw(8)
             << std::setfill('0')
-            << extentName.logextentname().logextentsequencenumber()
+            << extentName->extent_name_as_LogExtentName()->log_extent_sequence_number()
             << ".log";
     }
     else
@@ -632,7 +640,7 @@ std::string MemoryMappedFileExtentStore::GetFilename(
 }
 
 std::string MemoryMappedFileExtentStore::GetSanitizedIndexName(
-    const string& indexName)
+    std::string_view indexName)
 {
     string result;
     for (auto character : indexName)
@@ -658,12 +666,12 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
 {
     co_return co_await OpenExtentForRead(
         path,
-        ExtentName());
+        nullptr);
 }
 
 task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
     std::filesystem::path path,
-    ExtentName extentName)
+    const ExtentName* extentName)
 {
     if (std::filesystem::exists(path))
     {
@@ -677,19 +685,19 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
             boost::interprocess::read_only
         );
 
-        co_return make_shared<MemoryMappedReadableExtent>(
+        co_return std::make_shared<MemoryMappedReadableExtent>(
             move(mappedRegion),
-            move(extentName)
+            Clone(extentName)
             );
     }
 
-    co_return make_shared<MemoryMappedReadableExtent>(
+    co_return std::make_shared<MemoryMappedReadableExtent>(
         mapped_region(),
-        move(extentName));
+        Clone(extentName));
 }
 
 task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead(
-    ExtentName extentName)
+    const ExtentName* extentName)
 {
     auto filename = GetFilename(
         extentName);
@@ -700,7 +708,7 @@ task<shared_ptr<IReadableExtent>> MemoryMappedFileExtentStore::OpenExtentForRead
 }
 
 task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrite(
-    ExtentName extentName)
+    const ExtentName* extentName)
 {
     co_await DeleteExtent(extentName);
 
@@ -711,7 +719,7 @@ task<shared_ptr<IWritableExtent>> MemoryMappedFileExtentStore::OpenExtentForWrit
 }
 
 task<> MemoryMappedFileExtentStore::DeleteExtent(
-    ExtentName extentName)
+    const ExtentName* extentName)
 {
     auto filename = GetFilename(
         extentName);
