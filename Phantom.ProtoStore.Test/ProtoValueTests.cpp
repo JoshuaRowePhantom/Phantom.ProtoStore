@@ -526,15 +526,23 @@ TEST_F(ProtoValueTests, assignment_copies_data_reference)
     StringKey key;
     key.set_value("hello world");
 
-    ProtoValue protoValue = ProtoValue::ProtocolBuffer(
+    auto protoValue = std::make_shared<ProtoValue>(ProtoValue::ProtocolBuffer(
         { &key }
-    ).pack().unpack<StringKey>();
+    ).pack());
+
+    AlignedMessageData alignedMessageData
+    {
+        protoValue,
+        protoValue->as_aligned_message_if(),
+    };
+
+    ProtoValue protoValue1 = ProtoValue::ProtocolBuffer(alignedMessageData);
 
     ProtoValue protoValue2;
-    protoValue2 = protoValue;
+    protoValue2 = protoValue1;
 
     EXPECT_EQ(
-        protoValue.as_aligned_message_if().Payload.data(),
+        protoValue1.as_aligned_message_if().Payload.data(),
         protoValue2.as_aligned_message_if().Payload.data()
     );
 }
