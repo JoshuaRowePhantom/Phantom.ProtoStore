@@ -665,11 +665,12 @@ public:
         }
 
         flatbuffers::FlatBufferBuilder builder;
-        flatbuffers::CopyTable(
+        auto offset = flatbuffers::CopyTable(
             builder,
             schema,
             object,
             *m_protoValue.as_table_if());
+        builder.Finish(offset);
 
         return std::move(builder);
     }
