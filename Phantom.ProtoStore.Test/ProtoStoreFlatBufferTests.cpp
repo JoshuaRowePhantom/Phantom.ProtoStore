@@ -70,7 +70,8 @@ public:
     }
 
     task<ProtoIndex> CreateTestFlatBufferIndex(
-        const shared_ptr<IProtoStore>& store
+        const shared_ptr<IProtoStore>& store,
+        FlatBuffers::FlatBuffersMessageEncodingOptions messageEncodingOption = FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage
     )
     {
         CreateIndexRequest createIndexRequest;
@@ -78,6 +79,11 @@ public:
         createIndexRequest.Schema = Schema::Make(
             { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
             { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema });
+
+        createIndexRequest.Schema.KeySchema.AsFlatBuffersKeySchema()->ObjectSchema.MessageEncodingOptions =
+            messageEncodingOption;
+        createIndexRequest.Schema.ValueSchema.AsFlatBuffersValueSchema()->ObjectSchema.MessageEncodingOptions =
+            messageEncodingOption;
 
         auto index = co_await store->CreateIndex(
             createIndexRequest
@@ -90,14 +96,11 @@ public:
         const shared_ptr<IProtoStore>& store
     )
     {
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_FlatIndex";
-        createIndexRequest.Schema = Schema::Make(
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema });
+        GetIndexRequest getIndexRequest;
+        getIndexRequest.IndexName = "test_FlatIndex";
 
         auto index = co_await store->GetIndex(
-            createIndexRequest
+            getIndexRequest
         );
         co_return index;
     }
@@ -425,6 +428,36 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint)
             { "testKey1", {"testValue1", 5}},
         });
 }
+
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_graph_encoding)
+{
+    auto store = co_await CreateMemoryStore();
+
+    auto index = co_await CreateTestFlatBufferIndex(
+        store);
+
+    co_await AddRowToTestFlatBufferIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    co_await store->Checkpoint();
+
+    co_await AssertEnumeration(
+        store,
+        index,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        optional<string>(),
+        Inclusivity::Inclusive,
+        ToSequenceNumber(5),
+        {
+            { "testKey1", {"testValue1", 5}},
+        });
+}
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_update)
 {
     auto store = co_await CreateMemoryStore();

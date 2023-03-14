@@ -84,14 +84,11 @@ public:
         const shared_ptr<IProtoStore>& store
     )
     {
-        CreateIndexRequest createIndexRequest;
-        createIndexRequest.IndexName = "test_ProtoIndex";
-        createIndexRequest.Schema = Schema::Make(
-            StringKey::descriptor(),
-            StringValue::descriptor());
+        GetIndexRequest getIndexRequest;
+        getIndexRequest.IndexName = "test_ProtoIndex";
 
         auto index = co_await store->GetIndex(
-            createIndexRequest
+            getIndexRequest
         );
         co_return index;
     }
@@ -266,6 +263,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, CanOpen_memory_backed_store)
     store = co_await storeFactory->Open(
         createRequest);
 }
+
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Open_fails_on_uncreated_store)
 {
     auto storeFactory = MakeProtoStoreFactory();
@@ -278,6 +276,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Open_fails_on_uncreated_store)
             openRequest),
         range_error);
 }
+
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_one_row)
 {
     auto store = co_await CreateMemoryStore();
@@ -300,6 +299,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_one_row)
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
+
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_delete_and_enumerate_one_row)
 {
     auto store = co_await CreateMemoryStore();
@@ -391,6 +391,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_enumerate_one_row_after_add)
             { "testKey1", {"testValue1", 5}},
         });
 }
+
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_enumerate_one_row_after_checkpoint)
 {
     auto store = co_await CreateMemoryStore();
@@ -419,6 +420,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_enumerate_one_row_after_checkpoi
             { "testKey1", {"testValue1", 5}},
         });
 }
+
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_enumerate_one_row_after_update)
 {
     auto store = co_await CreateMemoryStore();
