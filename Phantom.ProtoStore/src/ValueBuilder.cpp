@@ -21,6 +21,34 @@ bool ValueBuilder::InternedValueKeyComparer::operator()(
     return m_valueBuilder->Equals(value1, value2);
 }
 
+ValueBuilder::ValueBuilder(
+    flatbuffers::FlatBufferBuilder* flatBufferBuilder
+) :
+    m_flatBufferBuilder{ flatBufferBuilder },
+    m_internedValues{ 0, InternedValueKeyComparer{ this }, InternedValueKeyComparer{ this } },
+    m_internedSchemaItems{ std::make_shared<InternedSchemaItems>() }
+{}
+
+const void* ValueBuilder::SchemaItem::schemaIdentifier() const
+{
+    if (object)
+    {
+        return object;
+    }
+
+    return type;
+}
+
+ValueBuilder::InterningValue::operator ValueBuilder::InternedValue() const
+{
+    return
+    {
+        .schemaIdentifier = schemaItem->schemaIdentifier,
+        .offset = offset,
+        .hashCode = hashCode
+    };
+}
+
 bool ValueBuilder::Equals(
     const auto& value1,
     const auto& value2
@@ -79,34 +107,6 @@ bool ValueBuilder::Equals(
     return schemaItem->equal_to(value1Pointer, value2Pointer);
 }
 
-ValueBuilder::ValueBuilder(
-    flatbuffers::FlatBufferBuilder* flatBufferBuilder
-) :
-    m_flatBufferBuilder{ flatBufferBuilder },
-    m_internedValues{ 0, InternedValueKeyComparer{ this }, InternedValueKeyComparer{ this } },
-    m_internedSchemaItemsByItem{ 0, SchemaItemComparer{}, SchemaItemComparer{} }
-{}
-
-const void* ValueBuilder::SchemaItem::schemaIdentifier() const
-{
-    if (object)
-    {
-        return object;
-    }
-
-    return type;
-}
-
-ValueBuilder::InterningValue::operator ValueBuilder::InternedValue() const
-{
-    return
-    {
-        .schemaIdentifier = schemaItem->schemaIdentifier,
-        .offset = offset,
-        .hashCode = hashCode
-    };
-}
-
 const ValueBuilder::InternedSchemaItem& ValueBuilder::InternSchemaItem(
     const SchemaItem& schemaItem
 )
@@ -116,18 +116,39 @@ const ValueBuilder::InternedSchemaItem& ValueBuilder::InternSchemaItem(
         return *m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()];
     }
 
+    return *(m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = &m_internedSchemaItems->InternSchemaItem(
+        schemaItem));
+}
+
+ValueBuilder::InternedSchemaItems::InternedSchemaItems()
+    :
+    m_internedSchemaItemsByItem{ 0, SchemaItemComparer{}, SchemaItemComparer{} }
+{}
+
+const ValueBuilder::InternedSchemaItem& ValueBuilder::InternedSchemaItems::InternSchemaItem(
+    const SchemaItem& schemaItem
+)
+{
+    std::unique_lock lock{ m_mutex };
+
+    if (m_internedSchemaItemsByPointer.contains(schemaItem.schemaIdentifier()))
+    {
+        return *m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()];
+    }
+
     if (m_internedSchemaItemsByItem.contains(schemaItem))
     {
-        return *(m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = &m_internedSchemaItemsByItem[schemaItem]);
+        return *(m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = m_internedSchemaItemsByItem[schemaItem].get());
     }
 
     return *(
-        m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = &(
-            m_internedSchemaItemsByItem[schemaItem] = MakeInternedSchemaItem(
-                schemaItem)));
+        m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = (
+            m_internedSchemaItemsByItem[schemaItem] = std::make_shared<InternedSchemaItem>(
+                MakeInternedSchemaItem(
+                    schemaItem))).get());
 }
 
-ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedSchemaItem(
+ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInternedSchemaItem(
     const SchemaItem& schemaItem
 )
 {
@@ -147,159 +168,50 @@ ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedSchemaItem(
     throw std::range_error("Unsupported type");
 }
 
-ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedVectorSchemaItem(
+ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInternedVectorSchemaItem(
     const SchemaItem& schemaItem
 )
 {
-    using reflection::BaseType;
- 
-    switch (schemaItem.type->element())
-    {
-    case BaseType::String:
-        return InternedSchemaItem
-        {
-            .schemaIdentifier = schemaItem.schemaIdentifier(),
-            .hash = [=](const void* v)
-            {
-                auto vector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(v);
-                size_t hash = 0;
-                for (auto i = 0; i < vector->size(); ++i)
-                {
-                    hash ^= std::hash<std::string_view>{}(
-                        flatbuffers::GetStringView(
-                            vector->Get(i)));
-                }
-                return hash;
-            },
-            .equal_to = [=](const void* a, const void* b)
-            {
-                auto vectorA = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(a);
-                auto vectorB = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(b);
-                if (vectorA->size() != vectorB->size())
-                {
-                    return false;
-                }
-
-                for (auto i = 0; i < vectorA->size(); ++i)
-                {
-                    if (flatbuffers::GetStringView(vectorA->Get(i)) != flatbuffers::GetStringView(vectorB->Get(i)))
-                    {
-                        return false;
-                    }
-                }
-
-                return true;
-            },
-        };
-        break;
-
-    case BaseType::Obj:
-    {
-        auto object= schemaItem.schema->objects()->Get(schemaItem.type->index());
-        if (object->is_struct())
-        {
-            goto TrivialType;
-        }
-
-        auto objectSchemaItem = InternSchemaItem(
-            {
-                schemaItem.schema,
-                object
-            }
-        );
-
-        return InternedSchemaItem
-        {
-            .schemaIdentifier = schemaItem.schemaIdentifier(),
-            .hash = [=](const void* v)
-            {
-                auto vector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(v);
-                size_t hash = 0;
-                for (auto i = 0; i < vector->size(); ++i)
-                {
-                    hash ^= objectSchemaItem.hash(vector->Get(i));
-                }
-                return hash;
-            },
-            .equal_to = [=](const void* a, const void* b)
-            {
-                auto vectorA = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(a);
-                auto vectorB = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(b);
-                if (vectorA->size() != vectorB->size())
-                {
-                    return false;
-                }
-
-                for (auto i = 0; i < vectorA->size(); ++i)
-                {
-                    if (!objectSchemaItem.equal_to(
-                        vectorA->Get(i),
-                        vectorB->Get(i)))
-                    {
-                        return false;
-                    }
-                }
-
-                return true;
-            },
-        };
-        break;
-    }
-
-    default:
-    TrivialType:
-        // The vector is a trivial type.
-        // We can use bitwise hashing and equality comparison.
-        return InternedSchemaItem
-        {
-            .schemaIdentifier = schemaItem.schemaIdentifier(),
-            .hash = [=](const void* v)
-            {
-                auto vector = reinterpret_cast<const flatbuffers::VectorOfAny*>(v);
-                return std::hash<std::string_view>{}(
-                    std::string_view(
-                        reinterpret_cast<const char*>(vector->Data()),
-                        vector->size() * schemaItem.type->element_size()));
-            },
-            .equal_to = [=](const void* a, const void* b)
-            {
-                auto vectorA = reinterpret_cast<const flatbuffers::VectorOfAny*>(a);
-                auto vectorB = reinterpret_cast<const flatbuffers::VectorOfAny*>(b);
-                return
-                    vectorA->size() == vectorB->size()
-                    &&
-                    std::memcmp(
-                        vectorA->Data(),
-                        vectorB->Data(),
-                        vectorA->size() * schemaItem.type->element_size())
-                    == 0;
-            },
-        };
-    }
-}
-
-ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedObjectSchemaItem(
-    const SchemaItem& schemaItem
-)
-{
-    auto comparers =
-        FlatBuffersObjectSchema
-        {
-            schemaItem.schema,
-            schemaItem.object
-        }.MakeComparers();
-
     return InternedSchemaItem
     {
         .schemaIdentifier = schemaItem.schemaIdentifier(),
         .hash = [=](const void* v)
         {
-            return comparers.hash(
-                FlatValue{reinterpret_cast<const flatbuffers::Table*>(v)});
+            return ValueBuilder::Hash(
+                schemaItem.schema,
+                schemaItem.type,
+                reinterpret_cast<const flatbuffers::VectorOfAny*>(v));
         },
         .equal_to = [=](const void* a, const void* b)
         {
-            return comparers.equal_to(
+            return ValueBuilder::Equals(
+                schemaItem.schema,
+                schemaItem.type,
+                reinterpret_cast<const flatbuffers::VectorOfAny*>(a),
+                reinterpret_cast<const flatbuffers::VectorOfAny*>(b));
+        },
+    };
+}
+
+ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInternedObjectSchemaItem(
+    const SchemaItem& schemaItem
+)
+{
+    return InternedSchemaItem
+    {
+        .schemaIdentifier = schemaItem.schemaIdentifier(),
+        .hash = [=](const void* v)
+        {
+            return ValueBuilder::Hash(
+                schemaItem.schema,
+                schemaItem.object,
+                reinterpret_cast<const flatbuffers::Table*>(v));
+        },
+        .equal_to = [=](const void* a, const void* b)
+        {
+            return ValueBuilder::Equals(
+                schemaItem.schema,
+                schemaItem.object,
                 FlatValue{reinterpret_cast<const flatbuffers::Table*>(a)},
                 FlatValue{reinterpret_cast<const flatbuffers::Table*>(b)});
         },
@@ -382,7 +294,7 @@ flatbuffers::Offset<FlatBuffers::DataValue> ValueBuilder::CreateDataValue(
 
 
 // Hash computation
-size_t ValueBuilder::SchemaItemComparer::operator()(
+size_t ValueBuilder::InternedSchemaItems::SchemaItemComparer::operator()(
     const SchemaItem& item
     ) const
 {
@@ -398,7 +310,7 @@ size_t ValueBuilder::SchemaItemComparer::operator()(
 }
 
 // Equality computation
-bool ValueBuilder::SchemaItemComparer::operator()(
+bool ValueBuilder::InternedSchemaItems::SchemaItemComparer::operator()(
     const SchemaItem& item1,
     const SchemaItem& item2
     ) const
@@ -712,5 +624,509 @@ flatbuffers::Offset<flatbuffers::VectorOfAny> ValueBuilder::CopyVectorDag(
         hash);
     return result;
 }
+
+
+void ValueBuilder::AddSchema(
+    const reflection::Schema* schema)
+{
+    for (auto object : *schema->objects())
+    {
+        if (object->is_struct())
+        {
+            continue;
+        }
+
+        InternSchemaItem(
+            SchemaItem
+            {
+                schema,
+                object,
+                nullptr
+            });
+
+        for (auto field : *object->fields())
+        {
+            if (field->type()->base_type() == reflection::BaseType::Vector)
+            {
+                InternSchemaItem(
+                    SchemaItem
+                    {
+                        schema,
+                        nullptr,
+                        field->type()
+                    });
+            }
+        }
+    }
+}
+
+ValueBuilder::ValueBuilder(
+    const ValueBuilder& other,
+    flatbuffers::FlatBufferBuilder* flatBufferBuilder
+) :
+    m_internedSchemaItems{ other.m_internedSchemaItems },
+    m_internedSchemaItemsByPointer { other.m_internedSchemaItemsByPointer },
+    m_flatBufferBuilder{ flatBufferBuilder }
+{
+}
+
+ValueBuilder ValueBuilder::CreateNew(
+    flatbuffers::FlatBufferBuilder* flatBufferBuilder) const
+{
+    return ValueBuilder(*this, flatBufferBuilder);
+}
+
+size_t ValueBuilder::Hash(
+    const reflection::Schema* schema,
+    const reflection::Object* object,
+    const flatbuffers::Table* table)
+{
+    hash_v1_type hash;
+    Hash(
+        hash,
+        schema,
+        object,
+        table);
+    return hash.checksum();
+}
+
+size_t ValueBuilder::Hash(
+    const reflection::Schema* schema,
+    const reflection::Type* type,
+    const flatbuffers::VectorOfAny* vector)
+{
+    hash_v1_type hash;
+    Hash(
+        hash,
+        schema,
+        type,
+        vector);
+    return hash.checksum();
+}
+
+static std::vector<const reflection::Field*> GetSortedFields(
+    const reflection::Object* object
+)
+{
+    std::vector<const reflection::Field*> fields(object->fields()->size());
+    for (auto field : *object->fields())
+    {
+        fields[field->id()] = field;
+    }
+    return fields;
+}
+
+void ValueBuilder::Hash(
+    hash_v1_type& hash,
+    const reflection::Schema* schema,
+    const reflection::Object* object,
+    const flatbuffers::Table* table)
+{
+    using flatbuffers::uoffset_t;
+    using flatbuffers::Offset;
+    using reflection::BaseType;
+
+    static int32_t zero = 0;
+
+    if (!table)
+    {
+        hash.process_bytes(&zero, sizeof(zero));
+        return;
+    }
+
+    // When hashing, process fields in ID order for stability purposes.
+    // This way, two different schemas that happen to have the same
+    // fields in different order will hash to the same value.
+    auto sortedFields = GetSortedFields(
+        object);
+
+    // When we run across a subobject, pull the offset from the list
+    // of already-copied offsets. This variable keeps track of how
+    // far into the offsets vector we are.
+    for(auto field : sortedFields)
+    {
+        if (!table->CheckField(field->offset()))
+        {
+            hash.process_bytes(&zero, sizeof(zero));
+            continue;
+        }
+
+        auto baseType = field->type()->base_type();
+        switch (baseType)
+        {
+        case BaseType::Obj:
+        {
+            const reflection::Object* subObject = schema->objects()->Get(field->type()->index());
+            if (subObject->is_struct())
+            {
+                auto subStruct = flatbuffers::GetFieldStruct(*table, *field);
+                hash.process_bytes(
+                    subStruct,
+                    subObject->bytesize());
+                break;
+            }
+            
+            Hash(
+                hash,
+                schema,
+                subObject,
+                flatbuffers::GetFieldT(*table, *field)
+            );
+            break;
+        }
+
+        case BaseType::String:
+        {
+            auto stringView = flatbuffers::GetStringView(
+                flatbuffers::GetFieldS(*table, *field)
+            );
+            uint32_t size = stringView.size();
+            hash.process_bytes(&size, sizeof(size));
+            hash.process_bytes(stringView.data(), size);
+            break;
+        }
+
+        case BaseType::Union:
+        {
+            auto typeField = sortedFields[field->id() - 1];
+            auto unionEnum = schema->enums()->Get(typeField->type()->index());
+            auto unionType = flatbuffers::GetFieldI<uint8_t>(*table, *typeField);
+            auto unionEnumValue = unionEnum->values()->LookupByKey(unionType);
+            auto unionObject = schema->objects()->Get(unionEnumValue->union_type()->index());
+
+            Hash(
+                hash,
+                schema,
+                unionObject,
+                flatbuffers::GetFieldT(*table, *field)
+            );
+            break;
+
+        }
+
+        case BaseType::Vector:
+        {
+            auto vector = flatbuffers::GetFieldAnyV(*table, *field);
+
+            Hash(
+                hash,
+                schema,
+                field->type(),
+                vector);
+            break;
+        }
+
+        default:
+        {
+            // Scalar types
+            hash.process_bytes(
+                flatbuffers::GetAnyFieldAddressOf<const void>(*table, *field),
+                flatbuffers::GetTypeSize(baseType));
+        }
+        }
+    }
+}
+
+void ValueBuilder::Hash(
+    hash_v1_type& hash,
+    const reflection::Schema* schema,
+    const reflection::Type* type,
+    const flatbuffers::VectorOfAny* vector
+)
+{
+    using reflection::BaseType;
+
+    static int32_t zero = 0;
+
+    if (!vector)
+    {
+        hash.process_bytes(&zero, sizeof(zero));
+    }
+
+    auto elementObject =
+        type->element() == BaseType::Obj
+        ?
+        schema->objects()->Get(type->index())
+        :
+        nullptr;
+
+    auto vectorSize = vector->size();
+    hash.process_bytes(&vectorSize, sizeof(vectorSize));
+
+    switch (type->element())
+    {
+    case BaseType::String:
+    {
+        auto stringVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector);
+        for (auto i = 0; i < vectorSize; ++i)
+        {
+            auto stringView = flatbuffers::GetStringView(stringVector->Get(i));
+            uint32_t size = stringView.size();
+            hash.process_bytes(&size, sizeof(size));
+            hash.process_bytes(stringView.data(), size);
+        }
+        break;
+    }
+
+    case BaseType::Obj:
+    {
+        if (elementObject->is_struct())
+        {
+            goto TrivialVectorType;
+        }
+
+        auto objectVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector);
+        for (auto i = 0; i < vectorSize; ++i)
+        {
+            Hash(
+                hash,
+                schema,
+                elementObject,
+                objectVector->Get(i));
+        }
+        break;
+    }
+
+    default:
+    TrivialVectorType:
+    {
+        auto elementSize = flatbuffers::GetTypeSize(type->element());
+        if (elementObject)
+        {
+            elementSize = elementObject->bytesize();
+        }
+        hash.process_bytes(
+            vector->Data(),
+            elementSize * vectorSize);
+        break;
+    }
+    }
+}
+
+bool ValueBuilder::Equals(
+    const reflection::Schema* schema,
+    const reflection::Object* object,
+    const flatbuffers::Table* table1,
+    const flatbuffers::Table* table2)
+{
+    using flatbuffers::Offset;
+    using reflection::BaseType;
+
+    if (table1 == table2)
+    {
+        return true;
+    }
+    if (!table1 || !table2)
+    {
+        return false;
+    }
+
+    auto sortedFields = GetSortedFields(
+        object);
+
+    for (auto field : sortedFields)
+    {
+        bool table1HasField = table1->CheckField(field->offset());
+        bool table2HasField = table2->CheckField(field->offset());
+
+        if (table1HasField != table2HasField)
+        {
+            return false;
+        }
+        if (!table1HasField)
+        {
+            continue;
+        }
+
+        auto baseType = field->type()->base_type();
+        switch (baseType)
+        {
+        case BaseType::Obj:
+        {
+            const reflection::Object* subObject = schema->objects()->Get(field->type()->index());
+            if (subObject->is_struct())
+            {
+                auto subStruct1 = flatbuffers::GetFieldStruct(*table1, *field);
+                auto subStruct2 = flatbuffers::GetFieldStruct(*table2, *field);
+                if (memcmp(subStruct1, subStruct2, subObject->bytesize()) != 0)
+                {
+                    return false;
+                }
+                break;
+            }
+
+            if (!Equals(
+                schema,
+                subObject,
+                flatbuffers::GetFieldT(*table1, *field),
+                flatbuffers::GetFieldT(*table2, *field)))
+            {
+                return false;
+            }
+            break;
+        }
+
+        case BaseType::String:
+        {
+            auto stringView1 = flatbuffers::GetStringView(
+                flatbuffers::GetFieldS(*table1, *field)
+            );
+            auto stringView2 = flatbuffers::GetStringView(
+                flatbuffers::GetFieldS(*table2, *field)
+            );
+            if (stringView1 != stringView2)
+            {
+                return false;
+            }
+            break;
+        }
+
+        case BaseType::Union:
+        {
+            // We already know the types are equal, because we compared the types before
+            // we compare the value.
+
+            auto typeField = sortedFields[field->id() - 1];
+            auto unionEnum = schema->enums()->Get(typeField->type()->index());
+            auto unionType = flatbuffers::GetFieldI<uint8_t>(*table1, *typeField);
+            auto unionEnumValue = unionEnum->values()->LookupByKey(unionType);
+            auto unionObject = schema->objects()->Get(unionEnumValue->union_type()->index());
+
+            if (!Equals(
+                schema,
+                unionObject,
+                flatbuffers::GetFieldT(*table1, *field),
+                flatbuffers::GetFieldT(*table2, *field)))
+            {
+                return false;
+            }
+            break;
+
+        }
+
+
+        case BaseType::Vector:
+        {
+            auto vector1 = flatbuffers::GetFieldAnyV(*table1, *field);
+            auto vector2 = flatbuffers::GetFieldAnyV(*table2, *field);
+
+            if (!Equals(
+                schema,
+                field->type(),
+                vector1,
+                vector2))
+            {
+                return false;
+            }
+            break;
+        }
+
+        default:
+        {
+            // Scalar types
+            if (memcmp(
+                flatbuffers::GetAnyFieldAddressOf<const void>(*table1, *field),
+                flatbuffers::GetAnyFieldAddressOf<const void>(*table2, *field),
+                flatbuffers::GetTypeSize(baseType)) != 0)
+            {
+                return false;
+            }
+        }
+        }
+    }
+
+    return true;
+}
+
+bool ValueBuilder::Equals(
+    const reflection::Schema* schema,
+    const reflection::Type* type,
+    const flatbuffers::VectorOfAny* vector1,
+    const flatbuffers::VectorOfAny* vector2)
+{
+    using reflection::BaseType;
+
+    if (vector1 == vector2)
+    {
+        return true;
+    }
+    if (!vector1 || !vector2)
+    {
+        return false;
+    }
+
+    auto vectorSize = vector1->size();
+    if (vectorSize != vector2->size())
+    {
+        return false;
+    }
+
+    auto elementObject =
+        type->element() == BaseType::Obj
+        ?
+        schema->objects()->Get(type->index())
+        :
+        nullptr;
+
+    switch (type->element())
+    {
+    case BaseType::String:
+    {
+        auto stringVector1 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector1);
+        auto stringVector2 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector2);
+        for (auto i = 0; i < vectorSize; ++i)
+        {
+            auto stringView1 = flatbuffers::GetStringView(stringVector1->Get(i));
+            auto stringView2 = flatbuffers::GetStringView(stringVector2->Get(i));
+            if (stringView1 != stringView2)
+            {
+                return false;
+            }
+        }
+        break;
+    }
+
+    case BaseType::Obj:
+    {
+        if (elementObject->is_struct())
+        {
+            goto TrivialVectorType;
+        }
+
+        auto objectVector1 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector1);
+        auto objectVector2 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector2);
+        for (auto i = 0; i < vectorSize; ++i)
+        {
+            if (!Equals(
+                schema,
+                elementObject,
+                objectVector1->Get(i),
+                objectVector2->Get(i)))
+            {
+                return false;
+            }
+        }
+        break;
+    }
+
+    default:
+    TrivialVectorType:
+    {
+        auto elementSize = flatbuffers::GetTypeSize(type->element());
+        if (elementObject)
+        {
+            elementSize = elementObject->bytesize();
+        }
+        if (memcmp(vector1->Data(), vector2->Data(), elementSize * vectorSize) != 0)
+        {
+            return false;
+        }
+        break;
+    }
+    }
+
+    return true;
+}
+
 
 }

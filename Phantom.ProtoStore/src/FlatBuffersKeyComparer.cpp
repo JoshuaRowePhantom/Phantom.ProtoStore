@@ -34,25 +34,15 @@ uint64_t FlatBufferPointerKeyComparer::Hash(
     const void* value
 ) const
 {
-    hash_v1_type hash;
-
-    m_rootComparer->Hash(
-        hash,
-        value);
-
-    auto checksum = hash.checksum();
-
-    return checksum;
+    return ValueBuilder::Hash(
+        m_flatBuffersObjectSchema->Schema,
+        m_flatBuffersObjectSchema->Object,
+        reinterpret_cast<const flatbuffers::Table*>(value));
 }
 
-KeyComparer::BuildValueResult FlatBufferKeyComparer::BuildValue(
-    ValueBuilder& valueBuilder,
-    const ProtoValue& value
-) const
+const std::shared_ptr<const FlatBuffersObjectSchema>& FlatBufferPointerKeyComparer::Schema() const
 {
-    return m_comparer.BuildValue(
-        valueBuilder,
-        value);
+    return m_flatBuffersObjectSchema;
 }
 
 FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer()
@@ -100,24 +90,6 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer(
                 .ApplySortOrder(objectSortOrder, fieldSortOrder));
         }
     });
-
-    if (flatBuffersReflectionObject->is_struct())
-    {
-        m_hashers.push_back(
-            InternalFieldComparer
-            {
-                nullptr,
-                nullptr,
-                {},
-                &InternalFieldComparer::HashStructObject,
-                static_cast<uint32_t>(flatBuffersReflectionObject->bytesize()),
-            }
-        );
-    }
-    else
-    {
-        m_hashers = m_comparers;
-    }
 }
 
 std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare(
@@ -155,25 +127,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare
     }
 
     return std::weak_ordering::equivalent;
-}
-
-void FlatBufferPointerKeyComparer::InternalObjectComparer::Hash(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    if (!value)
-    {
-        HashPrimitive(hash, 0);
-        return;
-    }
-
-    for (auto& hasher : m_hashers)
-    {
-        (hasher.*hasher.hasherFunction)(
-            hash,
-            value);
-    }
 }
 
 FlatBufferPointerKeyComparer::InternalObjectComparer* FlatBufferPointerKeyComparer::InternalObjectComparer::GetObjectComparer(
@@ -225,8 +178,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
             {
                 flatBuffersReflectionField,
                 elementObjectComparer,
-                &InternalFieldComparer::CompareStructField<Container>,
-                &InternalFieldComparer::HashStructField<Container>
+                &InternalFieldComparer::CompareStructField<Container>
             };
         }
         else if constexpr (std::same_as<Container, flatbuffers::Table>)
@@ -235,8 +187,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
             {
                 flatBuffersReflectionField,
                 elementObjectComparer,
-                &InternalFieldComparer::CompareTableField,
-                &InternalFieldComparer::HashTableField
+                &InternalFieldComparer::CompareTableField
             };
         }
 
@@ -361,8 +312,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
     {
         flatBuffersReflectionField,
         nullptr,
-        &InternalFieldComparer::ComparePrimitiveField<Container, fieldRetriever>,
-        &InternalFieldComparer::HashPrimitiveField<Container, fieldRetriever>
+        &InternalFieldComparer::ComparePrimitiveField<Container, fieldRetriever>
     };
 }
 
@@ -375,8 +325,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetStringFieldComparer(
     {
         flatBuffersReflectionField,
         nullptr,
-        &InternalFieldComparer::CompareStringField,
-        &InternalFieldComparer::HashStringField
+        &InternalFieldComparer::CompareStringField
     };
 }
 
@@ -409,8 +358,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetUnionFieldComparer(
     {
         *typeField,
         nullptr,
-        &InternalFieldComparer::CompareUnionField,
-        &InternalFieldComparer::HashUnionField
+        &InternalFieldComparer::CompareUnionField
     };
 
     for (auto typeEnumerationValue : *typeEnumeration->values())
@@ -443,8 +391,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetUnionFieldComparer(
         {
             flatBuffersReflectionField,
             unionComparer,
-            &InternalFieldComparer::CompareUnionFieldValue,
-            &InternalFieldComparer::HashUnionFieldValue,
+            &InternalFieldComparer::CompareUnionFieldValue
         };
 
         comparer.unionComparers[typeEnumerationValue->value()] = unionFieldComparer;
@@ -455,8 +402,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetUnionFieldComparer(
     {
         nullptr,
         nullptr,
-        &InternalFieldComparer::CompareEmptyUnionField,
-        &InternalFieldComparer::HashEmptyUnionField
+        &InternalFieldComparer::CompareEmptyUnionField
     };
 
     return comparer;
@@ -483,24 +429,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareU
     );
 }
 
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashUnionField(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto unionType = flatbuffers::GetFieldI<uint8_t>(
-        *reinterpret_cast<const ::flatbuffers::Table*>(value),
-        *flatBuffersReflectionField
-    );
-
-    auto& comparer = unionComparers.at(unionType);
-
-    return (comparer.*comparer.hasherFunction)(
-        hash,
-        value
-    );
-}
-
 std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareEmptyUnionField(
     const void* value1,
     const void* value2
@@ -508,14 +436,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareE
 {
     // Do nothing.
     return std::weak_ordering::equivalent;
-}
-
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashEmptyUnionField(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    // Do nothing.
 }
 
 std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareUnionFieldValue(
@@ -536,21 +456,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareU
     return elementObjectComparer->Compare(
         fieldValue1,
         fieldValue2);
-}
-
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashUnionFieldValue(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto fieldValue = flatbuffers::GetFieldT(
-        *reinterpret_cast<const ::flatbuffers::Table*>(value),
-        *flatBuffersReflectionField
-    );
-
-    elementObjectComparer->Hash(
-        hash,
-        fieldValue);
 }
 
 template<
@@ -607,21 +512,6 @@ template<
     {
         return baseResult;
     }
-}
-
-template<
-    typename Value
-> void FlatBufferPointerKeyComparer::HashPrimitive(
-    hash_v1_type& hash,
-    Value value
-)
-{
-    auto span = as_bytes(value);
-
-    hash.process_bytes(
-        span.data(),
-        span.size()
-    );
 }
 
 FlatBufferPointerKeyComparer::InternalFieldComparer 
@@ -770,7 +660,6 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldCompare
         flatBuffersReflectionField,
         elementObjectComparer,
         &InternalFieldComparer::CompareVectorField<Value>,
-        &InternalFieldComparer::HashVectorField<Value>,
         flatBuffersReflectionField->type()->element_size(),
     };
 }
@@ -909,9 +798,6 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedArrayFieldComparer
         flatBuffersReflectionField,
         elementObjectComparer,
         &InternalFieldComparer::CompareArrayField<Value>,
-        // No need to hash array fields, since they are hashed as part
-        // of the parent struct.
-        nullptr,
         flatBuffersReflectionField->type()->element_size(),
         flatBuffersReflectionField->type()->fixed_length(),
     };
@@ -999,8 +885,13 @@ SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
 
 FlatBufferKeyComparer::FlatBufferKeyComparer(
     FlatBufferPointerKeyComparer comparer
-) : m_comparer{ std::move(comparer) }
-{}
+) : 
+    m_comparer{ std::move(comparer) },
+    m_prototypeValueBuilder{ nullptr }
+{
+    //m_prototypeValueBuilder.AddSchema(
+    //    m_comparer.Schema()->Schema);
+}
 
 std::weak_ordering FlatBufferKeyComparer::CompareImpl(
     const ProtoValue& value1,
@@ -1021,7 +912,10 @@ uint64_t FlatBufferKeyComparer::Hash(
 ) const
 {
     auto table = value.as_table_if();
-    return m_comparer.Hash(table);
+    return ValueBuilder::Hash(
+        m_comparer.Schema()->Schema,
+        m_comparer.Schema()->Object,
+        table);
 }
 
 std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
@@ -1034,20 +928,6 @@ std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
         });
 }
 
-
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashStructObject(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto span = std::span<const std::byte>
-    {
-        reinterpret_cast<const std::byte*>(value),
-        elementSize
-    };
-
-    HashPrimitive(hash, span);
-}
 
 template<
     typename Container
@@ -1072,24 +952,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareS
         field2);
 }
 
-template<
-    typename Container
->
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashStructField(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto field = flatbuffers::GetFieldStruct(
-        *reinterpret_cast<const Container*>(value),
-        *flatBuffersReflectionField
-    );
-
-    return elementObjectComparer->Hash(
-        hash,
-        field);
-}
-
 std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareTableField(
     const void* value1,
     const void* value2
@@ -1108,21 +970,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareT
     return elementObjectComparer->Compare(
         field1,
         field2);
-}
-
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashTableField(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto field = flatbuffers::GetFieldT(
-        *reinterpret_cast<const flatbuffers::Table*>(value),
-        *flatBuffersReflectionField
-    );
-
-    return elementObjectComparer->Hash(
-        hash,
-        field);
 }
 
 template<
@@ -1163,48 +1010,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareS
             *flatBuffersReflectionField));
 
     return fieldValue1 <=> fieldValue2;
-}
-
-template<
-    typename Container,
-    auto fieldRetriever
->
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashPrimitiveField(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto fieldValue = fieldRetriever(
-        reinterpret_cast<const Container*>(value),
-        flatBuffersReflectionField
-    );
-
-    HashPrimitive(
-        hash,
-        fieldValue);
-}
-
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashStringField(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto stringView = flatbuffers::GetStringView(
-        flatbuffers::GetFieldS(
-            *reinterpret_cast<const flatbuffers::Table*>(value),
-            *flatBuffersReflectionField));
-
-    auto span = std::span<const char>{ stringView };
-    if (!span.data())
-    {
-        HashPrimitive(hash, 0);
-    }
-    else
-    {
-        HashPrimitive(
-            hash,
-            span);
-    }
 }
 
 template<
@@ -1273,75 +1078,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareV
 }
 
 template<
-    typename Value
->
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashVectorField(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto vector = flatbuffers::GetFieldV<Value>(
-        *reinterpret_cast<const flatbuffers::Table*>(value),
-        *flatBuffersReflectionField);
-
-    if (!vector)
-    {
-        HashPrimitive(hash, 0);
-        return;
-    }
-
-    HashPrimitive(
-        hash,
-        vector->size());
-
-    if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::Table>, Value>)
-    {
-        for (auto table : *vector)
-        {
-            elementObjectComparer->Hash(
-                hash,
-                table);
-        }
-    }
-    else if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::String>, Value>)
-    {
-        for (auto string : *vector)
-        {
-            auto string_view = string->string_view();
-            auto span = std::span
-            {
-                string_view.data(),
-                string_view.size(),
-            };
-
-            HashPrimitive(
-                hash,
-                string_view.size());
-
-            HashPrimitive(
-                hash,
-                span);
-        }
-    }
-    else
-    {
-        // It's a vector of primitive values.
-        // Hash the entire vector.
-        auto span = std::span<Value>
-        {
-            vector->data(),
-            vector->size()
-        };
-
-        HashPrimitive(
-            hash,
-            span
-        );
-    }
-}
-
-
-template<
 >
 std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareVectorField<flatbuffers::Struct>(
     const void* value1,
@@ -1388,40 +1124,6 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareV
     }
 
     return size1 <=> size2;
-}
-template<
->
-void FlatBufferPointerKeyComparer::InternalFieldComparer::HashVectorField<flatbuffers::Struct>(
-    hash_v1_type& hash,
-    const void* value
-) const
-{
-    auto vector = flatbuffers::GetFieldAnyV(
-        *reinterpret_cast<const flatbuffers::Table*>(value),
-        *flatBuffersReflectionField);
-
-    if (!vector)
-    {
-        HashPrimitive(hash, 0);
-        return;
-    }
-
-    HashPrimitive(
-        hash,
-        vector->size());
-
-    // It's a vector of struct values.
-    // Hash the entire vector.
-    auto span = std::span
-    {
-        vector->Data(),
-        vector->size() * elementSize
-    };
-
-    HashPrimitive(
-        hash,
-        span
-    );
 }
 
 template<
@@ -1484,13 +1186,40 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareA
 
 }
 
-KeyComparer::BuildValueResult FlatBufferPointerKeyComparer::BuildValue(
+KeyComparer::BuildValueResult FlatBufferKeyComparer::BuildValue(
     ValueBuilder& valueBuilder,
     const ProtoValue& value
 ) const
 {
-    return valueBuilder.CreateDataValue(
-        value.as_aligned_message_if());
+    if (m_comparer.Schema()->MessageEncodingOptions == FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage)
+    {
+        return valueBuilder.CreateDataValue(
+            value.as_aligned_message_if());
+    }
+
+    if (m_comparer.Schema()->GraphEncodingOptions == FlatBuffers::FlatBuffersGraphEncodingOptions::NoDuplicateDetection)
+    {
+        auto deduplicateStrings = m_comparer.Schema()->StringEncodingOptions == FlatBuffers::FlatBuffersStringEncodingOptions::ShareStrings;
+
+        return flatbuffers::Offset<FlatBuffers::ValuePlaceholder>
+        {
+            flatbuffers::CopyTable(
+                valueBuilder.builder(),
+                *m_comparer.Schema()->Schema,
+                *m_comparer.Schema()->Object,
+                *value.as_table_if(),
+                deduplicateStrings).o
+        };
+    }
+
+    return flatbuffers::Offset<FlatBuffers::ValuePlaceholder>
+    {
+        valueBuilder.CopyTableDag(
+            m_comparer.Schema()->Schema,
+            m_comparer.Schema()->Object,
+            value.as_table_if()
+            ).o
+    };
 }
 
 }

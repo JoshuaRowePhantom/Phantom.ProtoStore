@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <flatbuffers/reflection.h>
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
+#include "Checksum.h"
 #include <google/protobuf/descriptor.h>
 
 namespace Phantom::ProtoStore
@@ -84,7 +85,6 @@ class ValueBuilder
         std::function<bool(const void*, const void*)> equal_to;
     };
 
-public:
     struct SchemaItem
     {
         const reflection::Schema* schema = nullptr;
@@ -94,25 +94,51 @@ public:
         const void* schemaIdentifier() const;
     };
 
-private:
-    struct SchemaItemComparer
+    class InternedSchemaItems
     {
-        // Hash computation
-        size_t operator()(
-            const SchemaItem& item
-            ) const;
+        struct SchemaItemComparer
+        {
+            // Hash computation
+            size_t operator()(
+                const SchemaItem& item
+                ) const;
 
-        // Equality computation
-        bool operator()(
-            const SchemaItem& item1,
-            const SchemaItem& item2
-            ) const;
+            // Equality computation
+            bool operator()(
+                const SchemaItem& item1,
+                const SchemaItem& item2
+                ) const;
+        };
+
+        std::mutex m_mutex;
+        std::unordered_map<SchemaItem, std::shared_ptr<const InternedSchemaItem>, SchemaItemComparer, SchemaItemComparer> m_internedSchemaItemsByItem;
+        std::unordered_map<const void*, const InternedSchemaItem*> m_internedSchemaItemsByPointer;
+
+        InternedSchemaItem MakeInternedSchemaItem(
+            const SchemaItem& schemaItem
+        );
+
+        InternedSchemaItem MakeInternedVectorSchemaItem(
+            const SchemaItem& schemaItem
+        );
+
+        InternedSchemaItem MakeInternedObjectSchemaItem(
+            const SchemaItem& schemaItem
+        );
+
+    public:
+        InternedSchemaItems();
+
+        const InternedSchemaItem& InternSchemaItem(
+            const SchemaItem& schemaItem);
     };
 
+
+private:
+
     flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
-    std::list<std::any> m_ownedValues;
-    std::unordered_map<SchemaItem, InternedSchemaItem, SchemaItemComparer, SchemaItemComparer> m_internedSchemaItemsByItem;
-    std::unordered_map<const void*, InternedSchemaItem*> m_internedSchemaItemsByPointer;
+    std::shared_ptr<InternedSchemaItems> m_internedSchemaItems;
+    std::unordered_map<const void*, const InternedSchemaItem*> m_internedSchemaItemsByPointer;
 
     std::unordered_set<
         InternedValue,
@@ -126,18 +152,6 @@ private:
     );
 
     const InternedSchemaItem& InternSchemaItem(
-        const SchemaItem& schemaItem
-    );
-
-    InternedSchemaItem MakeInternedSchemaItem(
-        const SchemaItem& schemaItem
-    );
-
-    InternedSchemaItem MakeInternedVectorSchemaItem(
-        const SchemaItem& schemaItem
-    );
-    
-    InternedSchemaItem MakeInternedObjectSchemaItem(
         const SchemaItem& schemaItem
     );
 
@@ -160,6 +174,23 @@ private:
         size_t hash
     );
 
+    ValueBuilder(
+        const ValueBuilder&,
+        flatbuffers::FlatBufferBuilder* flatBufferBuilder
+    );
+
+    static void Hash(
+        hash_v1_type& hash,
+        const reflection::Schema* schema,
+        const reflection::Object* object,
+        const flatbuffers::Table* value);
+    
+    static void Hash(
+        hash_v1_type& hash,
+        const reflection::Schema* schema,
+        const reflection::Type* type,
+        const flatbuffers::VectorOfAny* value);
+
 public:
     ValueBuilder(
         flatbuffers::FlatBufferBuilder* flatBufferBuilder
@@ -167,21 +198,50 @@ public:
 
     flatbuffers::FlatBufferBuilder& builder() const;
 
-    flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(
+    [[nodiscard]] flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(
         const AlignedMessage&
     );
 
-    flatbuffers::Offset<flatbuffers::Table> CopyTableDag(
+    [[nodiscard]] flatbuffers::Offset<flatbuffers::Table> CopyTableDag(
         const reflection::Schema* schema,
         const reflection::Object* object,
         const flatbuffers::Table* value
     );
 
-    flatbuffers::Offset<flatbuffers::VectorOfAny> CopyVectorDag(
+    [[nodiscard]] flatbuffers::Offset<flatbuffers::VectorOfAny> CopyVectorDag(
         const reflection::Schema* schema,
         const reflection::Type* type,
         const flatbuffers::VectorOfAny* value
     );
+
+    void AddSchema(
+        const reflection::Schema* schema);
+
+    [[nodiscard]] ValueBuilder CreateNew(
+        flatbuffers::FlatBufferBuilder* flatBufferBuilder
+    ) const;
+
+    [[nodiscard]] static size_t Hash(
+        const reflection::Schema* schema,
+        const reflection::Object* object,
+        const flatbuffers::Table* value);
+
+    [[nodiscard]] static size_t Hash(
+        const reflection::Schema* schema,
+        const reflection::Type* type,
+        const flatbuffers::VectorOfAny* value);
+
+    [[nodiscard]] static bool Equals(
+        const reflection::Schema* schema,
+        const reflection::Object* object,
+        const flatbuffers::Table* value1,
+        const flatbuffers::Table* value2);
+
+    [[nodiscard]] static bool Equals(
+        const reflection::Schema* schema,
+        const reflection::Type* type,
+        const flatbuffers::VectorOfAny* vector1,
+        const flatbuffers::VectorOfAny* vector2);
 };
 
 class KeyComparer : public BaseKeyComparer

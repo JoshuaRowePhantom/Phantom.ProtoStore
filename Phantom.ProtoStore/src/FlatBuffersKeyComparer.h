@@ -33,13 +33,7 @@ private:
             const void* value2
             ) const;
 
-        using HasherFunction = void (InternalFieldComparer::*)(
-            hash_v1_type& hash,
-            const void* value
-            ) const;
-
         ComparerFunction comparerFunction = nullptr;
-        HasherFunction hasherFunction = nullptr;
 
         uint32_t elementSize = 0;
         uint16_t fixedLength = 0;
@@ -48,11 +42,6 @@ private:
 
         SortOrder sortOrder = SortOrder::Ascending;
         
-        void HashStructObject(
-            hash_v1_type& hash,
-            const void* value
-        ) const;
-
         template<
             typename Value
         > static std::weak_ordering ComparePrimitive(
@@ -68,22 +57,9 @@ private:
             const void* value2
         ) const;
 
-        template<
-            typename Container
-        >
-        void HashStructField(
-            hash_v1_type& hash,
-            const void* value
-        ) const;
-
         std::weak_ordering CompareTableField(
             const void* value1,
             const void* value2
-        ) const;
-
-        void HashTableField(
-            hash_v1_type& hash,
-            const void* value
         ) const;
 
         std::weak_ordering CompareUnionField(
@@ -91,29 +67,14 @@ private:
             const void* value2
         ) const;
 
-        void HashUnionField(
-            hash_v1_type& hash,
-            const void* value
-        ) const;
-
         std::weak_ordering CompareEmptyUnionField(
             const void* value1,
             const void* value2
         ) const;
 
-        void HashEmptyUnionField(
-            hash_v1_type& hash,
-            const void* value
-        ) const;
-
         std::weak_ordering CompareUnionFieldValue(
             const void* value1,
             const void* value2
-        ) const;
-
-        void HashUnionFieldValue(
-            hash_v1_type& hash,
-            const void* value
         ) const;
 
         template<
@@ -130,19 +91,6 @@ private:
             const void* value2
         ) const;
 
-        template<
-            typename Container,
-            auto fieldRetriever
-        >
-        void HashPrimitiveField(
-            hash_v1_type& hash,
-            const void* value
-        ) const;
-
-        void HashStringField(
-            hash_v1_type& hash,
-            const void* value
-        ) const;
 
         template<
             typename Value
@@ -153,25 +101,10 @@ private:
         ) const;
 
         template<
-            typename Value
-        >
-        void HashVectorField(
-            hash_v1_type& hash,
-            const void* value
-        ) const;
-
-        template<
         >
         std::weak_ordering CompareVectorField<flatbuffers::Struct>(
             const void* value1,
             const void* value2
-        ) const;
-
-        template<
-        >
-        void HashVectorField<flatbuffers::Struct>(
-            hash_v1_type& hash,
-            const void* value
         ) const;
 
         template<
@@ -207,7 +140,6 @@ private:
         public BaseKeyComparer
     {
         std::vector<InternalFieldComparer> m_comparers;
-        std::vector<InternalFieldComparer> m_hashers;
 
         static SortOrder GetSortOrder(
             const flatbuffers::Vector<flatbuffers::Offset<reflection::KeyValue>>* attributes
@@ -337,6 +269,8 @@ public:
     explicit FlatBufferPointerKeyComparer(
         std::shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema);
 
+    const std::shared_ptr<const FlatBuffersObjectSchema>& Schema() const;
+
     std::weak_ordering Compare(
         const void* value1,
         const void* value2
@@ -345,17 +279,13 @@ public:
     uint64_t Hash(
         const void* value
     ) const;
-
-    KeyComparer::BuildValueResult BuildValue(
-        ValueBuilder& valueBuilder,
-        const ProtoValue& value
-    ) const;
 };
 
 class FlatBufferKeyComparer :
     public KeyComparer
 {
     FlatBufferPointerKeyComparer m_comparer;
+    ValueBuilder m_prototypeValueBuilder;
 
     virtual std::weak_ordering CompareImpl(
         const ProtoValue& value1,
