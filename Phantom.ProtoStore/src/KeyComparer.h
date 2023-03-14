@@ -81,6 +81,7 @@ class ValueBuilder
         std::function<bool(const void*, const void*)> equal_to;
     };
 
+public:
     struct SchemaItem
     {
         const reflection::Schema* schema = nullptr;
@@ -90,6 +91,7 @@ class ValueBuilder
         const void* schemaIdentifier() const;
     };
 
+private:
     struct SchemaItemComparer
     {
         // Hash computation
