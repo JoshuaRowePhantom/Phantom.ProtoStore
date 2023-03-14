@@ -85,7 +85,7 @@ private:
         uintptr_t bufferEndInt = reinterpret_cast<uintptr_t>(bufferEnd);
 
         // Process 8 bytes at a time until near the end of the buffer.
-        while ((bufferInt + 8) < bufferEndInt)
+        while ((bufferInt + 8) <= bufferEndInt)
         {
             switch ((bufferEndInt - bufferInt) & ~0x7ULL)
             {
@@ -154,7 +154,7 @@ private:
         uintptr_t bufferInt = reinterpret_cast<uintptr_t>(buffer);
         uintptr_t bufferEndInt = reinterpret_cast<uintptr_t>(buffer + byte_count);
 
-        // Process individual bytes to the next 8-byte alignment.
+        // If the buffer size is < 8, process the bytes individually
         if (bufferEndInt - bufferInt < 8)
         {
             switch (bufferEndInt - bufferInt)
@@ -179,21 +179,23 @@ private:
             return;
         }
 
+        // The buffer size is >= 8, process the bytes up to the first
+        // 8-byte alignment.
         switch (bufferInt & 0x7)
         {
-        case 7:
-            process_byte(*reinterpret_cast<const char*>(bufferInt++));
-        case 6:
-            process_byte(*reinterpret_cast<const char*>(bufferInt++));
-        case 5:
-            process_byte(*reinterpret_cast<const char*>(bufferInt++));
-        case 4:
-            process_byte(*reinterpret_cast<const char*>(bufferInt++));
-        case 3:
+        case 1:
             process_byte(*reinterpret_cast<const char*>(bufferInt++));
         case 2:
             process_byte(*reinterpret_cast<const char*>(bufferInt++));
-        case 1:
+        case 3:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 4:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 5:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 6:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 7:
             process_byte(*reinterpret_cast<const char*>(bufferInt++));
         case 0:
             break;

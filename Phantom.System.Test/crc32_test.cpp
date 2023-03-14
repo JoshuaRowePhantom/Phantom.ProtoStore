@@ -82,4 +82,37 @@ TEST(buffered_crc_test, large_value)
     EXPECT_EQ(crc.checksum(), buffered_crc.checksum());
 }
 
+TEST(crc32_test, loop_unrolling)
+{
+    std::string buffer;
+    buffer.reserve(2048);
+
+    for (auto size = 0; size < 20; size++)
+    {
+        uint32_t expectedCrc;
+
+        for (auto startOffset = 0; startOffset < 20; startOffset++)
+        {
+            buffer.clear();
+            crc32<0xffffffff, 0> crc;
+            for (auto offset = 0; offset < startOffset; offset++)
+            {
+                buffer += " ";
+            }
+            for (auto counter = 0; counter < size; counter++)
+            {
+                buffer += "123456789";
+            }
+
+            crc.process_block(buffer.data() + startOffset, buffer.data() + buffer.size());
+            auto result = crc.checksum();
+            if (startOffset == 0)
+            {
+                expectedCrc = result;
+            }
+            EXPECT_EQ(expectedCrc, result);
+        }
+    }
+}
+
 }
