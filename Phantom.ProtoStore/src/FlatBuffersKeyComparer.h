@@ -1,6 +1,7 @@
 #pragma once
 #include "KeyComparer.h"
 #include "Checksum.h"
+#include "Schema.h"
 #include <flatbuffers/reflection.h>
 
 namespace Phantom::ProtoStore
@@ -328,14 +329,13 @@ private:
         );
     };
 
-    std::shared_ptr<flatbuffers::DetachedBuffer> m_schemaBuffer;
+    std::shared_ptr<const FlatBuffersObjectSchema> m_flatBuffersObjectSchema;
     std::shared_ptr<ComparerMap> m_internalComparers = std::make_shared<ComparerMap>();
     const InternalObjectComparer* m_rootComparer;
 
 public:
-    FlatBufferPointerKeyComparer(
-        const ::reflection::Schema* flatBuffersReflectionSchema,
-        const ::reflection::Object* flatBuffersReflectionObject);
+    explicit FlatBufferPointerKeyComparer(
+        std::shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema);
 
     std::weak_ordering Compare(
         const void* value1,
@@ -344,6 +344,11 @@ public:
 
     uint64_t Hash(
         const void* value
+    ) const;
+
+    KeyComparer::BuildValueResult BuildValue(
+        ValueBuilder& valueBuilder,
+        const ProtoValue& value
     ) const;
 };
 
@@ -356,7 +361,6 @@ class FlatBufferKeyComparer :
         const ProtoValue& value1,
         const ProtoValue& value2
     ) const override;
-
 public:
     FlatBufferKeyComparer(
         FlatBufferPointerKeyComparer comparer);

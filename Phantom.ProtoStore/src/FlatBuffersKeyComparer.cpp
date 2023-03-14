@@ -8,44 +8,15 @@ namespace Phantom::ProtoStore
 {
 
 FlatBufferPointerKeyComparer::FlatBufferPointerKeyComparer(
-    const ::reflection::Schema* flatBuffersReflectionSchema,
-    const ::reflection::Object* flatBuffersReflectionObject
-)
+    shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema
+) : 
+    m_flatBuffersObjectSchema(
+        std::move(flatBuffersObjectSchema))
 {
-    // Copy the incoming schema so that we guarantee its lifetime.
-    flatbuffers::FlatBufferBuilder schemaBuilder;
-    auto rootOffset = flatbuffers::CopyTable(
-        schemaBuilder,
-        *FlatBuffersSchemas::ReflectionSchema,
-        *FlatBuffersSchemas::ReflectionSchema_Schema,
-        *reinterpret_cast<const flatbuffers::Table*>(flatBuffersReflectionSchema)
-    );
-    schemaBuilder.Finish(rootOffset);
-    
-    m_schemaBuffer = std::make_shared<flatbuffers::DetachedBuffer>(
-        schemaBuilder.Release());
-
-    auto schema = flatbuffers::GetRoot<::reflection::Schema>(
-        m_schemaBuffer->data());
-    const ::reflection::Object* object = nullptr;
-
-    for (auto index = 0; index < flatBuffersReflectionSchema->objects()->size(); index++)
-    {
-        if (flatBuffersReflectionSchema->objects()->Get(index) == flatBuffersReflectionObject)
-        { 
-            object = flatBuffersReflectionSchema->objects()->Get(index);
-        }
-    }
-
-    if (!object)
-    {
-        throw std::range_error("flatBuffersReflectionObject not in flatBuffersReflectionSchema->objects()");
-    }
-
     m_rootComparer = InternalObjectComparer::GetObjectComparer(
         *m_internalComparers,
-        schema,
-        object
+        m_flatBuffersObjectSchema->Schema,
+        m_flatBuffersObjectSchema->Object
     );
 }
 
@@ -79,8 +50,9 @@ KeyComparer::BuildValueResult FlatBufferKeyComparer::BuildValue(
     const ProtoValue& value
 ) const
 {
-    return valueBuilder.CreateDataValue(
-        value.as_aligned_message_if());
+    return m_comparer.BuildValue(
+        valueBuilder,
+        value);
 }
 
 FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer()
@@ -1053,14 +1025,12 @@ uint64_t FlatBufferKeyComparer::Hash(
 }
 
 std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
-    const ::reflection::Schema* flatBuffersReflectionSchema,
-    const ::reflection::Object* flatBuffersReflectionObject)
+    shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema)
 {
     return std::make_shared<FlatBufferKeyComparer>(
         FlatBufferPointerKeyComparer
         {
-            flatBuffersReflectionSchema,
-            flatBuffersReflectionObject
+            std::move(flatBuffersObjectSchema)
         });
 }
 
@@ -1512,6 +1482,15 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareA
 
     return std::weak_ordering::equivalent;
 
+}
+
+KeyComparer::BuildValueResult FlatBufferPointerKeyComparer::BuildValue(
+    ValueBuilder& valueBuilder,
+    const ProtoValue& value
+) const
+{
+    return valueBuilder.CreateDataValue(
+        value.as_aligned_message_if());
 }
 
 }

@@ -56,9 +56,16 @@ class ValueBuilder
             ) const;
     };
 
+    struct SchemaItemComparer
+    {
+        const void* schemaIdentifier;
+        std::function<size_t(const void*)> hash;
+        std::function<bool(const void*, const void*)> equal_to;
+    };
+
     flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
     std::list<std::any> m_ownedValues;
-    std::unordered_map<const void*, const void*> m_internedSchemaIdentifiers;
+    std::unordered_map<const void*, SchemaItemComparer> m_internedSchemaIdentifiers;
     
     std::unordered_map<
         InternedValueKey,
@@ -176,8 +183,7 @@ public:
 };
 
 std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
-    const ::reflection::Schema* flatBuffersReflectionSchema,
-    const ::reflection::Object* flatBuffersReflectionObject);
+    std::shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema);
 
 struct KeyAndSequenceNumberComparerArgument
 {

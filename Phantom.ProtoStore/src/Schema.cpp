@@ -156,8 +156,11 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
     else if (holds_alternative<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema))
     {
         keyComparer = MakeFlatBufferKeyComparer(
-            get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema.Schema,
-            get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema.Object);
+            std::shared_ptr<const FlatBuffersObjectSchema>
+            {
+                schema,
+                &get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema
+            });
     }
     else
     {

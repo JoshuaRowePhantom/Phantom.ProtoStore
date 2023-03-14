@@ -24,8 +24,10 @@ FlatBufferPointerKeyComparer GetTestKeyFlatBufferPointerKeyComparer()
         schemaData.begin());
 
     FlatBufferPointerKeyComparer keyComparer(
-        schema,
-        schema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.TestKey"));
+        std::make_shared<FlatBuffersObjectSchema>(
+            schema,
+            schema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.TestKey")
+        ));
 
     return std::move(keyComparer);
 }
