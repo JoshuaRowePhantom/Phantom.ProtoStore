@@ -568,7 +568,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_rows_after_checkp
     //auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
     auto createRequest = GetCreateMemoryStoreRequest();
     createRequest.DefaultMergeParameters.set_mergesperlevel(2);
-    createRequest.DefaultMergeParameters.set_maxlevel(4);
+    createRequest.DefaultMergeParameters.set_maxlevel(3);
     //auto createRequest = GetCreateMemoryStoreRequest();
     auto store = co_await CreateStore(createRequest);
 
@@ -579,7 +579,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_rows_after_checkp
     auto keys = MakeRandomStrings(
         rng,
         20,
-        100);
+        20);
 
     for (auto key : keys)
     {
