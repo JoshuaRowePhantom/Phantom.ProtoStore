@@ -1,5 +1,6 @@
 #pragma once
 
+#include <any>
 #include <flatbuffers/flatbuffers.h>
 #include <flatbuffers/reflection.h>
 #include <google/protobuf/message.h>
@@ -250,9 +251,11 @@ class ProtoValue
     static constexpr size_t protocol_buffers_span = 1;
     static constexpr size_t protocol_buffers_string = 2;
     static constexpr size_t protocol_buffers_aligned_message_data = 3;
-    static constexpr size_t flat_buffers_span = 4;
-    static constexpr size_t flat_buffers_string = 5;
-    static constexpr size_t flat_buffers_aligned_message_data = 6;
+    static constexpr size_t protocol_buffers_any = 4;
+    static constexpr size_t flat_buffers_span = 5;
+    static constexpr size_t flat_buffers_string = 6;
+    static constexpr size_t flat_buffers_aligned_message_data = 7;
+    static constexpr size_t flat_buffers_any = 8;
 
     // The backing store for a message.
     typedef std::variant<
@@ -262,11 +265,14 @@ class ProtoValue
         std::span<const std::byte>,
         std::string,
         AlignedMessageData,
-        
+        std::any,
+
         // flat buffer values
         std::span<const std::byte>,
         std::string,
-        AlignedMessageData
+        AlignedMessageData,
+        std::any
+
     > message_data_type;
 
     // These constants correspond to the values in message_type variant.
@@ -297,15 +303,6 @@ class ProtoValue
     static constexpr size_t backing_store_span = 1;
     static constexpr size_t backing_store_string = 2;
     static constexpr size_t backing_store_aligned_message_data = 3;
-
-public:
-
-    using backing_store = std::variant<
-        std::monostate,
-        std::span<const std::byte>,
-        std::string,
-        AlignedMessageData
-    >;
 
 public:
 
@@ -556,6 +553,30 @@ public:
 
     bool IsKeyMin() const;
     bool IsKeyMax() const;
+
+    ProtoValue SubValue(
+        this auto&& self,
+        flat_buffer_message flatBufferMessage
+    )
+    {
+        ProtoValue result{ flatBufferMessage };
+        if (result)
+        {
+            if (self.message_data.index() == flat_buffers_any)
+            {
+                result.message_data.emplace<flat_buffers_any>(
+                    std::get<flat_buffers_any>(std::forward_like<decltype(self)>(self.message_data))
+                );
+            }
+            else
+            {
+                result.message_data.emplace<flat_buffers_any>(
+                    std::forward_like<decltype(self)>(self.message_data)
+                );
+            }
+        }
+        return std::move(result);
+    }
 };
 
 template<
@@ -568,7 +589,7 @@ class FlatValue
 public:
     FlatValue() = default;
 
-    FlatValue(
+    explicit FlatValue(
         const Table* table
     ) :
         m_protoValue{ ProtoValue::FlatBuffer(table) }
@@ -580,7 +601,7 @@ public:
         m_protoValue { std::move(protoValue) }
     {}
 
-    FlatValue(
+    explicit FlatValue(
         flatbuffers::FlatBufferBuilder builder
     ) :
         m_protoValue{ ProtoValue::FlatBuffer(std::move(builder)) }
@@ -630,6 +651,21 @@ public:
         return std::move(m_protoValue);
     }
 
+    template<
+        IsFlatBufferTable OtherTable
+    >
+    FlatValue<OtherTable> SubValue(
+        this auto&& self,
+        const OtherTable* table
+    )
+    {
+        return FlatValue<OtherTable>
+        {
+            std::forward_like<decltype(self)>(self.m_protoValue).SubValue(
+                reinterpret_cast<const flatbuffers::Table*>(table))
+        };
+    }
+
     // Clone the Table, copying the underlying data to a new shared_ptr.
     // The schema is required in case the original is not backed
     // by a data buffer already.
@@ -659,9 +695,11 @@ public:
                 alignedMessage
             };
 
-            return ProtoValue::FlatBuffer(
-                alignedMessageData
-            );
+            return FlatValue
+            {
+                ProtoValue::FlatBuffer(
+                    alignedMessageData)
+            };
         }
 
         flatbuffers::FlatBufferBuilder builder;
@@ -672,7 +710,7 @@ public:
             *m_protoValue.as_table_if());
         builder.Finish(offset);
 
-        return std::move(builder);
+        return FlatValue{ std::move(builder) };
     }
 };
 
