@@ -66,12 +66,16 @@ TEST(buffered_crc_test, test_vector_123456789)
 TEST(buffered_crc_test, large_value)
 {
     crc32<0xffffffff, 0> crc;
-    buffered_crc<64, crc32<0xffffffff, 0>> buffered_crc;
+    buffered_crc<200, crc32<0xffffffff, 0>> buffered_crc;
     std::string s1 = "123456789";
 
     for (auto counter = 0; counter < 100; ++counter)
     {
         crc.process_bytes(s1.data(), s1.size());
+    }
+
+    for (auto counter = 0; counter < 100; ++counter)
+    {
         buffered_crc.process_bytes(s1.data(), s1.size());
     }
 

@@ -56,6 +56,26 @@ public:
 private:
     value_type m_remainder = InitRemainder;
 
+    template<size_t blockSize, size_t currentOffset>
+    uint32_t process_block(
+        uintptr_t bufferInt
+    )
+    {
+        if constexpr (currentOffset == 0)
+        {
+            return _mm_crc32_u64(
+                m_remainder,
+                *reinterpret_cast<const uint64_t*>(bufferInt + currentOffset)
+            );
+        }
+        else
+        {
+            return _mm_crc32_u64(
+                process_block<blockSize, currentOffset - 8>(bufferInt),
+                *reinterpret_cast<const uint64_t*>(bufferInt + currentOffset));
+        }
+    }
+
     void internal_process_aligned_bytes(
         const unsigned char* bufferStart,
         const unsigned char* bufferEnd
@@ -67,19 +87,63 @@ private:
         // Process 8 bytes at a time until near the end of the buffer.
         while ((bufferInt + 8) < bufferEndInt)
         {
-            m_remainder = _mm_crc32_u64(
-                m_remainder,
-                *reinterpret_cast<const uint64_t*>(bufferInt));
-            bufferInt += 8;
+            switch ((bufferEndInt - bufferInt) & ~0x7ULL)
+            {
+            default:
+            case 64:
+                m_remainder = process_block<64, 56>(bufferInt);
+                bufferInt += 64;
+                break;
+            case 56:
+                m_remainder = process_block<56, 48>(bufferInt);
+                bufferInt += 56;
+                break;
+            case 48:
+                m_remainder = process_block<48, 40>(bufferInt);
+                bufferInt += 48;
+                break;
+            case 40:
+                m_remainder = process_block<40, 32>(bufferInt);
+                bufferInt += 40;
+                break;
+            case 32:
+                m_remainder = process_block<32, 24>(bufferInt);
+                bufferInt += 32;
+                break;
+            case 24:
+                m_remainder = process_block<24, 16>(bufferInt);
+                bufferInt += 24;
+                break;
+            case 16:
+                m_remainder = process_block<16, 8>(bufferInt);
+                bufferInt += 16;
+                break;
+            case 8:
+                m_remainder = process_block<8, 0>(bufferInt);
+                bufferInt += 8;
+                break;
+            }
         }
 
         // Process individual bytes to the end of the buffer.
-        while (bufferInt < bufferEndInt)
+        switch (bufferEndInt - bufferInt)
         {
-            process_byte(
-                *reinterpret_cast<const char*>(bufferInt)
-            );
-            ++bufferInt;
+        case 7:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 6:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 5:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 4:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 3:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 2:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 1:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 0:
+            break;
         }
     }
 
@@ -91,14 +155,48 @@ private:
         uintptr_t bufferEndInt = reinterpret_cast<uintptr_t>(buffer + byte_count);
 
         // Process individual bytes to the next 8-byte alignment.
-        while (
-            /* (bufferInt & 0x7) != 0
-            && */ bufferInt < bufferEndInt)
+        if (bufferEndInt - bufferInt < 8)
         {
-            process_byte(
-                *reinterpret_cast<const char*>(bufferInt)
-            );
-            ++bufferInt;
+            switch (bufferEndInt - bufferInt)
+            {
+            case 7:
+                process_byte(*reinterpret_cast<const char*>(bufferInt++));
+            case 6:
+                process_byte(*reinterpret_cast<const char*>(bufferInt++));
+            case 5:
+                process_byte(*reinterpret_cast<const char*>(bufferInt++));
+            case 4:
+                process_byte(*reinterpret_cast<const char*>(bufferInt++));
+            case 3:
+                process_byte(*reinterpret_cast<const char*>(bufferInt++));
+            case 2:
+                process_byte(*reinterpret_cast<const char*>(bufferInt++));
+            case 1:
+                process_byte(*reinterpret_cast<const char*>(bufferInt++));
+            case 0:
+                break;
+            }
+            return;
+        }
+
+        switch (bufferInt & 0x7)
+        {
+        case 7:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 6:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 5:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 4:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 3:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 2:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 1:
+            process_byte(*reinterpret_cast<const char*>(bufferInt++));
+        case 0:
+            break;
         }
 
         internal_process_aligned_bytes(
