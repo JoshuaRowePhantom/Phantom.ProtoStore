@@ -55,6 +55,17 @@ private:
         PartitionTreeEntryValueOffsetVector& treeEntryValues
         );
 
+    struct WrittenValue
+    {
+        flatbuffers::Offset<FlatBuffers::DataValue> dataValueOffset;
+        flatbuffers::Offset<FlatBuffers::ValuePlaceholder> placeholderOffset;
+    };
+
+    WrittenValue WriteValue(
+        ValueBuilder& valueBuilder,
+        const KeyComparer& keyComparer,
+        const ProtoValue& value);
+
     DataValueOffset WriteAlignedMessage(
         FlatBufferBuilder& builder,
         const AlignedMessage& rawData);

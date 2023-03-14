@@ -1477,7 +1477,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
     std::cout << "ProtoStoreTests runtime: " << runtimeMs.count() << "\r\n";
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 {
     CreateProtoStoreRequest createRequest;
     createRequest.ExtentStore = UseFilesystemStore("ProtoStoreFlatBufferTests_Perf2", "Perf2", 4096);
@@ -1493,7 +1493,9 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf2))
         createRequest);
 
     auto index = co_await CreateTestFlatBufferIndex(
-        store);
+        store,
+        //FlatBuffers::FlatBuffersMessageEncodingOptions::EmbeddedMessage);
+        FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage);
 
 #ifdef NDEBUG
     int valueCount = 5000000;

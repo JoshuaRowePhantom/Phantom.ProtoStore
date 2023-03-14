@@ -64,6 +64,29 @@ PartitionTreeWriter::PartitionTreeWriter(
 {
 }
 
+PartitionTreeWriter::WrittenValue PartitionTreeWriter::WriteValue(
+    ValueBuilder& valueBuilder,
+    const KeyComparer& keyComparer,
+    const ProtoValue& value)
+{
+    WrittenValue result = { 0, 0 };
+
+    auto offset = keyComparer.BuildValue(
+        valueBuilder,
+        value);
+
+    if (offset.index() == 0)
+    {
+        result.placeholderOffset = get<0>(offset);
+    }
+    if (offset.index() == 1)
+    {
+        result.dataValueOffset = get<1>(offset);
+    }
+
+    return result;
+}
+
 void PartitionTreeWriter::FinishKey(
     PartitionTreeEntryValueOffsetVector& treeEntryValues
 )
@@ -78,26 +101,15 @@ void PartitionTreeWriter::FinishKey(
 
     auto& builder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
 
-    auto keyOffset = m_keyComparer->BuildValue(
+    auto writtenKey = WriteValue(
         *builder,
+        *m_keyComparer,
         current().highestKey);
-
-    flatbuffers::Offset<FlatBuffers::DataValue> dataValueOffset;
-    flatbuffers::Offset<FlatBuffers::ValuePlaceholder> placeholderOffset;
-
-    if (keyOffset.index() == 0)
-    {
-        placeholderOffset = get<0>(keyOffset);
-    }
-    if (keyOffset.index() == 1)
-    {
-        dataValueOffset = get<1>(keyOffset);
-    }
 
     auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
         builder->builder(),
-        dataValueOffset,
-        placeholderOffset,
+        writtenKey.dataValueOffset,
+        writtenKey.placeholderOffset,
         ToUint64(current().lowestSequenceNumberForKey),
         &treeEntryValues
     );
@@ -213,7 +225,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     DataValueOffset currentKeyOffset;
     PartitionTreeEntryValueOffsetVector currentValues;
 
-    auto& partitionTreeNodeBuilder = m_treeNodeStack.front().partitionTreeNodeValueBuilder->builder();
+    auto& partitionTreeNodeValueBuilder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
+    auto& partitionTreeNodeBuilder = partitionTreeNodeValueBuilder->builder();
 
     for (;
         iterator != m_writeRowsRequest.rows->end();
@@ -294,9 +307,10 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         m_bloomFilter.add(
             current().highestKey);
 
-        auto valueDataOffset = CreateDataValue(
-            partitionTreeNodeBuilder,
-            row.Value.as_aligned_message_if());
+        auto writtenValue = WriteValue(
+            *partitionTreeNodeValueBuilder,
+            *m_valueComparer,
+            row.Value);
 
         auto transactionIdOffset = CreateDataValue(
             partitionTreeNodeBuilder,
@@ -305,8 +319,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         auto partitionTreeEntryValueOffset = FlatBuffers::CreatePartitionTreeEntryValue(
             partitionTreeNodeBuilder,
             ToUint64(row.WriteSequenceNumber),
-            valueDataOffset,
-            {},
+            writtenValue.dataValueOffset,
+            writtenValue.placeholderOffset,
             nullptr,
             transactionIdOffset);
 

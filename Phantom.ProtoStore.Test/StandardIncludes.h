@@ -48,3 +48,4 @@ std::function<task<shared_ptr<IExtentStore>>()> UseFilesystemStore(
 #else
 #define PerformanceTest(name) DISABLED_ ## name
 #endif
+#define DebugPerformanceTest(name) name

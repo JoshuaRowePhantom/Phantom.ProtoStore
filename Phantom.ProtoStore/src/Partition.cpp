@@ -508,31 +508,46 @@ row_generator Partition::Enumerate(
                 // If the value is also in the tree entry, we can return a DataReference
                 // to the tree entry.
                 // Otherwise we need to return a composite tree entry.
+                ProtoValue value;
                 if (readValueDisposition == ReadValueDisposition::DontReadValue)
                 {
                 } else if (treeEntryValue->value())
                 {
-                    value = GetAlignedMessageData(
-                        treeNode,
-                        treeEntryValue->value());
+                    value = ProtoValue::FlatBuffer(
+                        GetAlignedMessageData(
+                            treeNode,
+                            treeEntryValue->value()));
                 }
                 else if (treeEntryValue->big_value())
                 {
                     auto valueMessage = co_await ReadData(
                         treeEntryValue->big_value());
 
-                    value = GetAlignedMessageData(
-                        valueMessage,
-                        valueMessage->value());
+                    value = ProtoValue::FlatBuffer(
+                        GetAlignedMessageData(
+                            valueMessage,
+                            valueMessage->value()));
+                }
+                else if (treeEntryValue->flat_value())
+                {
+                    value = ProtoValue::FlatBuffer(
+                        AlignedMessageData(
+                            static_cast<DataReference<StoredMessage>>(treeNode),
+                            treeNode.data().Content),
+                        treeNode.get())
+                        .SubValue(
+                            ProtoValue::flat_buffer_message
+                            {
+                                reinterpret_cast<const flatbuffers::Table*>(treeEntryValue->flat_value())
+                            }
+                        );
                 }
 
                 co_yield ResultRow
                 {
                     .Key = key,
                     .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->write_sequence_number()),
-                    .Value = SchemaDescriptions::MakeProtoValueValue(
-                        *m_schema,
-                        std::move(value)),
+                    .Value = std::move(value),
                 };
 
                 if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)

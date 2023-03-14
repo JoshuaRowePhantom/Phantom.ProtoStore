@@ -462,7 +462,10 @@ flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> SchemaDescriptions::Cre
 
         valueSchemaDescriptionTypeOffset = FlatBuffers::CreateFlatBuffersSchemaDescription(
             builder,
-            flatBuffersObjectDescriptionOffset
+            flatBuffersObjectDescriptionOffset,
+            flatbuffersValueSchema->ObjectSchema.GraphEncodingOptions,
+            flatbuffersValueSchema->ObjectSchema.StringEncodingOptions,
+            flatbuffersValueSchema->ObjectSchema.MessageEncodingOptions
         ).Union();
     }
 
