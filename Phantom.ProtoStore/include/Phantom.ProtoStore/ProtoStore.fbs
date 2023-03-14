@@ -41,18 +41,23 @@ table ExtentName
 enum FlatBuffersGraphEncodingOptions : uint8 {
     // No duplicate detection is done. 
     // This is the fastest for writing data.
-    // If an object contains loops, the database engine will produce errors
-    // upon reaching the recursion limit.
     NoDuplicateDetection,
 
-    // Within a single message, detect duplicate objects and encode them
-    // as self-relative references.
-    IntraMessageDuplicateDetection,
-
-    // Within the entire graph of messages written to a partition,
+    // Within the entire DAG of object written to a message,
     // detect duplicate objects and encode them as self-relative
-    // references within the entire partition.
-    FullDuplicateDetection
+    // references within the message.
+    //
+    // If the message encoding option is SerializedByteMessage,
+    // then the duplicate detection is done within the scope
+    // of the single message.
+    //
+    // If the message encoding option is EmbeddedMessage,
+    // then the duplicate detection is done within the scope
+    // of all the objects written as a single message to the partition.
+    //
+    // The duplicate detection still requires the object to be a
+    // directed acyclic graph.
+    DagDuplicateDetection
 }
 
 enum FlatBuffersStringEncodingOptions : uint8 {
@@ -64,13 +69,15 @@ enum FlatBuffersStringEncodingOptions : uint8 {
 }
 
 enum FlatBuffersMessageEncodingOptions : uint8 {
-    // Encode the message as a root table.
-    // This is best for extracing such messages and sending them
+    // Encode the message as a flatbuffer root table.
+    // This is best for extracting messages and sending them
     // to other processes without having to reencode them.
     SerializedByteMessage,
 
     // Encode the message as a sub-table within the partition.
     // This is best for reducing the storage size of a partition,
     // and for local processing of the stored messages.
+    //
+    // DagDuplicateDetection works best with this option.
     EmbeddedMessage
 }

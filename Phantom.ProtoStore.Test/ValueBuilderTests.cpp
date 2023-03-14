@@ -2,6 +2,7 @@
 #include "Phantom.ProtoStore/src/KeyComparer.h"
 #include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
 #include "Resources.h"
+#include <flatbuffers/flatbuffers.h>
 
 namespace Phantom::ProtoStore
 {
@@ -18,133 +19,179 @@ public:
     flatbuffers::FlatBufferBuilder destinationBuilder;
     ValueBuilder valueBuilder = ValueBuilder(&destinationBuilder);
 
-    template<
-        IsNativeTable NativeTable1,
-        IsNativeTable NativeTable2
-    >
-    void Do_intern_test(
-        const NativeTable1 & source1T,
-        const NativeTable2 & source2T,
-        ValueBuilder::SchemaItem schemaItem1,
-        ValueBuilder::SchemaItem schemaItem2
-    )
-    {
-        FlatValue source1{ source1T };
-        FlatValue source2{ source2T };
-
-        EXPECT_EQ(0, valueBuilder.GetInternedValue(
-            schemaItem1,
-            source1
-        ).o);
-
-        EXPECT_EQ(0, valueBuilder.GetInternedValue(
-            schemaItem2,
-            source2
-        ).o);
-
-        auto offset1 = NativeTable1::TableType::Pack(
-            valueBuilder.builder(),
-            &source1T);
-
-        auto offset2 = NativeTable2::TableType::Pack(
-            valueBuilder.builder(),
-            &source2T);
-
-        valueBuilder.InternValue(
-            schemaItem1,
-            offset1.Union()
-        );
-
-        EXPECT_EQ(offset1.o, valueBuilder.GetInternedValue(
-            schemaItem1,
-            source1
-        ).o);
-
-        EXPECT_EQ(0, valueBuilder.GetInternedValue(
-            schemaItem2,
-            source2
-        ).o);
-
-        valueBuilder.InternValue(
-            schemaItem2,
-            offset2.Union()
-        );
-
-        EXPECT_EQ(offset1.o, valueBuilder.GetInternedValue(
-            schemaItem1,
-            source1
-        ).o);
-
-        EXPECT_EQ(offset2.o, valueBuilder.GetInternedValue(
-            schemaItem2,
-            source2
-        ).o);
-    }
 };
 
-TEST_F(ValueBuilderTests, Intern_object_with_string_value)
+TEST_F(ValueBuilderTests, can_intern_top_level_objects)
 {
-    FlatBuffers::FlatStringKeyT sourceValueT1;
-    sourceValueT1.value = "hello world 1";
+    FlatBuffers::FlatStringKeyT key1;
+    key1.value = "hello world";
 
-    FlatBuffers::FlatStringKeyT sourceValueT2;
-    sourceValueT2.value = "hello world 2";
+    FlatBuffers::FlatStringKeyT key2;
+    key2.value = "hello world 2";
 
-    auto schemaItem = ValueBuilder::SchemaItem
-    {
+    auto offset1 = valueBuilder.CopyTableDag(
         FlatBuffersTestSchemas::TestSchema,
-        FlatBuffersTestSchemas::TestFlatStringKeySchema
-    };
+        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        ProtoValue{ &key1 }.as_table_if()
+    );
 
-    Do_intern_test(
-        sourceValueT1,
-        sourceValueT2,
-        schemaItem,
-        schemaItem
+    auto offset2 = valueBuilder.CopyTableDag(
+        FlatBuffersTestSchemas::TestSchema,
+        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        ProtoValue{ &key1 }.as_table_if()
+    );
+
+    auto offset3 = valueBuilder.CopyTableDag(
+        FlatBuffersTestSchemas::TestSchema,
+        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        ProtoValue{ &key2 }.as_table_if()
+    );
+
+    auto offset4 = valueBuilder.CopyTableDag(
+        FlatBuffersTestSchemas::TestSchema,
+        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        ProtoValue{ &key2 }.as_table_if()
+    );
+
+    EXPECT_EQ(offset1.o, offset2.o);
+    EXPECT_NE(offset2.o, offset3.o);
+    EXPECT_EQ(offset3.o, offset4.o);
+}
+
+TEST_F(ValueBuilderTests, can_intern_subobject_of_vector)
+{
+    FlatBuffers::TestKeyT key;
+    FlatBuffers::TestKeyT subkey1;
+    subkey1.byte_value = 1;
+    FlatBuffers::TestKeyT subkey2;
+    subkey2.byte_value = 2;
+    key.subkey_vector.push_back(copy_unique(subkey1));
+    key.subkey_vector.push_back(copy_unique(subkey2));
+    key.subkey_vector.push_back(copy_unique(subkey1));
+    key.subkey_vector.push_back(copy_unique(subkey2));
+
+    auto offset1 = valueBuilder.CopyTableDag(
+        FlatBuffersTestSchemas::TestSchema,
+        FlatBuffersTestSchemas::Test_TestKey_Object,
+        ProtoValue{ &key }.as_table_if()
+    );
+
+    auto copy = reinterpret_cast<const TestKey*>(
+        valueBuilder.builder().GetCurrentBufferPointer() + valueBuilder.builder().GetSize() - offset1.o);
+
+    EXPECT_EQ(
+        copy->subkey_vector()->Get(0),
+        copy->subkey_vector()->Get(2)
+    );
+
+    EXPECT_EQ(
+        copy->subkey_vector()->Get(1),
+        copy->subkey_vector()->Get(3)
+    );
+
+    EXPECT_NE(
+        copy->subkey_vector()->Get(0),
+        copy->subkey_vector()->Get(1)
+    );
+
+    EXPECT_EQ(
+        copy->subkey_vector()->Get(0)->byte_value(),
+        1
+    );
+
+    EXPECT_EQ(
+        copy->subkey_vector()->Get(1)->byte_value(),
+        2
     );
 }
 
-TEST_F(ValueBuilderTests, Intern_object_with_string_vector)
+TEST_F(ValueBuilderTests, can_intern_vector)
 {
-    FlatBuffers::TestKeyT sourceValueT1;
-    sourceValueT1.string_vector.push_back("hello world");
-    
-    FlatBuffers::TestKeyT sourceValueT2;
-    sourceValueT1.string_vector.push_back("hello world 2");
+    FlatBuffers::TestKeyT key;
+    key.byte_value = 1;
+    FlatBuffers::TestKeyT subkey1;
+    subkey1.byte_value = 1;
+    FlatBuffers::TestKeyT subkey2;
+    subkey2.byte_value = 2;
+    key.subkey_vector.push_back(copy_unique(subkey1));
+    key.subkey_vector.push_back(copy_unique(subkey2));
+    key.subkey_vector.push_back(copy_unique(subkey1));
+    key.subkey_vector.push_back(copy_unique(subkey2));
 
-    auto schemaItem = ValueBuilder::SchemaItem
-    {
+    auto offset1 = valueBuilder.CopyTableDag(
         FlatBuffersTestSchemas::TestSchema,
-        FlatBuffersTestSchemas::Test_TestKey_Object
-    };
+        FlatBuffersTestSchemas::Test_TestKey_Object,
+        ProtoValue{ &key }.as_table_if()
+    );
 
-    Do_intern_test(
-        sourceValueT1,
-        sourceValueT2,
-        schemaItem,
-        schemaItem
+    key.byte_value = 2;
+
+    auto offset2 = valueBuilder.CopyTableDag(
+        FlatBuffersTestSchemas::TestSchema,
+        FlatBuffersTestSchemas::Test_TestKey_Object,
+        ProtoValue{ &key }.as_table_if()
+    );
+
+    auto copy1 = reinterpret_cast<const TestKey*>(
+        valueBuilder.builder().GetCurrentBufferPointer() + valueBuilder.builder().GetSize() - offset1.o);
+
+    auto copy2 = reinterpret_cast<const TestKey*>(
+        valueBuilder.builder().GetCurrentBufferPointer() + valueBuilder.builder().GetSize() - offset2.o);
+
+    EXPECT_EQ(
+        copy1->subkey_vector(),
+        copy2->subkey_vector()
+    );
+
+    EXPECT_NE(
+        copy1,
+        copy2
     );
 }
 
-TEST_F(ValueBuilderTests, Intern_object_with_string_vector_empty)
+
+TEST_F(ValueBuilderTests, can_intern_union)
 {
-    FlatBuffers::TestKeyT sourceValueT1;
-    sourceValueT1.string_vector.push_back("hello world");
+    FlatBuffers::TestKeyT key;
+    FlatBuffers::ScalarTableT unionValue;
+    unionValue.item = 5;
+    key.union_value.Set(unionValue);
 
-    FlatBuffers::TestKeyT sourceValueT2;
-
-    auto schemaItem = ValueBuilder::SchemaItem
-    {
+    auto offset1 = valueBuilder.CopyTableDag(
         FlatBuffersTestSchemas::TestSchema,
-        FlatBuffersTestSchemas::Test_TestKey_Object
-    };
+        FlatBuffersTestSchemas::Test_TestKey_Object,
+        ProtoValue{ &key }.as_table_if()
+    );
 
-    Do_intern_test(
-        sourceValueT1,
-        sourceValueT2,
-        schemaItem,
-        schemaItem
+    key.byte_value = 2;
+
+    auto offset2 = valueBuilder.CopyTableDag(
+        FlatBuffersTestSchemas::TestSchema,
+        FlatBuffersTestSchemas::Test_TestKey_Object,
+        ProtoValue{ &key }.as_table_if()
+    );
+
+    auto copy1 = reinterpret_cast<const TestKey*>(
+        valueBuilder.builder().GetCurrentBufferPointer() + valueBuilder.builder().GetSize() - offset1.o);
+
+    auto copy2 = reinterpret_cast<const TestKey*>(
+        valueBuilder.builder().GetCurrentBufferPointer() + valueBuilder.builder().GetSize() - offset2.o);
+
+    EXPECT_EQ(
+        copy1->union_value_as<FlatBuffers::ScalarTable>()->item(),
+        5
+    );
+
+    EXPECT_EQ(
+        copy1->union_value_as<FlatBuffers::ScalarTable>(),
+        copy2->union_value_as<FlatBuffers::ScalarTable>()
+    );
+
+    EXPECT_NE(
+        copy1,
+        copy2
     );
 }
+
 
 }

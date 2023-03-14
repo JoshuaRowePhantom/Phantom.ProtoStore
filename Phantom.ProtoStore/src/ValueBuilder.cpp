@@ -9,7 +9,7 @@ size_t ValueBuilder::InternedValueKeyComparer::operator()(
     const auto& key
     ) const
 {
-    return m_valueBuilder->Hash(key);
+    return key.hashCode;
 }
 
 // Equality comparison
@@ -19,29 +19,6 @@ bool ValueBuilder::InternedValueKeyComparer::operator()(
     ) const
 {
     return m_valueBuilder->Equals(value1, value2);
-}
-
-size_t ValueBuilder::Hash(
-    const auto& value
-)
-{
-    if constexpr (std::same_as<const InternedValue&, decltype(value)>)
-    {
-        return m_internedSchemaItemsByPointer.at(value.schemaIdentifier)->hash(
-            builder().GetCurrentBufferPointer() + builder().GetSize() - value.offset.o
-            );
-    }
-    else if constexpr (std::same_as<const UninternedValue&, decltype(value)>)
-    {
-        return value.schemaItem->hash(value.value);
-    }
-    else
-    {
-        static_assert(std::same_as<const InterningValue&, decltype(value)>);
-        return value.schemaItem->hash(
-            builder().GetCurrentBufferPointer() + builder().GetSize() - value.offset.o
-            );
-    }
 }
 
 bool ValueBuilder::Equals(
@@ -54,6 +31,11 @@ bool ValueBuilder::Equals(
 
     const void* schemaIdentifier1;
     const void* schemaIdentifier2;
+
+    if (value1.hashCode != value2.hashCode)
+    {
+        return false;
+    }
 
     if constexpr (std::same_as<const InternedValue&, decltype(value1)>)
     {
@@ -120,7 +102,8 @@ ValueBuilder::InterningValue::operator ValueBuilder::InternedValue() const
     return
     {
         .schemaIdentifier = schemaItem->schemaIdentifier,
-        .offset = offset
+        .offset = offset,
+        .hashCode = hashCode
     };
 }
 
@@ -325,16 +308,22 @@ ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedObjectSchemaItem(
 
 flatbuffers::Offset<void> ValueBuilder::GetInternedValue(
     const SchemaItem& schemaItem,
-    const void* value
+    const void* value,
+    size_t& hash
 )
 {
     auto& internedSchemaItem = InternSchemaItem(schemaItem);
+    
+    hash = internedSchemaItem.hash(value);
+
     auto internedItem = m_internedValues.find(
         UninternedValue
         {
             value,
-            &internedSchemaItem
+            &internedSchemaItem,
+            hash
         });
+
     if (internedItem == m_internedValues.end())
     {
         return {0};
@@ -345,7 +334,8 @@ flatbuffers::Offset<void> ValueBuilder::GetInternedValue(
 
 void ValueBuilder::InternValue(
     const SchemaItem& schemaItem,
-    flatbuffers::Offset<void> offset
+    flatbuffers::Offset<void> offset,
+    size_t hash
 )
 {
     auto& internedSchemaItem = InternSchemaItem(schemaItem);
@@ -354,7 +344,8 @@ void ValueBuilder::InternValue(
         InterningValue
         {
             &internedSchemaItem,
-            offset
+            offset,
+            hash
         });
 }
 
@@ -424,6 +415,302 @@ bool ValueBuilder::SchemaItemComparer::operator()(
         FlatBuffersSchemas::ReflectionSchema_ObjectComparers.equal_to(
             item1.object,
             item2.object);
+}
+
+void ValueBuilder::CopyPrimitive(
+    const reflection::Field* field,
+    const flatbuffers::Table* table,
+    size_t align,
+    size_t size
+)
+{
+    builder().Align(align);
+    builder().PushBytes(
+        table->GetStruct<const uint8_t*>(
+            field->offset()),
+        size);
+    builder().TrackField(
+        field->offset(),
+        builder().GetSize());
+}
+
+flatbuffers::Offset<flatbuffers::Table> ValueBuilder::CopyTableDag(
+    const reflection::Schema* schema,
+    const reflection::Object* object,
+    const flatbuffers::Table* table
+)
+{
+    using flatbuffers::uoffset_t;
+    using flatbuffers::Offset;
+    using reflection::BaseType;
+
+    // Obviously, we should see if the table is already interned.
+    size_t hash;
+    auto internedTable = GetInternedValue(
+        SchemaItem
+        {
+            schema,
+            object,
+            nullptr
+        },
+        table,
+        hash);
+    
+    if (!internedTable.IsNull())
+    {
+        return flatbuffers::Offset<flatbuffers::Table>(internedTable.o);
+    }
+
+    // Copy all the sub-objects.
+    std::vector<uoffset_t> offsets;
+
+    for (auto field : *object->fields())
+    {
+        if (!table->CheckField(field->offset()))
+        {
+            continue;
+        }
+        
+        switch (field->type()->base_type())
+        {
+        case BaseType::String:
+        {
+            offsets.push_back(
+                builder().CreateSharedString(
+                    GetFieldS(*table, *field)).o);
+            break;
+        }
+
+        case BaseType::Obj:
+        {
+            auto subObject = schema->objects()->Get(field->type()->index());
+            if (subObject->is_struct())
+            {
+                continue;
+            }
+            offsets.push_back(
+                CopyTableDag(
+                    schema,
+                    subObject,
+                    flatbuffers::GetFieldT(*table, *field)).o);
+            break;
+        }
+
+        case BaseType::Vector:
+        {
+            offsets.push_back(
+                CopyVectorDag(
+                    schema,
+                    field->type(),
+                    table->GetPointer<const flatbuffers::VectorOfAny*>(field->offset())).o);
+            break;
+        }
+
+        case BaseType::Union:
+        {
+            auto typeField = std::find_if(
+                object->fields()->begin(),
+                object->fields()->end(),
+                [&](const ::reflection::Field* otherField)
+            {
+                return otherField->id() == field->id() - 1;
+            });
+
+            auto unionEnum = schema->enums()->Get(typeField->type()->index());
+            auto unionType = flatbuffers::GetFieldI<uint8_t>(*table, **typeField);
+            auto unionEnumValue = unionEnum->values()->LookupByKey(unionType);
+            auto unionObject = schema->objects()->Get(unionEnumValue->union_type()->index());
+
+            offsets.push_back(
+                CopyTableDag(
+                    schema,
+                    unionObject,
+                    flatbuffers::GetFieldT(*table, *field)).o);
+            break;
+        }
+        }
+    }
+
+    // Now that we've copied the subobjects,
+    // we can copy the object itself.
+    
+    // When we run across a subobject, pull the offset from the list
+    // of already-copied offsets. This variable keeps track of how
+    // far into the offsets vector we are.
+    auto offsetsIndex = 0;
+
+    auto start = builder().StartTable();
+
+    for (auto field : *object->fields())
+    {
+        if (!table->CheckField(field->offset()))
+        {
+            continue;
+        }
+
+        auto baseType = field->type()->base_type();
+        switch (baseType)
+        {
+        case BaseType::Obj:
+        {
+            auto subObject = schema->objects()->Get(field->type()->index());
+            if (subObject->is_struct())
+            {
+                CopyPrimitive(
+                    field,
+                    table,
+                    subObject->minalign(),
+                    subObject->bytesize());
+                break;
+            }
+        }
+        // Fall through for non-struct objects.
+
+        case BaseType::String:
+        case BaseType::Union:
+        case BaseType::Vector:
+            builder().AddOffset(field->offset(), Offset<void>(offsets[offsetsIndex++]));
+            break;
+
+        default:
+        {
+            // Scalar types
+            auto size = flatbuffers::GetTypeSize(baseType);
+            CopyPrimitive(
+                field,
+                table,
+                size,
+                size);
+        }
+        }
+    }
+
+    assert(offsetsIndex == offsets.size());
+    Offset<flatbuffers::Table> result = builder().EndTable(start);
+
+    InternValue(
+        SchemaItem
+        {
+            schema,
+            object,
+            nullptr
+        },
+        result.Union(),
+        hash);
+
+    return result;
+}
+
+flatbuffers::Offset<flatbuffers::VectorOfAny> ValueBuilder::CopyVectorDag(
+    const reflection::Schema* schema,
+    const reflection::Type* type,
+    const flatbuffers::VectorOfAny* vector
+)
+{
+    using flatbuffers::uoffset_t;
+    using flatbuffers::Offset;
+    using reflection::BaseType;
+
+    // Obviously, we should see if the table is already interned.
+    size_t hash;
+    auto internedTable = GetInternedValue(
+        SchemaItem
+        {
+            schema,
+            nullptr,
+            type
+        },
+        vector,
+        hash);
+
+    if (!internedTable.IsNull())
+    {
+        return flatbuffers::Offset<flatbuffers::VectorOfAny>(internedTable.o);
+    }
+
+    Offset<flatbuffers::VectorOfAny> result;
+
+    auto elementObject =
+        type->element() == BaseType::Obj
+        ?
+        schema->objects()->Get(type->index())
+        :
+        nullptr;
+
+    switch (type->element())
+    {
+    case BaseType::String:
+    {
+        std::vector<Offset<flatbuffers::String>> offsets;
+        auto stringVector = reinterpret_cast<const flatbuffers::Vector<Offset<flatbuffers::String>>*>(vector);
+        offsets.reserve(vector->size());
+
+        for (auto i = 0; i < stringVector->size(); ++i)
+        {
+            offsets.push_back(
+                builder().CreateSharedString(
+                    stringVector->Get(i)));
+        }
+
+        result = builder().CreateVector(offsets).o;
+        break;
+    }
+
+    case BaseType::Obj:
+    {
+        if (!elementObject->is_struct())
+        {
+            std::vector<Offset<flatbuffers::Table>> offsets;
+            auto objectVector = reinterpret_cast<const flatbuffers::Vector<Offset<flatbuffers::Table>>*>(vector);
+            for (auto i = 0; i < objectVector->size(); ++i)
+            {
+                offsets.push_back(
+                    CopyTableDag(
+                        schema,
+                        elementObject,
+                        objectVector->Get(i)));
+            }
+            result = builder().CreateVector(offsets).o;
+            break;
+        }
+    }
+    // Fall through if struct
+
+    default:
+    // Scalar or structure type.
+    {
+        auto elementSize = flatbuffers::GetTypeSize(type->element());
+        auto alignment = elementSize;
+        if (elementObject)
+        {
+            elementSize = elementObject->bytesize();
+            alignment = elementObject->minalign();
+        }
+        
+        builder().StartVector(
+            vector->size(),
+            elementSize,
+            alignment);
+
+        builder().PushBytes(
+            vector->Data(),
+            elementSize * vector->size());
+
+        result = builder().EndVector(vector->size());
+        break;
+    }
+    }
+
+    InternValue(
+        SchemaItem
+        {
+            schema,
+            nullptr,
+            type
+        },
+        result.Union(),
+        hash);
+    return result;
 }
 
 }

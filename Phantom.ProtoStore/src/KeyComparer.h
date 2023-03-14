@@ -40,18 +40,21 @@ class ValueBuilder
     {
         const void* schemaIdentifier;
         flatbuffers::Offset<void> offset;
+        size_t hashCode;
     };
 
     struct UninternedValue
     {
         const void* value;
         const InternedSchemaItem* schemaItem;
+        size_t hashCode;
     };
 
     struct InterningValue
     {
         const InternedSchemaItem* schemaItem;
         flatbuffers::Offset<void> offset;
+        size_t hashCode;
 
         operator InternedValue() const;
     };
@@ -117,10 +120,6 @@ private:
         InternedValueKeyComparer
     > m_internedValues;
 
-    size_t Hash(
-        const auto& value
-    );
-
     bool Equals(
         const auto& value1,
         const auto& value2
@@ -142,25 +141,46 @@ private:
         const SchemaItem& schemaItem
     );
 
-public:
-    ValueBuilder(
-        flatbuffers::FlatBufferBuilder* flatBufferBuilder
+    void CopyPrimitive(
+        const reflection::Field* field,
+        const flatbuffers::Table* table,
+        size_t align,
+        size_t size
     );
 
     flatbuffers::Offset<void> GetInternedValue(
         const SchemaItem& schemaItem,
-        const void* value
+        const void* value,
+        size_t& hash
     );
 
     void InternValue(
         const SchemaItem& schemaItem,
-        flatbuffers::Offset<void> offset
+        flatbuffers::Offset<void> offset,
+        size_t hash
+    );
+
+public:
+    ValueBuilder(
+        flatbuffers::FlatBufferBuilder* flatBufferBuilder
     );
 
     flatbuffers::FlatBufferBuilder& builder() const;
 
     flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(
         const AlignedMessage&
+    );
+
+    flatbuffers::Offset<flatbuffers::Table> CopyTableDag(
+        const reflection::Schema* schema,
+        const reflection::Object* object,
+        const flatbuffers::Table* value
+    );
+
+    flatbuffers::Offset<flatbuffers::VectorOfAny> CopyVectorDag(
+        const reflection::Schema* schema,
+        const reflection::Type* type,
+        const flatbuffers::VectorOfAny* value
     );
 };
 
