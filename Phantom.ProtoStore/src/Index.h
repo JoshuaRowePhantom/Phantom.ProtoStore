@@ -18,7 +18,10 @@ public:
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     ) = 0;
 
-    virtual shared_ptr<KeyComparer> GetKeyComparer(
+    virtual const shared_ptr<const KeyComparer>& GetKeyComparer(
+    ) = 0;
+    
+    virtual const shared_ptr<const KeyComparer>& GetValueComparer(
     ) = 0;
 
     virtual operation_task<ReadResult> Read(

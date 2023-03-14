@@ -51,6 +51,9 @@ public:
     static shared_ptr<KeyComparer> MakeKeyComparer(
         std::shared_ptr<const Schema> schema);
 
+    static shared_ptr<KeyComparer> MakeValueComparer(
+        std::shared_ptr<const Schema> schema);
+
     static ProtoValue MakeProtoValueKey(
         const Schema& schema,
         const FlatBuffers::DataValue* dataValue

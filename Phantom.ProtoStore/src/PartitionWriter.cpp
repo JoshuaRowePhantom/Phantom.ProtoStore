@@ -13,12 +13,14 @@ namespace Phantom::ProtoStore
 {
 
 PartitionWriterBase::PartitionWriterBase(
-    const shared_ptr<const Schema> schema,
-    const shared_ptr<const KeyComparer> keyComparer,
+    shared_ptr<const Schema> schema,
+    shared_ptr<const KeyComparer> keyComparer,
+    shared_ptr<const KeyComparer> valueComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter
 ) :
     m_schema{ std::move(schema) },
     m_keyComparer{ std::move(keyComparer) },
+    m_valueComparer{ std::move(valueComparer) },
     m_dataWriter{ std::move(dataWriter) }
 {}
 
@@ -45,6 +47,7 @@ task<FlatBuffers::MessageReference_V1> PartitionWriterBase::Write(
 PartitionTreeWriter::PartitionTreeWriter(
     shared_ptr<const Schema> schema,
     shared_ptr<const KeyComparer> keyComparer,
+    shared_ptr<const KeyComparer> valueComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter,
     WriteRowsRequest& writeRowsRequest,
     WriteRowsResult& writeRowsResult,
@@ -53,6 +56,7 @@ PartitionTreeWriter::PartitionTreeWriter(
     PartitionWriterBase(
         std::move(schema),
         std::move(keyComparer),
+        std::move(valueComparer),
         std::move(dataWriter)),
     m_writeRowsRequest(writeRowsRequest),
     m_writeRowsResult(writeRowsResult),
@@ -317,6 +321,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 PartitionWriter::PartitionWriter(
     shared_ptr<const Schema> schema,
     shared_ptr<const KeyComparer> keyComparer,
+    shared_ptr<const KeyComparer> valueComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter,
     shared_ptr<ISequentialMessageWriter> headerWriter
 ) :
@@ -324,6 +329,7 @@ PartitionWriter::PartitionWriter(
     { 
         std::move(schema), 
         std::move(keyComparer),
+        std::move(valueComparer),
         std::move(dataWriter),
     },
     m_headerWriter{ std::move(headerWriter) }
@@ -383,6 +389,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     PartitionTreeWriter treeWriter(
         m_schema,
         m_keyComparer,
+        m_valueComparer,
         m_dataWriter,
         writeRowsRequest,
         writeRowsResult,

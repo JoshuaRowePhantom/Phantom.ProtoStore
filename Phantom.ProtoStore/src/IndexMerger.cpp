@@ -129,6 +129,7 @@ task<> IndexMerger::RestartIncompleteMerge(
             index->GetIndexName(),
             index->GetSchema(),
             index->GetKeyComparer(),
+            index->GetValueComparer(),
             incompleteMerge.Merge.Value->destination_level_number(),
             headerExtentName,
             dataExtentName,

@@ -12,11 +12,13 @@ class PartitionWriterBase : SerializationTypes
 protected:
     const shared_ptr<const Schema> m_schema;
     const shared_ptr<const KeyComparer> m_keyComparer;
+    const shared_ptr<const KeyComparer> m_valueComparer;
     shared_ptr<ISequentialMessageWriter> m_dataWriter;
 
     PartitionWriterBase(
         const shared_ptr<const Schema> schema,
         const shared_ptr<const KeyComparer> keyComparer,
+        const shared_ptr<const KeyComparer> valueComparer,
         shared_ptr<ISequentialMessageWriter> dataWriter);
 
     task<FlatBuffers::MessageReference_V1> Write(
@@ -64,6 +66,7 @@ public:
     PartitionTreeWriter(
         shared_ptr<const Schema> schema,
         shared_ptr<const KeyComparer> keyComparer,
+        shared_ptr<const KeyComparer> valueComparer,
         shared_ptr<ISequentialMessageWriter> dataWriter,
         WriteRowsRequest& writeRowsRequest,
         WriteRowsResult& writeRowsResult,
@@ -83,6 +86,7 @@ public:
     PartitionWriter(
         shared_ptr<const Schema> schema,
         shared_ptr<const KeyComparer> keyComparer,
+        shared_ptr<const KeyComparer> valueComparer,
         shared_ptr<ISequentialMessageWriter> dataWriter,
         shared_ptr<ISequentialMessageWriter> headerWriter
     );

@@ -97,6 +97,7 @@ public:
         IndexName indexName,
         std::shared_ptr<const Schema> schema,
         std::shared_ptr<const KeyComparer> keyComparer,
+        std::shared_ptr<const KeyComparer> valueComparer,
         LevelNumber levelNumber,
         FlatBuffers::ExtentNameT& out_headerExtentName,
         FlatBuffers::ExtentNameT& out_dataExtentName,

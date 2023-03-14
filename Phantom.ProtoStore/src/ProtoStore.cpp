@@ -1193,12 +1193,17 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     auto keyComparer = SchemaDescriptions::MakeKeyComparer(
         schema
     );
+    
+    auto valueComparer = SchemaDescriptions::MakeValueComparer(
+        schema
+    );
 
     auto index = make_shared<Index>(
         indexesByNumberValue->index_name()->str(),
         indexesByNumberKey->index_number(),
         ToSequenceNumber(indexesByNumberValue->create_sequence_number()),
         keyComparer,
+        valueComparer,
         m_unresolvedTransactionsTracker.get(),
         schema);
 
@@ -1362,6 +1367,7 @@ task<> ProtoStore::Checkpoint(
         indexEntry.Index->GetIndexName(),
         indexEntry.Index->GetSchema(),
         indexEntry.Index->GetKeyComparer(),
+        indexEntry.Index->GetValueComparer(),
         0,
         headerExtentName,
         dataExtentName,
@@ -1629,6 +1635,7 @@ task<> ProtoStore::OpenPartitionWriter(
     IndexName indexName,
     std::shared_ptr<const Schema> schema,
     std::shared_ptr<const KeyComparer> keyComparer,
+    std::shared_ptr<const KeyComparer> valueComparer,
     LevelNumber levelNumber,
     FlatBuffers::ExtentNameT& out_headerExtentName,
     FlatBuffers::ExtentNameT& out_dataExtentName,
@@ -1650,6 +1657,7 @@ task<> ProtoStore::OpenPartitionWriter(
     out_partitionWriter = make_shared<PartitionWriter>(
         std::move(schema),
         std::move(keyComparer),
+        std::move(valueComparer),
         std::move(dataWriter),
         std::move(headerWriter)
         );

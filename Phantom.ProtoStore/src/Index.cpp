@@ -14,7 +14,8 @@ Index::Index(
     const string& indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
-    shared_ptr<KeyComparer> keyComparer,
+    shared_ptr<const KeyComparer> keyComparer,
+    shared_ptr<const KeyComparer> valueComparer,
     IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
     std::shared_ptr<const Schema> schema
 )
@@ -23,6 +24,7 @@ Index::Index(
     m_indexNumber(indexNumber),
     m_createSequenceNumber(createSequenceNumber),
     m_keyComparer(std::move(keyComparer)),
+    m_valueComparer(std::move(valueComparer)),
     m_rowMerger(make_shared<RowMerger>(
         m_schema,
         m_keyComparer)),
@@ -31,9 +33,14 @@ Index::Index(
 {
 }
 
-shared_ptr<KeyComparer> Index::GetKeyComparer()
+const shared_ptr<const KeyComparer>& Index::GetKeyComparer()
 {
     return m_keyComparer;
+}
+
+const shared_ptr<const KeyComparer>& Index::GetValueComparer()
+{
+    return m_valueComparer;
 }
 
 IndexNumber Index::GetIndexNumber() const

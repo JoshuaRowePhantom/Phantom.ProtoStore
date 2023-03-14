@@ -183,6 +183,48 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
     );
 }
 
+shared_ptr<KeyComparer> SchemaDescriptions::MakeValueComparer(
+    std::shared_ptr<const Schema> schema)
+{
+    std::shared_ptr<KeyComparer> keyComparer;
+
+    if (holds_alternative<ProtocolBuffersValueSchema>(schema->ValueSchema.FormatSchema))
+    {
+        keyComparer = std::make_shared<ProtoKeyComparer>(
+            get<ProtocolBuffersValueSchema>(
+                schema->ValueSchema.FormatSchema
+            ).ObjectSchema.MessageDescriptor);
+    }
+    else if (holds_alternative<FlatBuffersValueSchema>(schema->ValueSchema.FormatSchema))
+    {
+        keyComparer = MakeFlatBufferKeyComparer(
+            std::shared_ptr<const FlatBuffersObjectSchema>
+        {
+            schema,
+            &get<FlatBuffersValueSchema>(schema->ValueSchema.FormatSchema).ObjectSchema
+        });
+    }
+    else
+    {
+        throw std::range_error("messageDescription");
+    }
+
+    struct holder
+    {
+        shared_ptr<const Schema> schema;
+        shared_ptr<KeyComparer> keyComparer;
+    };
+
+    auto holderPointer = std::make_shared<holder>(
+        schema,
+        keyComparer);
+
+    return shared_ptr<KeyComparer>(
+        holderPointer,
+        holderPointer->keyComparer.get()
+    );
+}
+
 ProtoValue SchemaDescriptions::MakeProtoValueKey(
     const Schema& schema,
     const FlatBuffers::DataValue* value
