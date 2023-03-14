@@ -56,7 +56,7 @@ class ValueBuilder
             ) const;
     };
 
-    struct SchemaItemComparer
+    struct InternedSchemaItem
     {
         const void* schemaIdentifier;
         std::function<size_t(const void*)> hash;
@@ -65,8 +65,29 @@ class ValueBuilder
 
     flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
     std::list<std::any> m_ownedValues;
-    std::unordered_map<const void*, SchemaItemComparer> m_internedSchemaIdentifiers;
+    std::unordered_map<const void*, InternedSchemaItem> m_internedSchemaComparers;
     
+    struct SchemaItem
+    {
+        const reflection::Schema* schema = nullptr;
+        const reflection::Object* object = nullptr;
+        const reflection::Field* field = nullptr;
+    };
+
+    struct SchemaItemComparer
+    {
+        // Hash computation
+        size_t operator()(
+            const SchemaItem& item
+        ) const;
+
+        // Equality computation
+        bool operator()(
+            const SchemaItem& item1,
+            const SchemaItem& item2
+        ) const;
+    };
+
     std::unordered_map<
         InternedValueKey,
         flatbuffers::Offset<void>, 
@@ -76,30 +97,29 @@ class ValueBuilder
 
     size_t Hash(
         const InternedValueKey& key
-    ) const;
+    );
 
-    std::weak_ordering Compare(
+    bool Equals(
         const InternedValueKey& key1,
         const InternedValueKey& key2
-    ) const;
+    );
+
+    const InternedSchemaItem& InternSchemaItem(
+        const SchemaItem& schemaItem
+    );
 
 public:
     ValueBuilder(
         flatbuffers::FlatBufferBuilder* flatBufferBuilder
-    ) : 
-        m_flatBufferBuilder{ flatBufferBuilder },
-        m_internedValues{ 0, InternedValueKeyComparer{ this }, InternedValueKeyComparer{ this } }
-    {}
+    );
 
     flatbuffers::Offset<void> GetInternedValue(
-        const reflection::Schema* schema,
-        const reflection::Object* object,
+        const SchemaItem& schemaItem,
         const void* value
     );
 
     void InternValue(
-        const reflection::Schema* schema,
-        const reflection::Object* object,
+        const SchemaItem& schemaItem,
         const void* value,
         flatbuffers::Offset<void> offset
     );

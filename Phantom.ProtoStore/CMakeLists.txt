@@ -80,7 +80,8 @@ add_library (
     "src/StandardTypes.h"
     "src/UnresolvedTransactionsTracker.cpp"
     "src/UnresolvedTransactionsTracker.h" 
-  )
+    "src/ValueBuilder.cpp"
+)
     
 target_include_directories(
     Phantom.ProtoStore

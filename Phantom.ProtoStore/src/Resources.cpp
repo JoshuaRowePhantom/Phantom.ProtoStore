@@ -17,6 +17,29 @@ const reflection::Object* const ReflectionSchema_Schema
 const reflection::Object* const ReflectionSchema_Object
 = ReflectionSchema->objects()->LookupByKey("reflection.Object");
 
+const reflection::Object* const ReflectionSchema_Field
+= ReflectionSchema->objects()->LookupByKey("reflection.Field");
+
+
+const ProtoValueComparers ReflectionSchema_SchemaComparers_Owning
+= FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Schema }.MakeComparers();
+
+const ProtoValueComparers ReflectionSchema_ObjectComparers_Owning
+= FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Object }.MakeComparers();
+
+const ProtoValueComparers ReflectionSchema_FieldComparers_Owning
+= FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Field }.MakeComparers();
+
+const ProtoValueComparers ReflectionSchema_SchemaComparers
+= ReflectionSchema_SchemaComparers_Owning.MakeUnowningCopy();
+
+const ProtoValueComparers ReflectionSchema_ObjectComparers
+= ReflectionSchema_ObjectComparers_Owning.MakeUnowningCopy();
+
+const ProtoValueComparers ReflectionSchema_FieldComparers
+= ReflectionSchema_FieldComparers_Owning.MakeUnowningCopy();
+
+
 const reflection::Schema* const ProtoStoreInternalSchema
 = flatbuffers::GetRoot<reflection::Schema>(
     cmrc::Phantom::ProtoStore::Resources::get_filesystem().open("ProtoStoreInternal.bfbs").begin());
