@@ -84,15 +84,18 @@ shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
         return messageDescriptor;
     };
 
-    auto getFlatBufferObjectSchema = [&](const FlatBuffers::FlatBuffersObjectDescription* description)
+    auto getFlatBufferObjectSchema = [&](const FlatBuffers::FlatBuffersSchemaDescription* schemaDescription)
     {
         auto schema = reinterpret_cast<const reflection::Schema*>(
-            description->schema());
+            schemaDescription->object_description()->schema());
 
         return FlatBuffersObjectSchema
         {
             schema,
-            schema->objects()->Get(description->object_index())
+            schema->objects()->Get(schemaDescription->object_description()->object_index()),
+            schemaDescription->graph_encoding_options(),
+            schemaDescription->string_encoding_options(),
+            schemaDescription->message_encoding_options(),
         };
     };
 
@@ -110,7 +113,7 @@ shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
         schema->schema.KeySchema.FormatSchema = FlatBuffersKeySchema
         {
             .ObjectSchema = getFlatBufferObjectSchema(
-                schema->indexSchemaDescription->key()->description_as_FlatBuffersSchemaDescription()->object_description()),
+                schema->indexSchemaDescription->key()->description_as_FlatBuffersSchemaDescription()),
         };
     }
 
@@ -128,7 +131,7 @@ shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
         schema->schema.ValueSchema.FormatSchema = FlatBuffersValueSchema
         {
             .ObjectSchema = getFlatBufferObjectSchema(
-                schema->indexSchemaDescription->value()->description_as_FlatBuffersSchemaDescription()->object_description()),
+                schema->indexSchemaDescription->value()->description_as_FlatBuffersSchemaDescription()),
         };
     }
 

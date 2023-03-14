@@ -4,6 +4,7 @@
 #include <variant>
 #include <google/protobuf/descriptor.h>
 #include <flatbuffers/reflection.h>
+#include "Phantom.ProtoStore/ProtoStore_generated.h"
 
 namespace Phantom::ProtoStore
 {
@@ -32,42 +33,9 @@ struct FlatBuffersObjectSchema
 
     ProtoValueComparers MakeComparers() const;
 
-    enum class FlatBuffersGraphEncodingOptions : uint8_t {
-        // No duplicate detection is done. 
-        // This is the fastest for writing data.
-        // If an object contains loops, the database engine will produce errors
-        // upon reaching the recursion limit.
-        NoDuplicateDetection,
-
-        // Within a single message, detect duplicate objects and encode them
-        // as self-relative references.
-        IntraMessageDuplicateDetection,
-
-        // Within the entire graph of messages written to a partition,
-        // detect duplicate objects and encode them as self-relative
-        // references within the entire partition.
-        FullDuplicateDetection
-    };
-
-    enum class FlatBuffersStringEncodingOptions : uint8_t {
-        // Share strings when copying an object graph.
-        ShareStrings,
-
-        // Do not share strings when copying an object graph.
-        DontShareStrings
-    };
-
-    enum class FlatBuffersMessageEncodingOptions : uint8_t {
-        // Encode the message as a root table.
-        // This is best for extracing such messages and sending them
-        // to other processes without having to reencode them.
-        SerializedByteMessage,
-
-        // Encode the message as a sub-table within the partition.
-        // This is best for reducing the storage size of a partition,
-        // and for local processing of the stored messages.
-        EmbeddedMessage
-    };
+    using FlatBuffersGraphEncodingOptions = FlatBuffers::FlatBuffersGraphEncodingOptions;
+    using FlatBuffersStringEncodingOptions = FlatBuffers::FlatBuffersStringEncodingOptions;
+    using FlatBuffersMessageEncodingOptions = FlatBuffers::FlatBuffersMessageEncodingOptions;
 
     FlatBuffersGraphEncodingOptions GraphEncodingOptions = FlatBuffersGraphEncodingOptions::NoDuplicateDetection;
     FlatBuffersStringEncodingOptions StringEncodingOptions = FlatBuffersStringEncodingOptions::ShareStrings;
