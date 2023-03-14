@@ -4,6 +4,7 @@
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "MessageStore.h"
 #include "PartitionImpl.h"
+#include "KeyComparer.h"
 
 namespace Phantom::ProtoStore
 {
@@ -32,7 +33,7 @@ class PartitionTreeWriter : PartitionWriterBase
 private:
     struct StackEntry
     {
-        flatbuffers::FlatBufferBuilder partitionTreeNodeBuilder;
+        std::shared_ptr<ValueBuilder> partitionTreeNodeValueBuilder = std::make_shared<ValueBuilder>();
         ProtoValue highestKey;
         SequenceNumber lowestSequenceNumberForKey;
         std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryKey>> keyOffsets;

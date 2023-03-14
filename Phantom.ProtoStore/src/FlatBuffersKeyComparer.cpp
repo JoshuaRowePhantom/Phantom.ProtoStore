@@ -887,7 +887,7 @@ FlatBufferKeyComparer::FlatBufferKeyComparer(
     FlatBufferPointerKeyComparer comparer
 ) : 
     m_comparer{ std::move(comparer) },
-    m_prototypeValueBuilder{ nullptr }
+    m_prototypeValueBuilder{}
 {
     m_prototypeValueBuilder.AddSchema(
         m_comparer.Schema()->Schema);

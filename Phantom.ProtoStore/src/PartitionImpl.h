@@ -59,6 +59,11 @@ class Partition
 
     struct EnumerateLastReturnedKey;
 
+    ProtoValue GetProtoValueKey(
+        const FlatMessage<PartitionMessage>& treeNode,
+        const FlatBuffers::PartitionTreeEntryKey* keyEntry
+    );
+
     row_generator Enumerate(
         const FlatMessage<PartitionMessage>& treeNode,
         SequenceNumber readSequenceNumber,

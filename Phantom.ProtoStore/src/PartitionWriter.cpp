@@ -76,16 +76,28 @@ void PartitionTreeWriter::FinishKey(
 
     assert(!treeEntryValues.empty());
 
-    auto& builder = m_treeNodeStack.front().partitionTreeNodeBuilder;
+    auto& builder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
 
-    auto keyOffset = CreateDataValue(
-        builder,
-        current().highestKey.as_aligned_message_if());
+    auto keyOffset = m_keyComparer->BuildValue(
+        *builder,
+        current().highestKey);
+
+    flatbuffers::Offset<FlatBuffers::DataValue> dataValueOffset;
+    flatbuffers::Offset<FlatBuffers::ValuePlaceholder> placeholderOffset;
+
+    if (keyOffset.index() == 0)
+    {
+        placeholderOffset = get<0>(keyOffset);
+    }
+    if (keyOffset.index() == 1)
+    {
+        dataValueOffset = get<1>(keyOffset);
+    }
 
     auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
-        builder,
-        keyOffset,
-        {},
+        builder->builder(),
+        dataValueOffset,
+        placeholderOffset,
         ToUint64(current().lowestSequenceNumberForKey),
         &treeEntryValues
     );
@@ -123,7 +135,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     {
         StackEntry& next = m_treeNodeStack[level + 1];
         auto approximateSize = current->highestKey.as_aligned_message_if().Payload.size() + 100;
-        if (next.partitionTreeNodeBuilder.GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize)
+        if (next.partitionTreeNodeValueBuilder->builder().GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize)
         {
             // Note that we don't forward the value of "isFinishing",
             // because we -do- want a flushed root node to result
@@ -133,7 +145,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     }
 
     auto treeNodeOffset = FlatBuffers::CreatePartitionTreeNodeDirect(
-        current->partitionTreeNodeBuilder,
+        current->partitionTreeNodeValueBuilder->builder(),
         &current->keyOffsets,
         level,
         0,
@@ -142,14 +154,14 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     );
 
     auto partitionMessageOffset = FlatBuffers::CreatePartitionMessage(
-        current->partitionTreeNodeBuilder,
+        current->partitionTreeNodeValueBuilder->builder(),
         treeNodeOffset
     );
 
-    current->partitionTreeNodeBuilder.Finish(
+    current->partitionTreeNodeValueBuilder->builder().Finish(
         partitionMessageOffset);
 
-    FlatMessage<FlatBuffers::PartitionMessage> partitionMessage{ current->partitionTreeNodeBuilder };
+    FlatMessage<FlatBuffers::PartitionMessage> partitionMessage{ current->partitionTreeNodeValueBuilder->builder() };
 
     auto messageReference = co_await Write(
         partitionMessage
@@ -166,12 +178,12 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
         parent->lowestSequenceNumberForKey = current->lowestSequenceNumberForKey;
 
         auto nextKeyDataOffset = CreateDataValue(
-            parent->partitionTreeNodeBuilder,
+            parent->partitionTreeNodeValueBuilder->builder(),
             parent->highestKey.as_aligned_message_if()
         );
 
         auto nextPartitionTreeEntryKey = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
-            parent->partitionTreeNodeBuilder,
+            parent->partitionTreeNodeValueBuilder->builder(),
             nextKeyDataOffset,
             ToUint64(parent->lowestSequenceNumberForKey),
             {},
@@ -185,7 +197,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
 
     current->highestKey = {};
     current->keyOffsets.clear();
-    current->partitionTreeNodeBuilder.Clear();
+    current->partitionTreeNodeValueBuilder->Clear();
 
     co_return messageReference;
 }
@@ -201,7 +213,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     DataValueOffset currentKeyOffset;
     PartitionTreeEntryValueOffsetVector currentValues;
 
-    auto& partitionTreeNodeBuilder = m_treeNodeStack.front().partitionTreeNodeBuilder;
+    auto& partitionTreeNodeBuilder = m_treeNodeStack.front().partitionTreeNodeValueBuilder->builder();
 
     for (;
         iterator != m_writeRowsRequest.rows->end();

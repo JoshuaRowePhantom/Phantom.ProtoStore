@@ -22,9 +22,7 @@ bool ValueBuilder::InternedValueKeyComparer::operator()(
 }
 
 ValueBuilder::ValueBuilder(
-    flatbuffers::FlatBufferBuilder* flatBufferBuilder
 ) :
-    m_flatBufferBuilder{ flatBufferBuilder },
     m_internedValues{ 0, InternedValueKeyComparer{ this }, InternedValueKeyComparer{ this } },
     m_internedSchemaItems{ std::make_shared<InternedSchemaItems>() }
 {}
@@ -262,9 +260,9 @@ void ValueBuilder::InternValue(
 }
 
 flatbuffers::FlatBufferBuilder& ValueBuilder::builder(
-) const
+)
 {
-    return *m_flatBufferBuilder;
+    return m_flatBufferBuilder;
 }
 
 flatbuffers::Offset<FlatBuffers::DataValue> ValueBuilder::CreateDataValue(
@@ -673,19 +671,22 @@ void ValueBuilder::AddSchema(
 }
 
 ValueBuilder::ValueBuilder(
-    const ValueBuilder& other,
-    flatbuffers::FlatBufferBuilder* flatBufferBuilder
+    const ValueBuilder& other
 ) :
     m_internedSchemaItems{ other.m_internedSchemaItems },
-    m_internedSchemaItemsByPointer { other.m_internedSchemaItemsByPointer },
-    m_flatBufferBuilder{ flatBufferBuilder }
+    m_internedSchemaItemsByPointer { other.m_internedSchemaItemsByPointer }
 {
 }
 
-ValueBuilder ValueBuilder::CreateNew(
-    flatbuffers::FlatBufferBuilder* flatBufferBuilder) const
+ValueBuilder ValueBuilder::CreateNew() const
 {
-    return ValueBuilder(*this, flatBufferBuilder);
+    return ValueBuilder(*this);
+}
+
+void ValueBuilder::Clear()
+{
+    m_internedValues.clear();
+    m_flatBufferBuilder.Clear();
 }
 
 size_t ValueBuilder::Hash(

@@ -429,12 +429,13 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint)
         });
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_graph_encoding)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_embedded_encoding)
 {
     auto store = co_await CreateMemoryStore();
 
     auto index = co_await CreateTestFlatBufferIndex(
-        store);
+        store,
+        FlatBuffers::FlatBuffersMessageEncodingOptions::EmbeddedMessage);
 
     co_await AddRowToTestFlatBufferIndex(
         store,
@@ -1000,6 +1001,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpo
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
 {
     auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen");
@@ -1035,6 +1037,44 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpo
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
+
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpoint_and_reopen_embedded_encoding)
+{
+    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen_embedded_encoding");
+
+    auto store = co_await CreateStore(createRequest);
+
+    auto index = co_await CreateTestFlatBufferIndex(
+        store,
+        FlatBuffers::FlatBuffersMessageEncodingOptions::EmbeddedMessage);
+
+    co_await AddRowToTestFlatBufferIndex(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5));
+
+    // Checkpoint a few times to make sure old log files are deleted.
+    co_await store->Checkpoint();
+    co_await store->Checkpoint();
+    co_await store->Checkpoint();
+    co_await store->Join();
+    store.reset();
+    store = co_await OpenStore(createRequest);
+
+    index = co_await GetTestFlatBufferIndex(
+        store);
+
+    co_await ExpectGetTestFlatBufferRow(
+        store,
+        index,
+        "testKey1",
+        "testValue1",
+        ToSequenceNumber(5),
+        ToSequenceNumber(5));
+}
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_read_written_row_during_operation)
 {
     auto store = co_await CreateMemoryStore();

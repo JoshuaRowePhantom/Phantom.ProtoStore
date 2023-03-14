@@ -56,12 +56,14 @@ public:
 
     static ProtoValue MakeProtoValueKey(
         const Schema& schema,
-        const FlatBuffers::DataValue* dataValue
+        const FlatBuffers::DataValue* dataValue,
+        const FlatBuffers::ValuePlaceholder* placeholder = nullptr
     );
 
     static ProtoValue MakeProtoValueKey(
         const Schema& schema,
-        AlignedMessageData alignedMessage
+        AlignedMessageData alignedMessage,
+        const FlatBuffers::ValuePlaceholder* placeholder = nullptr
     );
 
     static ProtoValue MakeProtoValueValue(

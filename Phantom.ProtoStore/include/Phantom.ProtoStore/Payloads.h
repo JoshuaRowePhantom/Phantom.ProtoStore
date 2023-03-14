@@ -256,6 +256,7 @@ class ProtoValue
     static constexpr size_t flat_buffers_string = 6;
     static constexpr size_t flat_buffers_aligned_message_data = 7;
     static constexpr size_t flat_buffers_any = 8;
+    static constexpr size_t flat_buffers_embedded_data_reference = 9;
 
     // The backing store for a message.
     typedef std::variant<
@@ -271,7 +272,8 @@ class ProtoValue
         std::span<const std::byte>,
         std::string,
         AlignedMessageData,
-        std::any
+        std::any,
+        AlignedMessageData
 
     > message_data_type;
 
@@ -562,7 +564,17 @@ public:
         ProtoValue result{ flatBufferMessage };
         if (result)
         {
-            if (self.message_data.index() == flat_buffers_any)
+            if (self.message_data.index() == flat_buffers_aligned_message_data)
+            {
+                result.message_data.emplace<flat_buffers_embedded_data_reference>(
+                    std::get<flat_buffers_aligned_message_data>(std::forward_like<decltype(self)>(self.message_data)));
+            }
+            else if (self.message_data.index() == flat_buffers_embedded_data_reference)
+            {
+                result.message_data.emplace<flat_buffers_embedded_data_reference>(
+                    std::get<flat_buffers_embedded_data_reference>(std::forward_like<decltype(self)>(self.message_data)));
+            }
+            else if (self.message_data.index() == flat_buffers_any)
             {
                 result.message_data.emplace<flat_buffers_any>(
                     std::get<flat_buffers_any>(std::forward_like<decltype(self)>(self.message_data))

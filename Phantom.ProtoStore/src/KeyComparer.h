@@ -136,7 +136,7 @@ class ValueBuilder
 
 private:
 
-    flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
+    flatbuffers::FlatBufferBuilder m_flatBufferBuilder;
     std::shared_ptr<InternedSchemaItems> m_internedSchemaItems;
     std::unordered_map<const void*, const InternedSchemaItem*> m_internedSchemaItemsByPointer;
 
@@ -175,8 +175,7 @@ private:
     );
 
     ValueBuilder(
-        const ValueBuilder&,
-        flatbuffers::FlatBufferBuilder* flatBufferBuilder
+        const ValueBuilder&
     );
 
     static void Hash(
@@ -193,10 +192,9 @@ private:
 
 public:
     ValueBuilder(
-        flatbuffers::FlatBufferBuilder* flatBufferBuilder
     );
 
-    flatbuffers::FlatBufferBuilder& builder() const;
+    flatbuffers::FlatBufferBuilder& builder();
 
     [[nodiscard]] flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(
         const AlignedMessage&
@@ -218,8 +216,9 @@ public:
         const reflection::Schema* schema);
 
     [[nodiscard]] ValueBuilder CreateNew(
-        flatbuffers::FlatBufferBuilder* flatBufferBuilder
     ) const;
+
+    void Clear();
 
     [[nodiscard]] static size_t Hash(
         const reflection::Schema* schema,

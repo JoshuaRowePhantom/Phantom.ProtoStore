@@ -16,9 +16,7 @@ public:
         typename T
     > using Offset = flatbuffers::Offset<T>;
 
-    flatbuffers::FlatBufferBuilder destinationBuilder;
-    ValueBuilder valueBuilder = ValueBuilder(&destinationBuilder);
-
+    ValueBuilder valueBuilder;
 };
 
 TEST_F(ValueBuilderTests, can_intern_top_level_objects)

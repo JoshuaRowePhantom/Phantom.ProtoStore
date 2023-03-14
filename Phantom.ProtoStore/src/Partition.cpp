@@ -218,7 +218,8 @@ struct Partition::FindTreeEntryKeyLessThanComparer
 
         auto keyEntryProtoValue = SchemaDescriptions::MakeProtoValueKey(
             m_schema,
-            keyEntry->key()
+            keyEntry->key(),
+            keyEntry->flat_key()
         );
 
         KeyAndSequenceNumberComparerArgument cacheEntryKey
@@ -353,6 +354,44 @@ int Partition::FindMatchingValueIndexByWriteSequenceNumber(
 #pragma warning (pop)
 }
 
+ProtoValue Partition::GetProtoValueKey(
+    const FlatMessage<PartitionMessage>& treeNode,
+    const FlatBuffers::PartitionTreeEntryKey* keyEntry
+)
+{
+    ProtoValue key;
+
+    if (keyEntry->key())
+    {
+        auto keyMessageData = GetAlignedMessageData(
+            treeNode,
+            keyEntry->key());
+        key = SchemaDescriptions::MakeProtoValueKey(
+            *m_schema,
+            std::move(keyMessageData));
+    }
+    else
+    {
+        assert(keyEntry->flat_key());
+
+        auto keyMessageData = AlignedMessageData(
+            static_cast<DataReference<StoredMessage>>(treeNode),
+            treeNode.data().Content);
+
+        key = ProtoValue::FlatBuffer(
+            std::move(keyMessageData),
+            treeNode.get())
+            .SubValue(
+                ProtoValue::flat_buffer_message
+                {
+                    reinterpret_cast<const flatbuffers::Table*>(keyEntry->flat_key())
+                }
+        );
+    }
+
+    return std::move(key);
+}
+
 row_generator Partition::Enumerate(
     const FlatMessage<PartitionMessage>& treeNode,
     SequenceNumber readSequenceNumber,
@@ -386,12 +425,10 @@ row_generator Partition::Enumerate(
     {
         const FlatBuffers::PartitionTreeEntryKey* keyEntry = treeNode->tree_node()->keys()->Get(lowTreeEntryIndex);
         
-        AlignedMessageData keyMessageData = GetAlignedMessageData(
+        ProtoValue key = GetProtoValueKey(
             treeNode,
-            keyEntry->key());
-        ProtoValue key = SchemaDescriptions::MakeProtoValueKey(
-            *m_schema,
-            std::move(keyMessageData));
+            keyEntry
+        );
 
         if (keyEntry->child_tree_node())
         {
@@ -653,7 +690,8 @@ void Partition::GetKeyValues(
 {
     key = SchemaDescriptions::MakeProtoValueKey(
         *m_schema,
-        keyEntry->key());
+        keyEntry->key(),
+        keyEntry->flat_key());
 
     if (keyEntry->values())
     {
@@ -723,7 +761,8 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     if (!m_bloomFilter->test(
             SchemaDescriptions::MakeProtoValueKey(
                 *m_schema,
-                treeEntry->key())))
+                treeEntry->key(),
+                treeEntry->flat_key())))
     {
         auto error = errorPrototype;
         error.Code = IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter;

@@ -146,20 +146,21 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
 {
     std::shared_ptr<KeyComparer> keyComparer;
 
-    if (holds_alternative<ProtocolBuffersKeySchema>(schema->KeySchema.FormatSchema))
+    auto protocolBuffersFormatSchema = get_if<ProtocolBuffersKeySchema>(&schema->KeySchema.FormatSchema);
+    auto flatbuffersFormatSchema = get_if<FlatBuffersKeySchema>(&schema->KeySchema.FormatSchema);
+
+    if (protocolBuffersFormatSchema)
     {
         keyComparer = std::make_shared<ProtoKeyComparer>(
-            get<ProtocolBuffersKeySchema>(
-                schema->KeySchema.FormatSchema
-            ).ObjectSchema.MessageDescriptor);
+            protocolBuffersFormatSchema->ObjectSchema.MessageDescriptor);
     }
-    else if (holds_alternative<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema))
+    else if (flatbuffersFormatSchema)
     {
         keyComparer = MakeFlatBufferKeyComparer(
             std::shared_ptr<const FlatBuffersObjectSchema>
             {
                 schema,
-                &get<FlatBuffersKeySchema>(schema->KeySchema.FormatSchema).ObjectSchema
+                &flatbuffersFormatSchema->ObjectSchema,
             });
     }
     else
@@ -227,7 +228,8 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeValueComparer(
 
 ProtoValue SchemaDescriptions::MakeProtoValueKey(
     const Schema& schema,
-    const FlatBuffers::DataValue* value
+    const FlatBuffers::DataValue* value,
+    const FlatBuffers::ValuePlaceholder* valuePlaceholder
 )
 {
     return MakeProtoValueKey(
@@ -236,12 +238,14 @@ ProtoValue SchemaDescriptions::MakeProtoValueKey(
         {
             nullptr,
             GetAlignedMessage(value),
-        });
+        },
+        valuePlaceholder);
 }
 
 ProtoValue SchemaDescriptions::MakeProtoValueKey(
     const Schema& schema,
-    AlignedMessageData value
+    AlignedMessageData value,
+    const FlatBuffers::ValuePlaceholder* placeholder
 )
 {
     if (schema.KeySchema.IsProtocolBuffersSchema())
@@ -253,8 +257,13 @@ ProtoValue SchemaDescriptions::MakeProtoValueKey(
     {
         assert(schema.KeySchema.IsFlatBuffersSchema());
 
-        return ProtoValue::FlatBuffer(
+        auto result = ProtoValue::FlatBuffer(
             value);
+        if (placeholder)
+        {
+            return std::move(result).SubValue(reinterpret_cast<const flatbuffers::Table*>(placeholder));
+        }
+        return std::move(result);
     }
 }
 
@@ -405,7 +414,10 @@ flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> SchemaDescriptions::Cre
 
         keySchemaDescriptionTypeOffset = FlatBuffers::CreateFlatBuffersSchemaDescription(
             builder,
-            flatBuffersObjectDescriptionOffset
+            flatBuffersObjectDescriptionOffset,
+            flatbuffersKeySchema->ObjectSchema.GraphEncodingOptions,
+            flatbuffersKeySchema->ObjectSchema.StringEncodingOptions,
+            flatbuffersKeySchema->ObjectSchema.MessageEncodingOptions
         ).Union();
     }
 
