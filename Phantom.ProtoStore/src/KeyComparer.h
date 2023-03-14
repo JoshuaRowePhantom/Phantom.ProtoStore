@@ -85,7 +85,8 @@ class ValueBuilder
 
     flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
     std::list<std::any> m_ownedValues;
-    std::unordered_map<SchemaItem, InternedSchemaItem, SchemaItemComparer, SchemaItemComparer> m_internedSchemaItems;
+    std::unordered_map<SchemaItem, InternedSchemaItem, SchemaItemComparer, SchemaItemComparer> m_internedSchemaItemsByItem;
+    std::unordered_map<const reflection::Type*, InternedSchemaItem*> m_internedSchemaItemsByPointer;
 
     std::unordered_map<
         InternedValueKey,
@@ -107,7 +108,19 @@ class ValueBuilder
         const SchemaItem& schemaItem
     );
 
-    const InternedSchemaItem MakeInternedSchemaItem(
+    InternedSchemaItem MakeInternedSchemaItem(
+        const SchemaItem& schemaItem
+    );
+
+    InternedSchemaItem MakeInternedStringSchemaItem(
+        const SchemaItem& schemaItem
+    );
+
+    InternedSchemaItem MakeInternedVectorSchemaItem(
+        const SchemaItem& schemaItem
+    );
+    
+    InternedSchemaItem MakeInternedObjectSchemaItem(
         const SchemaItem& schemaItem
     );
 
