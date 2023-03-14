@@ -11,10 +11,12 @@ namespace FlatBuffersSchemas
     extern const reflection::Object* const ReflectionSchema_Schema;
     extern const reflection::Object* const ReflectionSchema_Object;
     extern const reflection::Object* const ReflectionSchema_Field;
+    extern const reflection::Object* const ReflectionSchema_Type;
 
     extern const ProtoValueComparers ReflectionSchema_SchemaComparers;
     extern const ProtoValueComparers ReflectionSchema_ObjectComparers;
     extern const ProtoValueComparers ReflectionSchema_FieldComparers;
+    extern const ProtoValueComparers ReflectionSchema_TypeComparers;
 
     extern const reflection::Schema* const ProtoStoreInternalSchema;
 

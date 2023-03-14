@@ -63,15 +63,10 @@ class ValueBuilder
         std::function<bool(const void*, const void*)> equal_to;
     };
 
-    flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
-    std::list<std::any> m_ownedValues;
-    std::unordered_map<const void*, InternedSchemaItem> m_internedSchemaComparers;
-    
     struct SchemaItem
     {
         const reflection::Schema* schema = nullptr;
-        const reflection::Object* object = nullptr;
-        const reflection::Field* field = nullptr;
+        const reflection::Type* type = nullptr;
     };
 
     struct SchemaItemComparer
@@ -79,14 +74,18 @@ class ValueBuilder
         // Hash computation
         size_t operator()(
             const SchemaItem& item
-        ) const;
+            ) const;
 
         // Equality computation
         bool operator()(
             const SchemaItem& item1,
             const SchemaItem& item2
-        ) const;
+            ) const;
     };
+
+    flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
+    std::list<std::any> m_ownedValues;
+    std::unordered_map<SchemaItem, InternedSchemaItem, SchemaItemComparer, SchemaItemComparer> m_internedSchemaItems;
 
     std::unordered_map<
         InternedValueKey,
@@ -105,6 +104,10 @@ class ValueBuilder
     );
 
     const InternedSchemaItem& InternSchemaItem(
+        const SchemaItem& schemaItem
+    );
+
+    const InternedSchemaItem MakeInternedSchemaItem(
         const SchemaItem& schemaItem
     );
 

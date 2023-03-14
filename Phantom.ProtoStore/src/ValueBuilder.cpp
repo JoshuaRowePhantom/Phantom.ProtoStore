@@ -40,25 +40,29 @@ ValueBuilder::ValueBuilder(
     flatbuffers::FlatBufferBuilder* flatBufferBuilder
 ) :
     m_flatBufferBuilder{ flatBufferBuilder },
-    m_internedValues{ 0, InternedValueKeyComparer{ this }, InternedValueKeyComparer{ this } }
+    m_internedValues{ 0, InternedValueKeyComparer{ this }, InternedValueKeyComparer{ this } },
+    m_internedSchemaItems{ 0, SchemaItemComparer{}, SchemaItemComparer{} }
 {}
 
 const ValueBuilder::InternedSchemaItem& ValueBuilder::InternSchemaItem(
     const SchemaItem& schemaItem
 )
 {
-    if (schemaItem.field)
+    
+    if (m_internedSchemaItems.contains(schemaItem))
     {
-        if (m_internedSchemaComparers.contains(schemaItem.field))
-        {
-            return m_internedSchemaComparers[schemaItem.field];
-        }
+        return m_internedSchemaItems[schemaItem];
     }
 
-    if (m_internedSchemaComparers.contains(schemaItem.object))
-    {
-        return m_internedSchemaComparers[schemaItem.object];
-    }
+    return m_internedSchemaItems[schemaItem] = MakeInternedSchemaItem(
+        schemaItem);
+}
+
+
+const ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedSchemaItem(
+    const SchemaItem& schemaItem
+)
+{
     throw 0;
 }
 
@@ -118,11 +122,8 @@ size_t ValueBuilder::SchemaItemComparer::operator()(
         FlatBuffersSchemas::ReflectionSchema_SchemaComparers.hash(
             item.schema)
         ^
-        FlatBuffersSchemas::ReflectionSchema_ObjectComparers.hash(
-            item.object)
-        ^
-        FlatBuffersSchemas::ReflectionSchema_FieldComparers.hash(
-            item.field);
+        FlatBuffersSchemas::ReflectionSchema_TypeComparers.hash(
+            item.type);
 }
 
 // Equality computation
@@ -136,13 +137,9 @@ bool ValueBuilder::SchemaItemComparer::operator()(
             item1.schema,
             item2.schema)
         &&
-        FlatBuffersSchemas::ReflectionSchema_ObjectComparers.equal_to(
-            item1.object,
-            item2.object)
-        &&
-        FlatBuffersSchemas::ReflectionSchema_FieldComparers.equal_to(
-            item1.field,
-            item2.field);
+        FlatBuffersSchemas::ReflectionSchema_TypeComparers.equal_to(
+            item1.type,
+            item2.type);
 }
 
 }
