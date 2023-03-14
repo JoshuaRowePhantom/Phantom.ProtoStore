@@ -34,25 +34,43 @@ protected:
 
 class ValueBuilder
 {
-    struct InternedValueKey
+    struct InternedSchemaItem;
+
+    struct InternedValue
     {
         const void* schemaIdentifier;
-        const shared_ptr<void> value;
+        flatbuffers::Offset<void> offset;
+    };
+
+    struct UninternedValue
+    {
+        const void* value;
+        const InternedSchemaItem* schemaItem;
+    };
+
+    struct InterningValue
+    {
+        const InternedSchemaItem* schemaItem;
+        flatbuffers::Offset<void> offset;
+
+        operator InternedValue() const;
     };
 
     struct InternedValueKeyComparer
     {
+        using is_transparent = void;
+
         ValueBuilder* m_valueBuilder;
 
         // Hash computation
         size_t operator()(
-            const InternedValueKey& key
+            const auto& value
             ) const;
 
         // Equality comparison
         bool operator()(
-            const InternedValueKey& key1,
-            const InternedValueKey& key2
+            const auto& value1,
+            const auto& value2
             ) const;
     };
 
@@ -66,7 +84,10 @@ class ValueBuilder
     struct SchemaItem
     {
         const reflection::Schema* schema = nullptr;
+        const reflection::Object* object = nullptr;
         const reflection::Type* type = nullptr;
+
+        const void* schemaIdentifier() const;
     };
 
     struct SchemaItemComparer
@@ -86,22 +107,21 @@ class ValueBuilder
     flatbuffers::FlatBufferBuilder* const m_flatBufferBuilder;
     std::list<std::any> m_ownedValues;
     std::unordered_map<SchemaItem, InternedSchemaItem, SchemaItemComparer, SchemaItemComparer> m_internedSchemaItemsByItem;
-    std::unordered_map<const reflection::Type*, InternedSchemaItem*> m_internedSchemaItemsByPointer;
+    std::unordered_map<const void*, InternedSchemaItem*> m_internedSchemaItemsByPointer;
 
-    std::unordered_map<
-        InternedValueKey,
-        flatbuffers::Offset<void>, 
+    std::unordered_set<
+        InternedValue,
         InternedValueKeyComparer,
         InternedValueKeyComparer
     > m_internedValues;
 
     size_t Hash(
-        const InternedValueKey& key
+        const auto& value
     );
 
     bool Equals(
-        const InternedValueKey& key1,
-        const InternedValueKey& key2
+        const auto& value1,
+        const auto& value2
     );
 
     const InternedSchemaItem& InternSchemaItem(
@@ -109,10 +129,6 @@ class ValueBuilder
     );
 
     InternedSchemaItem MakeInternedSchemaItem(
-        const SchemaItem& schemaItem
-    );
-
-    InternedSchemaItem MakeInternedStringSchemaItem(
         const SchemaItem& schemaItem
     );
 
@@ -136,7 +152,6 @@ public:
 
     void InternValue(
         const SchemaItem& schemaItem,
-        const void* value,
         flatbuffers::Offset<void> offset
     );
 

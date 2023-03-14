@@ -3,11 +3,12 @@
 namespace Phantom::ProtoStore
 {
 
-struct FlatBuffersTestSchemas
+namespace FlatBuffersTestSchemas
 {
-    static const reflection::Schema* TestSchema;
-    static const reflection::Object* TestFlatStringKeySchema;
-    static const reflection::Object* TestFlatStringValueSchema;
+extern const reflection::Schema* TestSchema;
+extern const reflection::Object* TestTestKeySchema;
+extern const reflection::Object* TestFlatStringKeySchema;
+extern const reflection::Object* TestFlatStringValueSchema;
 };
 
 }

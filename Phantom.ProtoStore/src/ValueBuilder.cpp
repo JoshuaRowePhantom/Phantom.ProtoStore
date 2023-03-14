@@ -6,7 +6,7 @@ namespace Phantom::ProtoStore
 
 // Hash computation
 size_t ValueBuilder::InternedValueKeyComparer::operator()(
-    const InternedValueKey& key
+    const auto& key
     ) const
 {
     return m_valueBuilder->Hash(key);
@@ -14,26 +14,87 @@ size_t ValueBuilder::InternedValueKeyComparer::operator()(
 
 // Equality comparison
 bool ValueBuilder::InternedValueKeyComparer::operator()(
-    const InternedValueKey& key1,
-    const InternedValueKey& key2
+    const auto& value1,
+    const auto& value2
     ) const
 {
-    return m_valueBuilder->Equals(key1, key2);
+    return m_valueBuilder->Equals(value1, value2);
 }
 
 size_t ValueBuilder::Hash(
-    const InternedValueKey& key
+    const auto& value
 )
 {
-    return 0;
+    if constexpr (std::same_as<const InternedValue&, decltype(value)>)
+    {
+        return m_internedSchemaItemsByPointer.at(value.schemaIdentifier)->hash(
+            builder().GetCurrentBufferPointer() + builder().GetSize() - value.offset.o
+            );
+    }
+    else if constexpr (std::same_as<const UninternedValue&, decltype(value)>)
+    {
+        return value.schemaItem->hash(value.value);
+    }
+    else
+    {
+        static_assert(std::same_as<const InterningValue&, decltype(value)>);
+        return value.schemaItem->hash(
+            builder().GetCurrentBufferPointer() + builder().GetSize() - value.offset.o
+            );
+    }
 }
 
 bool ValueBuilder::Equals(
-    const InternedValueKey& key1,
-    const InternedValueKey& key2
+    const auto& value1,
+    const auto& value2
 )
 {
-    return false;
+    const void* value1Pointer;
+    const InternedSchemaItem* schemaItem;
+
+    const void* schemaIdentifier1;
+    const void* schemaIdentifier2;
+
+    if constexpr (std::same_as<const InternedValue&, decltype(value1)>)
+    {
+        value1Pointer = builder().GetCurrentBufferPointer() + builder().GetSize() - value1.offset.o;
+        schemaIdentifier1 = value1.schemaIdentifier;
+    }
+    else
+    {
+        value1Pointer = value1.value;
+        schemaItem = value1.schemaItem;
+        schemaIdentifier1 = value1.schemaItem->schemaIdentifier;
+    }
+
+    const void* value2Pointer;
+
+    if constexpr (std::same_as<const InternedValue&, decltype(value2)>)
+    {
+        value2Pointer = builder().GetCurrentBufferPointer() + builder().GetSize() - value2.offset.o;
+        schemaIdentifier2 = value2.schemaIdentifier;
+    }
+    else
+    {
+        value2Pointer = value2.value;
+        schemaItem = value2.schemaItem;
+        schemaIdentifier2 = value2.schemaItem->schemaIdentifier;
+    }
+
+    if (schemaIdentifier1 != schemaIdentifier2)
+    {
+        return false;
+    }
+
+    if constexpr (
+        std::same_as<const InternedValue&, decltype(value1)>
+        && std::same_as<const InternedValue&, decltype(value2)>
+        )
+    {
+        schemaItem = m_internedSchemaItemsByPointer[schemaIdentifier1];
+    }
+
+    return schemaItem->equal_to(value1Pointer, value2Pointer);
 }
 
 ValueBuilder::ValueBuilder(
@@ -44,22 +105,41 @@ ValueBuilder::ValueBuilder(
     m_internedSchemaItemsByItem{ 0, SchemaItemComparer{}, SchemaItemComparer{} }
 {}
 
+const void* ValueBuilder::SchemaItem::schemaIdentifier() const
+{
+    if (object)
+    {
+        return object;
+    }
+
+    return type;
+}
+
+ValueBuilder::InterningValue::operator ValueBuilder::InternedValue() const
+{
+    return
+    {
+        .schemaIdentifier = schemaItem->schemaIdentifier,
+        .offset = offset
+    };
+}
+
 const ValueBuilder::InternedSchemaItem& ValueBuilder::InternSchemaItem(
     const SchemaItem& schemaItem
 )
 {
-    if (m_internedSchemaItemsByPointer.contains(schemaItem.type))
+    if (m_internedSchemaItemsByPointer.contains(schemaItem.schemaIdentifier()))
     {
-        return *m_internedSchemaItemsByPointer[schemaItem.type];
+        return *m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()];
     }
 
     if (m_internedSchemaItemsByItem.contains(schemaItem))
     {
-        return *(m_internedSchemaItemsByPointer[schemaItem.type] = &m_internedSchemaItemsByItem[schemaItem]);
+        return *(m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = &m_internedSchemaItemsByItem[schemaItem]);
     }
 
     return *(
-        m_internedSchemaItemsByPointer[schemaItem.type] = &(
+        m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = &(
             m_internedSchemaItemsByItem[schemaItem] = MakeInternedSchemaItem(
                 schemaItem)));
 }
@@ -71,47 +151,18 @@ ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedSchemaItem(
 {
     using reflection::BaseType;
 
-    switch (schemaItem.type->base_type())
+    if (schemaItem.object)
     {
-    case BaseType::String:
-        return MakeInternedStringSchemaItem(schemaItem);
-        
-    case BaseType::Vector:
-        return MakeInternedVectorSchemaItem(schemaItem);
-
-    case BaseType::Obj:
-        assert(!schemaItem.schema->objects()->Get(schemaItem.type->index())->is_struct());
         return MakeInternedObjectSchemaItem(schemaItem);
-
-    default:
-        assert(false);
-        throw std::range_error("Unsupported type");
     }
-}
 
-ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedStringSchemaItem(
-    const SchemaItem& schemaItem
-)
-{
-    return InternedSchemaItem
+    if (schemaItem.type->base_type() == BaseType::Vector)
     {
-        .schemaIdentifier = schemaItem.type,
-        .hash = [](const void* v)
-        {
-            return std::hash<std::string_view>{}(
-                flatbuffers::GetStringView(
-                    reinterpret_cast<const flatbuffers::String*>(v)));
-        },
-        .equal_to = [](const void* a, const void* b)
-        {
-            return
-                flatbuffers::GetStringView(
-                    reinterpret_cast<const flatbuffers::String*>(a))
-                ==
-                flatbuffers::GetStringView(
-                    reinterpret_cast<const flatbuffers::String*>(b));
-        },
-    };
+        return MakeInternedVectorSchemaItem(
+            schemaItem);
+    }
+
+    throw std::range_error("Unsupported type");
 }
 
 ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedVectorSchemaItem(
@@ -125,7 +176,7 @@ ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedVectorSchemaItem(
     case BaseType::String:
         return InternedSchemaItem
         {
-            .schemaIdentifier = schemaItem.type,
+            .schemaIdentifier = schemaItem.schemaIdentifier(),
             .hash = [=](const void* v)
             {
                 auto vector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(v);
@@ -162,19 +213,22 @@ ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedVectorSchemaItem(
 
     case BaseType::Obj:
     {
-        auto objectType = schemaItem.schema->objects()->Get(schemaItem.type->index());
-        if (objectType->is_struct())
+        auto object= schemaItem.schema->objects()->Get(schemaItem.type->index());
+        if (object->is_struct())
         {
             goto TrivialType;
         }
 
-        auto objectSchemaItem = MakeInternedObjectSchemaItem(
-            schemaItem
+        auto objectSchemaItem = InternSchemaItem(
+            {
+                schemaItem.schema,
+                object
+            }
         );
 
         return InternedSchemaItem
         {
-            .schemaIdentifier = schemaItem.type,
+            .schemaIdentifier = schemaItem.schemaIdentifier(),
             .hash = [=](const void* v)
             {
                 auto vector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(v);
@@ -216,7 +270,7 @@ ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedVectorSchemaItem(
         // We can use bitwise hashing and equality comparison.
         return InternedSchemaItem
         {
-            .schemaIdentifier = schemaItem.type,
+            .schemaIdentifier = schemaItem.schemaIdentifier(),
             .hash = [=](const void* v)
             {
                 auto vector = reinterpret_cast<const flatbuffers::VectorOfAny*>(v);
@@ -246,17 +300,16 @@ ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedObjectSchemaItem(
     const SchemaItem& schemaItem
 )
 {
-    auto object = schemaItem.schema->objects()->Get(schemaItem.type->index());
     auto comparers =
         FlatBuffersObjectSchema
         {
             schemaItem.schema,
-            object
+            schemaItem.object
         }.MakeComparers();
 
     return InternedSchemaItem
     {
-        .schemaIdentifier = schemaItem.type,
+        .schemaIdentifier = schemaItem.schemaIdentifier(),
         .hash = [=](const void* v)
         {
             return comparers.hash(
@@ -276,15 +329,35 @@ flatbuffers::Offset<void> ValueBuilder::GetInternedValue(
     const void* value
 )
 {
-    return {};
+    auto& internedSchemaItem = InternSchemaItem(schemaItem);
+    auto internedItem = m_internedValues.find(
+        UninternedValue
+        {
+            value,
+            &internedSchemaItem
+        });
+    if (internedItem == m_internedValues.end())
+    {
+        return {0};
+    }
+
+    return internedItem->offset;
 }
 
 void ValueBuilder::InternValue(
     const SchemaItem& schemaItem,
-    const void* value,
     flatbuffers::Offset<void> offset
 )
-{}
+{
+    auto& internedSchemaItem = InternSchemaItem(schemaItem);
+
+    m_internedValues.insert(
+        InterningValue
+        {
+            &internedSchemaItem,
+            offset
+        });
+}
 
 flatbuffers::FlatBufferBuilder& ValueBuilder::builder(
 ) const
@@ -328,7 +401,10 @@ size_t ValueBuilder::SchemaItemComparer::operator()(
             item.schema)
         ^
         FlatBuffersSchemas::ReflectionSchema_TypeComparers.hash(
-            item.type);
+            item.type)
+        ^
+        FlatBuffersSchemas::ReflectionSchema_ObjectComparers.hash(
+            item.object);
 }
 
 // Equality computation
@@ -344,7 +420,11 @@ bool ValueBuilder::SchemaItemComparer::operator()(
         &&
         FlatBuffersSchemas::ReflectionSchema_TypeComparers.equal_to(
             item1.type,
-            item2.type);
+            item2.type)
+        &&
+        FlatBuffersSchemas::ReflectionSchema_ObjectComparers.equal_to(
+            item1.object,
+            item2.object);
 }
 
 }

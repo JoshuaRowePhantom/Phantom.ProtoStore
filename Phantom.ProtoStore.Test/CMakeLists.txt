@@ -35,7 +35,8 @@ add_executable(
     "SkipListTest.cpp"
     "StandardIncludes.cpp"
     "StandardIncludes.h"
- )
+    "ValueBuilderTests.cpp"
+)
     
 PROTOBUF_GENERATE(
     LANGUAGE cpp
