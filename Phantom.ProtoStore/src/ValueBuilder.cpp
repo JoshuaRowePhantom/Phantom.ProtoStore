@@ -144,7 +144,6 @@ const ValueBuilder::InternedSchemaItem& ValueBuilder::InternSchemaItem(
                 schemaItem)));
 }
 
-
 ValueBuilder::InternedSchemaItem ValueBuilder::MakeInternedSchemaItem(
     const SchemaItem& schemaItem
 )
