@@ -215,11 +215,11 @@ class MemoryExtentStore::Impl
         if (replace)
         {
             m_extents.erase(
-                extentName);
+                FlatValue{ extentName });
         }
             
         auto existingExtent = m_extents.find(
-            extentName);
+            FlatValue{ extentName });
 
         if (existingExtent != m_extents.end())
         {
@@ -227,7 +227,7 @@ class MemoryExtentStore::Impl
         }
 
         auto newExtent = make_shared<Extent>(
-            extentName,
+            Clone(extentName),
             m_schedulers);
         
         m_extents[Clone(extentName)] = newExtent;
@@ -276,7 +276,7 @@ public:
         auto lock = co_await m_extentsMutex.scoped_lock_async();
 
         m_extents.erase(
-            extentName);
+            FlatValue{ extentName });
     }
 
     task<bool> ExtentExists(
@@ -285,7 +285,7 @@ public:
         auto lock = co_await m_extentsMutex.scoped_lock_async();
 
         co_return m_extents.contains(
-            extentName);
+            FlatValue{ extentName });
     }
 };
 

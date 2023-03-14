@@ -284,7 +284,7 @@ task<> ProtoStore::ReplayPartitionsForIndex(
     for (auto& partitionListItem : partitionList)
     {
         headerExtentNames.push_back(
-            partitionListItem.Key->header_extent_name());
+            FlatValue{ partitionListItem.Key->header_extent_name() });
     }
 
     auto partitions = co_await OpenPartitionsForIndex(
@@ -438,9 +438,10 @@ task<> ProtoStore::Replay(
 
     if (logRecord->header_extent_names())
     {
-        headerExtentNames.assign_range(
-            *logRecord->header_extent_names()
-        );
+        for (auto headerExtentName : *logRecord->header_extent_names())
+        {
+            headerExtentNames.push_back(FlatValue{ headerExtentName });
+        }
     }
 
     auto partitions = co_await OpenPartitionsForIndex(
@@ -1185,7 +1186,8 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
 )
 {
     auto schema = SchemaDescriptions::MakeSchema(
-        indexesByNumberValue->schema()
+        indexesByNumberValue.SubValue(
+            indexesByNumberValue->schema())
     );
 
     auto keyComparer = SchemaDescriptions::MakeKeyComparer(
@@ -1226,9 +1228,9 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     const shared_ptr<IIndex>& index,
     const FlatBuffers::IndexHeaderExtentName* headerExtentName)
 {
-    if (m_activePartitions.contains(headerExtentName))
+    if (m_activePartitions.contains(FlatValue{ headerExtentName }))
     {
-        co_return m_activePartitions[headerExtentName];
+        co_return m_activePartitions[FlatValue{ headerExtentName }];
     }
 
     auto dataExtentName = MakePartitionDataExtentName(
@@ -1470,7 +1472,7 @@ task<> ProtoStore::Checkpoint(
                 }
 
                 headerExtentNames.push_back(
-                    existingHeaderExtentName);
+                    FlatValue{ existingHeaderExtentName });
             }
 
             if (addedLoggedPartitionsData)

@@ -35,7 +35,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
     for (auto& partition : partitions)
     {
         // See if the partition has already been acquired as a merge candidate.
-        if (mergingPartitions.contains(partition.Key->header_extent_name()))
+        if (mergingPartitions.contains(FlatValue{ partition.Key->header_extent_name() }))
         {
             continue;
         }
@@ -70,7 +70,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
         for (auto& partition : partitionsAtSourceLevel.second)
         {
             if (!partition.Value->merge_unique_id()
-                || mergeIds.insert(partition.Value->merge_unique_id()).second)
+                || mergeIds.insert(FlatValue{ partition.Value->merge_unique_id() }).second)
             {
                 ++mergeCount;
             }

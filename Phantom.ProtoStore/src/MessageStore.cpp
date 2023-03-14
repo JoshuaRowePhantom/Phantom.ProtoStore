@@ -569,9 +569,9 @@ task<shared_ptr<RandomMessageReader>> MessageStore::OpenExtentForRandomReadAcces
         *m_schedulers.LockScheduler,
         [&](auto hasWriteLock) -> task<bool>
     {
-        if (m_readableExtents.contains(extentName))
+        if (m_readableExtents.contains(FlatValue{ extentName }))
         {
-            reader = m_readableExtents[extentName];
+            reader = m_readableExtents[FlatValue{ extentName }];
         }
         co_return reader != nullptr;
     },
@@ -633,7 +633,7 @@ task<shared_ptr<RandomMessageWriter>> MessageStore::OpenExtentForRandomWriteAcce
     // Remove the existing cached readable extent
     // and ensure nobody opens it until we've finished writing the header.
     auto lock = co_await m_extentsLock.writer().scoped_lock_async();
-    m_readableExtents.erase(extentName);
+    m_readableExtents.erase(FlatValue{ extentName });
     auto writableExtent = co_await m_extentStore->OpenExtentForWrite(
         extentName);
 
