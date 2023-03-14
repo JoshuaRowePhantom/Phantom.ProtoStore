@@ -1494,8 +1494,8 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 
     auto index = co_await CreateTestFlatBufferIndex(
         store,
-        //FlatBuffers::FlatBuffersMessageEncodingOptions::EmbeddedMessage);
-        FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage);
+        FlatBuffers::FlatBuffersMessageEncodingOptions::EmbeddedMessage);
+        //FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage);
 
 #ifdef NDEBUG
     int valueCount = 5000000;

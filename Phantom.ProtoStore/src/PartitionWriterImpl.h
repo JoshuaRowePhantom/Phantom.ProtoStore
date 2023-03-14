@@ -47,12 +47,21 @@ private:
     WriteRowsResult& m_writeRowsResult;
     BloomFilterVersion1<std::span<char>>& m_bloomFilter;
 
-    using PartitionTreeEntryValueOffsetVector = std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryValue>>;
+    struct WrittenValueEntry
+    {
+        uint64_t writeSequenceNumber;
+        flatbuffers::Offset<FlatBuffers::DataValue> dataValueOffset;
+        flatbuffers::Offset<FlatBuffers::ValuePlaceholder> flatValueOffset;
+        std::optional<FlatBuffers::MessageReference_V1> bigDataReference;
+        flatbuffers::Offset<FlatBuffers::DataValue> distributedTransactionIdOffset;
+    };
+
+    using PartitionTreeEntryVector = std::vector<WrittenValueEntry>;
     using DataValueOffset = Offset<FlatBuffers::DataValue>;
     using FlatBufferBuilder = flatbuffers::FlatBufferBuilder;
 
     void FinishKey(
-        PartitionTreeEntryValueOffsetVector& treeEntryValues
+        PartitionTreeEntryVector& treeEntryValues
         );
 
     struct WrittenValue

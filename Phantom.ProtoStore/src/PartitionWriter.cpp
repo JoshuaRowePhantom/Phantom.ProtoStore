@@ -88,7 +88,7 @@ PartitionTreeWriter::WrittenValue PartitionTreeWriter::WriteValue(
 }
 
 void PartitionTreeWriter::FinishKey(
-    PartitionTreeEntryValueOffsetVector& treeEntryValues
+    PartitionTreeEntryVector& treeEntryValues
 )
 {
     if (!current().highestKey)
@@ -100,19 +100,53 @@ void PartitionTreeWriter::FinishKey(
     assert(!treeEntryValues.empty());
 
     auto& builder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
+    
+    auto single_DataValueOffset = treeEntryValues[0].dataValueOffset;
+    auto single_FlatValueOffset = treeEntryValues[0].flatValueOffset;
+    auto single_DistributedTransactionIdOffset = treeEntryValues[0].distributedTransactionIdOffset;
+
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryValue>>> treeEntryValuesOffset;
+
+    if (treeEntryValues.size() > 1)
+    {
+        std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryValue>> treeEntryValueOffsets;
+
+        for (auto& treeEntryValue : treeEntryValues)
+        {
+            treeEntryValueOffsets.push_back(
+                FlatBuffers::CreatePartitionTreeEntryValue(
+                    builder->builder(),
+                    treeEntryValue.writeSequenceNumber,
+                    treeEntryValue.dataValueOffset,
+                    treeEntryValue.flatValueOffset,
+                    nullptr,
+                    treeEntryValue.distributedTransactionIdOffset
+                ));
+        }
+
+        treeEntryValuesOffset = builder->builder().CreateVector(
+            treeEntryValueOffsets);
+
+        single_DataValueOffset = 0;
+        single_FlatValueOffset = 0;
+        single_DistributedTransactionIdOffset = 0;
+    }
 
     auto writtenKey = WriteValue(
         *builder,
         *m_keyComparer,
         current().highestKey);
 
-    auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
+    auto partitionTreeEntryKeyOffset = FlatBuffers::CreatePartitionTreeEntryKey(
         builder->builder(),
         writtenKey.dataValueOffset,
         writtenKey.placeholderOffset,
         ToUint64(current().lowestSequenceNumberForKey),
-        &treeEntryValues
-    );
+        treeEntryValuesOffset,
+        single_DataValueOffset,
+        single_FlatValueOffset,
+        nullptr,
+        single_DistributedTransactionIdOffset);
 
     m_treeNodeStack.front().keyOffsets.push_back(partitionTreeEntryKeyOffset);
 
@@ -200,6 +234,10 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
             ToUint64(parent->lowestSequenceNumberForKey),
             {},
             nullptr,
+            0,
+            0,
+            0,
+            0,
             &messageReference
         );
 
@@ -223,7 +261,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 
     m_treeNodeStack.push_back(StackEntry());
     DataValueOffset currentKeyOffset;
-    PartitionTreeEntryValueOffsetVector currentValues;
+    PartitionTreeEntryVector currentValues;
 
     auto& partitionTreeNodeValueBuilder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
     auto& partitionTreeNodeBuilder = partitionTreeNodeValueBuilder->builder();
@@ -316,16 +354,14 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             partitionTreeNodeBuilder,
             *row.TransactionId);
 
-        auto partitionTreeEntryValueOffset = FlatBuffers::CreatePartitionTreeEntryValue(
-            partitionTreeNodeBuilder,
-            ToUint64(row.WriteSequenceNumber),
-            writtenValue.dataValueOffset,
-            writtenValue.placeholderOffset,
-            nullptr,
-            transactionIdOffset);
-
         currentValues.push_back(
-            partitionTreeEntryValueOffset);
+            {
+                .writeSequenceNumber = ToUint64(row.WriteSequenceNumber),
+                .dataValueOffset = writtenValue.dataValueOffset,
+                .flatValueOffset = writtenValue.placeholderOffset,
+                .bigDataReference = {},
+                .distributedTransactionIdOffset = transactionIdOffset,
+            });
     }
 
     FinishKey(

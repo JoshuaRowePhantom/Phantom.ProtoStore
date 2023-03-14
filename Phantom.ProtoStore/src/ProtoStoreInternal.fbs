@@ -142,10 +142,11 @@ table LogRecord
 table PartitionTreeEntryValue {
     write_sequence_number : uint64;
 
-    // Both "value" and "rewritten_value" are not set if this is a delete.
+    // All of "value", "big_value", "flat_value" are not set if this is a delete.
+    // The serialized value as a root flat buffer.
     value : DataValue;
 
-    // The re-encoded flatbuffers value.
+    // The embedded flatbuffers value.
     flat_value : ValuePlaceholder;
 
     // The value is large, and was not put directly into the row.
@@ -176,8 +177,32 @@ table PartitionTreeEntryKey {
 
     lowest_write_sequence_number_for_key : uint64;
 
-    // The values if this is a leaf node.
+    // The values if this is a leaf node
+    // and there are multiple values for the same key.
     values : [PartitionTreeEntryValue];
+
+    // If there is only a single value for the key,
+    // the following fields are set.
+    // If there is only a single value for the key,
+    // and the value represents a delete, 
+    // all of "values" and these fields will be not set.
+    
+    // All of "value", "big_value", "flat_value" are not set if this is a delete.
+    // The serialized value as a root flat buffer.
+    single_value : DataValue;
+
+    // The embedded flatbuffers value.
+    single_flat_value : ValuePlaceholder;
+
+    // The value is large, and was not put directly into the row.
+    single_big_value : MessageReference_V1;
+
+    // Set if this transaction has not been resolved
+    // as of when the row was written to disk.
+    // This value is cleared upon merge whenever
+    // the transaction outcome is known.
+    single_unresolved_transaction_id : DataValue;
+
 
     // The child tree node if this is a non-leaf entry.
     // This will be a reference to a PartitionMessage containing a PartitionTreeNode.

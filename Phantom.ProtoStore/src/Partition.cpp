@@ -477,18 +477,53 @@ row_generator Partition::Enumerate(
         {
             // We're looking at a matching tree entry, now we need to find the right value
             // based on the write sequence number.
-            const FlatBuffers::PartitionTreeEntryValue* treeEntryValue;
-            auto valueIndex = FindMatchingValueIndexByWriteSequenceNumber(
-                keyEntry,
-                readSequenceNumber);
+            bool hasValue;
 
-            if (valueIndex < keyEntry->values()->size())
+            SequenceNumber writeSequenceNumber = SequenceNumber::Earliest;
+            const FlatBuffers::DataValue* dataValue = nullptr;
+            const FlatBuffers::ValuePlaceholder* valuePlaceholder = nullptr;
+            const FlatBuffers::MessageReference_V1* bigValue = nullptr;
+            const FlatBuffers::DataValue* transactionId = nullptr;
+
+            if (keyEntry->values())
             {
-                treeEntryValue = keyEntry->values()->Get(valueIndex);
+                // The key entry has multiple values, so we need to find the right by sequence number.
+                auto valueIndex = FindMatchingValueIndexByWriteSequenceNumber(
+                    keyEntry,
+                    readSequenceNumber);
+
+                if (valueIndex < keyEntry->values()->size())
+                {
+                    hasValue = true;
+                    auto treeEntryValue = keyEntry->values()->Get(valueIndex);
+                    writeSequenceNumber = ToSequenceNumber(treeEntryValue->write_sequence_number());
+                    dataValue = treeEntryValue->value();
+                    valuePlaceholder = treeEntryValue->flat_value();
+                    bigValue = treeEntryValue->big_value();
+                    transactionId = treeEntryValue->unresolved_transaction_id();
+                }
+                else
+                {
+                    hasValue = false;
+                }
             }
             else
             {
-                treeEntryValue = nullptr;
+                // The key entry has only a single value.
+                if (keyEntry->lowest_write_sequence_number_for_key() > ToUint64(readSequenceNumber))
+                {
+                    // The key entry does not match.
+                    hasValue = false;
+                }
+                else
+                {
+                    hasValue = true;
+                    writeSequenceNumber = ToSequenceNumber(keyEntry->lowest_write_sequence_number_for_key());
+                    dataValue = keyEntry->single_value();
+                    valuePlaceholder = keyEntry->single_flat_value();
+                    bigValue = keyEntry->single_big_value();
+                    transactionId = keyEntry->single_unresolved_transaction_id();
+                }
             }
 
             AlignedMessageData value;
@@ -496,7 +531,7 @@ row_generator Partition::Enumerate(
             // The node matched, and we might have a value to return;
             // except we might have found a tree entry whose values are all newer
             // than the read sequence number.
-            if (treeEntryValue == nullptr)
+            if (!hasValue)
             {
                 ++lowTreeEntryIndex;
             }
@@ -511,24 +546,24 @@ row_generator Partition::Enumerate(
                 ProtoValue value;
                 if (readValueDisposition == ReadValueDisposition::DontReadValue)
                 {
-                } else if (treeEntryValue->value())
+                } else if (dataValue)
                 {
                     value = ProtoValue::FlatBuffer(
                         GetAlignedMessageData(
                             treeNode,
-                            treeEntryValue->value()));
+                            dataValue));
                 }
-                else if (treeEntryValue->big_value())
+                else if (bigValue)
                 {
                     auto valueMessage = co_await ReadData(
-                        treeEntryValue->big_value());
+                        bigValue);
 
                     value = ProtoValue::FlatBuffer(
                         GetAlignedMessageData(
                             valueMessage,
                             valueMessage->value()));
                 }
-                else if (treeEntryValue->flat_value())
+                else if (valuePlaceholder)
                 {
                     value = ProtoValue::FlatBuffer(
                         AlignedMessageData(
@@ -538,7 +573,7 @@ row_generator Partition::Enumerate(
                         .SubValue(
                             ProtoValue::flat_buffer_message
                             {
-                                reinterpret_cast<const flatbuffers::Table*>(treeEntryValue->flat_value())
+                                reinterpret_cast<const flatbuffers::Table*>(valuePlaceholder)
                             }
                         );
                 }
@@ -546,7 +581,7 @@ row_generator Partition::Enumerate(
                 co_yield ResultRow
                 {
                     .Key = key,
-                    .WriteSequenceNumber = ToSequenceNumber(treeEntryValue->write_sequence_number()),
+                    .WriteSequenceNumber = writeSequenceNumber,
                     .Value = std::move(value),
                 };
 
@@ -760,10 +795,10 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     }
     else
     {
-        auto error = errorPrototype;
-        error.Code = IntegrityCheckErrorCode::Partition_NoContentInTreeEntry;
-        errorList.push_back(error);
-        co_return;
+        currentHighestSequenceNumber = ToSequenceNumber(
+            treeEntry->lowest_write_sequence_number_for_key());
+        currentLowestSequenceNumber = ToSequenceNumber(
+            treeEntry->lowest_write_sequence_number_for_key());
     }
 
     if (currentHighestSequenceNumber > GetLatestSequenceNumber())
@@ -876,12 +911,6 @@ task<> Partition::CheckChildTreeEntryIntegrity(
                     errorList.push_back(error);
                 }
             }
-        }
-        else
-        {
-            auto error = errorPrototype;
-            error.Code = IntegrityCheckErrorCode::Partition_LeafNodeNeedsValueOrValueSet;
-            errorList.push_back(error);
         }
     }
 }
