@@ -350,9 +350,14 @@ flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> SchemaDescriptions::Cre
     if (flatbuffersKeySchema)
     {
         keySchemaDescriptionType = FlatBuffers::SchemaDescription::FlatBuffersSchemaDescription;
-        keySchemaDescriptionTypeOffset = CreateFlatBuffersObjectDescription(
+        auto flatBuffersObjectDescriptionOffset = CreateFlatBuffersObjectDescription(
             builder,
             flatbuffersKeySchema->ObjectSchema
+        );
+
+        keySchemaDescriptionTypeOffset = FlatBuffers::CreateFlatBuffersSchemaDescription(
+            builder,
+            flatBuffersObjectDescriptionOffset
         ).Union();
     }
 
@@ -360,9 +365,15 @@ flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> SchemaDescriptions::Cre
     if (protocolBuffersKeySchema)
     {
         keySchemaDescriptionType = FlatBuffers::SchemaDescription::ProtocolBuffersSchemaDescription;
-        keySchemaDescriptionTypeOffset = CreateProtocolBuffersObjectDescription(
+
+        auto protocolBuffersObjectDescriptionOffset = CreateProtocolBuffersObjectDescription(
             builder,
             protocolBuffersKeySchema->ObjectSchema
+        );
+
+        keySchemaDescriptionTypeOffset = FlatBuffers::CreateProtocolBuffersSchemaDescription(
+            builder,
+            protocolBuffersObjectDescriptionOffset
         ).Union();
     }
 
@@ -384,9 +395,14 @@ flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> SchemaDescriptions::Cre
     if (flatbuffersValueSchema)
     {
         valueSchemaDescriptionType = FlatBuffers::SchemaDescription::FlatBuffersSchemaDescription;
-        valueSchemaDescriptionTypeOffset = CreateFlatBuffersObjectDescription(
+        auto flatBuffersObjectDescriptionOffset = CreateFlatBuffersObjectDescription(
             builder,
             flatbuffersValueSchema->ObjectSchema
+        );
+
+        valueSchemaDescriptionTypeOffset = FlatBuffers::CreateFlatBuffersSchemaDescription(
+            builder,
+            flatBuffersObjectDescriptionOffset
         ).Union();
     }
 
@@ -394,9 +410,14 @@ flatbuffers::Offset<FlatBuffers::IndexSchemaDescription> SchemaDescriptions::Cre
     if (protocolBuffersValueSchema)
     {
         valueSchemaDescriptionType = FlatBuffers::SchemaDescription::ProtocolBuffersSchemaDescription;
-        valueSchemaDescriptionTypeOffset = CreateProtocolBuffersObjectDescription(
+        auto protocolBuffersObjectDescriptionOffset = CreateProtocolBuffersObjectDescription(
             builder,
             protocolBuffersValueSchema->ObjectSchema
+        );
+        
+        valueSchemaDescriptionTypeOffset = FlatBuffers::CreateProtocolBuffersSchemaDescription(
+            builder,
+            protocolBuffersObjectDescriptionOffset
         ).Union();
     }
 
