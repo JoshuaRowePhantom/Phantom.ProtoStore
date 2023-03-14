@@ -298,15 +298,21 @@ size_t ValueBuilder::InternedSchemaItems::SchemaItemComparer::operator()(
     const SchemaItem& item
     ) const
 {
-    return 
-        FlatBuffersSchemas::ReflectionSchema_SchemaComparers.hash(
-            item.schema)
+    return
+        Hash(
+            FlatBuffersSchemas::ReflectionSchema,
+            FlatBuffersSchemas::ReflectionSchema_Schema,
+            reinterpret_cast<const flatbuffers::Table*>(item.schema))
         ^
-        FlatBuffersSchemas::ReflectionSchema_TypeComparers.hash(
-            item.type)
+        Hash(
+            FlatBuffersSchemas::ReflectionSchema,
+            FlatBuffersSchemas::ReflectionSchema_Type,
+            reinterpret_cast<const flatbuffers::Table*>(item.type))
         ^
-        FlatBuffersSchemas::ReflectionSchema_ObjectComparers.hash(
-            item.object);
+        Hash(
+            FlatBuffersSchemas::ReflectionSchema,
+            FlatBuffersSchemas::ReflectionSchema_Object,
+            reinterpret_cast<const flatbuffers::Table*>(item.object));
 }
 
 // Equality computation
@@ -316,17 +322,23 @@ bool ValueBuilder::InternedSchemaItems::SchemaItemComparer::operator()(
     ) const
 {
     return
-        FlatBuffersSchemas::ReflectionSchema_SchemaComparers.equal_to(
-            item1.schema,
-            item2.schema)
+        Equals(
+            FlatBuffersSchemas::ReflectionSchema,
+            FlatBuffersSchemas::ReflectionSchema_Schema,
+            reinterpret_cast<const flatbuffers::Table*>(item1.schema),
+            reinterpret_cast<const flatbuffers::Table*>(item2.schema))
         &&
-        FlatBuffersSchemas::ReflectionSchema_TypeComparers.equal_to(
-            item1.type,
-            item2.type)
+        Equals(
+            FlatBuffersSchemas::ReflectionSchema,
+            FlatBuffersSchemas::ReflectionSchema_Type,
+            reinterpret_cast<const flatbuffers::Table*>(item1.type),
+            reinterpret_cast<const flatbuffers::Table*>(item2.type))
         &&
-        FlatBuffersSchemas::ReflectionSchema_ObjectComparers.equal_to(
-            item1.object,
-            item2.object);
+        Equals(
+            FlatBuffersSchemas::ReflectionSchema,
+            FlatBuffersSchemas::ReflectionSchema_Object,
+            reinterpret_cast<const flatbuffers::Table*>(item1.object),
+            reinterpret_cast<const flatbuffers::Table*>(item2.object));
 }
 
 void ValueBuilder::CopyPrimitive(

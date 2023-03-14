@@ -889,8 +889,8 @@ FlatBufferKeyComparer::FlatBufferKeyComparer(
     m_comparer{ std::move(comparer) },
     m_prototypeValueBuilder{ nullptr }
 {
-    //m_prototypeValueBuilder.AddSchema(
-    //    m_comparer.Schema()->Schema);
+    m_prototypeValueBuilder.AddSchema(
+        m_comparer.Schema()->Schema);
 }
 
 std::weak_ordering FlatBufferKeyComparer::CompareImpl(

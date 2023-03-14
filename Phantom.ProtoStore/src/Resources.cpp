@@ -14,6 +14,16 @@ const reflection::Schema* const ReflectionSchema
 const reflection::Object* const ReflectionSchema_Schema
 = ReflectionSchema->objects()->LookupByKey("reflection.Schema");
 
+const reflection::Object* const ReflectionSchema_Object
+= ReflectionSchema->objects()->LookupByKey("reflection.Object");
+
+const reflection::Object* const ReflectionSchema_Field
+= ReflectionSchema->objects()->LookupByKey("reflection.Field");
+
+const reflection::Object* const ReflectionSchema_Type
+= ReflectionSchema->objects()->LookupByKey("reflection.Type");
+
+
 const ProtoValueComparers ReflectionSchema_SchemaComparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Schema }.MakeComparers();
 
@@ -21,28 +31,17 @@ const ProtoValueComparers ReflectionSchema_SchemaComparers
 = ReflectionSchema_SchemaComparers_Owning.MakeUnowningCopy();
 
 
-const reflection::Object* const ReflectionSchema_Object
-= ReflectionSchema->objects()->LookupByKey("reflection.Object");
-
 const ProtoValueComparers ReflectionSchema_ObjectComparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Object }.MakeComparers();
 
 const ProtoValueComparers ReflectionSchema_ObjectComparers
 = ReflectionSchema_ObjectComparers_Owning.MakeUnowningCopy();
 
-
-const reflection::Object* const ReflectionSchema_Field
-= ReflectionSchema->objects()->LookupByKey("reflection.Field");
-
 const ProtoValueComparers ReflectionSchema_FieldComparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Field }.MakeComparers();
 
 const ProtoValueComparers ReflectionSchema_FieldComparers
 = ReflectionSchema_FieldComparers_Owning.MakeUnowningCopy();
-
-
-const reflection::Object* const ReflectionSchema_Type
-= ReflectionSchema->objects()->LookupByKey("reflection.Type");
 
 const ProtoValueComparers ReflectionSchema_TypeComparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Type }.MakeComparers();
