@@ -550,12 +550,53 @@ uint64_t ProtoKeyComparer::Hash(
     );
 }
 
+KeyComparer::BuildValueResult ProtoKeyComparer::BuildValue(
+    ValueBuilder& valueBuilder,
+    const ProtoValue& value
+) const
+{
+    return valueBuilder.CreateDataValue(
+        value.as_aligned_message_if());
+}
+
 std::weak_ordering KeyComparer::operator()(
     const ProtoValue& value1,
     const ProtoValue& value2
     ) const
 {
     return Compare(value1, value2);
+}
+
+
+flatbuffers::FlatBufferBuilder& ValueBuilder::builder(
+) const
+{
+    return *m_flatBufferBuilder;
+}
+
+flatbuffers::Offset<FlatBuffers::DataValue> ValueBuilder::CreateDataValue(
+    const AlignedMessage& message
+)
+{
+    if (!message.Payload.data())
+    {
+        return {};
+    }
+
+    builder().ForceVectorAlignment(
+        message.Payload.size(),
+        1,
+        message.Alignment
+    );
+
+    auto dataVectorOffset = builder().CreateVector<int8_t>(
+        get_int8_t_span(message.Payload).data(),
+        message.Payload.size());
+
+    return FlatBuffers::CreateDataValue(
+        builder(),
+        dataVectorOffset,
+        1);
 }
 
 }

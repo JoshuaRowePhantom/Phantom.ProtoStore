@@ -74,6 +74,15 @@ uint64_t FlatBufferPointerKeyComparer::Hash(
     return checksum;
 }
 
+KeyComparer::BuildValueResult FlatBufferKeyComparer::BuildValue(
+    ValueBuilder& valueBuilder,
+    const ProtoValue& value
+) const
+{
+    return valueBuilder.CreateDataValue(
+        value.as_aligned_message_if());
+}
+
 FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer()
 {}
 

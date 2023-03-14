@@ -361,7 +361,12 @@ public:
     FlatBufferKeyComparer(
         FlatBufferPointerKeyComparer comparer);
 
-    uint64_t Hash(
+    virtual uint64_t Hash(
+        const ProtoValue& value
+    ) const override;
+
+    virtual BuildValueResult BuildValue(
+        ValueBuilder& valueBuilder,
         const ProtoValue& value
     ) const override;
 };
