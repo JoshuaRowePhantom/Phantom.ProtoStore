@@ -568,4 +568,21 @@ std::weak_ordering KeyComparer::operator()(
 }
 
 
+int32_t ProtoKeyComparer::GetEstimatedSize(
+    const ProtoValue& value
+) const
+{
+    if (value.as_aligned_message_if())
+    {
+        return value.as_aligned_message_if().Payload.size();
+    }
+
+    if (value.as_message_if())
+    {
+        return value.as_message_if()->ByteSize();
+    }
+
+    return 0;
+}
+
 }

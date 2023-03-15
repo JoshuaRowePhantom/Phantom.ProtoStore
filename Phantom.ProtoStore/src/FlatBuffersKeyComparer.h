@@ -303,5 +303,9 @@ public:
         ValueBuilder& valueBuilder,
         const ProtoValue& value
     ) const override;
+
+    virtual int32_t GetEstimatedSize(
+        const ProtoValue& value
+    ) const override;
 };
 }

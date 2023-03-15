@@ -191,5 +191,28 @@ TEST_F(ValueBuilderTests, can_intern_union)
     );
 }
 
+TEST_F(ValueBuilderTests, GetEstimatedSize)
+{
+    FlatBuffers::TestKeyT key;
+    key.bool_value = 1;
+    key.subkey_value = copy_unique(FlatBuffers::TestKeyT{});
+    key.subkey_value->string_value = "hello";
+    key.struct_vector.push_back(FlatBuffers::TestKeyStruct{});
+    key.struct_vector.push_back(FlatBuffers::TestKeyStruct{});
+    key.struct_vector[0].mutate_bool_value(true);
+    key.struct_vector[1].mutate_bool_value(true);
+    key.subkey_vector.push_back(copy_unique(FlatBuffers::TestKeyT{}));
+    key.subkey_vector[0]->string_value = "world";
+    key.subkey_vector.push_back(copy_unique(FlatBuffers::TestKeyT{}));
+    key.union_value.Set(FlatBuffers::ScalarTableT{});
+    key.union_value.AsScalarTable()->item = 6;
+
+    FlatValue flatKey{ key };
+    EXPECT_EQ(670, ValueBuilder::GetEstimatedSize(
+        FlatBuffersTestSchemas::TestSchema,
+        FlatBuffersTestSchemas::Test_TestKey_Object,
+        reinterpret_cast<const flatbuffers::Table*>(flatKey.get())
+    ));
+}
 
 }

@@ -30,6 +30,14 @@ void DoProtoKeyComparerTest(
     EXPECT_EQ(std::weak_ordering::greater, keyComparer.Compare(greaterProto, lesserProto));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserProto, lesserProto));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterProto, greaterProto));
+
+    EXPECT_LE(
+        lesserProto.as_aligned_message_if().Payload.size(),
+        keyComparer.GetEstimatedSize(lesserProto));
+
+    EXPECT_LE(
+        greaterProto.as_aligned_message_if().Payload.size(),
+        keyComparer.GetEstimatedSize(greaterProto));
 }
 
 template<typename TKey, typename TValue>

@@ -33,8 +33,12 @@ const void* ValueBuilder::SchemaItem::schemaIdentifier() const
     {
         return object;
     }
+    if (type)
+    {
+        return type;
+    }
 
-    return type;
+    return schema;
 }
 
 ValueBuilder::InterningValue::operator ValueBuilder::InternedValue() const
@@ -120,8 +124,66 @@ const ValueBuilder::InternedSchemaItem& ValueBuilder::InternSchemaItem(
 
 ValueBuilder::InternedSchemaItems::InternedSchemaItems()
     :
-    m_internedSchemaItemsByItem{ 0, SchemaItemComparer{}, SchemaItemComparer{} }
+    m_internedSchemaItemsByItem{ 0, InternedSchemaItemKeyComparer{}, InternedSchemaItemKeyComparer{} }
 {}
+
+
+const ValueBuilder::InternedSchemaItem& ValueBuilder::InternedSchemaItems::InternSchemaItem(
+    const std::unique_lock<std::mutex>& lock,
+    const SchemaItem& schemaItem)
+{
+    if (m_internedSchemaItemsByPointer.contains(schemaItem.schemaIdentifier()))
+    {
+        return *m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()];
+    }
+
+    // If this is not a schema object being interned, first intern the schema object.
+    InternedSchemaItemKey key
+    {
+        .schemaItem = schemaItem,
+    };
+
+    const ValueBuilder::InternedSchemaItem* internedSchema;
+    if (schemaItem.schemaIdentifier() == schemaItem.schema)
+    {
+        key.hashCode = Hash(
+            FlatBuffersSchemas::ReflectionSchema,
+            FlatBuffersSchemas::ReflectionSchema_Schema,
+            schemaItem.schema);
+    }
+    else
+    {
+        internedSchema = &InternSchemaItem(
+            lock,
+            {
+                .schema = schemaItem.schema,
+            });
+
+        key.hashCode = internedSchema->hashCode
+            ^
+            Hash(
+                FlatBuffersSchemas::ReflectionSchema,
+                FlatBuffersSchemas::ReflectionSchema_Object,
+                schemaItem.object)
+            ^
+            Hash(
+                FlatBuffersSchemas::ReflectionSchema,
+                FlatBuffersSchemas::ReflectionSchema_Type,
+                schemaItem.type)
+            ;
+    }
+
+    if (m_internedSchemaItemsByItem.contains(key))
+    {
+        return *(m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = m_internedSchemaItemsByItem[key].get());
+    }
+
+    return *(
+        m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = (
+            m_internedSchemaItemsByItem[key] = std::make_shared<InternedSchemaItem>(
+                MakeInternedSchemaItem(
+                    key))).get());
+}
 
 const ValueBuilder::InternedSchemaItem& ValueBuilder::InternedSchemaItems::InternSchemaItem(
     const SchemaItem& schemaItem
@@ -129,90 +191,112 @@ const ValueBuilder::InternedSchemaItem& ValueBuilder::InternedSchemaItems::Inter
 {
     std::unique_lock lock{ m_mutex };
 
-    if (m_internedSchemaItemsByPointer.contains(schemaItem.schemaIdentifier()))
-    {
-        return *m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()];
-    }
+    return InternSchemaItem(lock, schemaItem);
 
-    if (m_internedSchemaItemsByItem.contains(schemaItem))
-    {
-        return *(m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = m_internedSchemaItemsByItem[schemaItem].get());
-    }
-
-    return *(
-        m_internedSchemaItemsByPointer[schemaItem.schemaIdentifier()] = (
-            m_internedSchemaItemsByItem[schemaItem] = std::make_shared<InternedSchemaItem>(
-                MakeInternedSchemaItem(
-                    schemaItem))).get());
 }
 
 ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInternedSchemaItem(
-    const SchemaItem& schemaItem
+    const InternedSchemaItemKey& key
 )
 {
     using reflection::BaseType;
 
-    if (schemaItem.object)
-    {
-        return MakeInternedObjectSchemaItem(schemaItem);
-    }
+    InternedSchemaItem result;
 
-    if (schemaItem.type->base_type() == BaseType::Vector)
+    if (key.schemaItem.object)
     {
+        assert(!key.schemaItem.type);
+        return MakeInternedObjectSchemaItem(key);
+    }
+    else if (key.schemaItem.type && key.schemaItem.type->base_type() == BaseType::Vector)
+    {
+        assert(!key.schemaItem.object);
         return MakeInternedVectorSchemaItem(
-            schemaItem);
+            key);
     }
-
-    throw std::range_error("Unsupported type");
+    else
+    {
+        assert(!key.schemaItem.type);
+        return MakeInternedSchemaSchemaItem(
+            key);
+    }
 }
 
 ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInternedVectorSchemaItem(
-    const SchemaItem& schemaItem
+    const InternedSchemaItemKey& key
 )
 {
     return InternedSchemaItem
     {
-        .schemaIdentifier = schemaItem.schemaIdentifier(),
+        .schemaIdentifier = key.schemaItem.schemaIdentifier(),
         .hash = [=](const void* v)
         {
             return ValueBuilder::Hash(
-                schemaItem.schema,
-                schemaItem.type,
+                key.schemaItem.schema,
+                key.schemaItem.type,
                 reinterpret_cast<const flatbuffers::VectorOfAny*>(v));
         },
         .equal_to = [=](const void* a, const void* b)
         {
             return ValueBuilder::Equals(
-                schemaItem.schema,
-                schemaItem.type,
+                key.schemaItem.schema,
+                key.schemaItem.type,
                 reinterpret_cast<const flatbuffers::VectorOfAny*>(a),
                 reinterpret_cast<const flatbuffers::VectorOfAny*>(b));
         },
+        .hashCode = key.hashCode,
     };
 }
 
 ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInternedObjectSchemaItem(
-    const SchemaItem& schemaItem
+    const InternedSchemaItemKey& key
 )
 {
     return InternedSchemaItem
     {
-        .schemaIdentifier = schemaItem.schemaIdentifier(),
+        .schemaIdentifier = key.schemaItem.schemaIdentifier(),
         .hash = [=](const void* v)
         {
             return ValueBuilder::Hash(
-                schemaItem.schema,
-                schemaItem.object,
+                key.schemaItem.schema,
+                key.schemaItem.object,
                 reinterpret_cast<const flatbuffers::Table*>(v));
         },
         .equal_to = [=](const void* a, const void* b)
         {
             return ValueBuilder::Equals(
-                schemaItem.schema,
-                schemaItem.object,
+                key.schemaItem.schema,
+                key.schemaItem.object,
                 FlatValue{reinterpret_cast<const flatbuffers::Table*>(a)},
                 FlatValue{reinterpret_cast<const flatbuffers::Table*>(b)});
         },
+        .hashCode = key.hashCode,
+    };
+}
+
+ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInternedSchemaSchemaItem(
+    const InternedSchemaItemKey& key
+)
+{
+    return InternedSchemaItem
+    {
+        .schemaIdentifier = key.schemaItem.schemaIdentifier(),
+        .hash = [=](const void* v)
+        {
+            return ValueBuilder::Hash(
+                FlatBuffersSchemas::ReflectionSchema,
+                FlatBuffersSchemas::ReflectionSchema_Schema,
+                reinterpret_cast<const flatbuffers::Table*>(v));
+        },
+        .equal_to = [=](const void* a, const void* b)
+        {
+            return ValueBuilder::Equals(
+                FlatBuffersSchemas::ReflectionSchema,
+                FlatBuffersSchemas::ReflectionSchema_Schema,
+                FlatValue{reinterpret_cast<const flatbuffers::Table*>(a)},
+                FlatValue{reinterpret_cast<const flatbuffers::Table*>(b)});
+        },
+        .hashCode = key.hashCode,
     };
 }
 
@@ -292,51 +376,52 @@ flatbuffers::Offset<FlatBuffers::DataValue> ValueBuilder::CreateDataValue(
 
 
 // Hash computation
-size_t ValueBuilder::InternedSchemaItems::SchemaItemComparer::operator()(
-    const SchemaItem& item
+size_t ValueBuilder::InternedSchemaItems::InternedSchemaItemKeyComparer::operator()(
+    const InternedSchemaItemKey& item
     ) const
 {
-    return
-        Hash(
-            FlatBuffersSchemas::ReflectionSchema,
-            FlatBuffersSchemas::ReflectionSchema_Schema,
-            reinterpret_cast<const flatbuffers::Table*>(item.schema))
-        ^
-        Hash(
-            FlatBuffersSchemas::ReflectionSchema,
-            FlatBuffersSchemas::ReflectionSchema_Type,
-            reinterpret_cast<const flatbuffers::Table*>(item.type))
-        ^
-        Hash(
-            FlatBuffersSchemas::ReflectionSchema,
-            FlatBuffersSchemas::ReflectionSchema_Object,
-            reinterpret_cast<const flatbuffers::Table*>(item.object));
+    return item.hashCode;
 }
 
 // Equality computation
-bool ValueBuilder::InternedSchemaItems::SchemaItemComparer::operator()(
-    const SchemaItem& item1,
-    const SchemaItem& item2
+bool ValueBuilder::InternedSchemaItems::InternedSchemaItemKeyComparer::operator()(
+    const InternedSchemaItemKey& item1,
+    const InternedSchemaItemKey& item2
     ) const
 {
     return
-        Equals(
-            FlatBuffersSchemas::ReflectionSchema,
-            FlatBuffersSchemas::ReflectionSchema_Schema,
-            reinterpret_cast<const flatbuffers::Table*>(item1.schema),
-            reinterpret_cast<const flatbuffers::Table*>(item2.schema))
+        item1.hashCode == item2.hashCode
         &&
-        Equals(
-            FlatBuffersSchemas::ReflectionSchema,
-            FlatBuffersSchemas::ReflectionSchema_Type,
-            reinterpret_cast<const flatbuffers::Table*>(item1.type),
-            reinterpret_cast<const flatbuffers::Table*>(item2.type))
+        (
+        item1.schemaItem.schema == item2.schemaItem.schema
+        ||
+            Equals(
+                FlatBuffersSchemas::ReflectionSchema,
+                FlatBuffersSchemas::ReflectionSchema_Schema,
+                reinterpret_cast<const flatbuffers::Table*>(item1.schemaItem.schema),
+                reinterpret_cast<const flatbuffers::Table*>(item2.schemaItem.schema))
+            )
         &&
-        Equals(
-            FlatBuffersSchemas::ReflectionSchema,
-            FlatBuffersSchemas::ReflectionSchema_Object,
-            reinterpret_cast<const flatbuffers::Table*>(item1.object),
-            reinterpret_cast<const flatbuffers::Table*>(item2.object));
+        (
+            item1.schemaItem.type == item2.schemaItem.type
+        ||
+            Equals(
+                FlatBuffersSchemas::ReflectionSchema,
+                FlatBuffersSchemas::ReflectionSchema_Type,
+                reinterpret_cast<const flatbuffers::Table*>(item1.schemaItem.type),
+                reinterpret_cast<const flatbuffers::Table*>(item2.schemaItem.type))
+            )
+        &&
+        (
+            item1.schemaItem.object == item2.schemaItem.object
+            ||
+            Equals(
+                FlatBuffersSchemas::ReflectionSchema,
+                FlatBuffersSchemas::ReflectionSchema_Object,
+                reinterpret_cast<const flatbuffers::Table*>(item1.schemaItem.object),
+                reinterpret_cast<const flatbuffers::Table*>(item2.schemaItem.object)
+            )
+        );
 }
 
 void ValueBuilder::CopyPrimitive(
@@ -914,6 +999,193 @@ void ValueBuilder::Hash(
         break;
     }
     }
+}
+
+int32_t ValueBuilder::GetEstimatedSize(
+    const reflection::Schema* schema,
+    const reflection::Object* object,
+    const flatbuffers::Table* table)
+{
+    using flatbuffers::uoffset_t;
+    using flatbuffers::Offset;
+    using reflection::BaseType;
+
+    if (object->is_struct())
+    {
+        return object->bytesize()
+            + object->minalign();
+    }
+
+    // 4 four the offset to the vtable, 3 for alignment
+    // 2 for the vtable size, 1 for vtable alignment.
+    // Add 4 for file identifier.
+    //
+    // Add 2 for each field in the vtable.
+    int32_t result = 14 + 2 * object->fields()->size();
+
+    auto sortedFields = GetSortedFields(
+        object);
+
+    // When we run across a subobject, pull the offset from the list
+    // of already-copied offsets. This variable keeps track of how
+    // far into the offsets vector we are.
+    for (auto field : sortedFields)
+    {
+        if (!table->CheckField(field->offset()))
+        {
+            continue;
+        }
+
+        auto baseType = field->type()->base_type();
+        switch (baseType)
+        {
+        case BaseType::Obj:
+        {
+            const reflection::Object* subObject = schema->objects()->Get(field->type()->index());
+            if (subObject->is_struct())
+            {
+                result += 
+                    subObject->bytesize()
+                    + subObject->minalign();
+                break;
+            }
+
+            result += GetEstimatedSize(
+                schema,
+                subObject,
+                flatbuffers::GetFieldT(*table, *field)
+            );
+            break;
+        }
+
+        case BaseType::String:
+        {
+            auto string = flatbuffers::GetFieldS(*table, *field);
+            // 4 for the offset to the string,
+            // 3 for alignment to the offset,
+            // 4 for size field,
+            // 3 for alignment to the size
+            result += 14 + string->size();
+            break;
+        }
+
+        case BaseType::Union:
+        {
+            auto typeField = sortedFields[field->id() - 1];
+            auto unionEnum = schema->enums()->Get(typeField->type()->index());
+            auto unionType = flatbuffers::GetFieldI<uint8_t>(*table, *typeField);
+            auto unionEnumValue = unionEnum->values()->LookupByKey(unionType);
+            auto unionObject = schema->objects()->Get(unionEnumValue->union_type()->index());
+
+            // The size is just the size of the underlying table.
+            result += GetEstimatedSize(
+                schema,
+                unionObject,
+                flatbuffers::GetFieldT(*table, *field)
+            );
+            break;
+
+        }
+
+        case BaseType::Vector:
+        {
+            auto vector = flatbuffers::GetFieldAnyV(*table, *field);
+
+            result += GetEstimatedSize(
+                schema,
+                field->type(),
+                vector);
+            break;
+        }
+
+        default:
+        {
+            // Scalar types
+            // The size of the field plus the alignment.
+            result += flatbuffers::GetTypeSize(baseType) * 2 - 1;
+            break;
+        }
+        }
+    }
+
+    return result;
+}
+
+int32_t ValueBuilder::GetEstimatedSize(
+    const reflection::Schema* schema,
+    const reflection::Type* type,
+    const flatbuffers::VectorOfAny* vector
+)
+{
+    using reflection::BaseType;
+
+    // 4 for offset, 3 for alignment
+    // 4 for size, 3 for alignment
+    int32_t result = 14;
+
+    auto elementObject =
+        type->element() == BaseType::Obj
+        ?
+        schema->objects()->Get(type->index())
+        :
+        nullptr;
+
+    auto vectorSize = vector->size();
+    
+    switch (type->element())
+    {
+    case BaseType::String:
+    {
+        auto stringVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector);
+        for (auto i = 0; i < vectorSize; ++i)
+        {
+            auto stringView = flatbuffers::GetStringView(stringVector->Get(i));
+            uint32_t size = stringView.size();
+            // 4 for offset to string,
+            // 4 for size of string, 3 for alignment
+            result += 4 + 4 + 3 + size;
+        }
+        break;
+    }
+
+    case BaseType::Obj:
+    {
+        if (elementObject->is_struct())
+        {
+            goto TrivialVectorType;
+        }
+
+        auto objectVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector);
+        for (auto i = 0; i < vectorSize; ++i)
+        {
+            result += GetEstimatedSize(
+                schema,
+                elementObject,
+                objectVector->Get(i));
+        }
+        break;
+    }
+
+    default:
+    TrivialVectorType:
+    {
+        auto elementSize = flatbuffers::GetTypeSize(type->element());
+        if (elementObject)
+        {
+            elementSize = elementObject->bytesize();
+            result += elementObject->minalign() - 1;
+        }
+        else
+        {
+            // Alignment
+            result += elementSize - 1;
+        }
+        result += elementSize * vector->size();
+        break;
+    }
+    }
+
+    return result;
 }
 
 bool ValueBuilder::Equals(

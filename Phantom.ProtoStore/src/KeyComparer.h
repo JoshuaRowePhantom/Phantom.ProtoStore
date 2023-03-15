@@ -83,6 +83,7 @@ class ValueBuilder
         const void* schemaIdentifier;
         std::function<size_t(const void*)> hash;
         std::function<bool(const void*, const void*)> equal_to;
+        size_t hashCode;
     };
 
     struct SchemaItem
@@ -96,35 +97,56 @@ class ValueBuilder
 
     class InternedSchemaItems
     {
-        struct SchemaItemComparer
+        struct InternedSchemaItemKey
+        {
+            SchemaItem schemaItem;
+            size_t hashCode;
+        };
+
+        struct InternedSchemaItemKeyComparer
         {
             // Hash computation
             size_t operator()(
-                const SchemaItem& item
+                const InternedSchemaItemKey& item
                 ) const;
 
             // Equality computation
             bool operator()(
-                const SchemaItem& item1,
-                const SchemaItem& item2
+                const InternedSchemaItemKey& item1,
+                const InternedSchemaItemKey& item2
                 ) const;
         };
 
         std::mutex m_mutex;
-        std::unordered_map<SchemaItem, std::shared_ptr<const InternedSchemaItem>, SchemaItemComparer, SchemaItemComparer> m_internedSchemaItemsByItem;
+        
+        std::unordered_map<
+            InternedSchemaItemKey, 
+            std::shared_ptr<const InternedSchemaItem>, 
+            InternedSchemaItemKeyComparer, 
+            InternedSchemaItemKeyComparer
+        > m_internedSchemaItemsByItem;
+
         std::unordered_map<const void*, const InternedSchemaItem*> m_internedSchemaItemsByPointer;
 
         InternedSchemaItem MakeInternedSchemaItem(
-            const SchemaItem& schemaItem
+            const InternedSchemaItemKey& schemaItem
+        );
+
+        InternedSchemaItem MakeInternedSchemaSchemaItem(
+            const InternedSchemaItemKey& schemaItem
         );
 
         InternedSchemaItem MakeInternedVectorSchemaItem(
-            const SchemaItem& schemaItem
+            const InternedSchemaItemKey& schemaItem
         );
 
         InternedSchemaItem MakeInternedObjectSchemaItem(
-            const SchemaItem& schemaItem
+            const InternedSchemaItemKey& schemaItem
         );
+
+        const InternedSchemaItem& InternSchemaItem(
+            const std::unique_lock<std::mutex>& lock,
+            const SchemaItem& schemaItem);
 
     public:
         InternedSchemaItems();
@@ -227,6 +249,29 @@ public:
 
     [[nodiscard]] static size_t Hash(
         const reflection::Schema* schema,
+        const reflection::Object* object,
+        const IsFlatBufferTable auto* value
+    )
+    {
+        return Hash(
+            schema,
+            object,
+            reinterpret_cast<const flatbuffers::Table*>(value)
+        );
+    }
+
+    [[nodiscard]] static size_t Hash(
+        const reflection::Schema* schema,
+        const reflection::Type* type,
+        const flatbuffers::VectorOfAny* value);
+
+    [[nodiscard]] static int32_t GetEstimatedSize(
+        const reflection::Schema* schema,
+        const reflection::Object* object,
+        const flatbuffers::Table* value);
+
+    [[nodiscard]] static int32_t GetEstimatedSize(
+        const reflection::Schema* schema,
         const reflection::Type* type,
         const flatbuffers::VectorOfAny* value);
 
@@ -274,6 +319,10 @@ public:
         ValueBuilder& valueBuilder,
         const ProtoValue& value
     ) const = 0;
+
+    virtual int32_t GetEstimatedSize(
+        const ProtoValue& value
+    ) const = 0;
 };
 
 class ProtoKeyComparer
@@ -310,6 +359,10 @@ public:
 
     virtual BuildValueResult BuildValue(
         ValueBuilder& valueBuilder,
+        const ProtoValue& value
+    ) const override;
+
+    virtual int32_t GetEstimatedSize(
         const ProtoValue& value
     ) const override;
 };

@@ -1222,4 +1222,14 @@ KeyComparer::BuildValueResult FlatBufferKeyComparer::BuildValue(
     };
 }
 
+int32_t FlatBufferKeyComparer::GetEstimatedSize(
+    const ProtoValue& value
+) const
+{
+    return ValueBuilder::GetEstimatedSize(
+        m_comparer.Schema()->Schema,
+        m_comparer.Schema()->Object,
+        value.as_table_if());
+}
+
 }

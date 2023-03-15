@@ -15,7 +15,7 @@ using FlatBuffers::TestKeyStruct;
 using FlatBuffers::TestKeyDescendingTableT;
 using FlatBuffers::ScalarTableT;
 
-FlatBufferPointerKeyComparer GetTestKeyFlatBufferPointerKeyComparer()
+FlatBufferKeyComparer GetTestKeyFlatBufferKeyComparer()
 {
     auto fileSystem = cmrc::Phantom::ProtoStore::Test::Resources::get_filesystem();
     auto schemaData = fileSystem.open("ProtoStoreTest.bfbs");
@@ -29,14 +29,15 @@ FlatBufferPointerKeyComparer GetTestKeyFlatBufferPointerKeyComparer()
             schema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.TestKey")
         ));
 
-    return std::move(keyComparer);
+    return FlatBufferKeyComparer(
+        std::move(keyComparer));
 }
 
 void DoFlatBufferPointerKeyComparerTest(
     const TestKeyT& lesser,
     const TestKeyT& greater)
 {
-    auto keyComparer = GetTestKeyFlatBufferPointerKeyComparer();
+    auto keyComparer = GetTestKeyFlatBufferKeyComparer();
 
     FlatMessage lesserFlatMessage{ &lesser };
     FlatMessage lesserFlatMessage2{ &lesser };
@@ -48,6 +49,14 @@ void DoFlatBufferPointerKeyComparerTest(
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserFlatMessage.get(), lesserFlatMessage.get()));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserFlatMessage.get(), lesserFlatMessage2.get()));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterFlatMessage.get(), greaterFlatMessage.get()));
+
+    EXPECT_LE(
+        lesserFlatMessage.data().Content.Payload.size(),
+        keyComparer.GetEstimatedSize(lesserFlatMessage.get()));
+
+    EXPECT_LE(
+        greaterFlatMessage.data().Content.Payload.size(),
+        keyComparer.GetEstimatedSize(greaterFlatMessage.get()));
 
     EXPECT_EQ(
         keyComparer.Hash(lesserFlatMessage.get()),
