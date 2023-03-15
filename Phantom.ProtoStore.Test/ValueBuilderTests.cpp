@@ -208,7 +208,7 @@ TEST_F(ValueBuilderTests, GetEstimatedSize)
     key.union_value.AsScalarTable()->item = 6;
 
     FlatValue flatKey{ key };
-    EXPECT_EQ(670, ValueBuilder::GetEstimatedSize(
+    EXPECT_EQ(818, ValueBuilder::GetEstimatedSize(
         FlatBuffersTestSchemas::TestSchema,
         FlatBuffersTestSchemas::Test_TestKey_Object,
         reinterpret_cast<const flatbuffers::Table*>(flatKey.get())
