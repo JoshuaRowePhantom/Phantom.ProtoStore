@@ -1010,6 +1010,11 @@ int32_t ValueBuilder::GetEstimatedSize(
     using flatbuffers::Offset;
     using reflection::BaseType;
 
+    if (!table)
+    {
+        return 0;
+    }
+
     if (object->is_struct())
     {
         return object->bytesize()

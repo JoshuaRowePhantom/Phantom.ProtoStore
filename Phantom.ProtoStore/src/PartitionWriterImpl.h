@@ -35,6 +35,7 @@ private:
     {
         std::shared_ptr<ValueBuilder> partitionTreeNodeValueBuilder = std::make_shared<ValueBuilder>();
         ProtoValue highestKey;
+        int32_t estimatedHighestKeySize;
         SequenceNumber lowestSequenceNumberForKey;
         std::vector<flatbuffers::Offset<FlatBuffers::PartitionTreeEntryKey>> keyOffsets;
     };

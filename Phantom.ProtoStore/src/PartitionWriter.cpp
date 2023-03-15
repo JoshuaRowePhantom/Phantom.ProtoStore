@@ -180,8 +180,12 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     if (propagateKeyToParent)
     {
         StackEntry& next = m_treeNodeStack[level + 1];
-        auto approximateSize = current->highestKey.as_aligned_message_if().Payload.size() + 100;
-        if (next.partitionTreeNodeValueBuilder->builder().GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize)
+        auto approximateSize = current->estimatedHighestKeySize + 100;
+        if (next.partitionTreeNodeValueBuilder->builder().GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize
+            &&
+            // We must only flush key entries when there is at least two keys in it,
+            // otherwise the tree will grow indefinitely large.
+            current->keyOffsets.size() >= 2)
         {
             // Note that we don't forward the value of "isFinishing",
             // because we -do- want a flushed root node to result
@@ -221,6 +225,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
         }
 
         parent->highestKey = std::move(current->highestKey);
+        parent->estimatedHighestKeySize = current->estimatedHighestKeySize;
         parent->lowestSequenceNumberForKey = current->lowestSequenceNumberForKey;
 
         auto nextKeyDataOffset = CreateDataValue(
@@ -280,9 +285,14 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 
         ResultRow& row = *iterator;
 
+        auto estimatedKeySize = m_keyComparer->GetEstimatedSize(
+            row.Key);
+        auto estimatedValueSize = m_valueComparer->GetEstimatedSize(
+            row.Value);
+
         auto approximateRowSize =
-            row.Key.as_aligned_message_if().Payload.size()
-            + row.Value.as_aligned_message_if().Payload.size()
+            estimatedKeySize
+            + estimatedValueSize
             + row.TransactionId->Payload.size()
             + 100;
 
@@ -341,6 +351,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         }
 
         current().highestKey = std::move(row.Key);
+        current().estimatedHighestKeySize = estimatedKeySize;
         current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
         m_bloomFilter.add(
             current().highestKey);
