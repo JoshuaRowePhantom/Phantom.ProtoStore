@@ -548,7 +548,8 @@ row_generator Partition::Enumerate(
                 {
                 } else if (dataValue)
                 {
-                    value = ProtoValue::FlatBuffer(
+                    value = SchemaDescriptions::MakeProtoValueValue(
+                        *m_schema,
                         GetAlignedMessageData(
                             treeNode,
                             dataValue));
@@ -557,8 +558,9 @@ row_generator Partition::Enumerate(
                 {
                     auto valueMessage = co_await ReadData(
                         bigValue);
-
-                    value = ProtoValue::FlatBuffer(
+                    
+                    value = SchemaDescriptions::MakeProtoValueValue(
+                        *m_schema,
                         GetAlignedMessageData(
                             valueMessage,
                             valueMessage->value()));
