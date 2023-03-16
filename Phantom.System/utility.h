@@ -58,7 +58,14 @@ class value_factory
 {
     Lambda m_lambda;
 
+    template<
+        typename T,
+        typename Lambda
+    > friend class value_factory;
+
 public:
+    value_factory() {}
+
     template<
         std::convertible_to<T> Other,
         std::convertible_to<Lambda> OtherLambda

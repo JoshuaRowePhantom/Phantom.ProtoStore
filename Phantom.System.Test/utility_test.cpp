@@ -42,6 +42,20 @@ TEST(value_factory_test, returns_convertible_object)
     EXPECT_EQ(value, "hello world");
 }
 
+TEST(value_factory_test, convertible_to_generic_value_factory)
+{
+    auto valueFactory1 = value_factory([] { return "hello world"; });
+    value_factory<const char*> valueFactory2 = valueFactory1;
+    value_factory<std::string> valueFactory3;
+    valueFactory3 = valueFactory1;
+    std::string value1 = valueFactory1;
+    std::string value2 = valueFactory1;
+    std::string value3 = valueFactory1;
+    EXPECT_EQ(value1, "hello world");
+    EXPECT_EQ(value2, "hello world");
+    EXPECT_EQ(value3, "hello world");
+}
+
 TEST(make_shared_with_strong_reference_test, moves_lifetime_object_once_and_makes_result_without_copying_or_moving)
 {
     lifetime_statistics lifetimeStatistics;
