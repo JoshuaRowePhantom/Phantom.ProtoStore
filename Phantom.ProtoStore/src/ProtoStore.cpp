@@ -573,15 +573,6 @@ public:
     }
 
     // Inherited via ITransaction
-    virtual operation_task<> AddLoggedAction(
-        const WriteOperationMetadata& writeOperationMetadata, 
-        const Message* loggedAction, 
-        LoggedOperationDisposition disposition
-    ) override
-    {
-        return operation_task<>();
-    }
-
     virtual operation_task<FlatMessage<LoggedRowWrite>> AddRowInternal(
         const WriteOperationMetadata& writeOperationMetadata, 
         ProtoIndex protoIndex,

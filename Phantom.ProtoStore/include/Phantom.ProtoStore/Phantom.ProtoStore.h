@@ -197,15 +197,9 @@ public:
     ) = 0;
 };
 
-enum class LoggedOperationDisposition {
-    Processed = 0,
-    Unprocessed = 1,
-};
-
 struct WriteOperationMetadata
 {
     const TransactionId* TransactionId = nullptr;
-    LoggedOperationDisposition LoggedOperationDisposition = LoggedOperationDisposition::Unprocessed;
     std::optional<SequenceNumber> ReadSequenceNumber;
     std::optional<SequenceNumber> WriteSequenceNumber;
 };
@@ -225,12 +219,6 @@ namespace Phantom::ProtoStore
 class IWritableTransaction
 {
 public:
-    virtual operation_task<> AddLoggedAction(
-        const WriteOperationMetadata& writeOperationMetadata,
-        const google::protobuf::Message* loggedAction,
-        LoggedOperationDisposition disposition
-    ) = 0;
-
     virtual operation_task<> AddRow(
         const WriteOperationMetadata& writeOperationMetadata,
         ProtoIndex protoIndex,
@@ -263,15 +251,6 @@ public:
 
 typedef std::function<status_task<>(IWritableTransaction*)> WritableTransactionVisitor;
 typedef std::function<status_task<>(ICommittableTransaction*)> TransactionVisitor;
-
-class IOperationProcessor
-{
-public:
-    //virtual task<> ProcessOperation(
-    //    ITransaction* resultOperation,
-    //    WritableOperationVisitor sourceOperation
-    //) = 0;
-};
 
 struct TransactionSucceededResult
 {
@@ -330,7 +309,6 @@ enum class IntegrityCheck
 struct OpenProtoStoreRequest
 {
     std::function<task<std::shared_ptr<IExtentStore>>()> ExtentStore;
-    std::vector<std::shared_ptr<IOperationProcessor>> OperationProcessors;
     Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;
     MergeParameters DefaultMergeParameters;
