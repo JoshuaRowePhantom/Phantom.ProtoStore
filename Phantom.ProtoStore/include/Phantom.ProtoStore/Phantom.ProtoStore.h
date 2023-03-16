@@ -158,24 +158,6 @@ struct CommitTransactionResult
         ) = default;
 };
 
-struct AbortTransactionRequest
-{
-    SequenceNumber SequenceNumber;
-
-    friend bool operator==(
-        const AbortTransactionRequest&,
-        const AbortTransactionRequest&
-        ) = default;
-};
-
-struct AbortTransactionResult
-{
-    friend bool operator==(
-        const AbortTransactionResult&,
-        const AbortTransactionResult&
-        ) = default;
-};
-
 struct BeginTransactionRequest
 {
     SequenceNumber MinimumWriteSequenceNumber = SequenceNumber::Earliest;
