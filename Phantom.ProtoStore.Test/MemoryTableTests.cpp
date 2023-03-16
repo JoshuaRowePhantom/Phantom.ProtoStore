@@ -1,6 +1,7 @@
 #include "StandardIncludes.h"
 #include "Phantom.Coroutines/async_scope.h"
 #include "Phantom.ProtoStore/src/MemoryTableImpl.h"
+#include "Phantom.ProtoStore/src/ProtocolBuffersValueComparer.h"
 #include "ProtoStoreTest.pb.h"
 #include <optional>
 #include <string>

@@ -79,7 +79,7 @@ add_library (
     "src/ValueBuilder.cpp"
     "src/ValueComparer.cpp"
     "src/ValueComparer.h"
-)
+ "src/ProtocolBuffersValueComparer.h" "src/ProtocolBuffersValueComparer.cpp")
     
 target_include_directories(
     Phantom.ProtoStore

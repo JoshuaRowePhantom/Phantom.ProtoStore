@@ -1,5 +1,5 @@
 #include "StandardIncludes.h"
-#include "Phantom.ProtoStore/src/ValueComparer.h"
+#include "Phantom.ProtoStore/src/ProtocolBuffersValueComparer.h"
 #include "ProtoStoreTest.pb.h"
 
 namespace Phantom::ProtoStore

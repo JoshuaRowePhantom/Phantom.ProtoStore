@@ -151,8 +151,12 @@ shared_ptr<ValueComparer> SchemaDescriptions::MakeKeyComparer(
 
     if (protocolBuffersFormatSchema)
     {
-        keyComparer = std::make_shared<ProtocolBuffersValueComparer>(
-            protocolBuffersFormatSchema->ObjectSchema.MessageDescriptor);
+        keyComparer = MakeProtocolBuffersValueComparer(
+            std::shared_ptr<const ProtocolBuffersObjectSchema>
+            {
+                schema,
+                &protocolBuffersFormatSchema->ObjectSchema
+            });
     }
     else if (flatbuffersFormatSchema)
     {
@@ -191,10 +195,14 @@ shared_ptr<ValueComparer> SchemaDescriptions::MakeValueComparer(
 
     if (holds_alternative<ProtocolBuffersValueSchema>(schema->ValueSchema.FormatSchema))
     {
-        keyComparer = std::make_shared<ProtocolBuffersValueComparer>(
-            get<ProtocolBuffersValueSchema>(
-                schema->ValueSchema.FormatSchema
-            ).ObjectSchema.MessageDescriptor);
+        keyComparer = MakeProtocolBuffersValueComparer(
+            std::shared_ptr<const ProtocolBuffersObjectSchema>
+            {
+                schema,
+                &get<ProtocolBuffersValueSchema>(
+                    schema->ValueSchema.FormatSchema
+                ).ObjectSchema
+            });
     }
     else if (holds_alternative<FlatBuffersValueSchema>(schema->ValueSchema.FormatSchema))
     {

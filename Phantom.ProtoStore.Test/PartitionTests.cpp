@@ -1,12 +1,13 @@
 #include "StandardIncludes.h"
-#include "Phantom.ProtoStore/src/ValueComparer.h"
-#include "Phantom.ProtoStore/src/PartitionImpl.h"
-#include "Phantom.ProtoStore/src/PartitionWriterImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStoreImpl.h"
+#include "Phantom.ProtoStore/src/PartitionImpl.h"
+#include "Phantom.ProtoStore/src/PartitionWriterImpl.h"
+#include "Phantom.ProtoStore/src/ProtocolBuffersValueComparer.h"
+#include "Phantom.ProtoStore/src/Schema.h"
+#include "Phantom.ProtoStore/src/ValueComparer.h"
 #include "ProtoStoreInternal.pb.h"
 #include "ProtoStoreTest.pb.h"
-#include "Phantom.ProtoStore/src/Schema.h"
 #include <tuple>
 
 namespace Phantom::ProtoStore

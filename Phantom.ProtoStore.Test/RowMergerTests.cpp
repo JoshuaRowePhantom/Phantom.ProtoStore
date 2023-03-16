@@ -1,6 +1,6 @@
 #include "StandardIncludes.h"
+#include "Phantom.ProtoStore/src/ProtocolBuffersValueComparer.h"
 #include "Phantom.ProtoStore/src/RowMerger.h"
-#include "Phantom.ProtoStore/src/ValueComparer.h"
 #include "ProtoStoreTest.pb.h"
 #include <string>
 #include <tuple>
