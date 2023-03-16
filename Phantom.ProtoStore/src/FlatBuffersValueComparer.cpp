@@ -1,5 +1,5 @@
 #include "StandardTypes.h"
-#include "FlatBuffersKeyComparer.h"
+#include "FlatBuffersValueComparer.h"
 #include "Resources.h"
 #include <compare>
 #include <set>
@@ -7,7 +7,7 @@
 namespace Phantom::ProtoStore
 {
 
-FlatBufferPointerKeyComparer::FlatBufferPointerKeyComparer(
+FlatBufferPointerValueComparer::FlatBufferPointerValueComparer(
     shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema
 ) : 
     m_flatBuffersObjectSchema(
@@ -20,7 +20,7 @@ FlatBufferPointerKeyComparer::FlatBufferPointerKeyComparer(
     );
 }
 
-std::weak_ordering FlatBufferPointerKeyComparer::Compare(
+std::weak_ordering FlatBufferPointerValueComparer::Compare(
     const void* value1,
     const void* value2
 ) const
@@ -30,7 +30,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::Compare(
         value2);
 }
 
-uint64_t FlatBufferPointerKeyComparer::Hash(
+uint64_t FlatBufferPointerValueComparer::Hash(
     const void* value
 ) const
 {
@@ -40,15 +40,15 @@ uint64_t FlatBufferPointerKeyComparer::Hash(
         reinterpret_cast<const flatbuffers::Table*>(value));
 }
 
-const std::shared_ptr<const FlatBuffersObjectSchema>& FlatBufferPointerKeyComparer::Schema() const
+const std::shared_ptr<const FlatBuffersObjectSchema>& FlatBufferPointerValueComparer::Schema() const
 {
     return m_flatBuffersObjectSchema;
 }
 
-FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer()
+FlatBufferPointerValueComparer::InternalObjectComparer::InternalObjectComparer()
 {}
 
-FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer(
+FlatBufferPointerValueComparer::InternalObjectComparer::InternalObjectComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject
@@ -92,7 +92,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::InternalObjectComparer(
     });
 }
 
-std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare(
+std::weak_ordering FlatBufferPointerValueComparer::InternalObjectComparer::Compare(
     const void* value1,
     const void* value2
 ) const
@@ -129,7 +129,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalObjectComparer::Compare
     return std::weak_ordering::equivalent;
 }
 
-FlatBufferPointerKeyComparer::InternalObjectComparer* FlatBufferPointerKeyComparer::InternalObjectComparer::GetObjectComparer(
+FlatBufferPointerValueComparer::InternalObjectComparer* FlatBufferPointerValueComparer::InternalObjectComparer::GetObjectComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject
@@ -151,8 +151,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer* FlatBufferPointerKeyCompar
 
 template<
     typename Container
-> static FlatBufferPointerKeyComparer::InternalFieldComparer 
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
+> static FlatBufferPointerValueComparer::InternalFieldComparer 
+FlatBufferPointerValueComparer::InternalObjectComparer::GetFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -303,8 +303,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldComparer(
 template<
     typename Container,
     auto fieldRetriever
-> FlatBufferPointerKeyComparer::InternalFieldComparer 
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
+> FlatBufferPointerValueComparer::InternalFieldComparer 
+FlatBufferPointerValueComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
@@ -316,8 +316,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetPrimitiveFieldComparer(
     };
 }
 
-FlatBufferPointerKeyComparer::InternalFieldComparer 
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetStringFieldComparer(
+FlatBufferPointerValueComparer::InternalFieldComparer 
+FlatBufferPointerValueComparer::InternalObjectComparer::GetStringFieldComparer(
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
@@ -329,8 +329,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetStringFieldComparer(
     };
 }
 
-FlatBufferPointerKeyComparer::InternalFieldComparer
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetUnionFieldComparer(
+FlatBufferPointerValueComparer::InternalFieldComparer
+FlatBufferPointerValueComparer::InternalObjectComparer::GetUnionFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -409,7 +409,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetUnionFieldComparer(
 }
 
 
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareUnionField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareUnionField(
     const void* value1,
     const void* value2
 ) const
@@ -429,7 +429,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareU
     );
 }
 
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareEmptyUnionField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareEmptyUnionField(
     const void* value1,
     const void* value2
 ) const
@@ -438,7 +438,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareE
     return std::weak_ordering::equivalent;
 }
 
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareUnionFieldValue(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareUnionFieldValue(
     const void* value1,
     const void* value2
 ) const
@@ -460,7 +460,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareU
 
 template<
     typename Value
-> std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::ComparePrimitive(
+> std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::ComparePrimitive(
     Value value1,
     Value value2
 )
@@ -514,8 +514,8 @@ template<
     }
 }
 
-FlatBufferPointerKeyComparer::InternalFieldComparer 
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetVectorFieldComparer(
+FlatBufferPointerValueComparer::InternalFieldComparer 
+FlatBufferPointerValueComparer::InternalObjectComparer::GetVectorFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -636,8 +636,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetVectorFieldComparer(
 
 template<
     typename Value
-> FlatBufferPointerKeyComparer::InternalFieldComparer 
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldComparer(
+> FlatBufferPointerValueComparer::InternalFieldComparer 
+FlatBufferPointerValueComparer::InternalObjectComparer::GetTypedVectorFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -664,8 +664,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedVectorFieldCompare
     };
 }
 
-FlatBufferPointerKeyComparer::InternalFieldComparer 
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetArrayFieldComparer(
+FlatBufferPointerValueComparer::InternalFieldComparer 
+FlatBufferPointerValueComparer::InternalObjectComparer::GetArrayFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -774,8 +774,8 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetArrayFieldComparer(
 }
 template<
     typename Value
-> FlatBufferPointerKeyComparer::InternalFieldComparer 
-FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedArrayFieldComparer(
+> FlatBufferPointerValueComparer::InternalFieldComparer 
+FlatBufferPointerValueComparer::InternalObjectComparer::GetTypedArrayFieldComparer(
     ComparerMap& internalComparers,
     const ::reflection::Schema* flatBuffersReflectionSchema,
     const ::reflection::Object* flatBuffersReflectionObject,
@@ -806,7 +806,7 @@ FlatBufferPointerKeyComparer::InternalObjectComparer::GetTypedArrayFieldComparer
 template<
     typename Container,
     typename Value
-> Value FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldI(
+> Value FlatBufferPointerValueComparer::InternalObjectComparer::GetFieldI(
     const Container* container,
     const ::reflection::Field* flatBuffersReflectionField
 )
@@ -829,7 +829,7 @@ template<
 template<
     typename Container,
     typename Value
-> Value FlatBufferPointerKeyComparer::InternalObjectComparer::GetFieldF(
+> Value FlatBufferPointerValueComparer::InternalObjectComparer::GetFieldF(
     const Container* container,
     const ::reflection::Field* flatBuffersReflectionField
 )
@@ -849,7 +849,7 @@ template<
     }
 }
 
-SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
+SortOrder FlatBufferPointerValueComparer::InternalObjectComparer::GetSortOrder(
     const flatbuffers::Vector<flatbuffers::Offset<reflection::KeyValue>>* attributes
 )
 {
@@ -868,14 +868,14 @@ SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
     return SortOrder::Ascending;
 }
 
-SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
+SortOrder FlatBufferPointerValueComparer::InternalObjectComparer::GetSortOrder(
     const ::reflection::Object* flatBuffersReflectionObject
 )
 {
     return GetSortOrder(flatBuffersReflectionObject->attributes());
 }
 
-SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
+SortOrder FlatBufferPointerValueComparer::InternalObjectComparer::GetSortOrder(
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
@@ -883,8 +883,8 @@ SortOrder FlatBufferPointerKeyComparer::InternalObjectComparer::GetSortOrder(
 }
 
 
-FlatBufferKeyComparer::FlatBufferKeyComparer(
-    FlatBufferPointerKeyComparer comparer
+FlatBufferValueComparer::FlatBufferValueComparer(
+    FlatBufferPointerValueComparer comparer
 ) : 
     m_comparer{ std::move(comparer) },
     m_prototypeValueBuilder{}
@@ -893,7 +893,7 @@ FlatBufferKeyComparer::FlatBufferKeyComparer(
         m_comparer.Schema()->Schema);
 }
 
-std::weak_ordering FlatBufferKeyComparer::CompareImpl(
+std::weak_ordering FlatBufferValueComparer::CompareImpl(
     const ProtoValue& value1,
     const ProtoValue& value2
 ) const
@@ -907,7 +907,7 @@ std::weak_ordering FlatBufferKeyComparer::CompareImpl(
     );
 }
 
-uint64_t FlatBufferKeyComparer::Hash(
+uint64_t FlatBufferValueComparer::Hash(
     const ProtoValue& value
 ) const
 {
@@ -918,11 +918,11 @@ uint64_t FlatBufferKeyComparer::Hash(
         table);
 }
 
-std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
+std::shared_ptr<ValueComparer> MakeFlatBufferValueComparer(
     shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema)
 {
-    return std::make_shared<FlatBufferKeyComparer>(
-        FlatBufferPointerKeyComparer
+    return std::make_shared<FlatBufferValueComparer>(
+        FlatBufferPointerValueComparer
         {
             std::move(flatBuffersObjectSchema)
         });
@@ -932,7 +932,7 @@ std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
 template<
     typename Container
 >
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareStructField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareStructField(
     const void* value1,
     const void* value2
 ) const
@@ -952,7 +952,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareS
         field2);
 }
 
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareTableField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareTableField(
     const void* value1,
     const void* value2
 ) const
@@ -976,7 +976,7 @@ template<
     typename Container,
     auto fieldRetriever
 >
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::ComparePrimitiveField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::ComparePrimitiveField(
     const void* value1,
     const void* value2
 ) const
@@ -994,7 +994,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareP
     return ComparePrimitive(fieldValue1, fieldValue2);
 }
 
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareStringField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareStringField(
     const void* value1,
     const void* value2
 ) const
@@ -1015,7 +1015,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareS
 template<
     typename Value
 >
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareVectorField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareVectorField(
     const void* value1,
     const void* value2
 ) const
@@ -1079,7 +1079,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareV
 
 template<
 >
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareVectorField<flatbuffers::Struct>(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareVectorField<flatbuffers::Struct>(
     const void* value1,
     const void* value2
 ) const
@@ -1129,7 +1129,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareV
 template<
     typename Value
 >
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareArrayField(
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareArrayField(
     const void* value1,
     const void* value2
 ) const
@@ -1157,7 +1157,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareA
 
 template<
 >
-std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareArrayField<
+std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::CompareArrayField<
     flatbuffers::Struct
     >(
     const void* value1,
@@ -1186,7 +1186,7 @@ std::weak_ordering FlatBufferPointerKeyComparer::InternalFieldComparer::CompareA
 
 }
 
-KeyComparer::BuildValueResult FlatBufferKeyComparer::BuildValue(
+ValueComparer::BuildValueResult FlatBufferValueComparer::BuildValue(
     ValueBuilder& valueBuilder,
     const ProtoValue& value
 ) const
@@ -1222,7 +1222,7 @@ KeyComparer::BuildValueResult FlatBufferKeyComparer::BuildValue(
     };
 }
 
-int32_t FlatBufferKeyComparer::GetEstimatedSize(
+int32_t FlatBufferValueComparer::GetEstimatedSize(
     const ProtoValue& value
 ) const
 {

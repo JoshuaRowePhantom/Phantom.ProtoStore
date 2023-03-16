@@ -1,7 +1,7 @@
 #include <algorithm>
 #include "IndexImpl.h"
 #include "ProtoStoreInternal.pb.h"
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include "MemoryTableImpl.h"
 #include "RowMerger.h"
 #include "PartitionWriter.h"
@@ -14,8 +14,8 @@ Index::Index(
     const string& indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
-    shared_ptr<const KeyComparer> keyComparer,
-    shared_ptr<const KeyComparer> valueComparer,
+    shared_ptr<const ValueComparer> keyComparer,
+    shared_ptr<const ValueComparer> valueComparer,
     IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
     std::shared_ptr<const Schema> schema
 )
@@ -33,12 +33,12 @@ Index::Index(
 {
 }
 
-const shared_ptr<const KeyComparer>& Index::GetKeyComparer()
+const shared_ptr<const ValueComparer>& Index::GetKeyComparer()
 {
     return m_keyComparer;
 }
 
-const shared_ptr<const KeyComparer>& Index::GetValueComparer()
+const shared_ptr<const ValueComparer>& Index::GetValueComparer()
 {
     return m_valueComparer;
 }

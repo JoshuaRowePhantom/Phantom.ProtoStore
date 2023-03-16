@@ -63,8 +63,8 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             ProtoValueStlEqual
         > mergeIds(
             0,
-            FlatBuffersSchemas::MergesKeyComparers.hash,
-            FlatBuffersSchemas::MergesKeyComparers.equal_to
+            FlatBuffersSchemas::MergesValueComparers.hash,
+            FlatBuffersSchemas::MergesValueComparers.equal_to
         );
 
         for (auto& partition : partitionsAtSourceLevel.second)

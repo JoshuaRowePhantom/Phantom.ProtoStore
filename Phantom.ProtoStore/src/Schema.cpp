@@ -1,6 +1,6 @@
 #include "Schema.h"
 #include "ProtoStoreInternal.pb.h"
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include <google/protobuf/dynamic_message.h>
 #include <array>
 #include <flatbuffers/reflection.h>
@@ -141,22 +141,22 @@ shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
     );
 }
 
-shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
+shared_ptr<ValueComparer> SchemaDescriptions::MakeKeyComparer(
     std::shared_ptr<const Schema> schema)
 {
-    std::shared_ptr<KeyComparer> keyComparer;
+    std::shared_ptr<ValueComparer> keyComparer;
 
     auto protocolBuffersFormatSchema = get_if<ProtocolBuffersKeySchema>(&schema->KeySchema.FormatSchema);
     auto flatbuffersFormatSchema = get_if<FlatBuffersKeySchema>(&schema->KeySchema.FormatSchema);
 
     if (protocolBuffersFormatSchema)
     {
-        keyComparer = std::make_shared<ProtoKeyComparer>(
+        keyComparer = std::make_shared<ProtocolBuffersValueComparer>(
             protocolBuffersFormatSchema->ObjectSchema.MessageDescriptor);
     }
     else if (flatbuffersFormatSchema)
     {
-        keyComparer = MakeFlatBufferKeyComparer(
+        keyComparer = MakeFlatBufferValueComparer(
             std::shared_ptr<const FlatBuffersObjectSchema>
             {
                 schema,
@@ -171,34 +171,34 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeKeyComparer(
     struct holder
     {
         shared_ptr<const Schema> schema;
-        shared_ptr<KeyComparer> keyComparer;
+        shared_ptr<ValueComparer> keyComparer;
     };
 
     auto holderPointer = std::make_shared<holder>(
         schema,
         keyComparer);
 
-    return shared_ptr<KeyComparer>(
+    return shared_ptr<ValueComparer>(
         holderPointer,
         holderPointer->keyComparer.get()
     );
 }
 
-shared_ptr<KeyComparer> SchemaDescriptions::MakeValueComparer(
+shared_ptr<ValueComparer> SchemaDescriptions::MakeValueComparer(
     std::shared_ptr<const Schema> schema)
 {
-    std::shared_ptr<KeyComparer> keyComparer;
+    std::shared_ptr<ValueComparer> keyComparer;
 
     if (holds_alternative<ProtocolBuffersValueSchema>(schema->ValueSchema.FormatSchema))
     {
-        keyComparer = std::make_shared<ProtoKeyComparer>(
+        keyComparer = std::make_shared<ProtocolBuffersValueComparer>(
             get<ProtocolBuffersValueSchema>(
                 schema->ValueSchema.FormatSchema
             ).ObjectSchema.MessageDescriptor);
     }
     else if (holds_alternative<FlatBuffersValueSchema>(schema->ValueSchema.FormatSchema))
     {
-        keyComparer = MakeFlatBufferKeyComparer(
+        keyComparer = MakeFlatBufferValueComparer(
             std::shared_ptr<const FlatBuffersObjectSchema>
         {
             schema,
@@ -213,14 +213,14 @@ shared_ptr<KeyComparer> SchemaDescriptions::MakeValueComparer(
     struct holder
     {
         shared_ptr<const Schema> schema;
-        shared_ptr<KeyComparer> keyComparer;
+        shared_ptr<ValueComparer> keyComparer;
     };
 
     auto holderPointer = std::make_shared<holder>(
         schema,
         keyComparer);
 
-    return shared_ptr<KeyComparer>(
+    return shared_ptr<ValueComparer>(
         holderPointer,
         holderPointer->keyComparer.get()
     );
@@ -286,7 +286,7 @@ ProtoValue SchemaDescriptions::MakeProtoValueValue(
     }
 }
 
-ProtoValueComparers SchemaDescriptions::MakeComparers(
+ProtoValueComparers SchemaDescriptions::MakeKeyComparers(
     std::shared_ptr<const Schema> schema
 )
 {
@@ -322,7 +322,7 @@ ProtoValueComparers ProtocolBuffersObjectSchema::MakeComparers() const
             ValueSchema {}
     ));
 
-    return SchemaDescriptions::MakeComparers(
+    return SchemaDescriptions::MakeKeyComparers(
         std::move(schema)
     );
 }
@@ -335,7 +335,7 @@ ProtoValueComparers FlatBuffersObjectSchema::MakeComparers() const
             ValueSchema{}
     ));
 
-    return SchemaDescriptions::MakeComparers(
+    return SchemaDescriptions::MakeKeyComparers(
         std::move(schema)
     );
 }

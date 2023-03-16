@@ -85,7 +85,7 @@ class IPartition;
 class IPartitionWriter;
 class IMessageFactory;
 class IUnresolvedTransactionsTracker;
-class KeyComparer;
+class ValueComparer;
 class RowMerger;
 struct MemoryTableTransactionOutcome;
 

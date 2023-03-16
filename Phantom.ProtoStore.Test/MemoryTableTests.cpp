@@ -15,7 +15,7 @@ class MemoryTableTests : public ::testing::Test
 {
 protected:
     std::shared_ptr<Schema> schema;
-    std::shared_ptr<ProtoKeyComparer> keyComparer;
+    std::shared_ptr<ValueComparer> keyComparer;
     MemoryTable memoryTable;
 
 public:
@@ -27,7 +27,7 @@ public:
                 ValueSchema{ StringValue::descriptor() }
             )),
         keyComparer(
-            std::make_shared<ProtoKeyComparer>(
+            std::make_shared<ProtocolBuffersValueComparer>(
                 StringKey::descriptor())),
         memoryTable(
             schema,

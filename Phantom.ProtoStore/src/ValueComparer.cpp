@@ -1,5 +1,5 @@
 #include "StandardTypes.h"
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include "Phantom.ProtoStore/ProtoStore.pb.h"
 #include "ProtoStoreInternal.pb.h"
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -14,7 +14,7 @@ namespace Phantom::ProtoStore
 
 using namespace google::protobuf;
 
-ProtoKeyComparer::ProtoKeyComparer(
+ProtocolBuffersValueComparer::ProtocolBuffersValueComparer(
     const Descriptor* messageDescriptor)
     :
     m_messageDescriptor(
@@ -26,7 +26,7 @@ ProtoKeyComparer::ProtoKeyComparer(
 {
 }
 
-ProtoKeyComparer::MessageSortOrderMap ProtoKeyComparer::GetMessageSortOrders(
+ProtocolBuffersValueComparer::MessageSortOrderMap ProtocolBuffersValueComparer::GetMessageSortOrders(
     const google::protobuf::Descriptor* messageDescriptor,
     MessageSortOrderMap messageSortOrders)
 {
@@ -58,7 +58,7 @@ ProtoKeyComparer::MessageSortOrderMap ProtoKeyComparer::GetMessageSortOrders(
     return std::move(messageSortOrders);
 }
 
-ProtoKeyComparer::FieldSortOrderMap ProtoKeyComparer::GetFieldSortOrders(
+ProtocolBuffersValueComparer::FieldSortOrderMap ProtocolBuffersValueComparer::GetFieldSortOrders(
     const google::protobuf::Descriptor* messageDescriptor,
     FieldSortOrderMap fieldSortOrders)
 {
@@ -89,7 +89,7 @@ ProtoKeyComparer::FieldSortOrderMap ProtoKeyComparer::GetFieldSortOrders(
     return std::move(fieldSortOrders);
 }
 
-std::weak_ordering BaseKeyComparer::ApplySortOrder(
+std::weak_ordering BaseValueComparer::ApplySortOrder(
     SortOrder sortOrder,
     std::weak_ordering value
 )
@@ -102,7 +102,7 @@ std::weak_ordering BaseKeyComparer::ApplySortOrder(
     return 0 <=> value;
 }
 
-SortOrder BaseKeyComparer::CombineSortOrder(
+SortOrder BaseValueComparer::CombineSortOrder(
     SortOrder sortOrder1,
     SortOrder sortOrder2
 )
@@ -170,7 +170,7 @@ std::weak_ordering KeyRangeComparer::operator()(
     return result;
 }
 
-std::weak_ordering KeyComparer::Compare(
+std::weak_ordering ValueComparer::Compare(
     const ProtoValue& value1,
     const ProtoValue& value2
 ) const
@@ -203,7 +203,7 @@ std::weak_ordering KeyComparer::Compare(
     return CompareImpl(value1, value2);
 }
 
-std::weak_ordering ProtoKeyComparer::CompareImpl(
+std::weak_ordering ProtocolBuffersValueComparer::CompareImpl(
     const ProtoValue& value1,
     const ProtoValue& value2
 ) const
@@ -541,7 +541,7 @@ std::weak_ordering ProtoKeyComparer::CompareImpl(
     }
 }
 
-uint64_t ProtoKeyComparer::Hash(
+uint64_t ProtocolBuffersValueComparer::Hash(
     const ProtoValue& value
 ) const
 {
@@ -550,7 +550,7 @@ uint64_t ProtoKeyComparer::Hash(
     );
 }
 
-KeyComparer::BuildValueResult ProtoKeyComparer::BuildValue(
+ValueComparer::BuildValueResult ProtocolBuffersValueComparer::BuildValue(
     ValueBuilder& valueBuilder,
     const ProtoValue& value
 ) const
@@ -559,7 +559,7 @@ KeyComparer::BuildValueResult ProtoKeyComparer::BuildValue(
         value.as_aligned_message_if());
 }
 
-std::weak_ordering KeyComparer::operator()(
+std::weak_ordering ValueComparer::operator()(
     const ProtoValue& value1,
     const ProtoValue& value2
     ) const
@@ -568,7 +568,7 @@ std::weak_ordering KeyComparer::operator()(
 }
 
 
-int32_t ProtoKeyComparer::GetEstimatedSize(
+int32_t ProtocolBuffersValueComparer::GetEstimatedSize(
     const ProtoValue& value
 ) const
 {

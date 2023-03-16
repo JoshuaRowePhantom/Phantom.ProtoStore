@@ -18,7 +18,7 @@ concept IsOrderedBy = requires (T t)
     { t <=> t } -> std::same_as<O>;
 };
 
-class BaseKeyComparer
+class BaseValueComparer
 {
 protected:
 
@@ -60,7 +60,7 @@ class ValueBuilder
         operator InternedValue() const;
     };
 
-    struct InternedValueKeyComparer
+    struct InternedValueValueComparer
     {
         using is_transparent = void;
 
@@ -103,7 +103,7 @@ class ValueBuilder
             size_t hashCode;
         };
 
-        struct InternedSchemaItemKeyComparer
+        struct InternedSchemaItemValueComparer
         {
             // Hash computation
             size_t operator()(
@@ -122,8 +122,8 @@ class ValueBuilder
         std::unordered_map<
             InternedSchemaItemKey, 
             std::shared_ptr<const InternedSchemaItem>, 
-            InternedSchemaItemKeyComparer, 
-            InternedSchemaItemKeyComparer
+            InternedSchemaItemValueComparer, 
+            InternedSchemaItemValueComparer
         > m_internedSchemaItemsByItem;
 
         std::unordered_map<const void*, const InternedSchemaItem*> m_internedSchemaItemsByPointer;
@@ -164,8 +164,8 @@ private:
 
     std::unordered_set<
         InternedValue,
-        InternedValueKeyComparer,
-        InternedValueKeyComparer
+        InternedValueValueComparer,
+        InternedValueValueComparer
     > m_internedValues;
 
     bool Equals(
@@ -288,7 +288,7 @@ public:
         const flatbuffers::VectorOfAny* vector2);
 };
 
-class KeyComparer : public BaseKeyComparer
+class ValueComparer : public BaseValueComparer
 {
     virtual std::weak_ordering CompareImpl(
         const ProtoValue& value1,
@@ -325,9 +325,9 @@ public:
     ) const = 0;
 };
 
-class ProtoKeyComparer
+class ProtocolBuffersValueComparer
     :
-    public KeyComparer
+    public ValueComparer
 {
 private:
     const google::protobuf::Descriptor* m_messageDescriptor;
@@ -350,7 +350,7 @@ private:
     ) const override;
 
 public:
-    ProtoKeyComparer(
+    ProtocolBuffersValueComparer(
         const google::protobuf::Descriptor* messageDescriptor);
 
     virtual uint64_t Hash(
@@ -367,7 +367,7 @@ public:
     ) const override;
 };
 
-std::shared_ptr<KeyComparer> MakeFlatBufferKeyComparer(
+std::shared_ptr<ValueComparer> MakeFlatBufferValueComparer(
     std::shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema);
 
 struct KeyAndSequenceNumberComparerArgument
@@ -386,11 +386,11 @@ struct KeyAndSequenceNumberComparerArgument
 
 class KeyAndSequenceNumberComparer
 {
-    const KeyComparer& m_keyComparer;
+    const ValueComparer& m_keyComparer;
 
 public:
     KeyAndSequenceNumberComparer(
-        const KeyComparer& keyComparer
+        const ValueComparer& keyComparer
     ) : m_keyComparer(keyComparer)
     {}
 
@@ -419,7 +419,7 @@ class KeyAndSequenceNumberLessThanComparer
 
 public:
     KeyAndSequenceNumberLessThanComparer(
-        const KeyComparer& keyComparer
+        const ValueComparer& keyComparer
     ) : m_keyAndSequenceNumberComparer(keyComparer)
     {}
 
@@ -458,10 +458,10 @@ struct KeyRangeComparerArgument
 
 class KeyRangeComparer
 {
-    const KeyComparer& m_keyComparer;
+    const ValueComparer& m_keyComparer;
 public:
     KeyRangeComparer(
-        const KeyComparer& keyComparer
+        const ValueComparer& keyComparer
     ) : m_keyComparer(keyComparer)
     {
     }

@@ -20,8 +20,8 @@ add_library (
     "src/ExtentName.cpp"
     "src/ExtentName.h"
     "src/ExtentStore.h"
-    "src/FlatBuffersKeyComparer.cpp"
-    "src/FlatBuffersKeyComparer.h"
+    "src/FlatBuffersValueComparer.cpp"
+    "src/FlatBuffersValueComparer.h"
     "src/FlatMessage.h"
     "src/HeaderAccessor.cpp"
     "src/HeaderAccessor.h"
@@ -37,8 +37,6 @@ add_library (
     "src/IndexPartitionMergeGenerator.cpp"
     "src/IndexPartitionMergeGenerator.h"
     "src/InternalProtoStore.h"
-    "src/KeyComparer.cpp"
-    "src/KeyComparer.h"
     "src/LogManager.cpp"
     "src/LogManager.h"
     "src/MemoryExtentStore.cpp"
@@ -79,6 +77,8 @@ add_library (
     "src/UnresolvedTransactionsTracker.cpp"
     "src/UnresolvedTransactionsTracker.h" 
     "src/ValueBuilder.cpp"
+    "src/ValueComparer.cpp"
+    "src/ValueComparer.h"
 )
     
 target_include_directories(

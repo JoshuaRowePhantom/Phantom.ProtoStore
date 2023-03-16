@@ -15,10 +15,10 @@ namespace Phantom::ProtoStore
 
 class BloomFilterV1Hash
 {
-    const std::shared_ptr<const KeyComparer> m_keyComparer;
+    const std::shared_ptr<const ValueComparer> m_keyComparer;
 public:
     BloomFilterV1Hash(
-        std::shared_ptr<const KeyComparer> keyComparer);
+        std::shared_ptr<const ValueComparer> keyComparer);
     size_t operator()(const ProtoValue&) const;
 };
 
@@ -35,7 +35,7 @@ class Partition
     public virtual IJoinable
 {
     shared_ptr<const Schema> m_schema;
-    shared_ptr<const KeyComparer> m_keyComparer;
+    shared_ptr<const ValueComparer> m_keyComparer;
     shared_ptr<IRandomMessageReader> m_partitionDataReader;
     shared_ptr<IRandomMessageReader> m_partitionHeaderReader;
 
@@ -128,7 +128,7 @@ class Partition
 public:
     Partition(
         shared_ptr<const Schema> schema,
-        shared_ptr<const KeyComparer> keyComparer,
+        shared_ptr<const ValueComparer> keyComparer,
         shared_ptr<IRandomMessageReader> partitionData,
         shared_ptr<IRandomMessageReader> partitionHeader
     );

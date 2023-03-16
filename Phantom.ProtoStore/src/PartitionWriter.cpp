@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BloomFilter.h"
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include "MessageStore.h"
 #include "PartitionImpl.h"
 #include "PartitionWriterImpl.h"
@@ -14,8 +14,8 @@ namespace Phantom::ProtoStore
 
 PartitionWriterBase::PartitionWriterBase(
     shared_ptr<const Schema> schema,
-    shared_ptr<const KeyComparer> keyComparer,
-    shared_ptr<const KeyComparer> valueComparer,
+    shared_ptr<const ValueComparer> keyComparer,
+    shared_ptr<const ValueComparer> valueComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter
 ) :
     m_schema{ std::move(schema) },
@@ -46,8 +46,8 @@ task<FlatBuffers::MessageReference_V1> PartitionWriterBase::Write(
 
 PartitionTreeWriter::PartitionTreeWriter(
     shared_ptr<const Schema> schema,
-    shared_ptr<const KeyComparer> keyComparer,
-    shared_ptr<const KeyComparer> valueComparer,
+    shared_ptr<const ValueComparer> keyComparer,
+    shared_ptr<const ValueComparer> valueComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter,
     WriteRowsRequest& writeRowsRequest,
     WriteRowsResult& writeRowsResult,
@@ -66,7 +66,7 @@ PartitionTreeWriter::PartitionTreeWriter(
 
 PartitionTreeWriter::WrittenValue PartitionTreeWriter::WriteValue(
     ValueBuilder& valueBuilder,
-    const KeyComparer& keyComparer,
+    const ValueComparer& keyComparer,
     const ProtoValue& value)
 {
     WrittenValue result = { 0, 0 };
@@ -393,8 +393,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 
 PartitionWriter::PartitionWriter(
     shared_ptr<const Schema> schema,
-    shared_ptr<const KeyComparer> keyComparer,
-    shared_ptr<const KeyComparer> valueComparer,
+    shared_ptr<const ValueComparer> keyComparer,
+    shared_ptr<const ValueComparer> valueComparer,
     shared_ptr<ISequentialMessageWriter> dataWriter,
     shared_ptr<ISequentialMessageWriter> headerWriter
 ) :

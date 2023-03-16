@@ -1,6 +1,6 @@
 #include "StandardIncludes.h"
 #include "Phantom.ProtoStore/src/RowMerger.h"
-#include "Phantom.ProtoStore/src/KeyComparer.h"
+#include "Phantom.ProtoStore/src/ValueComparer.h"
 #include "ProtoStoreTest.pb.h"
 #include <string>
 #include <tuple>
@@ -32,7 +32,7 @@ protected:
                     KeySchema{ StringKey::descriptor() },
                     ValueSchema{ StringValue::descriptor() }
                 ),
-                std::make_shared<ProtoKeyComparer>(
+                std::make_shared<ProtocolBuffersValueComparer>(
                     StringKey::descriptor()));
 
             auto convertTestRowsToRowGenerator = [](test_row_list_type& sourceRows) -> row_generator

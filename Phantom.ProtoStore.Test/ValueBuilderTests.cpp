@@ -1,5 +1,5 @@
 #include "StandardIncludes.h"
-#include "Phantom.ProtoStore/src/KeyComparer.h"
+#include "Phantom.ProtoStore/src/ValueComparer.h"
 #include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
 #include "Resources.h"
 #include <flatbuffers/flatbuffers.h>

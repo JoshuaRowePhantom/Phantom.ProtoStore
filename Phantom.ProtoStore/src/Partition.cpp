@@ -1,5 +1,5 @@
 #include "Checksum.h"
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include "PartitionImpl.h"
 #include "Phantom.System/async_utility.h"
 #include "MessageStore.h"
@@ -13,7 +13,7 @@ namespace Phantom::ProtoStore
 {
 
 BloomFilterV1Hash::BloomFilterV1Hash(
-    std::shared_ptr<const KeyComparer> keyComparer
+    std::shared_ptr<const ValueComparer> keyComparer
 ) : 
     m_keyComparer { std::move(keyComparer) }
 {
@@ -31,7 +31,7 @@ struct Partition::EnumerateLastReturnedKey
 
 Partition::Partition(
     shared_ptr<const Schema> schema,
-    shared_ptr<const KeyComparer> keyComparer,
+    shared_ptr<const ValueComparer> keyComparer,
     shared_ptr<IRandomMessageReader> partitionHeaderReader,
     shared_ptr<IRandomMessageReader> partitionDataReader
 ) :
@@ -198,11 +198,11 @@ struct Partition::FindTreeEntryKeyLessThanComparer
     : SerializationTypes
 {
     const Schema& m_schema;
-    const KeyComparer& m_keyComparer;
+    const ValueComparer& m_keyComparer;
     
     FindTreeEntryKeyLessThanComparer(
         const Schema& schema,
-        const KeyComparer& keyComparer
+        const ValueComparer& keyComparer
     ) : 
         m_schema(schema),
         m_keyComparer(keyComparer)

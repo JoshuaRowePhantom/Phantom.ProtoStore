@@ -1,5 +1,5 @@
 #include "StandardIncludes.h"
-#include "Phantom.ProtoStore/src/KeyComparer.h"
+#include "Phantom.ProtoStore/src/ValueComparer.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include "ProtoStoreInternal.pb.h"
 #include "ProtoStoreTest.pb.h"
@@ -40,7 +40,7 @@ TEST(SchemaTests, Can_round_trip_ProtocolBuffers_schema_to_key_comparer_with_com
     EXPECT_FALSE(schema->ValueSchema.IsFlatBuffersSchema());
     EXPECT_TRUE(schema->ValueSchema.IsProtocolBuffersSchema());
 
-    auto keyComparer = SchemaDescriptions::MakeKeyComparer(
+    auto keyComparer = SchemaDescriptions::MakeValueComparer(
         schema);
 
     TestKey low;
@@ -83,7 +83,7 @@ TEST(SchemaTests, Can_round_trip_FlatBuffers_schema_to_key_comparer_with_compile
     EXPECT_TRUE(schema->ValueSchema.IsFlatBuffersSchema());
     EXPECT_FALSE(schema->ValueSchema.IsProtocolBuffersSchema());
 
-    auto keyComparer = SchemaDescriptions::MakeKeyComparer(
+    auto keyComparer = SchemaDescriptions::MakeValueComparer(
         schema);
 
     FlatBuffers::FlatStringKeyT low;

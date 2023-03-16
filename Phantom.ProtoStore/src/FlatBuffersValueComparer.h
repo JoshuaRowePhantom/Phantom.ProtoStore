@@ -1,14 +1,14 @@
 #pragma once
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include "Checksum.h"
 #include "Schema.h"
 #include <flatbuffers/reflection.h>
 
 namespace Phantom::ProtoStore
 {
-class FlatBufferPointerKeyComparer
+class FlatBufferPointerValueComparer
     :
-    public BaseKeyComparer
+    public BaseValueComparer
 {
     using BaseType = ::reflection::BaseType;
 
@@ -128,7 +128,7 @@ private:
             SortOrder fieldSortOrder
         )
         {
-            result.sortOrder = BaseKeyComparer::CombineSortOrder(
+            result.sortOrder = BaseValueComparer::CombineSortOrder(
                 objectSortOrder,
                 fieldSortOrder);
             return result;
@@ -137,7 +137,7 @@ private:
 
     class InternalObjectComparer
         :
-        public BaseKeyComparer
+        public BaseValueComparer
     {
         std::vector<InternalFieldComparer> m_comparers;
 
@@ -266,7 +266,7 @@ private:
     const InternalObjectComparer* m_rootComparer;
 
 public:
-    explicit FlatBufferPointerKeyComparer(
+    explicit FlatBufferPointerValueComparer(
         std::shared_ptr<const FlatBuffersObjectSchema> flatBuffersObjectSchema);
 
     const std::shared_ptr<const FlatBuffersObjectSchema>& Schema() const;
@@ -281,10 +281,10 @@ public:
     ) const;
 };
 
-class FlatBufferKeyComparer :
-    public KeyComparer
+class FlatBufferValueComparer :
+    public ValueComparer
 {
-    FlatBufferPointerKeyComparer m_comparer;
+    FlatBufferPointerValueComparer m_comparer;
     ValueBuilder m_prototypeValueBuilder;
 
     virtual std::weak_ordering CompareImpl(
@@ -292,8 +292,8 @@ class FlatBufferKeyComparer :
         const ProtoValue& value2
     ) const override;
 public:
-    FlatBufferKeyComparer(
-        FlatBufferPointerKeyComparer comparer);
+    FlatBufferValueComparer(
+        FlatBufferPointerValueComparer comparer);
 
     virtual uint64_t Hash(
         const ProtoValue& value

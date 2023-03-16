@@ -1,5 +1,5 @@
 #include "MemoryTable.h"
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include "SkipList.h"
 #include <atomic>
 #include <cppcoro/async_auto_reset_event.hpp>
@@ -120,7 +120,7 @@ class MemoryTable
     class MemoryTableRowComparer
     {
         const shared_ptr<const Schema> m_schema;
-        const shared_ptr<const KeyComparer> m_keyComparer;
+        const shared_ptr<const ValueComparer> m_keyComparer;
 
         ProtoValue MakeProtoValueKey(
             const InsertionKey&
@@ -141,7 +141,7 @@ class MemoryTable
     public:
         MemoryTableRowComparer(
             shared_ptr<const Schema> schema,
-            shared_ptr<const KeyComparer> keyComparer
+            shared_ptr<const ValueComparer> keyComparer
         );
 
         ProtoValue MakeProtoValueKey(
@@ -177,7 +177,7 @@ class MemoryTable
     // m_comparer must be declared before m_skipList,
     // so that m_skipList can point to it.
     const shared_ptr<const Schema> m_schema;
-    const shared_ptr<const KeyComparer> m_keyComparer;
+    const shared_ptr<const ValueComparer> m_keyComparer;
     const MemoryTableRowComparer m_comparer;
 
     SkipList<MemoryTableValue, void, 32, MemoryTableRowComparer> m_skipList;
@@ -206,7 +206,7 @@ class MemoryTable
 public:
     MemoryTable(
         shared_ptr<const Schema> schema,
-        shared_ptr<const KeyComparer> keyComparer
+        shared_ptr<const ValueComparer> keyComparer
     );
 
     ~MemoryTable();

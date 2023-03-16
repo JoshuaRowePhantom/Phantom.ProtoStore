@@ -14,8 +14,8 @@ class Index
     : public IIndex
 {
     const shared_ptr<const Schema> m_schema;
-    const shared_ptr<const KeyComparer> m_keyComparer;
-    const shared_ptr<const KeyComparer> m_valueComparer;
+    const shared_ptr<const ValueComparer> m_keyComparer;
+    const shared_ptr<const ValueComparer> m_valueComparer;
     const IndexName m_indexName;
     const IndexNumber m_indexNumber;
     const SequenceNumber m_createSequenceNumber;
@@ -56,16 +56,16 @@ public:
         const string& indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
-        shared_ptr<const KeyComparer> keyComparer,
-        shared_ptr<const KeyComparer> valueComparer,
+        shared_ptr<const ValueComparer> keyComparer,
+        shared_ptr<const ValueComparer> valueComparer,
         IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
         std::shared_ptr<const Schema> schema
     );
 
-    virtual const shared_ptr<const KeyComparer>& GetKeyComparer(
+    virtual const shared_ptr<const ValueComparer>& GetKeyComparer(
     ) override;
     
-    virtual const shared_ptr<const KeyComparer>& GetValueComparer(
+    virtual const shared_ptr<const ValueComparer>& GetValueComparer(
     ) override;
 
     virtual operation_task<CheckpointNumber> AddRow(

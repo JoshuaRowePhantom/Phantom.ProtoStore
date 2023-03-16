@@ -1,11 +1,11 @@
-#include "KeyComparer.h"
+#include "ValueComparer.h"
 #include "Resources.h"
 
 namespace Phantom::ProtoStore
 {
 
 // Hash computation
-size_t ValueBuilder::InternedValueKeyComparer::operator()(
+size_t ValueBuilder::InternedValueValueComparer::operator()(
     const auto& key
     ) const
 {
@@ -13,7 +13,7 @@ size_t ValueBuilder::InternedValueKeyComparer::operator()(
 }
 
 // Equality comparison
-bool ValueBuilder::InternedValueKeyComparer::operator()(
+bool ValueBuilder::InternedValueValueComparer::operator()(
     const auto& value1,
     const auto& value2
     ) const
@@ -23,7 +23,7 @@ bool ValueBuilder::InternedValueKeyComparer::operator()(
 
 ValueBuilder::ValueBuilder(
 ) :
-    m_internedValues{ 0, InternedValueKeyComparer{ this }, InternedValueKeyComparer{ this } },
+    m_internedValues{ 0, InternedValueValueComparer{ this }, InternedValueValueComparer{ this } },
     m_internedSchemaItems{ std::make_shared<InternedSchemaItems>() }
 {}
 
@@ -124,7 +124,7 @@ const ValueBuilder::InternedSchemaItem& ValueBuilder::InternSchemaItem(
 
 ValueBuilder::InternedSchemaItems::InternedSchemaItems()
     :
-    m_internedSchemaItemsByItem{ 0, InternedSchemaItemKeyComparer{}, InternedSchemaItemKeyComparer{} }
+    m_internedSchemaItemsByItem{ 0, InternedSchemaItemValueComparer{}, InternedSchemaItemValueComparer{} }
 {}
 
 
@@ -376,7 +376,7 @@ flatbuffers::Offset<FlatBuffers::DataValue> ValueBuilder::CreateDataValue(
 
 
 // Hash computation
-size_t ValueBuilder::InternedSchemaItems::InternedSchemaItemKeyComparer::operator()(
+size_t ValueBuilder::InternedSchemaItems::InternedSchemaItemValueComparer::operator()(
     const InternedSchemaItemKey& item
     ) const
 {
@@ -384,7 +384,7 @@ size_t ValueBuilder::InternedSchemaItems::InternedSchemaItemKeyComparer::operato
 }
 
 // Equality computation
-bool ValueBuilder::InternedSchemaItems::InternedSchemaItemKeyComparer::operator()(
+bool ValueBuilder::InternedSchemaItems::InternedSchemaItemValueComparer::operator()(
     const InternedSchemaItemKey& item1,
     const InternedSchemaItemKey& item2
     ) const

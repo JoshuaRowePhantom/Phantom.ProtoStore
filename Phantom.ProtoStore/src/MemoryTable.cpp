@@ -52,7 +52,7 @@ MemoryTableOutcomeAndSequenceNumber MemoryTable::ToOutcomeUnknownSubsequentInser
 
 MemoryTable::MemoryTable(
     shared_ptr<const Schema> schema,
-    shared_ptr<const KeyComparer> keyComparer
+    shared_ptr<const ValueComparer> keyComparer
 )
     : 
     m_schema(
@@ -620,7 +620,7 @@ MemoryTable::InsertionKey& MemoryTable::InsertionKey::InsertionKey::operator=(
 
 MemoryTable::MemoryTableRowComparer::MemoryTableRowComparer(
     shared_ptr<const Schema> schema,
-    shared_ptr<const KeyComparer> keyComparer
+    shared_ptr<const ValueComparer> keyComparer
 ) :
     m_schema(std::move(schema)),
     m_keyComparer(std::move(keyComparer))

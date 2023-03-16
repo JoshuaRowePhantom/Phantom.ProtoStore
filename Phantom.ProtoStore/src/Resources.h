@@ -35,9 +35,9 @@ namespace FlatBuffersSchemas
     extern const reflection::Object* const MergeProgressKey_Object;
     extern const reflection::Object* const MergeProgressValue_Object;
 
-    extern const ProtoValueComparers PartitionsKeyComparers;
+    extern const ProtoValueComparers PartitionsValueComparers;
     extern const ProtoValueComparers IndexHeaderExtentNameComparers;
-    extern const ProtoValueComparers MergesKeyComparers;
+    extern const ProtoValueComparers MergesValueComparers;
     
 };
 

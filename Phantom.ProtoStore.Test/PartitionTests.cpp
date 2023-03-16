@@ -1,5 +1,5 @@
 #include "StandardIncludes.h"
-#include "Phantom.ProtoStore/src/KeyComparer.h"
+#include "Phantom.ProtoStore/src/ValueComparer.h"
 #include "Phantom.ProtoStore/src/PartitionImpl.h"
 #include "Phantom.ProtoStore/src/PartitionWriterImpl.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
@@ -27,7 +27,7 @@ protected:
             ValueSchema {PartitionTestValue::descriptor() }
         );
 
-        keyComparer = make_shared<ProtoKeyComparer>(
+        keyComparer = make_shared<ProtocolBuffersValueComparer>(
             PartitionTestKey::descriptor());
 
         extentStore = make_shared<MemoryExtentStore>(
@@ -163,7 +163,7 @@ protected:
     }
 
     shared_ptr<Schema> schema;
-    shared_ptr<KeyComparer> keyComparer;
+    shared_ptr<ValueComparer> keyComparer;
     shared_ptr<MemoryExtentStore> extentStore;
     shared_ptr<MessageStore> messageStore;
 };

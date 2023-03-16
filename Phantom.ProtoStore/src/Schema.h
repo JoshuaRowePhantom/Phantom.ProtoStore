@@ -48,10 +48,10 @@ public:
         FlatValue<FlatBuffers::IndexSchemaDescription> indexSchemaDescription
     );
 
-    static shared_ptr<KeyComparer> MakeKeyComparer(
+    static shared_ptr<ValueComparer> MakeKeyComparer(
         std::shared_ptr<const Schema> schema);
 
-    static shared_ptr<KeyComparer> MakeValueComparer(
+    static shared_ptr<ValueComparer> MakeValueComparer(
         std::shared_ptr<const Schema> schema);
 
     static ProtoValue MakeProtoValueKey(
@@ -71,7 +71,7 @@ public:
         AlignedMessageData alignedMessage
     );
 
-    static ProtoValueComparers MakeComparers(
+    static ProtoValueComparers MakeKeyComparers(
         std::shared_ptr<const Schema> schema
     );
 };
