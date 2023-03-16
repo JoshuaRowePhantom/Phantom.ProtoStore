@@ -13,8 +13,6 @@ add_library (
     "include/Phantom.ProtoStore/Scheduler.h" 
     "include/Phantom.ProtoStore/Schema.h"
     "src/BloomFilter.h"
-    "src/CanonicalProtoKey.cpp"
-    "src/CanonicalProtoKey.h" 
     "src/Checksum.cpp"
     "src/Checksum.h"
     "src/Errors.cpp"
