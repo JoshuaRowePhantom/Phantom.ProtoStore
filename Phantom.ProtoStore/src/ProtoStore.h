@@ -80,7 +80,8 @@ class ProtoStore
     IndexEntry m_partitionsIndex;
     IndexEntry m_mergesIndex;
     IndexEntry m_mergeProgressIndex;
-    IndexEntry m_unresolvedTransactionIndex;
+    IndexEntry m_distributedTransactionsIndex;
+    IndexEntry m_distributedTransactionReferencesIndex;
 
     shared_ptr<IUnresolvedTransactionsTracker> m_unresolvedTransactionsTracker;
 
@@ -232,7 +233,10 @@ class ProtoStore
     virtual shared_ptr<IIndex> GetMergesIndex(
     ) override;
 
-    virtual shared_ptr<IIndex> GetUnresolvedTransactionsIndex(
+    virtual shared_ptr<IIndex> GetDistributedTransactionsIndex(
+    ) override;
+    
+    virtual shared_ptr<IIndex> GetDistributedTransactionReferencesIndex(
     ) override;
 
     friend class LocalTransaction;

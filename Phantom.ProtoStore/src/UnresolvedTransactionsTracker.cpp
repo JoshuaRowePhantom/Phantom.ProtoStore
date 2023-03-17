@@ -9,12 +9,16 @@ namespace Phantom::ProtoStore
 class UnresolvedTransactionsTracker :
     public IUnresolvedTransactionsTracker
 {
-    shared_ptr<IIndex> m_unresolvedTransactionsIndex;
+    shared_ptr<IIndex> m_distributedTransactionsIndex;
+    shared_ptr<IIndex> m_distributedTransactionReferencesIndex;
 
 public:
     UnresolvedTransactionsTracker(
-        shared_ptr<IIndex> unresolvedTransactionsIndex
-    ) : m_unresolvedTransactionsIndex { std::move(unresolvedTransactionsIndex) }
+        shared_ptr<IIndex> distributedTransactionsIndex,
+        shared_ptr<IIndex> distributedTransactionReferencesIndex
+    ) :
+        m_distributedTransactionsIndex{ std::move(distributedTransactionsIndex) },
+        m_distributedTransactionReferencesIndex{ std::move(distributedTransactionReferencesIndex) }
     {}
 
     // Inherited via IUnresolvedTransactionsTracker
@@ -88,7 +92,6 @@ public:
         co_return;
     }
 
-
     // Filter out transactions from the DistributedTransactions table
     // that have no referencing partitions.
     virtual row_generator MergeDistributedTransactionsTable(
@@ -96,7 +99,18 @@ public:
         row_generator source
     ) override
     {
-        co_return;
+        for (auto iterator = co_await source.begin();
+            iterator != source.end();
+            co_await ++iterator)
+        {
+            if (!iterator->TransactionId)
+            {
+                co_yield *iterator;
+                continue;
+            }
+
+
+        }
     }
 
     // Filter out transactions from the DistributedTransactions table
@@ -106,7 +120,13 @@ public:
         row_generator source
     ) override
     {
-        co_return;
+
+        for (auto iterator = co_await source.begin();
+            iterator != source.end();
+            co_await ++iterator)
+        {
+
+        }
     }
 
     // Filter out transactions that have been aborted,
@@ -116,7 +136,12 @@ public:
         row_generator source
     ) override
     {
-        co_return;
+        for (auto iterator = co_await source.begin();
+            iterator != source.end();
+            co_await ++iterator)
+        {
+
+        }
     }
 };
 
@@ -125,7 +150,8 @@ shared_ptr<IUnresolvedTransactionsTracker> MakeUnresolvedTransactionsTracker(
 )
 {
     return std::make_shared<UnresolvedTransactionsTracker>(
-        protoStore->GetUnresolvedTransactionsIndex());
+        protoStore->GetDistributedTransactionsIndex(),
+        protoStore->GetDistributedTransactionReferencesIndex());
 }
 
 }

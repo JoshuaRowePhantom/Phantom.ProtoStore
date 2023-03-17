@@ -1690,9 +1690,14 @@ shared_ptr<IIndex> ProtoStore::GetPartitionsIndex()
     return m_partitionsIndex.Index;
 }
 
-shared_ptr<IIndex> ProtoStore::GetUnresolvedTransactionsIndex()
+shared_ptr<IIndex> ProtoStore::GetDistributedTransactionsIndex()
 {
-    return m_unresolvedTransactionIndex.Index;
+    return m_distributedTransactionsIndex.Index;
+}
+
+shared_ptr<IIndex> ProtoStore::GetDistributedTransactionReferencesIndex()
+{
+    return m_distributedTransactionReferencesIndex.Index;
 }
 
 }

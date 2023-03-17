@@ -75,7 +75,10 @@ public:
     virtual shared_ptr<IIndex> GetMergesIndex(
     ) = 0;
 
-    virtual shared_ptr<IIndex> GetUnresolvedTransactionsIndex(
+    virtual shared_ptr<IIndex> GetDistributedTransactionsIndex(
+    ) = 0;
+
+    virtual shared_ptr<IIndex> GetDistributedTransactionReferencesIndex(
     ) = 0;
 
     virtual operation_task<TransactionSucceededResult> InternalExecuteTransaction(
