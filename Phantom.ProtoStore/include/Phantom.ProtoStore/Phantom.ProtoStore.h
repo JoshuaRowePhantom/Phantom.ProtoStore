@@ -128,6 +128,7 @@ struct EnumerateRequest
     Inclusivity KeyLowInclusivity;
     ProtoValue KeyHigh;
     Inclusivity KeyHighInclusivity;
+    ReadValueDisposition ReadValueDisposition = ReadValueDisposition::ReadValue;
 
     friend bool operator==(
         const EnumerateRequest&,
