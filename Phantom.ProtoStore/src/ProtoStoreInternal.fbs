@@ -369,4 +369,31 @@ table IndexesByNumberValue {
     create_sequence_number : uint64;
 }
 
+table DistributedTransactionsKey
+{
+    transaction_id : DataValue;
+}
+
+enum DistributedTransactionState : byte {
+    Unknown = 0,
+    Aborted = 1
+    // Note that there is no "Committed" value.
+    // Most transactions are expected to be commited.
+    // When they are committed, the row is deleted.
+}
+
+table DistributedTransactionsValue
+{
+    distributed_transaction_state : DistributedTransactionState;
+}
+
+table DistributedTransactionsByPartitionsKey
+{
+    partition : PartitionsKey;
+    transaction_id : DataValue;
+}
+
+table DistributedTransactionsByPartitionsValue
+{}
+
 file_identifier "PSEX";
