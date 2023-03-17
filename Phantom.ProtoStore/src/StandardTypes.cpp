@@ -317,4 +317,23 @@ AlignedMessageData GetAlignedMessageData(
     }
 }
 
+
+TransactionIdReference MakeTransactionIdReference(
+    const DataReference<StoredMessage>& message,
+    const flatbuffers::String* transactionId
+)
+{
+    if (!transactionId)
+    {
+        return nullptr;
+    }
+
+    TransactionIdReference result(
+        message.dataHolder(),
+        transactionId
+    );
+
+    return result;
+}
+
 }

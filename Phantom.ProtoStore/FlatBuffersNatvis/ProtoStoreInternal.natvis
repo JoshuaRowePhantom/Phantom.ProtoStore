@@ -47,28 +47,28 @@
             <Item Optional="true" Name="header_copy_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]))</Item>
         </Expand>
     </Type>
-    <Type Name="Phantom::ProtoStore::FlatBuffers::DistributedTransactionsByPartitionsKey">
+    <Type Name="Phantom::ProtoStore::FlatBuffers::DistributedTransactionReferencesKey">
         <Expand>
-            <!-- If partition is not present -->
-            <Item Optional="true" Name="partition" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
-            <!-- If partition present -->
-            <Item Optional="true" Name="partition" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::PartitionsKey*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
-            <!-- If transaction_id is not present -->
-            <Item Optional="true" Name="transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
-            <!-- If transaction_id present -->
-            <Item Optional="true" Name="transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::DataValue*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3])))</Item>
+            <!-- If distributed_transaction_id is not present -->
+            <Item Optional="true" Name="distributed_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If distributed_transaction_id present -->
+            <Item Optional="true" Name="distributed_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;flatbuffers::String*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed int*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <!-- If partition_number is not present -->
+            <Item Optional="true" Name="partition_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">"Not Present"</Item>
+            <!-- If partition_number present -->
+            <Item Optional="true" Name="partition_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (1 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[3]))</Item>
         </Expand>
     </Type>
-    <Type Name="Phantom::ProtoStore::FlatBuffers::DistributedTransactionsByPartitionsValue">
+    <Type Name="Phantom::ProtoStore::FlatBuffers::DistributedTransactionReferencesValue">
         <Expand>
         </Expand>
     </Type>
     <Type Name="Phantom::ProtoStore::FlatBuffers::DistributedTransactionsKey">
         <Expand>
-            <!-- If transaction_id is not present -->
-            <Item Optional="true" Name="transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
-            <!-- If transaction_id present -->
-            <Item Optional="true" Name="transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::DataValue*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
+            <!-- If distributed_transaction_id is not present -->
+            <Item Optional="true" Name="distributed_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If distributed_transaction_id present -->
+            <Item Optional="true" Name="distributed_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">reinterpret_cast&lt;flatbuffers::String*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) + *reinterpret_cast&lt;signed int*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2])))</Item>
         </Expand>
     </Type>
     <Type Name="Phantom::ProtoStore::FlatBuffers::DistributedTransactionsValue">
@@ -372,7 +372,7 @@
             <!-- If distributed_transaction_id is not present -->
             <Item Optional="true" Name="distributed_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (5 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[7]) != 0)">"Not Present"</Item>
             <!-- If distributed_transaction_id present -->
-            <Item Optional="true" Name="distributed_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (5 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[7]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::DataValue*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[7]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[7])))</Item>
+            <Item Optional="true" Name="distributed_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (5 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[7]) != 0)">reinterpret_cast&lt;flatbuffers::String*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[7]) + *reinterpret_cast&lt;signed int*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[7])))</Item>
             <!-- If local_transaction_id is not present -->
             <Item Optional="true" Name="local_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (6 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[8]) != 0)">"Not Present"</Item>
             <!-- If local_transaction_id present -->
@@ -565,10 +565,10 @@
             <Item Optional="true" Name="single_big_value" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (6 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[8]) != 0)">"Not Present"</Item>
             <!-- If single_big_value present -->
             <Item Optional="true" Name="single_big_value" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (6 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[8]) != 0)">*reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::MessageReference_V1*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[8]))</Item>
-            <!-- If single_unresolved_transaction_id is not present -->
-            <Item Optional="true" Name="single_unresolved_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (7 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9]) != 0)">"Not Present"</Item>
-            <!-- If single_unresolved_transaction_id present -->
-            <Item Optional="true" Name="single_unresolved_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (7 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::DataValue*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9])))</Item>
+            <!-- If single_distributed_transaction_id is not present -->
+            <Item Optional="true" Name="single_distributed_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (7 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9]) != 0)">"Not Present"</Item>
+            <!-- If single_distributed_transaction_id present -->
+            <Item Optional="true" Name="single_distributed_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (7 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9]) != 0)">reinterpret_cast&lt;flatbuffers::String*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9]) + *reinterpret_cast&lt;signed int*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[9])))</Item>
             <!-- If child_tree_node is not present -->
             <Item Optional="true" Name="child_tree_node" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (8 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[10]) != 0)">"Not Present"</Item>
             <!-- If child_tree_node present -->
@@ -593,10 +593,10 @@
             <Item Optional="true" Name="big_value" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (3 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) != 0)">"Not Present"</Item>
             <!-- If big_value present -->
             <Item Optional="true" Name="big_value" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (3 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]) != 0)">*reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::MessageReference_V1*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[5]))</Item>
-            <!-- If unresolved_transaction_id is not present -->
-            <Item Optional="true" Name="unresolved_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">"Not Present"</Item>
-            <!-- If unresolved_transaction_id present -->
-            <Item Optional="true" Name="unresolved_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">reinterpret_cast&lt;Phantom::ProtoStore::FlatBuffers::DataValue*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) + *reinterpret_cast&lt;signed long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6])))</Item>
+            <!-- If distributed_transaction_id is not present -->
+            <Item Optional="true" Name="distributed_transaction_id" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">"Not Present"</Item>
+            <!-- If distributed_transaction_id present -->
+            <Item Optional="true" Name="distributed_transaction_id" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (4 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) != 0)">reinterpret_cast&lt;flatbuffers::String*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6]) + *reinterpret_cast&lt;signed int*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[6])))</Item>
         </Expand>
     </Type>
     <Type Name="Phantom::ProtoStore::FlatBuffers::PartitionTreeNode">

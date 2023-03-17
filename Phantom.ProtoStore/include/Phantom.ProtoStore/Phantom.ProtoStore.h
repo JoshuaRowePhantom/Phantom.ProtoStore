@@ -199,7 +199,7 @@ public:
 
 struct WriteOperationMetadata
 {
-    const TransactionId* TransactionId = nullptr;
+    std::optional<TransactionId> TransactionId;
     std::optional<SequenceNumber> ReadSequenceNumber;
     std::optional<SequenceNumber> WriteSequenceNumber;
 };

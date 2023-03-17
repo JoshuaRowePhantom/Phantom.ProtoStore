@@ -58,6 +58,8 @@ add_library (
     "src/Payloads.cpp"
     "src/pch.h"
     "src/Phantom.ProtoStore.cpp"
+    "src/ProtocolBuffersValueComparer.cpp" 
+    "src/ProtocolBuffersValueComparer.h" 
     "src/ProtoStore.cpp"
     "src/ProtoStore.h"
     "src/ProtoStoreFactory.cpp"
@@ -79,7 +81,7 @@ add_library (
     "src/ValueBuilder.cpp"
     "src/ValueComparer.cpp"
     "src/ValueComparer.h"
- "src/ProtocolBuffersValueComparer.h" "src/ProtocolBuffersValueComparer.cpp")
+    )
     
 target_include_directories(
     Phantom.ProtoStore

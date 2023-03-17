@@ -101,7 +101,7 @@ class MemoryTable
 
         AlignedMessage GetKeyMessage() const;
         AlignedMessage GetValueMessage() const;
-        AlignedMessage GetTransactionIdMessage() const;
+        TransactionIdReference GetTransactionId() const;
         SequenceNumber GetWriteSequenceNumber() const;
 
         ResultRow GetResultRow(

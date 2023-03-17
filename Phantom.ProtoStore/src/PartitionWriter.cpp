@@ -279,7 +279,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             // Bloom filter
             m_bloomFilter.to_span().size() + 100
             // Root
-            + 100
+            + 1024
             // Tree nodes higher in the stack
             + m_treeNodeStack.size() * m_writeRowsRequest.targetMessageSize;
 
@@ -293,8 +293,12 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         auto approximateRowSize =
             estimatedKeySize
             + estimatedValueSize
-            + row.TransactionId->Payload.size()
             + 100;
+
+        if (row.TransactionId)
+        {
+            approximateRowSize += row.TransactionId->size() + 16;
+        }
 
         if ((co_await m_dataWriter->CurrentOffset() + partitionTreeNodeBuilder.GetSize() + approximateRowSize) > m_writeRowsRequest.targetExtentSize)
         {
@@ -361,9 +365,12 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             *m_valueComparer,
             row.Value);
 
-        auto transactionIdOffset = CreateDataValue(
-            partitionTreeNodeBuilder,
-            *row.TransactionId);
+        Offset<flatbuffers::String> transactionIdOffset;
+        if (row.TransactionId)
+        {
+            transactionIdOffset = partitionTreeNodeBuilder.CreateSharedString(
+                row.TransactionId.get());
+        } 
 
         currentValues.push_back(
             {

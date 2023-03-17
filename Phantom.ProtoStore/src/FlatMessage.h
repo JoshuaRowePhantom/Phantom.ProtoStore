@@ -184,7 +184,7 @@ public:
         return get();
     }
 
-    explicit operator const DataReference<StoredMessage>& () const noexcept
+    operator const DataReference<StoredMessage>& () const noexcept
     {
         return m_storedMessage;
     }

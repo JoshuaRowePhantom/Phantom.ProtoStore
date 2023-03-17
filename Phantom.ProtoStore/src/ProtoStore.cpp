@@ -681,15 +681,11 @@ public:
                 std::bind_front(formatValue, value),
                 index->GetSchema()->ValueSchema.FormatSchema);
 
-            Offset<DataValue> transactionIdOffset;
+            Offset<flatbuffers::String> transactionIdOffset;
             if (writeOperationMetadata.TransactionId)
             {
-                transactionIdOffset = CreateDataValue(
-                    loggedRowWriteBuilder,
-                    {
-                        1,
-                        get_byte_span(*writeOperationMetadata.TransactionId)
-                    });
+                transactionIdOffset = loggedRowWriteBuilder.CreateString(
+                    *writeOperationMetadata.TransactionId);
             }
 
             auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(

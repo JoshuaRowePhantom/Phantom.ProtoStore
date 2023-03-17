@@ -2,12 +2,13 @@
 
 #include <stdint.h>
 #include <string>
+#include <string_view>
 
 namespace Phantom::ProtoStore
 {
 
 typedef std::string IndexName;
-typedef std::string TransactionId;
+typedef std::string_view TransactionId;
 
 enum class SequenceNumber : std::uint64_t
 {

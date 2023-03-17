@@ -66,13 +66,13 @@ using google::protobuf::Descriptor;
 using google::protobuf::io::ZeroCopyInputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
 
-typedef google::protobuf::uint64 CheckpointNumber;
+typedef uint64_t CheckpointNumber;
 
 typedef string IndexName;
-typedef google::protobuf::uint64 IndexNumber;
-typedef google::protobuf::uint64 LevelNumber;
-typedef google::protobuf::uint64 PartitionNumber;
-typedef google::protobuf::uint64 LogExtentSequenceNumber;
+typedef uint64_t IndexNumber;
+typedef uint64_t LevelNumber;
+typedef uint64_t PartitionNumber;
+typedef uint64_t LogExtentSequenceNumber;
 
 class IInternalProtoStore;
 class IInternalTransaction;
@@ -299,7 +299,8 @@ public:
 };
 
 class ExtentName;
-using TransactionId = std::string;
+using TransactionId = std::string_view;
+using TransactionIdReference = std::shared_ptr<const flatbuffers::String>;
 typedef ExtentName MergeId;
 using LocalTransactionNumber = uint64_t;
 
@@ -308,13 +309,18 @@ struct ResultRow
     ProtoValue Key;
     SequenceNumber WriteSequenceNumber;
     ProtoValue Value;
-    AlignedMessageData TransactionId;
+    TransactionIdReference TransactionId;
 };
 
 typedef cppcoro::async_generator<ResultRow> row_generator;
 typedef row_generator::iterator row_generator_iterator;
 typedef cppcoro::generator<row_generator> row_generators;
 template<typename T> struct tag {};
+
+TransactionIdReference MakeTransactionIdReference(
+    const DataReference<StoredMessage>& message,
+    const flatbuffers::String* transactionId
+);
 
 template<
     typename TKey,

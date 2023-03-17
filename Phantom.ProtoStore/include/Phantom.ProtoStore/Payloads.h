@@ -128,6 +128,12 @@ public:
     {
         return m_data;
     }
+
+    decltype(auto) dataHolder(
+        this auto&& self) noexcept
+    {
+        return std::forward_like<decltype(self)>(self.m_dataHolder);
+    }
 };
 
 

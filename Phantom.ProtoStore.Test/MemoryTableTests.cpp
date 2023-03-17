@@ -86,8 +86,7 @@ protected:
         FlatBuffers::LoggedRowWriteT loggedRowWrite;
         if (transactionId)
         {
-            loggedRowWrite.distributed_transaction_id = ToDataValue(
-                get_byte_span(*transactionId));
+            loggedRowWrite.distributed_transaction_id = *transactionId;
         }
         loggedRowWrite.key = ToDataValue(
             rowKeyProto.as_protocol_buffer_bytes_if());
@@ -118,7 +117,7 @@ protected:
         string Key;
         string Value;
         uint64_t SequenceNumber;
-        std::optional<TransactionId> TransactionId;
+        std::optional<std::string> TransactionId;
 
         auto operator <=>(const ExpectedRow&) const = default;
     };
@@ -183,12 +182,9 @@ protected:
                     .Key = resultKey.value(),
                     .Value = resultValue.value(),
                     .SequenceNumber = ToUint64(row.WriteSequenceNumber),
-                    .TransactionId = row.TransactionId->Payload.data()
-                        ? std::optional { std::string {
-                            get_char_span(row.TransactionId->Payload).begin(),
-                            get_char_span(row.TransactionId->Payload).end()
-                            } }
-                        : std::optional<TransactionId> {},
+                    .TransactionId = row.TransactionId
+                        ? row.TransactionId->c_str()
+                        : std::optional<std::string>(),
                 }
             );
         }

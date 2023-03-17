@@ -54,7 +54,7 @@ private:
         flatbuffers::Offset<FlatBuffers::DataValue> dataValueOffset;
         flatbuffers::Offset<FlatBuffers::ValuePlaceholder> flatValueOffset;
         std::optional<FlatBuffers::MessageReference_V1> bigDataReference;
-        flatbuffers::Offset<FlatBuffers::DataValue> distributedTransactionIdOffset;
+        flatbuffers::Offset<flatbuffers::String> distributedTransactionIdOffset;
     };
 
     using PartitionTreeEntryVector = std::vector<WrittenValueEntry>;

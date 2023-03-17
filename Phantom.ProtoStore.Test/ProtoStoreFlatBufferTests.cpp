@@ -1225,7 +1225,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         co_await co_await operation->AddRow(
             WriteOperationMetadata
             {
-                .TransactionId = &transactionId,
+                .TransactionId = transactionId,
             },
             index,
             &key,
@@ -1263,7 +1263,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         co_await operation->ResolveTransaction(
             WriteOperationMetadata
             {
-                .TransactionId = &transactionId,
+                .TransactionId = transactionId,
             },
             TransactionOutcome::Committed);
 
@@ -1306,7 +1306,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         co_await co_await operation->AddRow(
             WriteOperationMetadata
             {
-                .TransactionId = &transactionId,
+                .TransactionId = transactionId,
                 .WriteSequenceNumber = ToSequenceNumber(5),
             },
             index,
@@ -1351,7 +1351,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         co_await operation->ResolveTransaction(
             WriteOperationMetadata
             {
-                .TransactionId = &transactionId,
+                .TransactionId = transactionId,
             },
             TransactionOutcome::Committed);
 

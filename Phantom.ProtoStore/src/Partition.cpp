@@ -483,7 +483,7 @@ row_generator Partition::Enumerate(
             const FlatBuffers::DataValue* dataValue = nullptr;
             const FlatBuffers::ValuePlaceholder* valuePlaceholder = nullptr;
             const FlatBuffers::MessageReference_V1* bigValue = nullptr;
-            const FlatBuffers::DataValue* transactionId = nullptr;
+            TransactionIdReference transactionId = nullptr;
 
             if (keyEntry->values())
             {
@@ -500,7 +500,9 @@ row_generator Partition::Enumerate(
                     dataValue = treeEntryValue->value();
                     valuePlaceholder = treeEntryValue->flat_value();
                     bigValue = treeEntryValue->big_value();
-                    transactionId = treeEntryValue->unresolved_transaction_id();
+                    transactionId = MakeTransactionIdReference(
+                        treeNode,
+                        treeEntryValue->distributed_transaction_id());
                 }
                 else
                 {
@@ -522,7 +524,9 @@ row_generator Partition::Enumerate(
                     dataValue = keyEntry->single_value();
                     valuePlaceholder = keyEntry->single_flat_value();
                     bigValue = keyEntry->single_big_value();
-                    transactionId = keyEntry->single_unresolved_transaction_id();
+                    transactionId = MakeTransactionIdReference(
+                        treeNode,
+                        keyEntry->single_distributed_transaction_id());
                 }
             }
 
@@ -585,6 +589,7 @@ row_generator Partition::Enumerate(
                     .Key = key,
                     .WriteSequenceNumber = writeSequenceNumber,
                     .Value = std::move(value),
+                    .TransactionId = std::move(transactionId),
                 };
 
                 if (enumerateBehavior == EnumerateBehavior::PointInTimeRead)

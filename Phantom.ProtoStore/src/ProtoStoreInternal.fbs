@@ -59,7 +59,7 @@ table LoggedRowWrite
     checkpoint_number : uint64;
     key : DataValue;
     value : DataValue;
-    distributed_transaction_id : DataValue;
+    distributed_transaction_id : string;
     local_transaction_id : uint64;
     write_id : uint32;
 }
@@ -156,7 +156,7 @@ table PartitionTreeEntryValue {
     // as of when the row was written to disk.
     // This value is cleared upon merge whenever
     // the transaction outcome is known.
-    unresolved_transaction_id : DataValue;
+    distributed_transaction_id : string;
 }
 
 // A reference to a message elsewhere in the extent.
@@ -201,7 +201,7 @@ table PartitionTreeEntryKey {
     // as of when the row was written to disk.
     // This value is cleared upon merge whenever
     // the transaction outcome is known.
-    single_unresolved_transaction_id : DataValue;
+    single_distributed_transaction_id : string;
 
 
     // The child tree node if this is a non-leaf entry.
@@ -369,9 +369,14 @@ table IndexesByNumberValue {
     create_sequence_number : uint64;
 }
 
+// The DistributedTransactions table tracks unresolved and aborted transactions.
+// The existence of a row in the DistributedTransactions implies that the transaction is
+// either aborted or unresolved; committed transactions are represented as delete operations.
+// The DistributedTransactions table is merged by a special process to drop rows for transactions
+// that have no referencing partitions. 
 table DistributedTransactionsKey
 {
-    transaction_id : DataValue;
+    distributed_transaction_id : string;
 }
 
 enum DistributedTransactionState : byte {
@@ -387,13 +392,19 @@ table DistributedTransactionsValue
     distributed_transaction_state : DistributedTransactionState;
 }
 
-table DistributedTransactionsByPartitionsKey
+// Whenever a partition is written, all the unresolved transactions
+// are written to the DistributedTransactionReferences
+// table. 
+// The DistributedTransactionReferences table is merged by a special
+// process to drops rows for partitions that are no longer in existence.
+table DistributedTransactionReferencesKey
 {
-    partition : PartitionsKey;
-    transaction_id : DataValue;
+    distributed_transaction_id : string;
+    partition_number : uint64;
 }
 
-table DistributedTransactionsByPartitionsValue
-{}
+table DistributedTransactionReferencesValue
+{
+}
 
 file_identifier "PSEX";

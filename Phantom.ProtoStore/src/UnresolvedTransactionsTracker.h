@@ -23,11 +23,25 @@ public:
         const LogRecord& logRecord
     ) = 0;
 
-    // Logs an unresolved transaction into the log record for a committed extent
-    // during the partition write process.
-    virtual task<> LogUnresolvedTransaction(
-        IInternalTransaction* transaction,
-        const LoggedRowWrite& loggedRowWrite
+    // Filter out transactions from the DistributedTransactions table
+    // that have no referencing partitions.
+    virtual row_generator MergeDistributedTransactionsTable(
+        PartitionNumber partitionNumber,
+        row_generator source
+    ) = 0;
+
+    // Filter out transactions from the DistributedTransactions table
+    // that have no referencing partitions.
+    virtual row_generator MergeDistributedTransactionReferencesTable(
+        PartitionNumber partitionNumber,
+        row_generator source
+    ) = 0;
+
+    // Filter out transactions that have been aborted,
+    // and add still-unresolved transactions to the DistributedTransactionReferences table.
+    virtual row_generator HandleDistributedTransactionsDuringMerge(
+        PartitionNumber partitionNumber,
+        row_generator source
     ) = 0;
 };
 

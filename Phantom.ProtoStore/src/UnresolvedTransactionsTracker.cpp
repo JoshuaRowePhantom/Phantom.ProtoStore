@@ -88,9 +88,32 @@ public:
         co_return;
     }
 
-    virtual task<> LogUnresolvedTransaction(
-        IInternalTransaction* transaction,
-        const LoggedRowWrite& loggedRowWrite
+
+    // Filter out transactions from the DistributedTransactions table
+    // that have no referencing partitions.
+    virtual row_generator MergeDistributedTransactionsTable(
+        PartitionNumber partitionNumber,
+        row_generator source
+    ) override
+    {
+        co_return;
+    }
+
+    // Filter out transactions from the DistributedTransactions table
+    // that have no referencing partitions.
+    virtual row_generator MergeDistributedTransactionReferencesTable(
+        PartitionNumber partitionNumber,
+        row_generator source
+    ) override
+    {
+        co_return;
+    }
+
+    // Filter out transactions that have been aborted,
+    // and add still-unresolved transactions to the DistributedTransactionReferences table.
+    virtual row_generator HandleDistributedTransactionsDuringMerge(
+        PartitionNumber partitionNumber,
+        row_generator source
     ) override
     {
         co_return;

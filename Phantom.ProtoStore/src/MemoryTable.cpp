@@ -514,7 +514,7 @@ ResultRow MemoryTable::MemoryTableValue::GetResultRow(
 
     auto keyAlignedMessage = GetKeyMessage();
     auto valueAlignedMessage = GetValueMessage();
-    auto transactionIdAlignedMessage = GetTransactionIdMessage();
+    auto transactionId = GetTransactionId();
 
     ResultRow resultRow;
     resultRow.Key = SchemaDescriptions::MakeProtoValueKey(
@@ -534,15 +534,7 @@ ResultRow MemoryTable::MemoryTableValue::GetResultRow(
             DataReference<StoredMessage>(*valueRow),
             valueAlignedMessage
         });
-
-    if (transactionIdAlignedMessage)
-    {
-        resultRow.TransactionId =
-        {
-            DataReference<StoredMessage>(*valueRow),
-            transactionIdAlignedMessage,
-        };
-    }
+    resultRow.TransactionId = transactionId;
 
     return std::move(resultRow);
 }
@@ -568,16 +560,18 @@ AlignedMessage MemoryTable::MemoryTableValue::GetValueMessage() const
     }
 }
 
-AlignedMessage MemoryTable::MemoryTableValue::GetTransactionIdMessage() const
+TransactionIdReference MemoryTable::MemoryTableValue::GetTransactionId() const
 {
     if (ValueRow)
     {
-        return GetAlignedMessage(
+        return MakeTransactionIdReference(
+            ValueRow,
             ValueRow->distributed_transaction_id());
     }
     else
     {
-        return GetAlignedMessage(
+        return MakeTransactionIdReference(
+            KeyRow,
             KeyRow->distributed_transaction_id());
     }
 }
