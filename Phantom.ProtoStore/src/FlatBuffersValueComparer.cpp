@@ -1193,8 +1193,9 @@ ValueComparer::BuildValueResult FlatBufferValueComparer::BuildValue(
 {
     if (m_comparer.Schema()->MessageEncodingOptions == FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage)
     {
-        return valueBuilder.CreateDataValue(
-            value.as_aligned_message_if());
+        return BuildDataValue(
+            valueBuilder,
+            value);
     }
 
     if (m_comparer.Schema()->GraphEncodingOptions == FlatBuffers::FlatBuffersGraphEncodingOptions::NoDuplicateDetection)
@@ -1220,6 +1221,42 @@ ValueComparer::BuildValueResult FlatBufferValueComparer::BuildValue(
             value.as_table_if()
             ).o
     };
+}
+
+flatbuffers::Offset<FlatBuffers::DataValue> FlatBufferValueComparer::BuildDataValue(
+    ValueBuilder& valueBuilder,
+    const ProtoValue& value
+) const
+{
+    if (!value.has_value())
+    {
+        return 0;
+    }
+
+    if (value.as_aligned_message_if())
+    {
+        return valueBuilder.CreateDataValue(
+            value.as_aligned_message_if());
+    }
+
+    if (value.as_table_if())
+    {
+        flatbuffers::FlatBufferBuilder builder;
+
+        auto rootOffset = flatbuffers::CopyTable(
+            builder,
+            *m_comparer.Schema()->Schema,
+            *m_comparer.Schema()->Object,
+            *value.as_table_if());
+
+        builder.Finish(rootOffset);
+
+        return valueBuilder.CreateDataValue(
+            AlignedMessage{ builder }
+        );
+    }
+
+    throw std::range_error("value is not a flatbuffer value");
 }
 
 int32_t FlatBufferValueComparer::GetEstimatedSize(

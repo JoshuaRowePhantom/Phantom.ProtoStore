@@ -317,6 +317,14 @@ public:
     virtual BuildValueResult BuildValue(
         ValueBuilder& valueBuilder,
         const ProtoValue& value
+    ) const
+    {
+        return BuildDataValue(valueBuilder, value);
+    }
+
+    virtual flatbuffers::Offset<FlatBuffers::DataValue> BuildDataValue(
+        ValueBuilder& valueBuilder,
+        const ProtoValue& value
     ) const = 0;
 
     virtual int32_t GetEstimatedSize(

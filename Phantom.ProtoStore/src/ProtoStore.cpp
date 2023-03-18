@@ -591,104 +591,32 @@ public:
 
         auto createLoggedRowWrite = [&](CheckpointNumber checkpointNumber) -> task<FlatMessage<LoggedRowWrite>>
         {
-            flatbuffers::FlatBufferBuilder loggedRowWriteBuilder;
+            ValueBuilder loggedRowWriteBuilder;
 
-            auto formatValue = [&](
-                const ProtoValue& protoValue,
-                const auto& schema
-                )
-            {
-                if (!protoValue)
-                {
-                    return Offset<DataValue>{};
-                }
-
-                if constexpr (std::same_as<const std::monostate&, decltype(schema)>)
-                {
-                    throw std::range_error("Invalid schema");
-                }
-                else if constexpr (std::same_as<ProtocolBuffersObjectSchema, decltype(schema.ObjectSchema)>)
-                {
-                    if (!protoValue.is_protocol_buffer())
-                    {
-                        throw std::range_error("object is not a protocol buffer");
-                    }
-
-                    if (protoValue.as_aligned_message_if())
-                    {
-                        return CreateDataValue(
-                            loggedRowWriteBuilder,
-                            protoValue.as_aligned_message_if());
-                    }
-
-                    auto unownedValue = protoValue.pack_unowned();
-                    auto span = unownedValue.as_protocol_buffer_bytes_if();
-                    return CreateDataValue(
-                        loggedRowWriteBuilder,
-                        {
-                            1,
-                            span
-                        }
-                    );
-                }
-                else
-                {
-                    static_assert(std::same_as<FlatBuffersObjectSchema, decltype(schema.ObjectSchema)>);
-
-                    if (!protoValue.is_flat_buffer())
-                    {
-                        throw std::range_error("object is not a flat buffer");
-                    }
-
-                    if (protoValue.as_aligned_message_if())
-                    {
-                        return CreateDataValue(
-                            loggedRowWriteBuilder,
-                            protoValue.as_aligned_message_if());
-                    }
-
-                    flatbuffers::FlatBufferBuilder builder;
-                    auto rootOffset = flatbuffers::CopyTable(
-                        builder,
-                        *schema.ObjectSchema.Schema,
-                        *schema.ObjectSchema.Object,
-                        *protoValue.as_table_if()
-                    );
-                    builder.Finish(rootOffset);
-
-                    auto span = as_bytes(builder.GetBufferSpan());
-
-                    return CreateDataValue(
-                        loggedRowWriteBuilder,
-                        {
-                            static_cast<uint8_t>(builder.GetBufferMinAlignment()),
-                            span
-                        });
-                }
-            };
-
-            auto keyOffset = visit(
-                std::bind_front(formatValue, key),
-                index->GetSchema()->KeySchema.FormatSchema);
+            auto keyOffset = index->GetKeyComparer()->BuildDataValue(
+                loggedRowWriteBuilder,
+                key
+            );
 
             if (keyOffset.IsNull())
             {
                 throw std::range_error("key is empty");
             }
 
-            auto valueOffset = visit(
-                std::bind_front(formatValue, value),
-                index->GetSchema()->ValueSchema.FormatSchema);
+            auto valueOffset = index->GetValueComparer()->BuildDataValue(
+                loggedRowWriteBuilder,
+                value
+            );
 
             Offset<flatbuffers::String> transactionIdOffset;
             if (writeOperationMetadata.TransactionId)
             {
-                transactionIdOffset = loggedRowWriteBuilder.CreateString(
+                transactionIdOffset = loggedRowWriteBuilder.builder().CreateString(
                     *writeOperationMetadata.TransactionId);
             }
 
             auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(
-                loggedRowWriteBuilder,
+                loggedRowWriteBuilder.builder(),
                 protoIndex.m_index->GetIndexNumber(),
                 ToUint64(writeSequenceNumber),
                 checkpointNumber,
@@ -700,23 +628,23 @@ public:
             ).Union();
 
             auto logEntryType = LogEntry::LoggedRowWrite;
-            auto logEntryTypeOffset = loggedRowWriteBuilder.CreateVector(
+            auto logEntryTypeOffset = loggedRowWriteBuilder.builder().CreateVector(
                 &logEntryType,
                 1);
 
-            auto logEntryOffset = loggedRowWriteBuilder.CreateVector(
+            auto logEntryOffset = loggedRowWriteBuilder.builder().CreateVector(
                 &loggedRowWriteOffset,
                 1);
 
             auto logRecordOffset = FlatBuffers::CreateLogRecord(
-                loggedRowWriteBuilder,
+                loggedRowWriteBuilder.builder(),
                 logEntryTypeOffset,
                 logEntryOffset);
 
-            loggedRowWriteBuilder.Finish(
+            loggedRowWriteBuilder.builder().Finish(
                 logRecordOffset);
 
-            FlatMessage<LogRecord> logRecord(loggedRowWriteBuilder);
+            FlatMessage<LogRecord> logRecord(loggedRowWriteBuilder.builder());
 
             logRecord = co_await m_protoStore.m_logManager->WriteLogRecord(
                 std::move(logRecord));

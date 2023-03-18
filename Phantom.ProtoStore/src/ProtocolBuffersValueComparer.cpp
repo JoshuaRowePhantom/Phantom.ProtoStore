@@ -425,15 +425,36 @@ uint64_t ProtocolBuffersValueComparer::Hash(
     );
 }
 
-ValueComparer::BuildValueResult ProtocolBuffersValueComparer::BuildValue(
+flatbuffers::Offset<FlatBuffers::DataValue> ProtocolBuffersValueComparer::BuildDataValue(
     ValueBuilder& valueBuilder,
     const ProtoValue& value
 ) const
 {
-    return valueBuilder.CreateDataValue(
-        value.as_aligned_message_if());
-}
+    if (!value.has_value())
+    {
+        return 0;
+    }
 
+    if (value.as_aligned_message_if())
+    {
+        return valueBuilder.CreateDataValue(
+            value.as_aligned_message_if());
+    }
+
+    if (value.as_message_if())
+    {
+        auto unowningValue = value.pack_unowned();
+        auto span = unowningValue.as_protocol_buffer_bytes_if();
+        return valueBuilder.CreateDataValue(
+            {
+                1,
+                span
+            }
+        );
+    }
+
+    throw std::range_error("value is not a flatbuffer value");
+}
 
 int32_t ProtocolBuffersValueComparer::GetEstimatedSize(
     const ProtoValue& value

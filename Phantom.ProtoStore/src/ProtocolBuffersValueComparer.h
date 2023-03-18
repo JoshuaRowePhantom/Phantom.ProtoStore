@@ -41,7 +41,7 @@ public:
         const ProtoValue& value
     ) const override;
 
-    virtual BuildValueResult BuildValue(
+    virtual flatbuffers::Offset<FlatBuffers::DataValue> BuildDataValue(
         ValueBuilder& valueBuilder,
         const ProtoValue& value
     ) const override;
