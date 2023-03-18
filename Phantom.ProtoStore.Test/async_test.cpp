@@ -4,7 +4,9 @@
 
 namespace Phantom::ProtoStore::Test
 {
+
 void ExecuteTest(
+    ::Phantom::Coroutines::reusable_task<> setupTask,
     ::Phantom::Coroutines::reusable_task<> testTask)
 {
     // Create a thread pool to ensure that if the test itself does any threading, we
@@ -13,6 +15,10 @@ void ExecuteTest(
 
     auto runTestBody = [&]() -> Phantom::Coroutines::reusable_task<>
     {
+        co_await setupTask.when_ready();
+        co_await threadPool.schedule();
+        co_await setupTask;
+
         co_await testTask.when_ready();
         co_await threadPool.schedule();
         co_await testTask;

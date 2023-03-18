@@ -6,15 +6,39 @@
 namespace Phantom::ProtoStore::Test
 {
 void ExecuteTest(
+    ::Phantom::Coroutines::reusable_task<> setupTask,
     ::Phantom::Coroutines::reusable_task<> testTask
 );
+
+template<
+    typename T
+> concept HasAsyncSetUp = requires (T t)
+{
+    { t.AsyncSetUp() };
+};
+
+template<
+    typename Parent
+>
+class BaseAsyncTest : public Parent
+{
+public:
+    ::Phantom::Coroutines::reusable_task<> AsyncSetUp()
+    {
+        if constexpr (HasAsyncSetUp<Parent>)
+        {
+            co_await Parent::AsyncSetUp();
+        }
+        co_return;
+    }
+};
 }
 
 #define ASYNC_TEST_CLASS_NAME(test_suite_name, test_name) test_suite_name ## _ ## test_name ## _AsyncTest
 
 #define ASYNC_TEST_(test_suite_name, test_name, parent_class, parent_id) \
 class ASYNC_TEST_CLASS_NAME(test_suite_name, test_name) \
-    : public parent_class \
+    : public ::Phantom::ProtoStore::Test::BaseAsyncTest<parent_class> \
 { \
 public: \
     ::Phantom::Coroutines::reusable_task<> AsyncTestBody(); \
@@ -22,7 +46,9 @@ public: \
 \
 GTEST_TEST_(test_suite_name, test_name, ASYNC_TEST_CLASS_NAME(test_suite_name, test_name), ::testing::internal::GetTestTypeId()) \
 { \
-    ::Phantom::ProtoStore::Test::ExecuteTest(AsyncTestBody()); \
+    ::Phantom::ProtoStore::Test::ExecuteTest( \
+        AsyncSetUp(), \
+        AsyncTestBody()); \
 } \
 \
 ::Phantom::Coroutines::reusable_task<> ASYNC_TEST_CLASS_NAME(test_suite_name, test_name)::AsyncTestBody()
