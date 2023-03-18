@@ -16,8 +16,8 @@ add_library (
     "src/Checksum.cpp"
     "src/Checksum.h"
     "src/Errors.cpp"
-    
-    
+    "src/ExistingPartitions.cpp"
+    "src/ExistingPartitions.h"
     "src/ExtentManager.h"
     "src/ExtentName.cpp"
     "src/ExtentName.h"
