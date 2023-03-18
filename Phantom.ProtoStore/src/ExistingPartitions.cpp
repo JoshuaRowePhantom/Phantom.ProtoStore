@@ -11,7 +11,7 @@ namespace Phantom::ProtoStore
 class ExistingPartitionsImpl :
     public ExistingPartitions
 {
-    std::shared_ptr<IIndex> m_partitionsIndex;
+    std::shared_ptr<IIndexData> m_partitionsIndex;
 
     using partitions_set = std::set<PartitionNumber>;
     using index_partitions_map = std::map<IndexNumber, partitions_set>;
@@ -61,7 +61,7 @@ class ExistingPartitionsImpl :
 
 public:
     ExistingPartitionsImpl(
-        std::shared_ptr<IIndex> partitionsIndex
+        std::shared_ptr<IIndexData> partitionsIndex
     ) :
         m_partitionsIndex(std::move(partitionsIndex))
     {}
@@ -147,7 +147,7 @@ public:
 };
 
 std::shared_ptr<ExistingPartitions> MakeExistingPartitions(
-    std::shared_ptr<IIndex> partitionsIndex
+    std::shared_ptr<IIndexData> partitionsIndex
 )
 {
     return std::make_shared<ExistingPartitionsImpl>(

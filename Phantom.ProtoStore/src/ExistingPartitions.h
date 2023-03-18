@@ -28,7 +28,7 @@ public:
 };
 
 std::shared_ptr<ExistingPartitions> MakeExistingPartitions(
-    std::shared_ptr<IIndex> partitionsIndex
+    std::shared_ptr<IIndexData> partitionsIndex
 );
 
 }

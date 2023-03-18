@@ -1700,4 +1700,36 @@ shared_ptr<IIndex> ProtoStore::GetDistributedTransactionReferencesIndex()
     return m_distributedTransactionReferencesIndex.Index;
 }
 
+
+ProtoIndex::ProtoIndex()
+    :
+    m_index(nullptr)
+{}
+
+ProtoIndex::ProtoIndex(
+    IIndexData* index)
+    :
+    m_index(index)
+{
+}
+
+ProtoIndex::ProtoIndex(
+    const std::shared_ptr<IIndexData>& index)
+    :
+    m_index(index.get())
+{
+}
+
+ProtoIndex::ProtoIndex(
+    const std::shared_ptr<IIndex>& index)
+    :
+    m_index(index.get())
+{
+}
+
+const IndexName& ProtoIndex::IndexName() const
+{
+    return m_index->GetIndexName();
+}
+
 }

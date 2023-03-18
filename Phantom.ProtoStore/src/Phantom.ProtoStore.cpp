@@ -68,4 +68,5 @@ std::unexpected<std::error_code> abort_transaction()
     return make_unexpected(ProtoStoreErrorCode::AbortedTransaction);
 }
 
+
 }

@@ -7,7 +7,7 @@
 namespace Phantom::ProtoStore
 {
 
-class IIndex : public SerializationTypes
+class IIndexData : public SerializationTypes
 {
 public:
     using CreateLoggedRowWrite = std::function<task<FlatMessage<LoggedRowWrite>>(CheckpointNumber)>;
@@ -20,7 +20,7 @@ public:
 
     virtual const shared_ptr<const ValueComparer>& GetKeyComparer(
     ) = 0;
-    
+
     virtual const shared_ptr<const ValueComparer>& GetValueComparer(
     ) = 0;
 
@@ -40,6 +40,12 @@ public:
     virtual const IndexName& GetIndexName(
     ) const = 0;
 
+    virtual const shared_ptr<const Schema>& GetSchema() const = 0;
+};
+
+class IIndex : public IIndexData
+{
+public:
     virtual task<> Join(
     ) = 0;
 
@@ -59,8 +65,6 @@ public:
         vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
         vector<shared_ptr<IPartition>> partitions
     ) = 0;
-
-    virtual const shared_ptr<const Schema>& GetSchema() const = 0;
 };
 
 }

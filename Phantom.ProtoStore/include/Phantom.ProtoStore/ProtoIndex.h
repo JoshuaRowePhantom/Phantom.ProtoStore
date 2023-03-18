@@ -7,35 +7,27 @@ namespace Phantom::ProtoStore
 {
 
 class IIndex;
+class IIndexData;
 class ProtoStore;
 
 class ProtoIndex
 {
     friend class ProtoStore;
     friend class LocalTransaction;
-    IIndex* m_index;
+    IIndexData* m_index;
 
 public:
-    ProtoIndex()
-        :
-        m_index(nullptr)
-    {}
+    ProtoIndex();
 
     ProtoIndex(
-        IIndex* index)
-        :
-        m_index(index)
-    {
-    }
+        IIndexData* index);
 
     ProtoIndex(
-        std::shared_ptr<IIndex> index)
-        :
-        m_index(index.get())
-    {
-    }
+        const std::shared_ptr<IIndexData>& index);
+    
+    ProtoIndex(
+        const std::shared_ptr<IIndex>& index);
 
-    ProtoStore* ProtoStore() const;
     const IndexName& IndexName() const;
 
     friend bool operator==(
