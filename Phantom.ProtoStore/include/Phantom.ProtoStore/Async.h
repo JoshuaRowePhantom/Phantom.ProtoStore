@@ -33,7 +33,7 @@ Phantom::Coroutines::basic_reusable_task
 struct FailedResult;
 
 template<
-    typename Result
+    typename Result = void
 >
 using OperationResult = std::expected<Result, FailedResult>;
 
