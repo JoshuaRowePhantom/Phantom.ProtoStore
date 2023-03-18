@@ -11,7 +11,7 @@ namespace Phantom::ProtoStore
 {
 
 Index::Index(
-    const string& indexName,
+    string indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
     shared_ptr<const ValueComparer> keyComparer,
@@ -20,7 +20,7 @@ Index::Index(
     std::shared_ptr<const Schema> schema
 )
     :
-    m_indexName(indexName),
+    m_indexName(std::move(indexName)),
     m_indexNumber(indexNumber),
     m_createSequenceNumber(createSequenceNumber),
     m_keyComparer(std::move(keyComparer)),
@@ -378,6 +378,27 @@ const shared_ptr<const Schema>& Index::GetSchema() const
 task<> Index::Join()
 {
     co_return;
+}
+
+std::shared_ptr<IIndex> MakeIndex(
+    IndexName indexName,
+    IndexNumber indexNumber,
+    SequenceNumber createSequenceNumber,
+    shared_ptr<const ValueComparer> keyComparer,
+    shared_ptr<const ValueComparer> valueComparer,
+    IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
+    std::shared_ptr<const Schema> schema
+)
+{
+    return std::make_shared<Index>(
+        std::move(indexName),
+        indexNumber,
+        createSequenceNumber,
+        std::move(keyComparer),
+        std::move(valueComparer),
+        unresolvedTransactionsTracker,
+        std::move(schema)
+    );
 }
 
 }

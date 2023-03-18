@@ -1,7 +1,7 @@
 #include "ExtentName.h"
 #include "HeaderAccessor.h"
 #include "IndexDataSourcesImpl.h"
-#include "IndexImpl.h"
+#include "Index.h"
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
 #include "MemoryTableImpl.h"
@@ -1185,7 +1185,7 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
         schema
     );
 
-    auto index = make_shared<Index>(
+    auto index = Phantom::ProtoStore::MakeIndex(
         indexesByNumberValue->index_name()->str(),
         indexesByNumberKey->index_number(),
         ToSequenceNumber(indexesByNumberValue->create_sequence_number()),

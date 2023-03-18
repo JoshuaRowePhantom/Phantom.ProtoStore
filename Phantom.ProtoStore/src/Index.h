@@ -67,4 +67,14 @@ public:
     ) = 0;
 };
 
+std::shared_ptr<IIndex> MakeIndex(
+    IndexName indexName,
+    IndexNumber indexNumber,
+    SequenceNumber createSequenceNumber,
+    shared_ptr<const ValueComparer> keyComparer,
+    shared_ptr<const ValueComparer> valueComparer,
+    IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
+    std::shared_ptr<const Schema> schema
+);
+
 }

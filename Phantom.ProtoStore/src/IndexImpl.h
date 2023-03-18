@@ -53,7 +53,7 @@ class Index
 
 public:
     Index(
-        const string& indexName,
+        IndexName indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
         shared_ptr<const ValueComparer> keyComparer,
