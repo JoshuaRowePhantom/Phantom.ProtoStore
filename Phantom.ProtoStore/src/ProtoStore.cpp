@@ -462,7 +462,7 @@ task<> ProtoStore::Replay(
 {
     m_nextPartitionNumber = std::max(
         m_nextPartitionNumber.load(),
-        logRecord->partition_number() + 1);
+        logRecord->header_extent_name()->index_extent_name()->partition_number());
 
     co_return;
 }
@@ -1606,7 +1606,7 @@ task<> ProtoStore::AllocatePartitionExtents(
     logRecord.log_entry.push_back(std::move(createDataExtentUnion));
 
     FlatBuffers::LoggedCreatePartitionT createPartition;
-    createPartition.partition_number = partitionNumber;
+    createPartition.header_extent_name = copy_unique(*out_partitionHeaderExtentName.extent_name.AsIndexHeaderExtentName());
     FlatBuffers::LogEntryUnion createPartitionUnion;
     createPartitionUnion.Set(std::move(createPartition));
     logRecord.log_entry.push_back(std::move(createPartitionUnion));

@@ -116,7 +116,7 @@ table LoggedPartitionsData
 
 table LoggedCreatePartition
 {
-    partition_number : uint64;
+    header_extent_name : IndexHeaderExtentName;
 }
 
 union LogEntry

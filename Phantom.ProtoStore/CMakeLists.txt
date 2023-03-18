@@ -16,6 +16,8 @@ add_library (
     "src/Checksum.cpp"
     "src/Checksum.h"
     "src/Errors.cpp"
+    
+    
     "src/ExtentManager.h"
     "src/ExtentName.cpp"
     "src/ExtentName.h"
@@ -81,7 +83,7 @@ add_library (
     "src/ValueBuilder.cpp"
     "src/ValueComparer.cpp"
     "src/ValueComparer.h"
-    )
+)
     
 target_include_directories(
     Phantom.ProtoStore
