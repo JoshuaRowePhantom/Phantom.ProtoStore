@@ -13,6 +13,7 @@ add_executable(
     "ChecksumTests.cpp" 
     "DataReferenceTests.cpp"
     "DelayedMemoryTableTransactionOutcomeTests.cpp" 
+    "ExistingPartitionsTests.cpp"
     "ExtentStoreTests.cpp"
     "ExtentStoreTests.h" 
     "FlatBufferPointerKeyComparerTests.cpp"
