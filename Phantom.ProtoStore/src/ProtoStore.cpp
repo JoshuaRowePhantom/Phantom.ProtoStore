@@ -4,7 +4,6 @@
 #include "Index.h"
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
-#include "MemoryTableImpl.h"
 #include "MessageStore.h"
 #include "PartitionImpl.h"
 #include "PartitionWriterImpl.h"
@@ -1196,7 +1195,7 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
 
     auto makeMemoryTable = [=]()
     {
-        return make_shared<MemoryTable>(
+        return MakeMemoryTable(
             index->GetSchema(),
             index->GetKeyComparer());
     };

@@ -885,4 +885,15 @@ task<MemoryTableTransactionOutcome> DelayedMemoryTableTransactionOutcome::Resolv
     co_return result;
 }
 
+std::shared_ptr<IMemoryTable> MakeMemoryTable(
+    shared_ptr<const Schema> schema,
+    shared_ptr<const ValueComparer> keyComparer
+)
+{
+    return std::make_shared<MemoryTable>(
+        std::move(schema),
+        std::move(keyComparer)
+    );
+}
+
 }

@@ -36,6 +36,8 @@ add_executable(
     "SkipListTest.cpp"
     "StandardIncludes.cpp"
     "StandardIncludes.h"
+    "TestFactories.cpp"
+    "TestFactories.h" 
     "ValueBuilderTests.cpp"
 )
     

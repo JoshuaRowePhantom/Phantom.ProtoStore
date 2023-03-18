@@ -118,4 +118,10 @@ public:
     virtual SequenceNumber GetLatestSequenceNumber(
     ) = 0;
 };
+
+std::shared_ptr<IMemoryTable> MakeMemoryTable(
+    shared_ptr<const Schema> schema,
+    shared_ptr<const ValueComparer> keyComparer
+);
+
 }
