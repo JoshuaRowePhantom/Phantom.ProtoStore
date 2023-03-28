@@ -23,22 +23,17 @@ class ExistingPartitionsImpl :
     index_partitions_map m_uncommittedPartitionsByIndex;
 
     task<> ReadPartitionsTableAndInsertIntoMaps(
-        IndexNumber lowInclusive,
-        IndexNumber highInclusive
+        ProtoValue lowInclusive,
+        ProtoValue highExclusive
     )
     {
-        FlatBuffers::PartitionsKeyT low;
-        low.index_number = lowInclusive;
-        FlatBuffers::PartitionsKeyT high;
-        high.index_number = highInclusive;
-
         EnumerateRequest enumerateRequest
         {
             .Index = m_partitionsIndex.get(),
-            .KeyLow = &low,
+            .KeyLow = lowInclusive,
             .KeyLowInclusivity = Inclusivity::Inclusive,
-            .KeyHigh = &high,
-            .KeyHighInclusivity = Inclusivity::Inclusive,
+            .KeyHigh = highExclusive,
+            .KeyHighInclusivity = Inclusivity::Exclusive,
             .ReadValueDisposition = ReadValueDisposition::DontReadValue,
         };
 
@@ -74,8 +69,8 @@ public:
         // Find all the partitions that exist at the start of replay
         // and add them to the existing partitions map.
         co_await ReadPartitionsTableAndInsertIntoMaps(
-            0,
-            std::numeric_limits<PartitionNumber>::max()
+            ProtoValue::KeyMin(),
+            ProtoValue::KeyMax()
         );
     }
 
@@ -112,9 +107,14 @@ public:
         }
         m_uncommittedPartitionsByIndex.erase(indexNumber);
 
+        FlatBuffers::PartitionsKeyT lowInclusive;
+        lowInclusive.index_number = indexNumber;
+        FlatBuffers::PartitionsKeyT highExclusive;
+        highExclusive.index_number = indexNumber + 1;
+
         co_await ReadPartitionsTableAndInsertIntoMaps(
-            indexNumber,
-            indexNumber);
+            &lowInclusive,
+            &highExclusive);
     }
 
     virtual task<> FinishReplay(

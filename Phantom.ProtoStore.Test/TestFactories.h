@@ -4,20 +4,25 @@
 namespace Phantom::ProtoStore
 {
 
-extern std::atomic<uint64_t> testLocalTransactionId;
-extern std::atomic<uint64_t> testWriteId;
+class TestFactories
+{
+protected:
+    std::atomic<uint64_t> m_nextTestLocalTransactionId;
+    std::atomic<uint64_t> m_nextTestWriteId;
+    std::atomic<uint64_t> m_nextWriteSequenceNumber;
 
-task<std::shared_ptr<IIndexData>> MakeInMemoryIndex(
-    IndexName indexName,
-    const Schema& schema
-);
+    task<std::shared_ptr<IIndexData>> MakeInMemoryIndex(
+        IndexName indexName,
+        const Schema& schema
+    );
 
-task<OperationResult<>> AddRow(
-    const std::shared_ptr<IIndexData>& index,
-    ProtoValue key,
-    ProtoValue value,
-    SequenceNumber writeSequenceNumber = SequenceNumber::Earliest,
-    SequenceNumber readSequenceNumber = SequenceNumber::Latest
-);
+    task<OperationResult<>> AddRow(
+        const std::shared_ptr<IIndexData>& index,
+        ProtoValue key,
+        ProtoValue value,
+        std::optional<SequenceNumber> writeSequenceNumber = std::nullopt,
+        SequenceNumber readSequenceNumber = SequenceNumber::Latest
+    );
+};
 
 }

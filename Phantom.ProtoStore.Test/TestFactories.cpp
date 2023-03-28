@@ -5,10 +5,7 @@
 namespace Phantom::ProtoStore
 {
 
-std::atomic<uint64_t> testLocalTransactionId;
-std::atomic<uint64_t> testWriteId;
-
-task<std::shared_ptr<IIndexData>> MakeInMemoryIndex(
+task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
     IndexName indexName,
     const Schema& schema
 )
@@ -48,14 +45,19 @@ task<std::shared_ptr<IIndexData>> MakeInMemoryIndex(
 }
 
 
-task<OperationResult<>> AddRow(
+task<OperationResult<>> TestFactories::AddRow(
     const std::shared_ptr<IIndexData>& index,
     ProtoValue key,
     ProtoValue value,
-    SequenceNumber writeSequenceNumber,
+    std::optional<SequenceNumber> writeSequenceNumber,
     SequenceNumber readSequenceNumber
 )
 {
+    if (!writeSequenceNumber)
+    {
+        writeSequenceNumber = ToSequenceNumber(m_nextWriteSequenceNumber.fetch_add(1));
+    }
+
     auto createLoggedRowWrite = [&](auto checkpointNumber) -> task<FlatMessage<FlatBuffers::LoggedRowWrite>>
     {
         ValueBuilder valueBuilder;
@@ -71,13 +73,13 @@ task<OperationResult<>> AddRow(
         auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(
             valueBuilder.builder(),
             index->GetIndexNumber(),
-            ToUint64(writeSequenceNumber),
+            ToUint64(*writeSequenceNumber),
             checkpointNumber,
             keyOffset,
             valueOffset,
             0,
-            testLocalTransactionId.fetch_add(1),
-            testWriteId.fetch_add(1)
+            m_nextTestLocalTransactionId.fetch_add(1),
+            m_nextTestWriteId.fetch_add(1)
         );
 
         valueBuilder.builder().Finish(loggedRowWriteOffset);
@@ -108,7 +110,7 @@ task<OperationResult<>> AddRow(
     }
 
     auto outcome = delayedTransactionOutcome->BeginCommit(
-        writeSequenceNumber);
+        *writeSequenceNumber);
 
     delayedTransactionOutcome->Complete();
 
