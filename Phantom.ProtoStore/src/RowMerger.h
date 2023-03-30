@@ -30,17 +30,10 @@ public:
     // This keeps the most recent row for any given key,
     // and the most recent row for any given key that is outside
     // the snapshot window.
+    // If that row is a delete, that row is dropped.
     row_generator FilterTopLevelMergeSnapshotWindowRows(
         row_generator source,
         SequenceNumber earliestSequenceNumber
-    );
-
-    // Filter deleted rows to write to a top-level merge target.
-    // Only removes redundant deleted rows:
-    // deleted rows that are followed by rows for different keys,
-    // or deleted rows that are followed by deleted rows for the same key.
-    row_generator FilterTopLevelMergeDeletedRows(
-        row_generator source
     );
 
     // Merge multiple row sources into a single row source

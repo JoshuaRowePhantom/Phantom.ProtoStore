@@ -114,55 +114,16 @@ row_generator RowMerger::FilterTopLevelMergeSnapshotWindowRows(
         previousKey = currentRow.Key;
         previousSequenceNumber = currentRow.WriteSequenceNumber;
 
+        // If the row is outside the snapshot window and is a delete,
+        // drop it.
+        if (currentRow.WriteSequenceNumber < earliestSequenceNumber
+            && !currentRow.Value)
+        {
+            continue;
+        }
+
         co_yield std::move(*iterator);
     }
 }
-
-row_generator RowMerger::FilterTopLevelMergeDeletedRows(
-    row_generator source
-)
-{
-    ResultRow previousDeletedRow;
-
-    for (auto iterator = co_await source.begin();
-        iterator != source.end();
-        co_await ++iterator)
-    {
-        ResultRow& currentRow = *iterator;
-
-        bool isPreviousDeletedRowForSameKeyAsCurrentRow =
-            previousDeletedRow.Key
-            &&
-            m_keyComparer->Equals(
-                previousDeletedRow.Key,
-                currentRow.Key
-            );
-
-        if (!isPreviousDeletedRowForSameKeyAsCurrentRow)
-        {
-            previousDeletedRow = {};
-        }
-
-        if (currentRow.Value)
-        {
-            if (isPreviousDeletedRowForSameKeyAsCurrentRow)
-            {
-                co_yield std::move(previousDeletedRow);
-                previousDeletedRow = {};
-            }
-
-            co_yield std::move(currentRow);
-        }
-        else
-        {
-            previousDeletedRow = std::move(currentRow);
-        }
-    }
-
-    // No need to compute anything about previousDeletedRow here,
-    // because if it is non-null it represents the last row
-    // for some key, and that row was deleted, therefore shouldn't be yielded.
-}
-
 
 }

@@ -270,7 +270,7 @@ TEST_F(RowMergerTests, Can_enumerate_three_sources_with_deletes)
         );
 }
 
-TEST_F(RowMergerTests, FilterTopLevelMergeSnapshotWindowRows_keeps_rows_up_to_first_below_earliest_snapshot_window)
+TEST_F(RowMergerTests, FilterTopLevelMergeSnapshotWindowRows_keeps_rows_up_to_first_below_earliest_snapshot_window_except_deleted_rows)
 {
     DoRowMergerTestPermutations(
         {
@@ -311,6 +311,7 @@ TEST_F(RowMergerTests, FilterTopLevelMergeSnapshotWindowRows_keeps_rows_up_to_fi
                 {"f", nil(), 1},
             },
             {
+                // The delete should be kept, because it is = the snapshot window
                 {"g", nil(), 3},
                 {"g", "2", 2},
                 {"g", nil(), 1},
@@ -339,7 +340,20 @@ TEST_F(RowMergerTests, FilterTopLevelMergeSnapshotWindowRows_keeps_rows_up_to_fi
             },
             {
                 {"m", nil(), 4},
+                // The delete should be kept, because it is = the snapshot window
                 {"m", nil(), 3},
+                {"m", nil(), 2},
+            },
+            {
+                {"n", "4", 4},
+                {"n", nil(), 3},
+                {"n", nil(), 2},
+            },
+            {
+                {"o", "4", 4},
+                // The delete should be dropped, because it is < the snapshot window.
+                {"o", nil(), 2},
+                {"o", "1", 1},
             },
         },
         {
@@ -361,7 +375,6 @@ TEST_F(RowMergerTests, FilterTopLevelMergeSnapshotWindowRows_keeps_rows_up_to_fi
             {"g", nil(), 3},
             {"h", "3", 3},
             {"i", "5", 5},
-            {"i", nil(), 1},
             {"j", "5", 5},
             {"j", "1", 1},
             {"k", nil(), 5},
@@ -370,6 +383,9 @@ TEST_F(RowMergerTests, FilterTopLevelMergeSnapshotWindowRows_keeps_rows_up_to_fi
             {"l", "2", 2},
             {"m", nil(), 4},
             {"m", nil(), 3},
+            {"n", "4", 4},
+            {"n", nil(), 3},
+            {"o", "4", 4},
         },
         [](RowMerger& rowMerger, auto rowSources) -> row_generator
     {
