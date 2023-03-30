@@ -8,11 +8,9 @@ namespace Phantom::ProtoStore
 {
 
 RowMerger::RowMerger(
-    std::shared_ptr<const Schema> schema,
     std::shared_ptr<const ValueComparer> keyComparer
 )
     :
-    m_schema(std::move(schema)),
     m_keyComparer(std::move(keyComparer))
 {}
 
@@ -72,7 +70,7 @@ row_generator RowMerger::Enumerate(
         ResultRow& row = *iterator;
 
         if (previousRow.Key
-            && m_keyComparer->Compare(previousRow.Key, row.Key) == std::weak_ordering::equivalent)
+            && m_keyComparer->Equals(previousRow.Key, row.Key))
         {
             continue;
         }
@@ -87,4 +85,84 @@ row_generator RowMerger::Enumerate(
         co_yield std::move(row);
     }
 }
+
+row_generator RowMerger::FilterTopLevelMergeSnapshotWindowRows(
+    row_generator source,
+    SequenceNumber earliestSequenceNumber
+)
+{
+    ProtoValue previousKey;
+    SequenceNumber previousSequenceNumber;
+
+    for (auto iterator = co_await source.begin();
+        iterator != source.end();
+        co_await ++iterator)
+    {
+        ResultRow& currentRow = *iterator;
+
+        // Skip rows for the same key IFF we've already enumerated
+        // all rows up to the earliest sequence number for that key.
+        if (previousKey
+            &&
+            m_keyComparer->Equals(previousKey, currentRow.Key)
+            &&
+            previousSequenceNumber <= earliestSequenceNumber)
+        {
+            continue;
+        }
+
+        previousKey = currentRow.Key;
+        previousSequenceNumber = currentRow.WriteSequenceNumber;
+
+        co_yield std::move(*iterator);
+    }
+}
+
+row_generator RowMerger::FilterTopLevelMergeDeletedRows(
+    row_generator source
+)
+{
+    ResultRow previousDeletedRow;
+
+    for (auto iterator = co_await source.begin();
+        iterator != source.end();
+        co_await ++iterator)
+    {
+        ResultRow& currentRow = *iterator;
+
+        bool isPreviousDeletedRowForSameKeyAsCurrentRow =
+            previousDeletedRow.Key
+            &&
+            m_keyComparer->Equals(
+                previousDeletedRow.Key,
+                currentRow.Key
+            );
+
+        if (!isPreviousDeletedRowForSameKeyAsCurrentRow)
+        {
+            previousDeletedRow = {};
+        }
+
+        if (currentRow.Value)
+        {
+            if (isPreviousDeletedRowForSameKeyAsCurrentRow)
+            {
+                co_yield std::move(previousDeletedRow);
+                previousDeletedRow = {};
+            }
+
+            co_yield std::move(currentRow);
+        }
+        else
+        {
+            previousDeletedRow = std::move(currentRow);
+        }
+    }
+
+    // No need to compute anything about previousDeletedRow here,
+    // because if it is non-null it represents the last row
+    // for some key, and that row was deleted, therefore shouldn't be yielded.
+}
+
+
 }

@@ -114,7 +114,6 @@ task<> IndexMerger::RestartIncompleteMerge(
         };
 
         RowMerger rowMerger(
-            index->GetSchema(),
             index->GetKeyComparer());
 
         auto rowGenerator = rowMerger.Merge(

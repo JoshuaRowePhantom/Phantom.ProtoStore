@@ -26,7 +26,6 @@ Index::Index(
     m_keyComparer(std::move(keyComparer)),
     m_valueComparer(std::move(valueComparer)),
     m_rowMerger(make_shared<RowMerger>(
-        m_schema,
         m_keyComparer)),
     m_unresolvedTransactionsTracker(unresolvedTransactionsTracker),
     m_schema(std::move(schema))

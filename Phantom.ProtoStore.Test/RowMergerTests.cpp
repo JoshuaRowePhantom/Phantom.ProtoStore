@@ -22,16 +22,12 @@ protected:
     void DoRowMergerTest(
         test_row_list_list_type sourceTestRows,
         test_row_list_type expectedMergedTestRows,
-        row_generator (RowMerger::*mergeFunction)(row_generators)
+        std::invocable<RowMerger&, row_generators> auto mergeFunction
     )
     {
         run_async([&]() -> task<>
         {
             RowMerger rowMerger(
-                std::make_shared<Schema>(
-                    KeySchema{ StringKey::descriptor() },
-                    ValueSchema{ StringValue::descriptor() }
-                ),
                 std::make_shared<ProtocolBuffersValueComparer>(
                     StringKey::descriptor()));
 
@@ -72,7 +68,9 @@ protected:
                 }
             };
 
-            auto rowMergerEnumeration = (rowMerger.*mergeFunction)(
+            auto rowMergerEnumeration = std::invoke(
+                mergeFunction,
+                rowMerger,
                 rowSources());
 
             test_row_list_type actualMergedTestRows;
@@ -105,7 +103,7 @@ protected:
     void DoRowMergerTestPermutations(
         test_row_list_list_type sourceTestRows,
         test_row_list_type expectedMergedTestRows,
-        row_generator(RowMerger::* mergeFunction)(row_generators)
+        std::invocable<RowMerger&, row_generators> auto mergeFunction
     )
     {
         DoRowMergerTest(
@@ -270,6 +268,116 @@ TEST_F(RowMergerTests, Can_enumerate_three_sources_with_deletes)
         },
         & RowMerger::Enumerate
         );
+}
+
+TEST_F(RowMergerTests, FilterTopLevelMergeSnapshotWindowRows_keeps_rows_up_to_first_below_earliest_snapshot_window)
+{
+    DoRowMergerTestPermutations(
+        {
+            {
+                {"a", "5", 5},
+                {"a", "4", 4},
+                {"a", "3", 3},
+                {"a", "2", 2},
+                {"a", "1", 1},
+            },
+            {
+                {"b", "5", 5},
+                {"b", "4", 4},
+                {"b", nil(), 3},
+                {"b", "2", 2},
+                {"b", "1", 1},
+            },
+            {
+                {"c", "5", 5},
+                {"c", "4", 4},
+                {"c", "3", 3},
+                {"c", nil(), 2},
+                {"c", "1", 1},
+            },
+            {
+                {"d", "5", 5},
+                {"d", "4", 4},
+                {"d", "3", 3},
+                {"d", "2", 2},
+                {"d", nil(), 1},
+            },
+            {
+                {"e", "5", 5},
+                {"e", "4", 4},
+            },
+            {
+                {"f", "2", 2},
+                {"f", nil(), 1},
+            },
+            {
+                {"g", nil(), 3},
+                {"g", "2", 2},
+                {"g", nil(), 1},
+            },
+            {
+                {"h", "3", 3},
+                {"h", "2", 2},
+                {"h", nil(), 1},
+            },
+            {
+                {"i", "5", 5},
+                {"i", nil(), 1},
+            },
+            {
+                {"j", "5", 5},
+                {"j", "1", 1},
+            },
+            {
+                {"k", nil(), 5},
+                {"k", "3", 3},
+                {"k", "2", 2},
+            },
+            {
+                {"l", nil(), 5},
+                {"l", "2", 2},
+            },
+            {
+                {"m", nil(), 4},
+                {"m", nil(), 3},
+            },
+        },
+        {
+            {"a", "5", 5},
+            {"a", "4", 4},
+            {"a", "3", 3},
+            {"b", "5", 5},
+            {"b", "4", 4},
+            {"b", nil(), 3},
+            {"c", "5", 5},
+            {"c", "4", 4},
+            {"c", "3", 3},
+            {"d", "5", 5},
+            {"d", "4", 4},
+            {"d", "3", 3},
+            {"e", "5", 5},
+            {"e", "4", 4},
+            {"f", "2", 2},
+            {"g", nil(), 3},
+            {"h", "3", 3},
+            {"i", "5", 5},
+            {"i", nil(), 1},
+            {"j", "5", 5},
+            {"j", "1", 1},
+            {"k", nil(), 5},
+            {"k", "3", 3},
+            {"l", nil(), 5},
+            {"l", "2", 2},
+            {"m", nil(), 4},
+            {"m", nil(), 3},
+        },
+        [](RowMerger& rowMerger, auto rowSources) -> row_generator
+    {
+        return rowMerger.FilterTopLevelMergeSnapshotWindowRows(
+            rowMerger.Merge(std::move(rowSources)),
+            ToSequenceNumber(3));
+    }
+    );
 }
 
 }
