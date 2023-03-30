@@ -141,6 +141,26 @@ struct EnumerateResult : ReadResult
     ProtoValue Key;
 };
 
+using PrefixLength = int32_t;
+
+struct EnumeratePrefixRequest
+{
+    ProtoIndex Index;
+    SequenceNumber SequenceNumber = SequenceNumber::LatestCommitted;
+    ProtoValue Prefix;
+    PrefixLength PrefixLength;
+    ReadValueDisposition ReadValueDisposition = ReadValueDisposition::ReadValue;
+
+    friend bool operator==(
+        const EnumeratePrefixRequest&,
+        const EnumeratePrefixRequest&
+        ) = default;
+};
+
+struct EnumeratePrefixResult : EnumerateResult
+{
+};
+
 struct CommitTransactionRequest
 {
     SequenceNumber SequenceNumber;
