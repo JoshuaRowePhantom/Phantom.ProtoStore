@@ -295,15 +295,15 @@ class ValueComparer : public BaseValueComparer
     ) const = 0;
 
 public:
-    std::weak_ordering Compare(
+    bool Equals(
         const ProtoValue& value1,
         const ProtoValue& value2
     ) const;
 
-    std::weak_ordering operator()(
+    std::weak_ordering Compare(
         const ProtoValue& value1,
         const ProtoValue& value2
-        ) const;
+    ) const;
 
     virtual uint64_t Hash(
         const ProtoValue& value

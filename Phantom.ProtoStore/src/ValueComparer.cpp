@@ -95,6 +95,16 @@ std::weak_ordering KeyRangeComparer::operator()(
     return result;
 }
 
+bool ValueComparer::Equals(
+    const ProtoValue& value1,
+    const ProtoValue& value2
+) const
+{
+    return std::weak_ordering::equivalent == Compare(
+        value1,
+        value2);
+}
+
 std::weak_ordering ValueComparer::Compare(
     const ProtoValue& value1,
     const ProtoValue& value2
@@ -126,14 +136,6 @@ std::weak_ordering ValueComparer::Compare(
     }
 
     return CompareImpl(value1, value2);
-}
-
-std::weak_ordering ValueComparer::operator()(
-    const ProtoValue& value1,
-    const ProtoValue& value2
-    ) const
-{
-    return Compare(value1, value2);
 }
 
 
