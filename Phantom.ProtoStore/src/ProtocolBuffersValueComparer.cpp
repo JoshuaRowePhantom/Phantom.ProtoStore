@@ -416,6 +416,18 @@ std::weak_ordering ProtocolBuffersValueComparer::CompareImpl(
     }
 }
 
+bool ProtocolBuffersValueComparer::EqualsImpl(
+    const ProtoValue& value1,
+    const ProtoValue& value2
+) const
+{
+    auto span1 = get_uint8_t_span(value1.as_protocol_buffer_bytes_if());
+    auto span2 = get_uint8_t_span(value2.as_protocol_buffer_bytes_if());
+
+    return span1.size() == span2.size()
+        && memcmp(span1.data(), span2.data(), span1.size()) == 0;
+}
+
 uint64_t ProtocolBuffersValueComparer::Hash(
     const ProtoValue& value
 ) const

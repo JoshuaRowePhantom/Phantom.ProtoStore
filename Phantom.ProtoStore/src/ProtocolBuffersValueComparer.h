@@ -33,6 +33,11 @@ private:
         const ProtoValue& value2
     ) const override;
 
+    virtual bool EqualsImpl(
+        const ProtoValue& value1,
+        const ProtoValue& value2
+    ) const override;
+
 public:
     ProtocolBuffersValueComparer(
         const google::protobuf::Descriptor* messageDescriptor);

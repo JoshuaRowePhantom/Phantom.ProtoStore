@@ -294,6 +294,28 @@ class ValueComparer : public BaseValueComparer
         const ProtoValue& value2
     ) const = 0;
 
+    virtual bool EqualsImpl(
+        const ProtoValue& value1,
+        const ProtoValue& value2
+    ) const;
+
+    static std::partial_ordering CompareKeyMinMax(
+        const ProtoValue& value1,
+        const ProtoValue& value2
+    );
+
+    static std::optional<bool> EqualsKeyMinMax(
+        const ProtoValue& value1,
+        const ProtoValue& value2
+    );
+
+protected:
+    // Convert a less, equivalent, or greater partial_ordering
+    // to the corresponding weak_ordering.
+    static std::weak_ordering to_weak_ordering(
+        std::partial_ordering
+    );
+
 public:
     bool Equals(
         const ProtoValue& value1,

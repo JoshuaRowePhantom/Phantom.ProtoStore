@@ -95,7 +95,7 @@ std::weak_ordering KeyRangeComparer::operator()(
     return result;
 }
 
-bool ValueComparer::Equals(
+bool ValueComparer::EqualsImpl(
     const ProtoValue& value1,
     const ProtoValue& value2
 ) const
@@ -105,10 +105,60 @@ bool ValueComparer::Equals(
         value2);
 }
 
-std::weak_ordering ValueComparer::Compare(
+std::optional<bool> ValueComparer::EqualsKeyMinMax(
+    const ProtoValue& value1,
+    const ProtoValue& value2
+)
+{
+    if (value1.IsKeyMin() || value1.IsKeyMax() || value2.IsKeyMin() || value2.IsKeyMax())
+    {
+        return value1.IsKeyMin() && value2.IsKeyMin()
+            || value1.IsKeyMax() && value2.IsKeyMax();
+    }
+    return std::nullopt;
+}
+
+bool ValueComparer::Equals(
     const ProtoValue& value1,
     const ProtoValue& value2
 ) const
+{
+    auto keyMinMaxEqualsResult = EqualsKeyMinMax(value1, value2);
+    if (keyMinMaxEqualsResult)
+    {
+        return *keyMinMaxEqualsResult;
+    }
+
+    return EqualsImpl(value1, value2);
+}
+
+std::weak_ordering ValueComparer::to_weak_ordering(
+    std::partial_ordering ordering
+)
+{
+    assert(ordering == std::partial_ordering::less
+        || ordering == std::partial_ordering::greater
+        || ordering == std::partial_ordering::equivalent);
+
+    if (ordering == std::partial_ordering::less)
+    {
+        return std::weak_ordering::less;
+    }
+    if (ordering == std::partial_ordering::greater)
+    {
+        return std::weak_ordering::greater;
+    }
+    if (ordering == std::weak_ordering::equivalent)
+    {
+        return std::weak_ordering::equivalent;
+    }
+    std::unreachable();
+}
+
+std::partial_ordering ValueComparer::CompareKeyMinMax(
+    const ProtoValue& value1,
+    const ProtoValue& value2
+)
 {
     if (value1.IsKeyMin() && value2.IsKeyMin())
     {
@@ -133,6 +183,22 @@ std::weak_ordering ValueComparer::Compare(
     if (value2.IsKeyMax())
     {
         return std::weak_ordering::less;
+    }
+
+    return std::partial_ordering::unordered;
+}
+
+std::weak_ordering ValueComparer::Compare(
+    const ProtoValue& value1,
+    const ProtoValue& value2
+) const
+{
+    auto keyMinMaxComparison = CompareKeyMinMax(
+        value1,
+        value2);
+    if (keyMinMaxComparison != std::partial_ordering::unordered)
+    {
+        return to_weak_ordering(keyMinMaxComparison);
     }
 
     return CompareImpl(value1, value2);
