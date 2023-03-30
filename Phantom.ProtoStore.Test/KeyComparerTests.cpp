@@ -31,6 +31,10 @@ void DoProtoValueComparerTest(
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserProto, lesserProto));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterProto, greaterProto));
 
+    EXPECT_EQ(true, keyComparer.Equals(lesserProto, lesserProto));
+    EXPECT_EQ(false, keyComparer.Equals(lesserProto, greaterProto));
+    EXPECT_EQ(false, keyComparer.Equals(greaterProto, lesserProto));
+
     EXPECT_LE(
         lesserProto.as_aligned_message_if().Payload.size(),
         keyComparer.GetEstimatedSize(lesserProto));

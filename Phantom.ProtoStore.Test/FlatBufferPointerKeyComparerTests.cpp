@@ -50,6 +50,11 @@ void DoFlatBufferPointerValueComparerTest(
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(lesserFlatMessage.get(), lesserFlatMessage2.get()));
     EXPECT_EQ(std::weak_ordering::equivalent, keyComparer.Compare(greaterFlatMessage.get(), greaterFlatMessage.get()));
 
+    EXPECT_EQ(true, keyComparer.Equals(lesserFlatMessage.get(), lesserFlatMessage.get()));
+    EXPECT_EQ(true, keyComparer.Equals(lesserFlatMessage.get(), lesserFlatMessage2.get()));
+    EXPECT_EQ(false, keyComparer.Equals(lesserFlatMessage.get(), greaterFlatMessage.get()));
+    EXPECT_EQ(false, keyComparer.Equals(greaterFlatMessage.get(), lesserFlatMessage.get()));
+
     EXPECT_LE(
         lesserFlatMessage.data().Content.Payload.size(),
         keyComparer.GetEstimatedSize(lesserFlatMessage.get()));
