@@ -140,10 +140,11 @@ ProtoValue TestFactories::JsonToProtoValue(
     }
 
     flatbuffers::Parser parser;
-    bool ok =
-        parser.Deserialize(schema)
-        && parser.SetRootType(object->name()->c_str())
-        && parser.ParseJson(json->c_str());
+    bool ok = parser.Deserialize(schema);
+    assert(ok);
+    ok = parser.SetRootType(object->name()->c_str());
+    assert(ok);
+    ok = parser.ParseJson(json->c_str());
     assert(ok);
     return ProtoValue::FlatBuffer(
         std::move(parser.builder_)

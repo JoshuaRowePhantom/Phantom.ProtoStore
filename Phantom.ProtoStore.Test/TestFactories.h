@@ -55,7 +55,7 @@ protected:
 
     template<
         IsFlatBufferTable Value
-    > static const reflection::Schema* GetObject()
+    > static const reflection::Object* GetObject()
     {
         if constexpr (std::same_as<Value, FlatBuffers::MergesKey>)
         {

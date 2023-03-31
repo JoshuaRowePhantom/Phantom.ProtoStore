@@ -105,6 +105,12 @@ const ProtoValueComparers IndexHeaderExtentName_Comparers_Owning
 const ProtoValueComparers IndexHeaderExtentName_Comparers
 = IndexHeaderExtentName_Comparers_Owning.MakeUnowningCopy();
 
+const ProtoValueComparers MergesKey_Comparers_Owning
+= FlatBuffersObjectSchema{ ProtoStoreInternalSchema, MergesKey_Object }.MakeComparers();
+
+const ProtoValueComparers MergesKey_Comparers
+= MergesKey_Comparers_Owning.MakeUnowningCopy();
+
 const ProtoValueComparers MergesValue_Comparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreInternalSchema, MergesKey_Object }.MakeComparers();
 
