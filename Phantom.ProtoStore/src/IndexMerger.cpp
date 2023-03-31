@@ -471,8 +471,8 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
         ProtoValueStlEqual
     > partitionHeaderExtentNames(
         0,
-        FlatBuffersSchemas::ExtentNameComparers.hash,
-        FlatBuffersSchemas::ExtentNameComparers.equal_to);
+        FlatBuffersSchemas::ExtentName_Comparers.hash,
+        FlatBuffersSchemas::ExtentName_Comparers.equal_to);
 
     auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
         incompleteMerge.Merge.Key->index_number());
@@ -660,7 +660,6 @@ task<> IndexMerger::GenerateMerges(
     {
         auto indexNumber = indexNumberAndPartitions.first;
         auto newMerges = m_mergeGenerator->GetMergeCandidates(
-            indexNumber,
             mergeParameters,
             indexNumberAndPartitions.second,
             mergesRowsByIndexNumber[indexNumber]);

@@ -10,17 +10,23 @@ namespace Phantom::ProtoStore
 {
 
 merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
-    const IndexNumber indexNumber,
     const MergeParameters& mergeParameters,
     const partition_row_list_type& partitions,
     const merges_row_list_type& ongoingMerges
 )
 {
+    if (partitions.empty())
+    {
+        return {};
+    }
+
+    IndexNumber indexNumber = partitions[0].Key->index_number();
+
     map<LevelNumber, partition_row_list_type> partitionsBySourceLevel;
     std::unordered_set<FlatValue<FlatBuffers::IndexHeaderExtentName>, ProtoValueStlHash, ProtoValueStlEqual> mergingPartitions(
         0,
-        FlatBuffersSchemas::IndexHeaderExtentNameComparers.hash,
-        FlatBuffersSchemas::IndexHeaderExtentNameComparers.equal_to
+        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.hash,
+        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.equal_to
     );
 
     for (auto& ongoingMerge : ongoingMerges)
@@ -63,8 +69,8 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             ProtoValueStlEqual
         > mergeIds(
             0,
-            FlatBuffersSchemas::MergesValueComparers.hash,
-            FlatBuffersSchemas::MergesValueComparers.equal_to
+            FlatBuffersSchemas::MergesValue_Comparers.hash,
+            FlatBuffersSchemas::MergesValue_Comparers.equal_to
         );
 
         for (auto& partition : partitionsAtSourceLevel.second)

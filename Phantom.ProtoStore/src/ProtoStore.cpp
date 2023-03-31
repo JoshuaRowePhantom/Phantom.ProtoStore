@@ -35,13 +35,12 @@ ProtoStore::ProtoStore(
     m_mergeTask([=] { return InternalMerge(); }),
     m_activePartitions(
         0,
-        FlatBuffersSchemas::IndexHeaderExtentNameComparers.hash,
-        FlatBuffersSchemas::IndexHeaderExtentNameComparers.equal_to
+        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.hash,
+        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.equal_to
     )
 {
     m_writeSequenceNumberBarrier.publish(0);
 }
-
 
 ProtoStore::~ProtoStore()
 {

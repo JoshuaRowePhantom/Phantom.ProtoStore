@@ -243,8 +243,8 @@ public:
         m_schedulers(schedulers),
         m_extents(
             0,
-            FlatBuffersSchemas::ExtentNameComparers.hash,
-            FlatBuffersSchemas::ExtentNameComparers.equal_to
+            FlatBuffersSchemas::ExtentName_Comparers.hash,
+            FlatBuffersSchemas::ExtentName_Comparers.equal_to
         )
     {}
 

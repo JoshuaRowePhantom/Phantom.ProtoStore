@@ -1,6 +1,7 @@
 #include "TestFactories.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include "Phantom.System/utility.h"
+#include <flatbuffers/idl.h>
 
 namespace Phantom::ProtoStore
 {
@@ -126,6 +127,27 @@ task<OperationResult<>> TestFactories::AddRow(
             make_error_code(ProtoStoreErrorCode::AbortedTransaction),
         }
     };
+}
+
+ProtoValue TestFactories::JsonToProtoValue(
+    const reflection::Schema* schema,
+    const reflection::Object* object,
+    std::optional<string> json)
+{
+    if (!json)
+    {
+        return ProtoValue{};
+    }
+
+    flatbuffers::Parser parser;
+    bool ok =
+        parser.Deserialize(schema)
+        && parser.SetRootType(object->name()->c_str())
+        && parser.ParseJson(json->c_str());
+    assert(ok);
+    return ProtoValue::FlatBuffer(
+        std::move(parser.builder_)
+    );
 }
 
 }

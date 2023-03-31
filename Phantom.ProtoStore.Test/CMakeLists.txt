@@ -18,6 +18,7 @@ add_executable(
     "ExtentStoreTests.h" 
     "FlatBufferPointerKeyComparerTests.cpp"
     "HeaderAccessorTests.cpp"
+    "IndexPartitionMergeGeneratorTests.cpp"
     "KeyComparerTests.cpp"
     "MemoryExtentStoreTests.cpp"
     "MemoryMappedFileExtentStoreTests.cpp"

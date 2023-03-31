@@ -24,30 +24,30 @@ const reflection::Object* const ReflectionSchema_Type
 = ReflectionSchema->objects()->LookupByKey("reflection.Type");
 
 
-const ProtoValueComparers ReflectionSchema_SchemaComparers_Owning
+const ProtoValueComparers ReflectionSchema_Schema_Comparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Schema }.MakeComparers();
 
-const ProtoValueComparers ReflectionSchema_SchemaComparers
-= ReflectionSchema_SchemaComparers_Owning.MakeUnowningCopy();
+const ProtoValueComparers ReflectionSchema_Schema_Comparers
+= ReflectionSchema_Schema_Comparers_Owning.MakeUnowningCopy();
 
 
-const ProtoValueComparers ReflectionSchema_ObjectComparers_Owning
+const ProtoValueComparers ReflectionSchema_Object_Comparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Object }.MakeComparers();
 
-const ProtoValueComparers ReflectionSchema_ObjectComparers
-= ReflectionSchema_ObjectComparers_Owning.MakeUnowningCopy();
+const ProtoValueComparers ReflectionSchema_Object_Comparers
+= ReflectionSchema_Object_Comparers_Owning.MakeUnowningCopy();
 
-const ProtoValueComparers ReflectionSchema_FieldComparers_Owning
+const ProtoValueComparers ReflectionSchema_Field_Comparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Field }.MakeComparers();
 
-const ProtoValueComparers ReflectionSchema_FieldComparers
-= ReflectionSchema_FieldComparers_Owning.MakeUnowningCopy();
+const ProtoValueComparers ReflectionSchema_Field_Comparers
+= ReflectionSchema_Field_Comparers_Owning.MakeUnowningCopy();
 
-const ProtoValueComparers ReflectionSchema_TypeComparers_Owning
+const ProtoValueComparers ReflectionSchema_Type_Comparers_Owning
 = FlatBuffersObjectSchema{ ReflectionSchema, ReflectionSchema_Type }.MakeComparers();
 
-const ProtoValueComparers ReflectionSchema_TypeComparers
-= ReflectionSchema_TypeComparers_Owning.MakeUnowningCopy();
+const ProtoValueComparers ReflectionSchema_Type_Comparers
+= ReflectionSchema_Type_Comparers_Owning.MakeUnowningCopy();
 
 
 const reflection::Schema* const ProtoStoreInternalSchema
@@ -93,22 +93,22 @@ const reflection::Object* const ExtentName_Object
 const reflection::Object* const IndexHeaderExtentName_Object
 = ProtoStoreSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.IndexHeaderExtentName");
 
-const ProtoValueComparers ExtentNameComparers_Owning
+const ProtoValueComparers ExtentName_Comparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreSchema, ExtentName_Object }.MakeComparers();
 
-const ProtoValueComparers ExtentNameComparers
-= ExtentNameComparers_Owning.MakeUnowningCopy();
+const ProtoValueComparers ExtentName_Comparers
+= ExtentName_Comparers_Owning.MakeUnowningCopy();
 
-const ProtoValueComparers IndexHeaderExtentNameComparers_Owning
+const ProtoValueComparers IndexHeaderExtentName_Comparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreSchema, IndexHeaderExtentName_Object }.MakeComparers();
 
-const ProtoValueComparers IndexHeaderExtentNameComparers
-= IndexHeaderExtentNameComparers_Owning.MakeUnowningCopy();
+const ProtoValueComparers IndexHeaderExtentName_Comparers
+= IndexHeaderExtentName_Comparers_Owning.MakeUnowningCopy();
 
-const ProtoValueComparers MergesValueComparers_Owning
+const ProtoValueComparers MergesValue_Comparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreInternalSchema, MergesKey_Object }.MakeComparers();
 
-const ProtoValueComparers MergesValueComparers
-= MergesValueComparers_Owning.MakeUnowningCopy();
+const ProtoValueComparers MergesValue_Comparers
+= MergesValue_Comparers_Owning.MakeUnowningCopy();
 
 }

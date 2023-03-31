@@ -13,10 +13,10 @@ namespace FlatBuffersSchemas
     extern const reflection::Object* const ReflectionSchema_Field;
     extern const reflection::Object* const ReflectionSchema_Type;
 
-    extern const ProtoValueComparers ReflectionSchema_SchemaComparers;
-    extern const ProtoValueComparers ReflectionSchema_ObjectComparers;
-    extern const ProtoValueComparers ReflectionSchema_FieldComparers;
-    extern const ProtoValueComparers ReflectionSchema_TypeComparers;
+    extern const ProtoValueComparers ReflectionSchema_Schema_Comparers;
+    extern const ProtoValueComparers ReflectionSchema_Object_Comparers;
+    extern const ProtoValueComparers ReflectionSchema_Field_Comparers;
+    extern const ProtoValueComparers ReflectionSchema_Type_Comparers;
 
     extern const reflection::Schema* const ProtoStoreInternalSchema;
 
@@ -35,9 +35,11 @@ namespace FlatBuffersSchemas
     extern const reflection::Object* const MergeProgressKey_Object;
     extern const reflection::Object* const MergeProgressValue_Object;
 
-    extern const ProtoValueComparers PartitionsValueComparers;
-    extern const ProtoValueComparers IndexHeaderExtentNameComparers;
-    extern const ProtoValueComparers MergesValueComparers;
+    extern const ProtoValueComparers PartitionsKey_Comparers;
+    extern const ProtoValueComparers PartitionsValue_Comparers;
+    extern const ProtoValueComparers IndexHeaderExtentName_Comparers;
+    extern const ProtoValueComparers MergesKey_Comparers;
+    extern const ProtoValueComparers MergesValue_Comparers;
     
 };
 

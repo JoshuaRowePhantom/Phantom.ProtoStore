@@ -596,8 +596,8 @@ MessageStore::MessageStore(
     m_extentStore(move(extentStore)),
     m_readableExtents(
         0,
-        FlatBuffersSchemas::ExtentNameComparers.hash,
-        FlatBuffersSchemas::ExtentNameComparers.equal_to
+        FlatBuffersSchemas::ExtentName_Comparers.hash,
+        FlatBuffersSchemas::ExtentName_Comparers.equal_to
     )
 {
 }

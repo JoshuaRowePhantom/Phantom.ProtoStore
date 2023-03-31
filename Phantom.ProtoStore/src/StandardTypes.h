@@ -348,9 +348,9 @@ template<
 
 typedef row<FlatValue<FlatBuffers::PartitionsKey>, FlatValue<FlatBuffers::PartitionsValue>> partition_row_type;
 typedef vector<partition_row_type> partition_row_list_type;
-typedef row< FlatValue<FlatBuffers::MergesKey>, FlatValue<FlatBuffers::MergesValue>> merges_row_type;
+typedef row<FlatValue<FlatBuffers::MergesKey>, FlatValue<FlatBuffers::MergesValue>> merges_row_type;
 typedef vector<merges_row_type> merges_row_list_type;
-typedef row< FlatValue<FlatBuffers::MergeProgressKey>, FlatValue<FlatBuffers::MergeProgressValue>> merge_progress_row_type;
+typedef row<FlatValue<FlatBuffers::MergeProgressKey>, FlatValue<FlatBuffers::MergeProgressValue>> merge_progress_row_type;
 typedef vector<merge_progress_row_type> merge_progress_row_list_type;
 
 flatbuffers::Offset<FlatBuffers::DataValue> CreateDataValue(
