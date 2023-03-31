@@ -373,9 +373,6 @@ task<> IndexMerger::WriteMergeCompletion(
             completeProgress.Key->header_extent_name()->UnPack());
 
         PartitionsValueT completePartitionsValue;
-        completePartitionsValue.data_extent_name = copy_unique(*dataExtentName.extent_name.AsIndexDataExtentName());
-
-        completePartitionsValue.level = incompleteMerge.Merge.Value->destination_level_number();
         completePartitionsValue.merge_unique_id.reset(incompleteMerge.Merge.Key->UnPack());
         completePartitionsValue.size = 0;
 
@@ -395,8 +392,6 @@ task<> IndexMerger::WriteMergeCompletion(
         completePartitionsKey.header_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexHeaderExtentName());
 
         PartitionsValueT completePartitionsValue;
-        completePartitionsValue.data_extent_name = copy_unique(*dataExtentName.extent_name.AsIndexDataExtentName());
-        completePartitionsValue.level = incompleteMerge.Merge.Value->destination_level_number();
         completePartitionsValue.merge_unique_id.reset(incompleteMerge.Merge.Key->UnPack());
         completePartitionsValue.size = writeRowsResult.writtenDataSize;
         completePartitionsValue.latest_checkpoint_number = incompleteMerge.Merge.Value->latest_checkpoint_number();

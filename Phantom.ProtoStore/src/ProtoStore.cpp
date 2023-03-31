@@ -1361,9 +1361,7 @@ task<> ProtoStore::Checkpoint(
         partitionsKey.header_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexHeaderExtentName());
 
         PartitionsValueT partitionsValue;
-        partitionsValue.data_extent_name = copy_unique(*dataExtentName.extent_name.AsIndexDataExtentName());
         partitionsValue.size = writeRowsResult.writtenDataSize;
-        partitionsValue.level = 0;
         partitionsValue.latest_checkpoint_number = highestCheckpointNumber;
 
         {

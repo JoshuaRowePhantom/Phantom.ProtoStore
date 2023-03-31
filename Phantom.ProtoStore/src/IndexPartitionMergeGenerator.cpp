@@ -46,7 +46,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             continue;
         }
 
-        auto sourceLevel = partition.Value->level();
+        auto sourceLevel = partition.Key->header_extent_name()->index_extent_name()->level();
         // Adjust the source level to be within the merge parameters max level
         sourceLevel = std::min(
             sourceLevel,

@@ -261,8 +261,6 @@ table PartitionsKey {
 }
 
 table PartitionsValue {
-    data_extent_name : IndexDataExtentName;
-    level : uint64;
     size : uint64;
     // The merge that generated the partition.
     merge_unique_id : MergesKey;
