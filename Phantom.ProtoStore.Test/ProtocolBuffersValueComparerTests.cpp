@@ -375,11 +375,11 @@ TEST(ProtocolBuffersValueComparerTests, IsPrefixOf_uses_up_to_that_field_when_no
     isPrefixKey.set_sint32_value(2);
     isNotPrefixKey.set_sint32_value(3);
 
-    Prefix prefix{ ProtoValue { &prefixKey }, 3 };
+    Prefix prefix{ ProtoValue { &prefixKey }.pack(), 3};
 
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }.pack()));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }.pack()));
+    EXPECT_EQ(false, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }.pack()));
 }
 
 TEST(ProtocolBuffersValueComparerTests, IsPrefixOf_uses_up_to_that_field_when_has_trailing_fields_in_target_key)
@@ -396,11 +396,11 @@ TEST(ProtocolBuffersValueComparerTests, IsPrefixOf_uses_up_to_that_field_when_ha
     isPrefixKey.set_sint64_value(3);
     isNotPrefixKey.set_sint32_value(4);
 
-    Prefix prefix{ ProtoValue { &prefixKey }, 3 };
+    Prefix prefix{ ProtoValue { &prefixKey }.pack(), 3 };
 
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }.pack()));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }.pack()));
+    EXPECT_EQ(false, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }.pack()));
 }
 
 TEST(ProtocolBuffersValueComparerTests, IsPrefixOf_uses_up_to_that_field_when_has_trailing_fields_in_source_key)
@@ -417,11 +417,11 @@ TEST(ProtocolBuffersValueComparerTests, IsPrefixOf_uses_up_to_that_field_when_ha
     isPrefixKey.set_sint32_value(2);
     isNotPrefixKey.set_sint32_value(4);
 
-    Prefix prefix{ ProtoValue { &prefixKey }, 3 };
+    Prefix prefix{ ProtoValue { &prefixKey }.pack(), 3 };
 
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }.pack()));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }.pack()));
+    EXPECT_EQ(false, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }.pack()));
 }
 
 TEST(ProtocolBuffersValueComparerTests, IsPrefixOf_uses_up_to_that_field_when_has_trailing_fields_in_both_keys)
@@ -439,11 +439,11 @@ TEST(ProtocolBuffersValueComparerTests, IsPrefixOf_uses_up_to_that_field_when_ha
     isPrefixKey.set_sint64_value(3);
     isNotPrefixKey.set_sint32_value(4);
 
-    Prefix prefix{ ProtoValue { &prefixKey }, 3 };
+    Prefix prefix{ ProtoValue { &prefixKey }.pack(), 3 };
 
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }));
-    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &prefixKey }.pack()));
+    EXPECT_EQ(true, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isPrefixKey }.pack()));
+    EXPECT_EQ(false, keyComparer.IsPrefixOf(prefix, ProtoValue{ &isNotPrefixKey }.pack()));
 }
 
 }
