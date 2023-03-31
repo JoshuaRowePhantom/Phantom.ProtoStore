@@ -115,8 +115,19 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalObjectComparer::Compa
         return std::weak_ordering::greater;
     }
 
-    for (auto& comparer : m_comparers)
+    for (auto fieldIndex = 0; fieldIndex < m_comparers.size(); fieldIndex++)
     {
+        // The actual field id is fieldIndex + 1.
+        // This does an inclusive comparison against the lastFieldId
+        // such that asking for lastFieldId 0 always returns equivalent,
+        // asking for lastFieldId:1 requires fieldIndex:0 == fieldId:1 to match.
+        if (fieldIndex >= lastFieldId)
+        {
+            return std::weak_ordering::equivalent;
+        }
+
+        auto& comparer = m_comparers[fieldIndex];
+
         auto result = (comparer.*comparer.comparerFunction)(
             value1,
             value2);
