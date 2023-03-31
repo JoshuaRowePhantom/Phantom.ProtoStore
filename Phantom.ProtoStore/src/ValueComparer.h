@@ -327,6 +327,11 @@ public:
         const ProtoValue& value2
     ) const;
 
+    virtual bool IsPrefixOf(
+        const Prefix& prefix,
+        const ProtoValue& value
+    ) const = 0;
+
     virtual uint64_t Hash(
         const ProtoValue& value
     ) const = 0;

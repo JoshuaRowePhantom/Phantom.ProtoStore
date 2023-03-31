@@ -484,4 +484,27 @@ bool ProtoValue::is_flat_buffer() const
         message.index() == flat_buffers_table_pointer;
 }
 
+template<
+    typename Function
+> std::function<Function> MakeUnowningFunctor(
+    const std::function<Function>* function
+)
+{
+    return [=](auto&&... args)
+    {
+        return (*function)(std::forward<decltype(args)>(args)...);
+    };
+}
+
+ProtoValueComparers ProtoValueComparers::MakeUnowningCopy() const
+{
+    return ProtoValueComparers
+    {
+        MakeUnowningFunctor(&comparer),
+        MakeUnowningFunctor(&equal_to),
+        MakeUnowningFunctor(&hash),
+        MakeUnowningFunctor(&less),
+        MakeUnowningFunctor(&prefix_comparer),
+    };
+}
 }

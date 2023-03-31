@@ -22,12 +22,14 @@ FlatBufferPointerValueComparer::FlatBufferPointerValueComparer(
 
 std::weak_ordering FlatBufferPointerValueComparer::Compare(
     const void* value1,
-    const void* value2
+    const void* value2,
+    uint16_t lastFieldId
 ) const
 {
     return m_rootComparer->Compare(
         value1,
-        value2);
+        value2,
+        lastFieldId);
 }
 
 uint64_t FlatBufferPointerValueComparer::Hash(
@@ -94,7 +96,8 @@ FlatBufferPointerValueComparer::InternalObjectComparer::InternalObjectComparer(
 
 std::weak_ordering FlatBufferPointerValueComparer::InternalObjectComparer::Compare(
     const void* value1,
-    const void* value2
+    const void* value2,
+    uint16_t lastFieldId
 ) const
 {
     if (value1 == value2)
@@ -904,6 +907,21 @@ std::weak_ordering FlatBufferValueComparer::CompareImpl(
     return m_comparer.Compare(
         table1,
         table2
+    );
+}
+
+bool FlatBufferValueComparer::IsPrefixOf(
+    const Prefix& prefix,
+    const ProtoValue& value
+) const
+{
+    auto table1 = prefix.Value.as_table_if();
+    auto table2 = value.as_table_if();
+
+    return std::weak_ordering::equivalent == m_comparer.Compare(
+        table1,
+        table2,
+        prefix.LastFieldId
     );
 }
 

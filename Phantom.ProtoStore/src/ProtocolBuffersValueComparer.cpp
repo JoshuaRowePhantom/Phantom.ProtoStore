@@ -83,6 +83,19 @@ std::weak_ordering ProtocolBuffersValueComparer::CompareImpl(
     const ProtoValue& value2
 ) const
 {
+    return CompareImpl(
+        value1,
+        value2,
+        65335
+    );
+}
+
+std::weak_ordering ProtocolBuffersValueComparer::CompareImpl(
+    const ProtoValue& value1,
+    const ProtoValue& value2,
+    uint16_t lastFieldId
+) const
+{
     using google::protobuf::internal::WireFormatLite;
 
     auto span1 = get_uint8_t_span(value1.as_protocol_buffer_bytes_if());
@@ -271,6 +284,15 @@ std::weak_ordering ProtocolBuffersValueComparer::CompareImpl(
             field = std::max(field1, field2);
         }
 
+        // If we're at the top level,
+        // and the field we're inspecting is past the last field,
+        // then the two messages are equal.
+        if (context.size() == 1 
+            && field > lastFieldId)
+        {
+            return std::weak_ordering::equivalent;
+        }
+
         // Find the field in the descriptor.
         while (
             fieldIndex < context.back().MessageDescriptor->field_count()
@@ -434,6 +456,18 @@ uint64_t ProtocolBuffersValueComparer::Hash(
 {
     return hash_v1(
         value.as_protocol_buffer_bytes_if()
+    );
+}
+
+bool ProtocolBuffersValueComparer::IsPrefixOf(
+    const Prefix& prefix,
+    const ProtoValue& value
+) const
+{
+    return std::weak_ordering::equivalent == CompareImpl(
+        prefix.Value,
+        value,
+        prefix.LastFieldId
     );
 }
 

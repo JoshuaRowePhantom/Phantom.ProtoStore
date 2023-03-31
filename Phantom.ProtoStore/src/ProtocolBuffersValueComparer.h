@@ -38,11 +38,22 @@ private:
         const ProtoValue& value2
     ) const override;
 
+    std::weak_ordering CompareImpl(
+        const ProtoValue& value1,
+        const ProtoValue& value2,
+        uint16_t lastFieldId
+    ) const;
+
 public:
     ProtocolBuffersValueComparer(
         const google::protobuf::Descriptor* messageDescriptor);
 
     virtual uint64_t Hash(
+        const ProtoValue& value
+    ) const override;
+
+    virtual bool IsPrefixOf(
+        const Prefix& prefix,
         const ProtoValue& value
     ) const override;
 

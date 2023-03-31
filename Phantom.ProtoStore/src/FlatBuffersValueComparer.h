@@ -246,7 +246,8 @@ private:
 
         std::weak_ordering Compare(
             const void* value1,
-            const void* value2
+            const void* value2,
+            uint16_t lastFieldId = 65535
         ) const;
 
         void Hash(
@@ -273,7 +274,8 @@ public:
 
     std::weak_ordering Compare(
         const void* value1,
-        const void* value2
+        const void* value2,
+        uint16_t lastFieldId = 65535
     ) const;
 
     uint64_t Hash(
@@ -291,11 +293,17 @@ class FlatBufferValueComparer :
         const ProtoValue& value1,
         const ProtoValue& value2
     ) const override;
+
 public:
     FlatBufferValueComparer(
         FlatBufferPointerValueComparer comparer);
 
     virtual uint64_t Hash(
+        const ProtoValue& value
+    ) const override;
+
+    virtual bool IsPrefixOf(
+        const Prefix& prefix,
         const ProtoValue& value
     ) const override;
 

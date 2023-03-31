@@ -106,11 +106,13 @@ protected:
         }
     }
 
+    using json_row_list = std::vector<std::pair<std::string, std::optional<std::string>>>;
+
     template<
         typename Key,
         typename Value
     > static std::vector<row<FlatValue<Key>, FlatValue<Value>>> JsonToFlatRows(
-        std::vector<std::pair<std::string, std::optional<string>>> rowStrings)
+        const json_row_list& rowStrings)
     {
         std::vector<row<FlatValue<Key>, FlatValue<Value>>> result;
 

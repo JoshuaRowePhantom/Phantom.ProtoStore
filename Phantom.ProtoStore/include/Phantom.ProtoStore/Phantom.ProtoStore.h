@@ -115,11 +115,6 @@ struct ReadResult
         ) = default;
 };
 
-enum class Inclusivity {
-    Inclusive = 0,
-    Exclusive = 1,
-};
-
 struct EnumerateRequest
 {
     ProtoIndex Index;
@@ -141,14 +136,11 @@ struct EnumerateResult : ReadResult
     ProtoValue Key;
 };
 
-using PrefixLength = int32_t;
-
 struct EnumeratePrefixRequest
 {
     ProtoIndex Index;
     SequenceNumber SequenceNumber = SequenceNumber::LatestCommitted;
-    ProtoValue Prefix;
-    PrefixLength PrefixLength;
+    Prefix Prefix;
     ReadValueDisposition ReadValueDisposition = ReadValueDisposition::ReadValue;
 
     friend bool operator==(

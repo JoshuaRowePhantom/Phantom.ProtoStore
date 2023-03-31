@@ -597,6 +597,17 @@ public:
     }
 };
 
+enum class Inclusivity {
+    Inclusive = 0,
+    Exclusive = 1,
+};
+
+struct Prefix
+{
+    ProtoValue Value;
+    uint16_t LastFieldId;
+};
+
 template<
     IsFlatBufferTable Table
 >
@@ -744,18 +755,7 @@ using ProtoValueComparer = std::function<std::weak_ordering(const ProtoValue&, c
 using ProtoValueStlEqual = std::function<bool(const ProtoValue&, const ProtoValue&)>;
 using ProtoValueStlHash = std::function<size_t(const ProtoValue&)>;
 using ProtoValueStlLess = std::function<bool(const ProtoValue&, const ProtoValue&)>;
-
-template<
-    typename Function
-> std::function<Function> MakeUnowningFunctor(
-    const std::function<Function>* function
-)
-{
-    return [=](auto&&... args)
-    {
-        return (*function)(std::forward<decltype(args)>(args)...);
-    };
-}
+using ProtoValuePrefixComparer = std::function<bool(const Prefix&, const ProtoValue&)>;
 
 struct ProtoValueComparers
 {
@@ -763,18 +763,14 @@ struct ProtoValueComparers
     ProtoValueStlEqual equal_to;
     ProtoValueStlHash hash;
     ProtoValueStlLess less;
+    ProtoValuePrefixComparer prefix_comparer;
 
-    ProtoValueComparers MakeUnowningCopy() const
-    {
-        return ProtoValueComparers
-        {
-            MakeUnowningFunctor(&comparer),
-            MakeUnowningFunctor(&equal_to),
-            MakeUnowningFunctor(&hash),
-            MakeUnowningFunctor(&less),
-        };
-    }
+    // Make a copy of this ProtoValueComparers object that can be
+    // copied and destroyed without the overhead of copying internal shared
+    // pointers.
+    //
+    // The original instance must remain valid for as long as the unowning copy is used.
+    ProtoValueComparers MakeUnowningCopy() const;
 };
-
 
 }
