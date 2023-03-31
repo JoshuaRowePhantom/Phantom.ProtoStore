@@ -83,7 +83,7 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
         }
 
         // If that number exceeds the parameter, then it's a merge candidate for the next level.
-        if (mergeCount > mergeParameters.mergesperlevel())
+        if (mergeCount >= mergeParameters.mergesperlevel())
         {
             FlatBuffers::MergesKeyT mergesKey;
             mergesKey.index_number = indexNumber;
