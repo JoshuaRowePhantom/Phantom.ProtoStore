@@ -319,6 +319,10 @@ ProtoValueComparers SchemaDescriptions::MakeKeyComparers(
     {
         return keyComparer->Compare(value1, value2) == std::weak_ordering::less;
     },
+        .prefix_comparer = [&](auto& prefix, auto& value)
+    {
+        return keyComparer->IsPrefixOf(prefix, value);
+    }
     };
 }
 
