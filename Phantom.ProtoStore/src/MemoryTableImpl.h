@@ -115,6 +115,7 @@ class MemoryTable
         Inclusivity KeyLowInclusivity;
         SequenceNumber ReadSequenceNumber;
         optional<SequenceNumber> SequenceNumberToSkipForKeyLow;
+        optional<FieldId> LastFieldId;
     };
 
     class MemoryTableRowComparer

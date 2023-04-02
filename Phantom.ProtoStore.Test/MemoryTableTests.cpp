@@ -66,22 +66,18 @@ protected:
     }
 
     task<shared_ptr<DelayedMemoryTableTransactionOutcome>> AddRow(
+        MemoryTable& memoryTable,
         MemoryTableTransactionSequenceNumber transactionSequenceNumber,
-        string key,
-        string value,
+        const Message& rowKey,
+        const Message& rowValue,
         uint64_t writeSequenceNumber,
         uint64_t readSequenceNumber,
         TransactionOutcome outcome = TransactionOutcome::Committed,
         std::optional<TransactionId> transactionId = {},
         std::optional<SequenceNumber>* conflictingSequenceNumber = nullptr)
     {
-        StringKey rowKey;
-        rowKey.set_value(key);
-        StringValue rowValue;
-        rowValue.set_value(value);
-
         auto rowKeyProto = ProtoValue(&rowKey).pack();
-        auto rowValueProto = ProtoValue (&rowValue).pack();
+        auto rowValueProto = ProtoValue(&rowValue).pack();
 
         FlatBuffers::LoggedRowWriteT loggedRowWrite;
         if (transactionId)
@@ -110,6 +106,33 @@ protected:
         }
 
         co_return delayedOutcome;
+    }
+
+    task<shared_ptr<DelayedMemoryTableTransactionOutcome>> AddRow(
+        MemoryTableTransactionSequenceNumber transactionSequenceNumber,
+        string key,
+        string value,
+        uint64_t writeSequenceNumber,
+        uint64_t readSequenceNumber,
+        TransactionOutcome outcome = TransactionOutcome::Committed,
+        std::optional<TransactionId> transactionId = {},
+        std::optional<SequenceNumber>* conflictingSequenceNumber = nullptr)
+    {
+        StringKey rowKey;
+        rowKey.set_value(key);
+        StringValue rowValue;
+        rowValue.set_value(value);
+
+        co_return co_await AddRow(
+            memoryTable,
+            transactionSequenceNumber,
+            rowKey,
+            rowValue,
+            writeSequenceNumber,
+            readSequenceNumber,
+            outcome,
+            transactionId,
+            conflictingSequenceNumber);
     }
 
     struct ExpectedRow
@@ -768,4 +791,130 @@ ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_v
     co_await memoryTable.Join();
 }
 
+ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and_ignores_rows_not_matching_prefix)
+{
+    std::shared_ptr<Schema> schema(
+        std::make_shared<Schema>(
+            KeySchema{ TestKey::descriptor() },
+            ValueSchema{ StringValue::descriptor() }
+    ));
+
+    std::shared_ptr<ValueComparer> keyComparer(
+        std::make_shared<ProtocolBuffersValueComparer>(
+            TestKey::descriptor()));
+
+    std::shared_ptr<ValueComparer> valueComparer(
+        std::make_shared<ProtocolBuffersValueComparer>(
+            StringValue::descriptor()));
+
+    MemoryTable memoryTable(
+        schema,
+        keyComparer);
+
+    // Outside prefix
+    TestKey testKey_1;
+    StringValue testValue_1;
+    // Inside prefix
+    TestKey testKey_2_1;
+    StringValue testValue_2_1;
+    TestKey testKey_2_2;
+    StringValue testValue_2_2;
+    // Outside prefix
+    TestKey testKey_3;
+    StringValue testValue_3;
+
+    testKey_1.set_sint32_value(1);
+    testValue_1.set_value("1");
+    
+    testKey_2_1.set_sint32_value(2);
+    testKey_2_1.set_fixed32_value(1);
+    testValue_2_1.set_value("2_1");
+    
+    testKey_2_2.set_sint32_value(2);
+    testKey_2_2.set_fixed64_value(2);
+    testValue_2_2.set_value("2_2");
+    
+    testKey_3.set_sint32_value(3);
+    testValue_3.set_value("3");
+
+    std::optional<SequenceNumber> conflictingSequenceNumber;
+
+    co_await AddRow(
+        memoryTable,
+        0,
+        testKey_1,
+        testValue_1,
+        1,
+        1,
+        TransactionOutcome::Committed,
+        {},
+        &conflictingSequenceNumber);
+
+    EXPECT_FALSE(conflictingSequenceNumber);
+
+    co_await AddRow(
+        memoryTable,
+        0,
+        testKey_2_1,
+        testValue_2_1,
+        1,
+        1,
+        TransactionOutcome::Committed,
+        {},
+        &conflictingSequenceNumber);
+
+    EXPECT_FALSE(conflictingSequenceNumber);
+
+    co_await AddRow(
+        memoryTable,
+        0,
+        testKey_2_2,
+        testValue_2_2,
+        1,
+        1,
+        TransactionOutcome::Committed,
+        {},
+        &conflictingSequenceNumber);
+
+    EXPECT_FALSE(conflictingSequenceNumber);
+
+    co_await AddRow(
+        memoryTable,
+        0,
+        testKey_3,
+        testValue_3,
+        1,
+        1,
+        TransactionOutcome::Committed,
+        {},
+        &conflictingSequenceNumber);
+
+    EXPECT_FALSE(conflictingSequenceNumber);
+
+    KeyRangeEnd keyRangeLow
+    {
+        // Use testKey_2_2 to enumerate in order to verify that prefix
+        // logic is used.
+        .Key = ProtoValue{ &testKey_2_2 }.pack(),
+        .Inclusivity = Inclusivity::Inclusive,
+        .LastFieldId = 3
+    };
+
+    auto enumeration = memoryTable.Enumerate(
+        nullptr,
+        ToSequenceNumber(10),
+        keyRangeLow,
+        keyRangeLow);
+
+    auto iterator = co_await enumeration.begin();
+    EXPECT_FALSE(iterator == enumeration.end());
+    EXPECT_TRUE(keyComparer->Equals(ProtoValue{ &testKey_2_1 }.pack(), iterator->Key));
+    EXPECT_TRUE(valueComparer->Equals(ProtoValue{ &testValue_2_1 }.pack(), iterator->Value));
+    co_await ++iterator;
+    EXPECT_FALSE(iterator == enumeration.end());
+    EXPECT_TRUE(keyComparer->Equals(ProtoValue{ &testKey_2_2 }.pack(), iterator->Key));
+    EXPECT_TRUE(valueComparer->Equals(ProtoValue{ &testValue_2_2 }.pack(), iterator->Value));
+    co_await ++iterator;
+    EXPECT_TRUE(iterator == enumeration.end());
+}
 }

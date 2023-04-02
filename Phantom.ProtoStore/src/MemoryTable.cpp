@@ -307,10 +307,16 @@ row_generator MemoryTable::Enumerate(
         .KeyLow = low.Key,
         .KeyLowInclusivity = low.Inclusivity,
         .ReadSequenceNumber = readSequenceNumber,
+        .LastFieldId = low.LastFieldId,
     };
 
     auto [findIterator, keyComparisonResult] = m_skipList.find(
         enumerationKey);
+
+    // Only perform prefix matching for the first key search;
+    // subsequence key searches will use the last-found key
+    // as the key to search for "exclusive".
+    enumerationKey.LastFieldId = std::nullopt;
 
     while (findIterator)
     {
@@ -710,6 +716,21 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const EnumerationKey& key2
     ) const
 {
+    // If the requested key comparison is for a prefix,
+    // then we are enumerating a range, and we need to seek to the first
+    // key that matches the prefix.
+    // If the current key matches the prefix, then we return "greater"
+    // regardless of other concerns so that we keep searching for a lower key.
+    // This might be the first key to enumerate; that's fine. The enumeration logic
+    // will switch to searching for specific keys / sequence numbers after locating
+    // the enumeration start point.
+    if (key2.LastFieldId
+        &&
+        m_keyComparer->IsPrefixOf(Prefix{ MakeProtoValueKey(key2), *key2.LastFieldId }, MakeProtoValueKey(key1)))
+    {
+        return std::weak_ordering::greater;
+    }
+        
     auto comparisonResult = m_keyComparer->Compare(
         MakeProtoValueKey(key1),
         MakeProtoValueKey(key2)
@@ -756,10 +777,21 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const KeyRangeEnd& key2
     ) const
 {
-    auto comparisonResult = m_keyComparer->Compare(
-        MakeProtoValueKey(key1),
-        MakeProtoValueKey(key2)
-    );
+    std::weak_ordering comparisonResult;
+    
+    if (key2.LastFieldId
+        &&
+        m_keyComparer->IsPrefixOf(Prefix { key2.Key, *key2.LastFieldId }, MakeProtoValueKey(key1)))
+    {
+        comparisonResult = std::weak_ordering::equivalent;
+    }
+    else
+    {
+        comparisonResult = m_keyComparer->Compare(
+            MakeProtoValueKey(key1),
+            MakeProtoValueKey(key2)
+        );
+    }
 
     if (comparisonResult == std::weak_ordering::equivalent
         &&
