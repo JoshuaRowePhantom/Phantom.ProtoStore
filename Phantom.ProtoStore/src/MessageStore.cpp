@@ -62,6 +62,45 @@ bool RandomMessageReaderWriterBase::is_contained_within(
         && less_equal(inner.data() + inner.size(), outer.data() + outer.size());
 }
 
+uint32_t RandomMessageReaderWriterBase::to_message_size_and_alignment(
+    uint32_t messageSize,
+    uint8_t alignment
+)
+{
+    uint32_t truncatedMessageSize = messageSize & sizeMask;
+    if (truncatedMessageSize != messageSize)
+    {
+        throw std::range_error("messageSize");
+    }
+    assert(
+        alignment == 1
+        || alignment == 2
+        || alignment == 4
+        || alignment == 8
+        || alignment == 16
+        || alignment == 32
+        );
+    // Round alignment up to 4.
+    alignment = std::max<uint8_t>(alignment, 4);
+
+    uint32_t messageAlignmentBits = (std::bit_width<uint8_t>(alignment - 1) - 2) << 30;
+
+    return truncatedMessageSize | messageAlignmentBits;
+}
+
+uint32_t RandomMessageReaderWriterBase::from_message_size_and_alignment_to_size(
+    uint32_t message_size_and_alignment)
+{
+    return message_size_and_alignment & sizeMask;
+
+}
+
+uint8_t RandomMessageReaderWriterBase::from_message_size_and_alignment_to_alignment(
+    uint32_t message_size_and_alignment)
+{
+    return 1 << (((message_size_and_alignment & alignmentMask) >> 30) + 2);
+}
+
 ExtentOffset RandomMessageReaderWriterBase::to_underlying_extent_offset(
     ExtentOffset extentOffset
 )
@@ -104,8 +143,10 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
 
     auto messageHeader = &location->message_header();
 
-    auto messageSize = messageHeader->message_size_and_alignment() & ~uint32_t(0x3);
-    uint8_t messageAlignment = 1 << ((messageHeader->message_size_and_alignment() & 0x3) + 2);
+    auto messageSize = from_message_size_and_alignment_to_size(
+        messageHeader->message_size_and_alignment());
+    auto messageAlignment = from_message_size_and_alignment_to_alignment(
+        messageHeader->message_size_and_alignment());
 
     auto messageExtentOffset = align(
         headerExtentOffset + sizeof(FlatBuffers::MessageHeader_V1),
@@ -234,18 +275,11 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
         headerExtentOffset + sizeof(FlatBuffers::MessageHeader_V1),
         messageAlignment);
 
-    // Our message size / alignment algorithm rounds up the size to 4 bytes.
-    auto alignedMessageSize = align(
+    auto messageSizeAndAlignment = to_message_size_and_alignment(
         messageSize,
-        4);
+        messageAlignment);
 
-    uint32_t alignedMessageSize32 = alignedMessageSize;
-    if (alignedMessageSize32 != alignedMessageSize)
-    {
-        throw std::range_error("message.Message.size()");
-    }
-
-    auto envelopeSize = messageExtentOffset + alignedMessageSize - headerExtentOffset;
+    auto envelopeSize = messageExtentOffset + messageSize - headerExtentOffset;
 
     auto writeBuffer = co_await m_extent->CreateWriteBuffer();
     auto writeBufferData = co_await writeBuffer->Write(
@@ -283,12 +317,8 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
             checksum_v1(messageWriteBuffer)
         );
 
-        uint32_t messageAlignmentBits = std::bit_width<uint8_t>(messageAlignment - 1) - 2;
-        assert(messageAlignmentBits >= 0 && messageAlignmentBits <= 3);
-
         messageHeader->mutate_message_size_and_alignment(
-            alignedMessageSize32 | messageAlignmentBits
-        );
+            messageSizeAndAlignment);
     }
 
     StoredMessage storedMessage
@@ -304,7 +334,7 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
             messageAlignment,
             messageWriteBuffer
         },
-        .DataRange = { extentOffset, messageExtentOffset - headerExtentOffset + extentOffset + alignedMessageSize32 },
+        .DataRange = { extentOffset, messageExtentOffset - headerExtentOffset + extentOffset + messageSize },
     };
 
     co_await writeBuffer->Commit();

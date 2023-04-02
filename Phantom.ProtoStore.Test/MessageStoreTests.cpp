@@ -507,7 +507,7 @@ ASYNC_TEST(RandomReaderWriterTest, ReportedOffsets_are_at_end_of_message_plus_ch
     expectedMessage.set_string_value("hello world!");
 
     size_t offset = 500;
-    size_t expectedEndOfMessage = 524;
+    size_t expectedEndOfMessage = 522;
 
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -546,7 +546,6 @@ ASYNC_TEST(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error
     expectedMessage.set_string_value("hello world!");
 
     size_t offset = 500;
-    size_t expectedEndOfMessage = 524;
 
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());

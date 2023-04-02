@@ -15,7 +15,21 @@ class RandomMessageReaderWriterBase
     public SerializationTypes
 {
 public:
+    static const uint32_t alignmentMask = 0xc0000000;
+    static const uint32_t sizeMask = ~alignmentMask;
+    static const uint32_t alignmentShift = 30;
+
     const FlatMessage<FlatBuffers::ExtentHeader> m_header;
+
+    static uint32_t to_message_size_and_alignment(
+        uint32_t messageSize,
+        uint8_t alignment);
+    
+    static uint32_t from_message_size_and_alignment_to_size(
+        uint32_t message_size_and_alignment);
+    
+    static uint8_t from_message_size_and_alignment_to_alignment(
+        uint32_t message_size_and_alignment);
 
     static ExtentOffset align(
         ExtentOffset base,
