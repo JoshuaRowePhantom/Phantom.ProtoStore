@@ -45,6 +45,18 @@ public:
         ReadValueDisposition readValueDisposition
     ) = 0;
 
+    // Do an enumeration of the requested range
+    // This method should return 1 ResultRow for each key in the range,
+    // that being the row with the largest writeSequenceNumber <= the readSequenceNumber.
+    // If the partition has a deleted row, it should be returned,
+    // so that the WriteSequenceNumber of the delete can be compared
+    // with the WriteSequenceNumber the same key from other sources.
+    virtual row_generator EnumeratePrefix(
+        SequenceNumber readSequenceNumber,
+        Prefix prefix,
+        ReadValueDisposition readValueDisposition
+    ) = 0;
+
     // Begin enumerating from the requested checkpoint start key,
     // returning all versions of all rows.
     virtual row_generator Checkpoint(

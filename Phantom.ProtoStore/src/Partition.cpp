@@ -143,8 +143,8 @@ row_generator Partition::Enumerate(
     auto enumeration = Enumerate(
         m_partitionRootTreeNodeMessage,
         readSequenceNumber,
-        low,
-        high,
+        std::move(low),
+        std::move(high),
         readValueDisposition,
         EnumerateBehavior::PointInTimeRead,
         unusedEnumerateLastReturnedKey);
@@ -155,6 +155,15 @@ row_generator Partition::Enumerate(
     {
         co_yield *iterator;
     }
+}
+
+row_generator Partition::EnumeratePrefix(
+    SequenceNumber readSequenceNumber,
+    Prefix prefix,
+    ReadValueDisposition readValueDisposition
+)
+{
+    throw 0;
 }
 
 row_generator Partition::Checkpoint(

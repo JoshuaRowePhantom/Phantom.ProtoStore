@@ -247,7 +247,7 @@ operation_task<ReadResult> Index::Read(
     };
 }
 
-cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
+EnumerateResultGenerator Index::Enumerate(
     shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
     const EnumerateRequest& enumerateRequest
 )
@@ -315,6 +315,14 @@ cppcoro::async_generator<OperationResult<EnumerateResult>> Index::Enumerate(
             std::move(resultRow.Key),
         };
     }
+}
+
+EnumerateResultGenerator Index::EnumeratePrefix(
+    shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
+    const EnumeratePrefixRequest& readRequest
+)
+{
+    throw 0;
 }
 
 task<WriteRowsResult> Index::WriteMemoryTables(

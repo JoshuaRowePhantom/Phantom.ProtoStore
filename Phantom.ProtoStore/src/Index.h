@@ -29,9 +29,14 @@ public:
         const ReadRequest& readRequest
     ) = 0;
 
-    virtual cppcoro::async_generator<OperationResult<EnumerateResult>> Enumerate(
+    virtual EnumerateResultGenerator Enumerate(
         shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
         const EnumerateRequest& readRequest
+    ) = 0;
+
+    virtual EnumerateResultGenerator EnumeratePrefix(
+        shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
+        const EnumeratePrefixRequest& readRequest
     ) = 0;
 
     virtual IndexNumber GetIndexNumber(

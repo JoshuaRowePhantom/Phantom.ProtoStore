@@ -58,4 +58,8 @@ template<
 > using task =
 Phantom::Coroutines::reusable_task<Result>;
 
+template<
+    typename Result
+> using operation_generator = async_generator<OperationResult<Result>>;
+
 }

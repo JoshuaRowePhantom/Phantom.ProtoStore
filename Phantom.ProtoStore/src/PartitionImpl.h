@@ -156,6 +156,12 @@ public:
         ReadValueDisposition readValueDisposition
     ) override;
 
+    virtual row_generator EnumeratePrefix(
+        SequenceNumber readSequenceNumber,
+        Prefix prefix,
+        ReadValueDisposition readValueDisposition
+    ) override;
+
     virtual row_generator Checkpoint(
         optional<PartitionCheckpointStartKey> startKey
     ) override;

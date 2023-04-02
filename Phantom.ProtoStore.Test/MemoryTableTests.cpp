@@ -648,6 +648,7 @@ ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_n
 
     co_await memoryTable.Join();
 }
+
 ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_write)
 {
     uint64_t version1 = 5;
@@ -702,6 +703,7 @@ ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_wr
 
     co_await memoryTable.Join();
 }
+
 ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_version)
 {
     uint64_t version1 = 5;

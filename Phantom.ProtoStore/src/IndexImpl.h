@@ -89,6 +89,11 @@ public:
         const EnumerateRequest& readRequest
     ) override;
 
+    virtual cppcoro::async_generator<OperationResult<EnumerateResult>> EnumeratePrefix(
+        shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
+        const EnumeratePrefixRequest& readRequest
+    ) override;
+
     virtual IndexNumber GetIndexNumber(
     ) const override;
 

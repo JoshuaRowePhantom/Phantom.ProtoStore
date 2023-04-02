@@ -192,7 +192,7 @@ struct CommitResult
         ) = default;
 };
 
-using EnumerateResultGenerator = async_generator<OperationResult<EnumerateResult>>;
+using EnumerateResultGenerator = operation_generator<EnumerateResult>;
 
 class IReadableProtoStore
 {

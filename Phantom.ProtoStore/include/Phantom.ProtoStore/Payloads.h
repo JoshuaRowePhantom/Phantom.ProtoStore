@@ -602,10 +602,12 @@ enum class Inclusivity {
     Exclusive = 1,
 };
 
+using FieldId = uint16_t;
+
 struct Prefix
 {
     ProtoValue Value;
-    uint16_t LastFieldId;
+    FieldId LastFieldId;
 };
 
 template<

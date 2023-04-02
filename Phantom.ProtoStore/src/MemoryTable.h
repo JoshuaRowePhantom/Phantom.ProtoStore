@@ -13,6 +13,7 @@ struct KeyRangeEnd
 {
     ProtoValue Key;
     Inclusivity Inclusivity;
+    std::optional<FieldId> LastFieldId;
 };
 
 struct MemoryTableTransactionOutcome
