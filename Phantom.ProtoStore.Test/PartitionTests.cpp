@@ -6,9 +6,12 @@
 #include "Phantom.ProtoStore/src/ProtocolBuffersValueComparer.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include "Phantom.ProtoStore/src/ValueComparer.h"
+#include "TestFactories.h"
 #include "ProtoStoreInternal.pb.h"
 #include "ProtoStoreTest.pb.h"
+#include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
 #include <tuple>
+#include <flatbuffers/minireflect.h>
 
 namespace Phantom::ProtoStore
 {
@@ -17,7 +20,8 @@ using namespace Serialization;
 
 class PartitionTests : 
     public testing::Test,
-    public SerializationTypes
+    public SerializationTypes,
+    public TestFactories
 {
 protected:
     PartitionTests()
@@ -169,104 +173,101 @@ protected:
     shared_ptr<MessageStore> messageStore;
 };
 
-TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
+ASYNC_TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
 {
-    run_async([&]()->task<>
-    {
-        // This test writes a valid tree structure that _should_ find the message,
-        // but a bloom filter that never hits.  Read() should therefore not find the message.
-        auto headerExtentName = MakeLogExtentName(0);
-        auto dataExtentName = MakeLogExtentName(1);
+    // This test writes a valid tree structure that _should_ find the message,
+    // but a bloom filter that never hits.  Read() should therefore not find the message.
+    auto headerExtentName = MakeLogExtentName(0);
+    auto dataExtentName = MakeLogExtentName(1);
 
-        auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
-            FlatValue(headerExtentName));
-        auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
-            FlatValue(dataExtentName));
+    auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
+        FlatValue(headerExtentName));
+    auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
+        FlatValue(dataExtentName));
 
-        PartitionMessageT treeMessage;
-        auto& treeNode = treeMessage.tree_node = std::make_unique<PartitionTreeNodeT>();
-        auto& treeEntry1 = treeNode->keys.emplace_back(std::make_unique<PartitionTreeEntryKeyT>());
+    PartitionMessageT treeMessage;
+    auto& treeNode = treeMessage.tree_node = std::make_unique<PartitionTreeNodeT>();
+    auto& treeEntry1 = treeNode->keys.emplace_back(std::make_unique<PartitionTreeEntryKeyT>());
 
-        google::protobuf::int32 expectedKey = 1;
-        treeEntry1->key = ToSerializedKey(expectedKey);
-        auto& value = treeEntry1->values.emplace_back(std::make_unique<PartitionTreeEntryValueT>());
-        value->value = ToSerializedValue(expectedKey, 5);
-        value->write_sequence_number = 0;
+    google::protobuf::int32 expectedKey = 1;
+    treeEntry1->key = ToSerializedKey(expectedKey);
+    auto& value = treeEntry1->values.emplace_back(std::make_unique<PartitionTreeEntryValueT>());
+    value->value = ToSerializedValue(expectedKey, 5);
+    value->write_sequence_number = 0;
 
-        auto treeMessageWriteResult = co_await dataWriter->Write(
-            FlatMessage{ &treeMessage }.data(),
-            FlushBehavior::Flush);
+    auto treeMessageWriteResult = co_await dataWriter->Write(
+        FlatMessage{ &treeMessage }.data(),
+        FlushBehavior::Flush);
 
-        PartitionMessageT bloomFilterMessage;
-        auto& bloomFilter = bloomFilterMessage.bloom_filter = std::make_unique<PartitionBloomFilterT>();
-        bloomFilter->algorithm = FlatBuffers::PartitionBloomFilterHashAlgorithm::Version1;
-        bloomFilter->hash_function_count = 1;
-        bloomFilter->filter.push_back(
-            0
-            // Uncomment this next line to see that the test fails.
-            //| 0xff
-        );
+    PartitionMessageT bloomFilterMessage;
+    auto& bloomFilter = bloomFilterMessage.bloom_filter = std::make_unique<PartitionBloomFilterT>();
+    bloomFilter->algorithm = FlatBuffers::PartitionBloomFilterHashAlgorithm::Version1;
+    bloomFilter->hash_function_count = 1;
+    bloomFilter->filter.push_back(
+        0
+        // Uncomment this next line to see that the test fails.
+        //| 0xff
+    );
 
-        auto bloomFilterWriteResult = co_await dataWriter->Write(
-            FlatMessage{ &bloomFilterMessage }.data(),
-            FlushBehavior::Flush);
+    auto bloomFilterWriteResult = co_await dataWriter->Write(
+        FlatMessage{ &bloomFilterMessage }.data(),
+        FlushBehavior::Flush);
 
-        PartitionMessageT partitionRootMessage;
-        auto& partitionRoot = partitionRootMessage.root = std::make_unique<PartitionRootT>();
-        partitionRoot->bloom_filter = copy_unique(*bloomFilterWriteResult->Reference_V1());
-        partitionRoot->root_tree_node = copy_unique(*treeMessageWriteResult->Reference_V1());
-        partitionRoot->row_count = 0;
-        partitionRoot->earliest_sequence_number = 0;
-        partitionRoot->latest_sequence_number = 10;
+    PartitionMessageT partitionRootMessage;
+    auto& partitionRoot = partitionRootMessage.root = std::make_unique<PartitionRootT>();
+    partitionRoot->bloom_filter = copy_unique(*bloomFilterWriteResult->Reference_V1());
+    partitionRoot->root_tree_node = copy_unique(*treeMessageWriteResult->Reference_V1());
+    partitionRoot->row_count = 0;
+    partitionRoot->earliest_sequence_number = 0;
+    partitionRoot->latest_sequence_number = 10;
 
-        auto partitionRootWriteResult = co_await dataWriter->Write(
-            FlatMessage{ &partitionRootMessage }.data(),
-            FlushBehavior::Flush);
+    auto partitionRootWriteResult = co_await dataWriter->Write(
+        FlatMessage{ &partitionRootMessage }.data(),
+        FlushBehavior::Flush);
 
-        PartitionMessageT partitionHeaderMessage;
-        auto& partitionHeader = partitionHeaderMessage.header = std::make_unique<PartitionHeaderT>();
-        partitionHeader->partition_root = copy_unique(*partitionRootWriteResult->Reference_V1());
+    PartitionMessageT partitionHeaderMessage;
+    auto& partitionHeader = partitionHeaderMessage.header = std::make_unique<PartitionHeaderT>();
+    partitionHeader->partition_root = copy_unique(*partitionRootWriteResult->Reference_V1());
 
-        co_await dataWriter->Write(
-            FlatMessage{ &partitionHeaderMessage }.data(),
-            FlushBehavior::Flush);
+    co_await dataWriter->Write(
+        FlatMessage{ &partitionHeaderMessage }.data(),
+        FlushBehavior::Flush);
 
-        co_await headerWriter->Write(
-            FlatMessage{ &partitionHeaderMessage }.data(),
-            FlushBehavior::Flush);
+    co_await headerWriter->Write(
+        FlatMessage{ &partitionHeaderMessage }.data(),
+        FlushBehavior::Flush);
 
-        auto partition = co_await OpenPartition(
-            headerExtentName,
-            dataExtentName);
+    auto partition = co_await OpenPartition(
+        headerExtentName,
+        dataExtentName);
 
-        // The partition should fail an integrity check because
-        // there is a key not present in the bloom filter.
-        auto integrityCheckResults = co_await partition->CheckIntegrity(
-            IntegrityCheckError{});
-        EXPECT_EQ(1, integrityCheckResults.size());
-        EXPECT_EQ(IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter, integrityCheckResults[0].Code);
+    // The partition should fail an integrity check because
+    // there is a key not present in the bloom filter.
+    auto integrityCheckResults = co_await partition->CheckIntegrity(
+        IntegrityCheckError{});
+    EXPECT_EQ(1, integrityCheckResults.size());
+    EXPECT_EQ(IntegrityCheckErrorCode::Partition_KeyNotInBloomFilter, integrityCheckResults[0].Code);
 
-        co_await AssertReadResult(
-            partition,
-            expectedKey,
-            ToSequenceNumber(6),
-            { expectedKey, nil(), SequenceNumber::Earliest }
-        );
+    co_await AssertReadResult(
+        partition,
+        expectedKey,
+        ToSequenceNumber(6),
+        { expectedKey, nil(), SequenceNumber::Earliest }
+    );
 
-        co_await AssertReadResult(
-            partition,
-            expectedKey,
-            ToSequenceNumber(5),
-            { expectedKey, nil(), SequenceNumber::Earliest }
-        );
+    co_await AssertReadResult(
+        partition,
+        expectedKey,
+        ToSequenceNumber(5),
+        { expectedKey, nil(), SequenceNumber::Earliest }
+    );
 
-        co_await AssertReadResult(
-            partition,
-            expectedKey,
-            ToSequenceNumber(4),
-            { expectedKey, nil(), SequenceNumber::Earliest }
-        );
-    });
+    co_await AssertReadResult(
+        partition,
+        expectedKey,
+        ToSequenceNumber(4),
+        { expectedKey, nil(), SequenceNumber::Earliest }
+    );
 }
 
 //
@@ -383,5 +384,53 @@ TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
 //        );
 //    });
 //}
+
+ASYNC_TEST_F(PartitionTests, Can_point_read_single_existing_key)
+{
+    TestPartitionBuilder testPartitionBuilder(
+        messageStore);
+    co_await testPartitionBuilder.OpenForWrite(0, 0, 0, "");
+
+    auto keyJsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringKey>(
+        R"({ value: "hello world" })");
+
+    auto valueJsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringValue>(
+        R"({ value: "goodbye world" })");
+
+    auto rootTreeNodeReference = co_await testPartitionBuilder.WriteData(
+        "{ tree_node: { keys: [ { key: { data: " + keyJsonBytes + " }, single_value: { data: " + valueJsonBytes + " }, lowest_write_sequence_number_for_key: 5 } ] } }"
+    );
+
+    auto rootReference = co_await testPartitionBuilder.WriteData(
+        "{ root: { root_tree_node: " + ToJson(&rootTreeNodeReference) + ", latest_sequence_number: 10 } }");
+
+    co_await testPartitionBuilder.WriteHeader(
+        "{ header: { partition_root: " + ToJson(&rootReference) + " } }");
+
+    auto schema = Schema::Make(
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema }
+    );
+
+    auto partition = co_await testPartitionBuilder.OpenPartition(
+        schema);
+
+    auto keyProto = JsonToProtoValue<FlatBuffers::FlatStringKey>(R"({ value: "hello world" })");
+    auto valueProto = JsonToProtoValue<FlatBuffers::FlatStringValue>(R"({ value: "goodbye world" })");
+
+    auto readResult = partition->Read(
+        ToSequenceNumber(10),
+        keyProto,
+        ReadValueDisposition::ReadValue);
+
+    auto keyComparer = SchemaDescriptions::MakeKeyComparer(copy_shared(schema));
+    auto valueComparer = SchemaDescriptions::MakeValueComparer(copy_shared(schema));
+
+    auto iterator = co_await readResult.begin();
+    EXPECT_FALSE(iterator == readResult.end());
+    EXPECT_EQ(ToSequenceNumber(5), iterator->WriteSequenceNumber);
+    EXPECT_TRUE(keyComparer->Equals(keyProto, iterator->Key));
+    EXPECT_TRUE(valueComparer->Equals(valueProto, iterator->Value));
+}
 
 }

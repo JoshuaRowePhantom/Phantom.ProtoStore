@@ -68,23 +68,26 @@ task<> Partition::Open()
     m_partitionRootMessage = co_await ReadData(
         m_partitionHeaderMessage->header()->partition_root());
     
-    m_partitionBloomFilterMessage = co_await ReadData(
-        m_partitionRootMessage->root()->bloom_filter());
-
-    std::span<const char> bloomFilterSpan
+    if (m_partitionRootMessage->root()->bloom_filter())
     {
-        reinterpret_cast<const char*>(m_partitionBloomFilterMessage->bloom_filter()->filter()->data()),
-        m_partitionBloomFilterMessage->bloom_filter()->filter()->size(),
-    };
+        m_partitionBloomFilterMessage = co_await ReadData(
+            m_partitionRootMessage->root()->bloom_filter());
 
-    m_bloomFilter.emplace(
-        bloomFilterSpan,
-        SeedingPrngBloomFilterHashFunction
+        std::span<const char> bloomFilterSpan
         {
-            m_partitionBloomFilterMessage->bloom_filter()->hash_function_count(),
-            BloomFilterV1Hash { m_keyComparer }
-        }
-    );
+            reinterpret_cast<const char*>(m_partitionBloomFilterMessage->bloom_filter()->filter()->data()),
+            m_partitionBloomFilterMessage->bloom_filter()->filter()->size(),
+        };
+
+        m_bloomFilter.emplace(
+            bloomFilterSpan,
+            SeedingPrngBloomFilterHashFunction
+            {
+                m_partitionBloomFilterMessage->bloom_filter()->hash_function_count(),
+                BloomFilterV1Hash { m_keyComparer }
+            }
+        );
+    }
 
     m_partitionRootTreeNodeMessage = co_await ReadData(
         m_partitionRootMessage->root()->root_tree_node());
@@ -106,7 +109,8 @@ row_generator Partition::Read(
     ReadValueDisposition readValueDisposition
 )
 {
-    if (!m_bloomFilter->test(key))
+    if (m_bloomFilter &&
+        !m_bloomFilter->test(key))
     {
         co_return;
     }

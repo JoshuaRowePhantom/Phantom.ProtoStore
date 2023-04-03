@@ -129,8 +129,8 @@ public:
     Partition(
         shared_ptr<const Schema> schema,
         shared_ptr<const ValueComparer> keyComparer,
-        shared_ptr<IRandomMessageReader> partitionData,
-        shared_ptr<IRandomMessageReader> partitionHeader
+        shared_ptr<IRandomMessageReader> partitionHeaderReader,
+        shared_ptr<IRandomMessageReader> partitionDataReader
     );
 
     ~Partition();

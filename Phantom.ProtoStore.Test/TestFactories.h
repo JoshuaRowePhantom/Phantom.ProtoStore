@@ -1,7 +1,11 @@
 #include "Phantom.ProtoStore/src/Index.h"
 #include "Phantom.ProtoStore/src/Resources.h"
 #include "Phantom.ProtoStore/src/ValueComparer.h"
+#include "Phantom.System/concepts.h"
 #include "Phantom.System/utility.h"
+#include "Phantom.ProtoStore/ProtoStoreTest_generated.h"
+#include "Resources.h"
+#include <flatbuffers/minireflect.h>
 #include <optional>
 #include <string>
 #include <vector>
@@ -38,14 +42,23 @@ protected:
         IsFlatBufferTable Value
     > static const reflection::Schema* GetSchema()
     {
-        if constexpr (
-            std::same_as<Value, FlatBuffers::MergesKey>
-            || std::same_as<Value, FlatBuffers::MergesValue>
-            || std::same_as<Value, FlatBuffers::PartitionsKey>
-            || std::same_as<Value, FlatBuffers::PartitionsValue>
-            )
+        if constexpr (is_in_types<
+            Value,
+            FlatBuffers::MergesKey,
+            FlatBuffers::MergesValue,
+            FlatBuffers::PartitionsKey,
+            FlatBuffers::PartitionsValue
+        >)
         {
             return FlatBuffersSchemas::ProtoStoreInternalSchema;
+        }
+        else if constexpr (is_in_types <
+            Value, 
+            FlatBuffers::FlatStringKey,
+            FlatBuffers::FlatStringValue
+        >)
+        {
+            return FlatBuffersTestSchemas::TestSchema;
         }
         else
         {
@@ -72,6 +85,14 @@ protected:
         else if constexpr (std::same_as<Value, FlatBuffers::PartitionsValue>)
         {
             return FlatBuffersSchemas::PartitionsValue_Object;
+        }
+        else if constexpr (std::same_as<Value, FlatBuffers::FlatStringKey>)
+        {
+            return FlatBuffersTestSchemas::TestFlatStringKeySchema;
+        }
+        else if constexpr (std::same_as<Value, FlatBuffers::FlatStringValue>)
+        {
+            return FlatBuffersTestSchemas::TestFlatStringValueSchema;
         }
         else
         {
@@ -107,6 +128,17 @@ protected:
     }
 
     using json_row_list = std::vector<std::pair<std::string, std::optional<std::string>>>;
+
+    template<
+        typename Value
+    > static ProtoValue JsonToProtoValue(
+        const std::string& string)
+    {
+        return JsonToProtoValue(
+            GetSchema<Value>(),
+            GetObject<Value>(),
+            string);
+    }
 
     template<
         typename Key,
@@ -169,6 +201,79 @@ protected:
 
         return true;
     }
+
+    std::string JsonToJsonBytes(
+        const reflection::Schema* schema,
+        const reflection::Object* object,
+        const std::string& json
+    );
+
+    template<
+        IsFlatBufferObject Value
+    > std::string ToJson(
+        const Value* value
+    )
+    {
+        flatbuffers::ToStringVisitor toStringVisitor("\n");
+        flatbuffers::IterateObject(
+            reinterpret_cast<const uint8_t*>(value),
+            Value::MiniReflectTypeTable(),
+            &toStringVisitor
+        );
+        return toStringVisitor.s;
+    }
+
+    template<
+        typename Value
+    > std::string JsonToJsonBytes(
+        const std::string& json
+    )
+    {
+        return JsonToJsonBytes(
+            GetSchema<Value>(),
+            GetObject<Value>(),
+            json
+        );
+    }
+
+    class TestPartitionBuilder
+    {
+        shared_ptr<IMessageStore> m_messageStore;
+        ExtentNameT m_headerExtentName;
+        ExtentNameT m_dataExtentName;
+        shared_ptr<ISequentialMessageWriter> m_headerWriter;
+        shared_ptr<ISequentialMessageWriter> m_dataWriter;
+
+        task<FlatBuffers::MessageReference_V1> Write(
+            const shared_ptr<ISequentialMessageWriter>& writer,
+            const std::string& json
+        );
+    public:
+        TestPartitionBuilder(
+            shared_ptr<IMessageStore> messageStore
+        );
+
+        task<> OpenForWrite(
+            IndexNumber indexNumber,
+            PartitionNumber partitionNumber,
+            LevelNumber levelNumber,
+            std::string indexName
+        );
+
+        task<FlatBuffers::MessageReference_V1> WriteData(
+            const std::string& json
+        );
+
+        task<FlatBuffers::MessageReference_V1> WriteHeader(
+            const std::string& json
+        );
+
+        ExtentNameT HeaderExtentName() const;
+        ExtentNameT DataExtentName() const;
+
+        task<shared_ptr<IPartition>> OpenPartition(
+            const Schema& schema);
+    };
 };
 
 }

@@ -45,4 +45,9 @@ template<
     typename T
 > concept is_span = detail::is_span_v<std::remove_cvref_t<T>>;
 
+template<
+    typename T,
+    typename...U
+> concept is_in_types = (std::is_same_v<T, U> || ...);
+
 }

@@ -78,7 +78,7 @@ public:
     m_table
     {
         flatbuffers::GetRoot<Table>(
-            m_storedMessage->Content.Payload)
+            m_storedMessage->Content.Payload.data())
     }
     {
         DebugVerifyBuffer();

@@ -237,6 +237,14 @@ template<
 
 template<
     typename T
+> concept IsFlatBufferStruct = !IsFlatBufferTable<T> && std::same_as<T, typename T::Traits::type>;
+
+template<
+    typename T
+> concept IsFlatBufferObject = IsFlatBufferTable<T> || IsFlatBufferStruct<T>;
+
+template<
+    typename T
 > concept IsProtocolBufferMessage = std::is_base_of<google::protobuf::Message, T>::value;
 
 template<

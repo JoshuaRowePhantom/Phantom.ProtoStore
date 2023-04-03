@@ -1,4 +1,6 @@
 #include "TestFactories.h"
+#include "Phantom.ProtoStore/src/MessageStore.h"
+#include "Phantom.ProtoStore/src/PartitionImpl.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include "Phantom.System/utility.h"
 #include <flatbuffers/idl.h>
@@ -140,6 +142,7 @@ ProtoValue TestFactories::JsonToProtoValue(
     }
 
     flatbuffers::Parser parser;
+    parser.opts.json_nested_legacy_flatbuffers = true;
     bool ok = parser.Deserialize(schema);
     assert(ok);
     ok = parser.SetRootType(object->name()->c_str());
@@ -149,6 +152,160 @@ ProtoValue TestFactories::JsonToProtoValue(
     return ProtoValue::FlatBuffer(
         std::move(parser.builder_)
     );
+}
+
+std::string TestFactories::JsonToJsonBytes(
+    const reflection::Schema* schema,
+    const reflection::Object* object,
+    const std::string& json
+)
+{
+    auto protoValue = JsonToProtoValue(
+        schema,
+        object,
+        json);
+
+    auto bytes = protoValue.as_flat_buffer_bytes_if();
+
+    std::ostringstream stream;
+    stream << "[";
+    const char* separator = "";
+    for (auto byte : bytes)
+    {
+        stream << separator << (int)byte;
+        separator = ",";
+    }
+    stream << "]";
+
+    return stream.str();
+}
+
+TestFactories::TestPartitionBuilder::TestPartitionBuilder(
+    shared_ptr<IMessageStore> messageStore
+) :
+    m_messageStore(messageStore)
+{
+}
+
+task<> TestFactories::TestPartitionBuilder::OpenForWrite(
+    IndexNumber indexNumber,
+    PartitionNumber partitionNumber,
+    LevelNumber levelNumber,
+    std::string indexName
+)
+{
+    m_headerExtentName = MakePartitionHeaderExtentName(
+        indexNumber,
+        partitionNumber,
+        levelNumber,
+        indexName);
+
+    auto headerExtentNameFlatMessage = FlatMessage{ &m_headerExtentName };
+
+    m_dataExtentName = MakePartitionDataExtentName(
+        headerExtentNameFlatMessage->extent_name_as_IndexHeaderExtentName());
+
+    auto dataExtentNameFlatMessage = FlatMessage{ &m_dataExtentName };
+
+    m_headerWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
+        headerExtentNameFlatMessage.get()
+    );
+
+    m_dataWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
+        dataExtentNameFlatMessage.get()
+    );
+}
+
+task<FlatBuffers::MessageReference_V1> TestFactories::TestPartitionBuilder::Write(
+    const shared_ptr<ISequentialMessageWriter>& writer,
+    const std::string& json
+)
+{
+    auto protoValue = JsonToProtoValue(
+        FlatBuffersSchemas::ProtoStoreInternalSchema,
+        FlatBuffersSchemas::PartitionMessage_Object,
+        json
+    );
+
+    FlatMessage<FlatBuffers::PartitionMessage> flatMessage(
+        32,
+        protoValue.as_flat_buffer_bytes_if()
+    );
+
+    auto storedMessage = co_await writer->Write(
+        flatMessage.data(),
+        FlushBehavior::Flush
+    );
+
+    auto header = storedMessage->Header_V1();
+
+    FlatBuffers::MessageReference_V1 messageReference =
+    {
+        *header,
+        storedMessage->DataRange.Beginning,
+    };
+
+    co_return messageReference;
+}
+
+task<FlatBuffers::MessageReference_V1> TestFactories::TestPartitionBuilder::WriteData(
+    const std::string& json
+)
+{
+    co_return co_await Write(
+        m_dataWriter,
+        json);
+}
+
+task<FlatBuffers::MessageReference_V1> TestFactories::TestPartitionBuilder::WriteHeader(
+    const std::string& json
+)
+{
+    co_return co_await Write(
+        m_headerWriter,
+        json);
+}
+
+ExtentNameT TestFactories::TestPartitionBuilder::HeaderExtentName() const
+{
+    return m_headerExtentName;
+}
+
+ExtentNameT TestFactories::TestPartitionBuilder::DataExtentName() const
+{
+    return m_dataExtentName;
+}
+
+task<shared_ptr<IPartition>> TestFactories::TestPartitionBuilder::OpenPartition(
+    const Schema& schema)
+{
+    auto headerExtentNameFlatMessage = FlatMessage{ &m_headerExtentName };
+
+    auto dataExtentNameFlatMessage = FlatMessage{ &m_dataExtentName };
+
+    auto headerReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
+        headerExtentNameFlatMessage.get()
+    );
+
+    auto dataReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
+        dataExtentNameFlatMessage.get()
+    );
+
+    auto sharedSchema = copy_shared(schema);
+    
+    auto keyComparer = SchemaDescriptions::MakeKeyComparer(
+        sharedSchema);
+
+    auto partition = std::make_shared<Partition>(
+        sharedSchema,
+        keyComparer,
+        std::move(headerReader),
+        std::move(dataReader)
+    );
+
+    co_await partition->Open();
+
+    co_return partition;
 }
 
 }

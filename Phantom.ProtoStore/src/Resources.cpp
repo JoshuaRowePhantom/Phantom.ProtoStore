@@ -83,6 +83,9 @@ const reflection::Object* const MergeProgressKey_Object
 const reflection::Object* const MergeProgressValue_Object
 = ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.MergeProgressValue");
 
+const reflection::Object* const PartitionMessage_Object
+= ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.PartitionMessage");
+
 const reflection::Schema* const ProtoStoreSchema
 = flatbuffers::GetRoot<reflection::Schema>(
     cmrc::Phantom::ProtoStore::Resources::get_filesystem().open("ProtoStore.bfbs").begin());
