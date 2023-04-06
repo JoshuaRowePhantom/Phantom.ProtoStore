@@ -374,6 +374,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_delete_and_enumerate_one_ro
         {
         });
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_add)
 {
     auto store = co_await CreateMemoryStore();
@@ -400,6 +401,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_add)
             { "testKey1", {"testValue1", 5}},
         });
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint)
 {
     auto store = co_await CreateMemoryStore();
@@ -603,6 +605,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_two_checkpoi
             { "testKey1", {"testValue1-2", 6}},
         });
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_rows_after_checkpoints_and_merges)
 {
     //auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
@@ -791,6 +794,122 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_multiple_vers
         ToSequenceNumber(8),
         ToSequenceNumber(7));
 }
+
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_EnumeratePrefix)
+{
+    auto store = co_await CreateMemoryStore();
+
+    CreateIndexRequest createIndexRequest;
+    createIndexRequest.IndexName = "test_FlatIndex";
+    createIndexRequest.Schema = Schema::Make(
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_TestKey_Object },
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object });
+
+    auto index = *co_await store->CreateIndex(
+        createIndexRequest
+    );
+
+    using FlatBuffers::TestKeyT;
+    using FlatBuffers::TestKey;
+    using FlatBuffers::FlatStringValueT;
+    using FlatBuffers::FlatStringValue;
+
+    TestKeyT key_1;
+    TestKeyT key_2_1;
+    TestKeyT key_2_2;
+    TestKeyT key_3;
+
+    FlatStringValueT value_1;
+    FlatStringValueT value_2_1;
+    FlatStringValueT value_2_2;
+    FlatStringValueT value_3;
+
+    key_1.short_value = 1;
+    key_2_1.short_value = 2;
+    key_2_1.ushort_value = 1;
+    key_2_2.short_value = 2;
+    key_2_2.ushort_value = 2;
+    key_3.short_value = 3;
+
+    value_1.value = "1";
+    value_2_1.value = "2_1";
+    value_2_2.value = "2_2";
+    value_3.value = "3";
+
+    co_await store->ExecuteTransaction(
+        {},
+        [&](ITransaction* transaction)->status_task<>
+    {
+        co_await transaction->AddRow(
+            {},
+            index,
+            &key_1,
+            &value_1
+        );
+
+        co_await transaction->AddRow(
+            {},
+            index,
+            &key_2_1,
+            &value_2_1
+        );
+        
+        co_await transaction->AddRow(
+            {},
+            index,
+            &key_2_2,
+            &value_2_2
+        );
+        
+        co_await transaction->AddRow(
+            {},
+            index,
+            &key_3,
+            &value_3
+        );
+
+        co_return{};
+    });
+
+    auto doEnumeration = [&]() -> task<>
+    {
+        EnumeratePrefixRequest enumeratePrefixRequest
+        {
+            .Index = index,
+            .SequenceNumber = SequenceNumber::Latest,
+            .Prefix =
+            {
+                .Key = FlatValue{ &key_2_2 },
+                .LastFieldId = 4,
+            },
+            .ReadValueDisposition = ReadValueDisposition::ReadValue,
+        };
+
+        auto enumeration = store->EnumeratePrefix(
+            enumeratePrefixRequest);
+
+        auto keyComparers = createIndexRequest.Schema.MakeKeyComparers();
+        auto valueComparers = createIndexRequest.Schema.MakeValueComparers();
+
+        auto iterator = co_await enumeration.begin();
+        EXPECT_EQ(false, iterator == enumeration.end());
+        EXPECT_EQ(true, keyComparers.equal_to((*iterator)->Key, &key_2_1));
+        EXPECT_EQ(true, keyComparers.equal_to((*iterator)->Value, &value_2_1));
+
+        co_await ++iterator;
+        EXPECT_EQ(false, iterator == enumeration.end());
+        EXPECT_EQ(true, keyComparers.equal_to((*iterator)->Key, &key_2_2));
+        EXPECT_EQ(true, keyComparers.equal_to((*iterator)->Value, &value_2_2));
+
+        co_await ++iterator;
+        EXPECT_EQ(true, iterator == enumeration.end());
+    };
+
+    co_await doEnumeration();
+    co_await store->Checkpoint();
+    co_await doEnumeration();
+}
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_conflict_after_row_written)
 {
     auto store = co_await CreateMemoryStore();

@@ -31,12 +31,12 @@ public:
 
     virtual EnumerateResultGenerator Enumerate(
         shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
-        const EnumerateRequest& readRequest
+        EnumerateRequest readRequest
     ) = 0;
 
     virtual EnumerateResultGenerator EnumeratePrefix(
         shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
-        const EnumeratePrefixRequest& readRequest
+        EnumeratePrefixRequest readRequest
     ) = 0;
 
     virtual IndexNumber GetIndexNumber(

@@ -506,12 +506,21 @@ operation_task<ReadResult> ProtoStore::Read(
 }
 
 async_generator<OperationResult<EnumerateResult>> ProtoStore::Enumerate(
-    const EnumerateRequest& enumerateRequest
+    EnumerateRequest enumerateRequest
 )
 {
     return enumerateRequest.Index.m_index->Enumerate(
         nullptr,
-        enumerateRequest);
+        std::move(enumerateRequest));
+}
+
+async_generator<OperationResult<EnumerateResult>> ProtoStore::EnumeratePrefix(
+    EnumeratePrefixRequest enumeratePrefixRequest
+)
+{
+    return enumeratePrefixRequest.Index.m_index->EnumeratePrefix(
+        nullptr,
+        std::move(enumeratePrefixRequest));
 }
 
 class LocalTransaction
@@ -720,11 +729,19 @@ public:
     }
 
     virtual async_generator<OperationResult<EnumerateResult>> Enumerate(
-        const EnumerateRequest& enumerateRequest
+        EnumerateRequest enumerateRequest
     ) override
     {
         return m_protoStore.Enumerate(
-            enumerateRequest);
+            std::move(enumerateRequest));
+    }
+
+    virtual async_generator<OperationResult<EnumerateResult>> EnumeratePrefix(
+        EnumeratePrefixRequest enumeratePrefixRequest
+    ) override
+    {
+        return m_protoStore.EnumeratePrefix(
+            std::move(enumeratePrefixRequest));
     }
 
     // Inherited via ICommittableTransaction

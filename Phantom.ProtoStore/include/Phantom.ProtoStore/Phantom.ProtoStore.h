@@ -206,7 +206,11 @@ public:
     ) = 0;
 
     virtual EnumerateResultGenerator Enumerate(
-        const EnumerateRequest& enumerateRequest
+        EnumerateRequest enumerateRequest
+    ) = 0;
+
+    virtual EnumerateResultGenerator EnumeratePrefix(
+        EnumeratePrefixRequest enumeratePrefixRequest
     ) = 0;
 };
 

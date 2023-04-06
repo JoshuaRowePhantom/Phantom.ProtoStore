@@ -249,7 +249,7 @@ operation_task<ReadResult> Index::Read(
 
 EnumerateResultGenerator Index::Enumerate(
     shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
-    const EnumerateRequest& enumerateRequest
+    EnumerateRequest enumerateRequest
 )
 {
     ProtoValue unowningKeyLow = enumerateRequest.KeyLow.pack_unowned();
@@ -319,10 +319,70 @@ EnumerateResultGenerator Index::Enumerate(
 
 EnumerateResultGenerator Index::EnumeratePrefix(
     shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
-    const EnumeratePrefixRequest& readRequest
+    EnumeratePrefixRequest enumeratePrefixRequest
 )
 {
-    throw 0;
+    ProtoValue unknowningPrefixKey = enumeratePrefixRequest.Prefix.Key.pack_unowned();
+    Prefix unknowningPrefix =
+    {
+        .Key = unknowningPrefixKey,
+        .LastFieldId = enumeratePrefixRequest.Prefix.LastFieldId,
+    };
+
+    KeyRangeEnd keyPrefix
+    {
+        .Key = unknowningPrefixKey,
+        .Inclusivity = Inclusivity::Inclusive,
+        .LastFieldId = enumeratePrefixRequest.Prefix.LastFieldId,
+    };
+
+    MemoryTablesEnumeration memoryTablesEnumeration;
+    PartitionsEnumeration partitionsEnumeration;
+
+    co_await GetEnumerationDataSources(
+        memoryTablesEnumeration,
+        partitionsEnumeration);
+
+    auto enumerateAllItemsLambda = [&]() -> row_generators
+    {
+        for (auto& memoryTable : *memoryTablesEnumeration)
+        {
+            co_yield memoryTable->Enumerate(
+                originatingTransactionOutcome,
+                enumeratePrefixRequest.SequenceNumber,
+                keyPrefix,
+                keyPrefix
+            );
+        }
+
+        for (auto& partition : *partitionsEnumeration)
+        {
+            co_yield partition->EnumeratePrefix(
+                enumeratePrefixRequest.SequenceNumber,
+                unknowningPrefix,
+                ReadValueDisposition::ReadValue);
+        }
+    };
+
+    auto enumeration = m_rowMerger->Enumerate(
+        enumerateAllItemsLambda());
+
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
+    {
+        auto& resultRow = *iterator;
+
+        co_yield EnumerateResult
+        {
+            {
+                .WriteSequenceNumber = resultRow.WriteSequenceNumber,
+                .Value = std::move(resultRow.Value),
+                .ReadStatus = ReadStatus::HasValue,
+            },
+            std::move(resultRow.Key),
+        };
+    }
 }
 
 task<WriteRowsResult> Index::WriteMemoryTables(

@@ -298,7 +298,11 @@ public:
     ) override;
 
     virtual async_generator<OperationResult<EnumerateResult>> Enumerate(
-        const EnumerateRequest& enumerateRequest
+        EnumerateRequest enumerateRequest
+    ) override;
+    
+    virtual async_generator<OperationResult<EnumerateResult>> EnumeratePrefix(
+        EnumeratePrefixRequest enumerateRequest
     ) override;
 
     virtual task<> Join(

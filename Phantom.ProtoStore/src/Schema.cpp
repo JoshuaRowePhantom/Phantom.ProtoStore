@@ -532,5 +532,34 @@ uint32_t SchemaDescriptions::FindObjectIndex(
     throw std::range_error("object is not in schema");
 }
 
+ProtoValueComparers Schema::MakeKeyComparers() const
+{
+    if (this->KeySchema.IsFlatBuffersSchema())
+    {
+        return this->KeySchema.AsFlatBuffersKeySchema()->ObjectSchema.MakeComparers();
+    }
+    if (this->KeySchema.IsProtocolBuffersSchema())
+    {
+        return this->KeySchema.AsProtocolBuffersKeySchema()->ObjectSchema.MakeComparers();
+    }
+
+    throw std::range_error("KeySchema");
+}
+
+ProtoValueComparers Schema::MakeValueComparers() const
+{
+
+    if (this->ValueSchema.IsFlatBuffersSchema())
+    {
+        return this->ValueSchema.AsFlatBuffersValueSchema()->ObjectSchema.MakeComparers();
+    }
+    if (this->ValueSchema.IsProtocolBuffersSchema())
+    {
+        return this->ValueSchema.AsProtocolBuffersValueSchema()->ObjectSchema.MakeComparers();
+    }
+
+    throw std::range_error("ValueSchema");
+}
+
 
 }

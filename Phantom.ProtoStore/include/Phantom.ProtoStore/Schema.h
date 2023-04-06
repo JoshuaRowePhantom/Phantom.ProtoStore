@@ -223,6 +223,9 @@ struct Schema
         const Schema&,
         const Schema&
         ) = default;
+
+    ProtoValueComparers MakeKeyComparers() const;
+    ProtoValueComparers MakeValueComparers() const;
 };
 
 }

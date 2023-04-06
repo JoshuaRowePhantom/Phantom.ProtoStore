@@ -86,12 +86,12 @@ public:
 
     virtual cppcoro::async_generator<OperationResult<EnumerateResult>> Enumerate(
         shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
-        const EnumerateRequest& readRequest
+        EnumerateRequest readRequest
     ) override;
 
     virtual cppcoro::async_generator<OperationResult<EnumerateResult>> EnumeratePrefix(
         shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
-        const EnumeratePrefixRequest& readRequest
+        EnumeratePrefixRequest readRequest
     ) override;
 
     virtual IndexNumber GetIndexNumber(
