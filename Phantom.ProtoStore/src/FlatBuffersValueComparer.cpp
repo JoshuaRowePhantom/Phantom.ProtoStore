@@ -926,7 +926,7 @@ bool FlatBufferValueComparer::IsPrefixOf(
     const ProtoValue& value
 ) const
 {
-    auto table1 = prefix.Value.as_table_if();
+    auto table1 = prefix.Key.as_table_if();
     auto table2 = value.as_table_if();
 
     return std::weak_ordering::equivalent == m_comparer.Compare(

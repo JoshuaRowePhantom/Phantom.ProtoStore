@@ -465,7 +465,7 @@ bool ProtocolBuffersValueComparer::IsPrefixOf(
 ) const
 {
     return std::weak_ordering::equivalent == CompareImpl(
-        prefix.Value,
+        prefix.Key,
         value,
         prefix.LastFieldId
     );

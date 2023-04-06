@@ -54,6 +54,7 @@ protected:
         }
         else if constexpr (is_in_types <
             Value, 
+            FlatBuffers::TestKey,
             FlatBuffers::FlatStringKey,
             FlatBuffers::FlatStringValue
         >)
@@ -86,13 +87,17 @@ protected:
         {
             return FlatBuffersSchemas::PartitionsValue_Object;
         }
+        else if constexpr (std::same_as<Value, FlatBuffers::TestKey>)
+        {
+            return FlatBuffersTestSchemas::Test_TestKey_Object;
+        }
         else if constexpr (std::same_as<Value, FlatBuffers::FlatStringKey>)
         {
-            return FlatBuffersTestSchemas::TestFlatStringKeySchema;
+            return FlatBuffersTestSchemas::Test_FlatStringKey_Object;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::FlatStringValue>)
         {
-            return FlatBuffersTestSchemas::TestFlatStringValueSchema;
+            return FlatBuffersTestSchemas::Test_FlatStringValue_Object;
         }
         else
         {

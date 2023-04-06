@@ -614,7 +614,7 @@ using FieldId = uint16_t;
 
 struct Prefix
 {
-    ProtoValue Value;
+    ProtoValue Key;
     FieldId LastFieldId;
 };
 

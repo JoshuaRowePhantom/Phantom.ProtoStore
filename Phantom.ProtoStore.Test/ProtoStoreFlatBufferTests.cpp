@@ -77,8 +77,8 @@ public:
         CreateIndexRequest createIndexRequest;
         createIndexRequest.IndexName = "test_FlatIndex";
         createIndexRequest.Schema = Schema::Make(
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema });
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringKey_Object },
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object });
 
         createIndexRequest.Schema.KeySchema.AsFlatBuffersKeySchema()->ObjectSchema.MessageEncodingOptions =
             messageEncodingOption;

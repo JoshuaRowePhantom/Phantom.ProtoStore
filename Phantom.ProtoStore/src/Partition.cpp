@@ -167,7 +167,30 @@ row_generator Partition::EnumeratePrefix(
     ReadValueDisposition readValueDisposition
 )
 {
-    throw 0;
+    EnumerateLastReturnedKey unusedEnumerateLastReturnedKey;
+
+    KeyRangeEnd low
+    {
+        .Key = std::move(prefix.Key),
+        .Inclusivity = Inclusivity::Inclusive,
+        .LastFieldId = prefix.LastFieldId,
+    };
+
+    auto enumeration = Enumerate(
+        m_partitionRootTreeNodeMessage,
+        readSequenceNumber,
+        low,
+        low,
+        readValueDisposition,
+        EnumerateBehavior::PointInTimeRead,
+        unusedEnumerateLastReturnedKey);
+
+    for (auto iterator = co_await enumeration.begin();
+        iterator != enumeration.end();
+        co_await ++iterator)
+    {
+        co_yield *iterator;
+    }
 }
 
 row_generator Partition::Checkpoint(
@@ -221,12 +244,12 @@ struct Partition::FindTreeEntryKeyLessThanComparer
         m_keyComparer(keyComparer)
     {}
 
-    bool operator()(
+    bool lower_bound_less(
         const PartitionTreeEntryKey* keyEntry,
         const KeyRangeComparerArgument& key
-        )
+        ) const
     {
-        KeyRangeLessThanComparer comparer(
+        KeyRangeComparer comparer(
             m_keyComparer);
 
         auto keyEntryProtoValue = SchemaDescriptions::MakeProtoValueKey(
@@ -235,93 +258,81 @@ struct Partition::FindTreeEntryKeyLessThanComparer
             keyEntry->flat_key()
         );
 
-        KeyAndSequenceNumberComparerArgument cacheEntryKey
-        {
-            keyEntryProtoValue,
-            ToSequenceNumber(keyEntry->lowest_write_sequence_number_for_key())
-        };
-
-        return comparer(cacheEntryKey, key);
+        return comparer.lower_bound_less(keyEntryProtoValue, key);
     }
 
-    bool operator()(
+    bool upper_bound_less(
         const KeyRangeComparerArgument& key,
         const PartitionTreeEntryKey* keyEntry
-        )
+        ) const
     {
-        KeyRangeLessThanComparer comparer(
+        KeyRangeComparer comparer(
             m_keyComparer);
 
         auto keyEntryProtoValue = SchemaDescriptions::MakeProtoValueKey(
             m_schema,
-            keyEntry->key()
+            keyEntry->key(),
+            keyEntry->flat_key()
         );
 
-        KeyAndSequenceNumberComparerArgument cacheEntryKey
-        {
-            keyEntryProtoValue,
-            ToSequenceNumber(keyEntry->lowest_write_sequence_number_for_key()),
-        };
-
-        return comparer(key, cacheEntryKey);
+        return comparer.upper_bound_less(key, keyEntryProtoValue);
     }
 };
 
 int Partition::FindLowTreeEntryIndex(
     const FlatMessage<PartitionMessage>& treeNode,
-    SequenceNumber readSequenceNumber,
     KeyRangeEnd low
 )
 {
-    KeyRangeLessThanComparer keyRangeLessThanComparer{ *m_keyComparer };
-    
+    FindTreeEntryKeyLessThanComparer comparer { *m_schema, *m_keyComparer };
+
     KeyRangeComparerArgument key
     {
         low.Key,
-        readSequenceNumber,
         low.Inclusivity,
+        low.LastFieldId
     };
 
     // VectorIterator doesn't accept its difference_type in its += operator.
 #pragma warning (push)
 #pragma warning (disable: 4244)
-    auto lowerBound = std::lower_bound(
+    auto upperBound = std::lower_bound(
         treeNode->tree_node()->keys()->begin(),
         treeNode->tree_node()->keys()->end(),
         key,
-        FindTreeEntryKeyLessThanComparer { *m_schema, *m_keyComparer }
+        std::bind_front(&FindTreeEntryKeyLessThanComparer::lower_bound_less, comparer)
     );
 #pragma warning (pop)
 
-    return lowerBound - treeNode->tree_node()->keys()->begin();
+    return upperBound - treeNode->tree_node()->keys()->begin();
 }
 
 int Partition::FindHighTreeEntryIndex(
+    int lowTreeEntryIndex,
     const FlatMessage<PartitionMessage>& treeNode,
-    SequenceNumber readSequenceNumber,
     KeyRangeEnd high
 )
 {
-    KeyRangeLessThanComparer keyRangeLessThanComparer{ *m_keyComparer };
+    FindTreeEntryKeyLessThanComparer comparer{ *m_schema, *m_keyComparer };
 
     KeyRangeComparerArgument key
     {
         high.Key,
-        readSequenceNumber,
         // We invert the sense of exclusivity so that
         // if the user requested an Inclusive search, we find one past the key,
         // and if the user requested an Exclusive search, we find the key or just after it.
-        high.Inclusivity == Inclusivity::Inclusive ? Inclusivity::Exclusive : Inclusivity::Inclusive,
+        high.Inclusivity,
+        high.LastFieldId,
     };
 
-    auto lowerBound = std::lower_bound(
-        treeNode->tree_node()->keys()->begin(),
+    auto upperBound = std::upper_bound(
+        treeNode->tree_node()->keys()->begin() + lowTreeEntryIndex,
         treeNode->tree_node()->keys()->end(),
         key,
-        FindTreeEntryKeyLessThanComparer{ *m_schema, *m_keyComparer }
+        std::bind_front(&FindTreeEntryKeyLessThanComparer::upper_bound_less, comparer)
     );
 
-    return lowerBound - treeNode->tree_node()->keys()->begin();
+    return upperBound - treeNode->tree_node()->keys()->begin();
 }
 
 int Partition::FindMatchingValueIndexByWriteSequenceNumber(
@@ -417,12 +428,11 @@ row_generator Partition::Enumerate(
 {
     int lowTreeEntryIndex = FindLowTreeEntryIndex(
         treeNode,
-        readSequenceNumber,
         low);
 
     int highTreeEntryIndex = FindHighTreeEntryIndex(
+        lowTreeEntryIndex,
         treeNode,
-        readSequenceNumber,
         high);
 
     const Message* lastReturnedKeyMessage = nullptr;
@@ -615,7 +625,6 @@ row_generator Partition::Enumerate(
 
                     lowTreeEntryIndex = FindLowTreeEntryIndex(
                         treeNode,
-                        readSequenceNumber,
                         low);
 
                     lastReturnedKey = EnumerateLastReturnedKey

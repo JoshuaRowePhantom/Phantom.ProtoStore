@@ -43,13 +43,25 @@ SortOrder BaseValueComparer::CombineSortOrder(
     return SortOrder::Ascending;
 }
 
-std::weak_ordering KeyRangeComparer::operator()(
-    const KeyAndSequenceNumberComparerArgument& left,
+std::weak_ordering KeyRangeComparer::lower_bound_compare(
+    const ProtoValue& left,
     const KeyRangeComparerArgument& right
     ) const
 {
+    if (right.LastFieldId
+        && m_keyComparer.IsPrefixOf(
+            Prefix
+            {
+                right.Key,
+                *right.LastFieldId
+            },
+            left))
+    {
+        return std::weak_ordering::greater;
+    }
+
     auto result = m_keyComparer.Compare(
-        left.Key,
+        left,
         right.Key);
 
     if (result == std::weak_ordering::equivalent)
@@ -58,41 +70,73 @@ std::weak_ordering KeyRangeComparer::operator()(
         {
             result = std::weak_ordering::less;
         }
-    }
-
-    // Intentionally backward, so that later sequence numbers compare earlier.
-    if (result == std::weak_ordering::equivalent)
-    {
-        result = right.SequenceNumber <=> left.SequenceNumber;
+        else
+        {
+            // The KeyRangeComparer has to look for boundaries between keys, but doesn't pay attention to
+            // sequence numbers.
+            // Because there might be an equivalent key with a higher sequence number, the KeyRangeComparer
+            // never returns equivalent.
+            result = std::weak_ordering::greater;
+        }
     }
 
     return result;
 }
 
-std::weak_ordering KeyRangeComparer::operator()(
+std::weak_ordering KeyRangeComparer::upper_bound_compare(
     const KeyRangeComparerArgument& left,
-    const KeyAndSequenceNumberComparerArgument& right
+    const ProtoValue& right
     ) const
 {
+    if (left.LastFieldId
+        && m_keyComparer.IsPrefixOf(
+            Prefix
+            {
+                left.Key,
+                *left .LastFieldId
+            },
+            right))
+    {
+        return std::weak_ordering::greater;
+    }
+
     auto result = m_keyComparer.Compare(
         left.Key,
-        right.Key);
+        right);
 
     if (result == std::weak_ordering::equivalent)
     {
         if (left.Inclusivity == Inclusivity::Exclusive)
         {
+            result = std::weak_ordering::less;
+        }
+        else
+        {
+            // The KeyRangeComparer has to look for boundaries between keys, but doesn't pay attention to
+            // sequence numbers.
+            // Because there might be an equivalent key with a lower sequence number, the KeyRangeComparer
+            // never returns equivalent.
             result = std::weak_ordering::greater;
         }
     }
 
-    // Intentionally backward, so that later sequence numbers compare earlier.
-    if (result == std::weak_ordering::equivalent)
-    {
-        result = right.SequenceNumber <=> left.SequenceNumber;
-    }
-
     return result;
+}
+
+bool KeyRangeComparer::lower_bound_less(
+    const ProtoValue& left,
+    const KeyRangeComparerArgument& right
+) const
+{
+    return lower_bound_compare(left, right) == std::weak_ordering::less;
+}
+
+bool KeyRangeComparer::upper_bound_less(
+    const KeyRangeComparerArgument& left,
+    const ProtoValue& right
+) const
+{
+    return upper_bound_compare(left, right) == std::weak_ordering::less;
 }
 
 bool ValueComparer::EqualsImpl(

@@ -85,13 +85,12 @@ class Partition
 
     int FindLowTreeEntryIndex(
         const FlatMessage<PartitionMessage>& treeNode,
-        SequenceNumber readSequenceNumber,
         KeyRangeEnd low
     );
 
     int FindHighTreeEntryIndex(
+        int lowTreeEntryIndex,
         const FlatMessage<PartitionMessage>& treeNode,
-        SequenceNumber readSequenceNumber,
         KeyRangeEnd high
     );
 

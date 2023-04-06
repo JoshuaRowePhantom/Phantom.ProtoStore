@@ -408,8 +408,8 @@ ASYNC_TEST_F(PartitionTests, Can_point_read_single_existing_key)
         "{ header: { partition_root: " + ToJson(&rootReference) + " } }");
 
     auto schema = Schema::Make(
-        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
-        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema }
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringKey_Object },
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object }
     );
 
     auto partition = co_await testPartitionBuilder.OpenPartition(
@@ -431,6 +431,172 @@ ASYNC_TEST_F(PartitionTests, Can_point_read_single_existing_key)
     EXPECT_EQ(ToSequenceNumber(5), iterator->WriteSequenceNumber);
     EXPECT_TRUE(keyComparer->Equals(keyProto, iterator->Key));
     EXPECT_TRUE(valueComparer->Equals(valueProto, iterator->Value));
+
+    co_await ++iterator;
+    EXPECT_TRUE(iterator == readResult.end());
+}
+
+ASYNC_TEST_F(PartitionTests, Read_of_nonexistent_key_from_one_level_returns_nothing)
+{
+    TestPartitionBuilder testPartitionBuilder(
+        messageStore);
+    co_await testPartitionBuilder.OpenForWrite(0, 0, 0, "");
+
+    auto key1JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringKey>(
+        R"({ value: "hello world 1" })");
+
+    auto value1JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringValue>(
+        R"({ value: "goodbye world 1" })");
+    
+    auto key3JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringKey>(
+        R"({ value: "hello world 3" })");
+
+    auto value3JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringValue>(
+        R"({ value: "goodbye world 3" })");
+
+    auto rootTreeNodeReference = co_await testPartitionBuilder.WriteData(
+        "{ tree_node: { keys: [ "
+        "{ key: { data: " + key1JsonBytes + " }, single_value: { data: " + value1JsonBytes + " }, lowest_write_sequence_number_for_key: 5 }, "
+        "{ key: { data: " + key3JsonBytes + " }, single_value: { data: " + value3JsonBytes + " }, lowest_write_sequence_number_for_key: 5 } "
+        "] } }"
+    );
+
+    auto rootReference = co_await testPartitionBuilder.WriteData(
+        "{ root: { root_tree_node: " + ToJson(&rootTreeNodeReference) + ", latest_sequence_number: 10 } }");
+
+    co_await testPartitionBuilder.WriteHeader(
+        "{ header: { partition_root: " + ToJson(&rootReference) + " } }");
+
+    auto schema = Schema::Make(
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringKey_Object },
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object }
+    );
+
+    auto partition = co_await testPartitionBuilder.OpenPartition(
+        schema);
+
+    auto key0Proto = JsonToProtoValue<FlatBuffers::FlatStringKey>(R"({ value: "hello world 0" })");
+    auto key2Proto = JsonToProtoValue<FlatBuffers::FlatStringKey>(R"({ value: "hello world 2" })");
+    auto key4Proto = JsonToProtoValue<FlatBuffers::FlatStringKey>(R"({ value: "hello world 4" })");
+
+    {
+        auto readResult = partition->Read(
+            ToSequenceNumber(10),
+            key0Proto,
+            ReadValueDisposition::ReadValue);
+
+        auto iterator = co_await readResult.begin();
+        EXPECT_TRUE(iterator == readResult.end());
+    }
+
+    {
+        auto readResult = partition->Read(
+            ToSequenceNumber(10),
+            key2Proto,
+            ReadValueDisposition::ReadValue);
+
+        auto iterator = co_await readResult.begin();
+        EXPECT_TRUE(iterator == readResult.end());
+    }
+
+    {
+        auto readResult = partition->Read(
+            ToSequenceNumber(10),
+            key4Proto,
+            ReadValueDisposition::ReadValue);
+
+        auto iterator = co_await readResult.begin();
+        EXPECT_TRUE(iterator == readResult.end());
+    }
+}
+
+ASYNC_TEST_F(PartitionTests, Can_EnumeratePrefix_from_one_tree_node)
+{
+    TestPartitionBuilder testPartitionBuilder(
+        messageStore);
+    co_await testPartitionBuilder.OpenForWrite(0, 0, 0, "");
+
+    auto key_1_JsonBytes = JsonToJsonBytes<FlatBuffers::TestKey>(
+        R"({ short_value: 1 })");
+
+    auto value_1_JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringValue>(
+        R"({ value: "1" })");
+    
+    auto key_2_1_JsonBytes = JsonToJsonBytes<FlatBuffers::TestKey>(
+        R"({ short_value: 2, ushort_value: 1 })");
+
+    auto value_2_1_JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringValue>(
+        R"({ value: "2_1" })");
+    
+    auto key_2_2_JsonBytes = JsonToJsonBytes<FlatBuffers::TestKey>(
+        R"({ short_value: 2, ushort_value: 2 })");
+
+    auto value_2_2_JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringValue>(
+        R"({ value: "2_2" })");
+
+    auto key_3_JsonBytes = JsonToJsonBytes<FlatBuffers::TestKey>(
+        R"({ short_value: 3 })");
+
+    auto value_3_JsonBytes = JsonToJsonBytes<FlatBuffers::FlatStringValue>(
+        R"({ value: "3" })");
+
+    auto rootTreeNodeReference = co_await testPartitionBuilder.WriteData(
+        "{ tree_node: { keys: [ "
+        "{ key: { data: " + key_1_JsonBytes + " }, single_value : { data: " + value_1_JsonBytes + " }, lowest_write_sequence_number_for_key : 5 }, "
+        "{ key: { data: " + key_2_1_JsonBytes + " }, single_value : { data: " + value_2_1_JsonBytes + " }, lowest_write_sequence_number_for_key : 5 }, "
+        "{ key: { data: " + key_2_2_JsonBytes + " }, single_value : { data: " + value_2_2_JsonBytes + " }, lowest_write_sequence_number_for_key : 5 }, "
+        "{ key: { data: " + key_3_JsonBytes + " }, single_value : { data: " + value_3_JsonBytes + " }, lowest_write_sequence_number_for_key : 5 }"
+        "] } }"
+    );
+
+    auto rootReference = co_await testPartitionBuilder.WriteData(
+        "{ root: { root_tree_node: " + ToJson(&rootTreeNodeReference) + ", latest_sequence_number: 10 } }");
+
+    co_await testPartitionBuilder.WriteHeader(
+        "{ header: { partition_root: " + ToJson(&rootReference) + " } }");
+
+    auto schema = Schema::Make(
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_TestKey_Object },
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object }
+    );
+
+    auto partition = co_await testPartitionBuilder.OpenPartition(
+        schema);
+
+    auto key_2_1_protoValue = JsonToProtoValue<FlatBuffers::TestKey>(
+        R"({ short_value: 2, ushort_value: 1 })");
+    
+    auto value_2_1_protoValue = JsonToProtoValue<FlatBuffers::FlatStringValue>(
+        R"({ value: "2_1" })");
+
+    auto key_2_2_protoValue = JsonToProtoValue<FlatBuffers::TestKey>(
+        R"({ short_value: 2, ushort_value: 2 })");
+
+    auto value_2_2_protoValue = JsonToProtoValue<FlatBuffers::FlatStringValue>(
+        R"({ value: "2_2" })");
+
+    auto readResult = partition->EnumeratePrefix(
+        ToSequenceNumber(10),
+        Prefix { key_2_2_protoValue, 4 },
+        ReadValueDisposition::ReadValue);
+
+    auto keyComparer = SchemaDescriptions::MakeKeyComparer(copy_shared(schema));
+    auto valueComparer = SchemaDescriptions::MakeValueComparer(copy_shared(schema));
+
+    auto iterator = co_await readResult.begin();
+    EXPECT_FALSE(iterator == readResult.end());
+    EXPECT_EQ(ToSequenceNumber(5), iterator->WriteSequenceNumber);
+    EXPECT_TRUE(keyComparer->Equals(key_2_1_protoValue, iterator->Key));
+    EXPECT_TRUE(valueComparer->Equals(value_2_1_protoValue, iterator->Value));
+
+    co_await ++iterator;
+    EXPECT_FALSE(iterator == readResult.end());
+    EXPECT_EQ(ToSequenceNumber(5), iterator->WriteSequenceNumber);
+    EXPECT_TRUE(keyComparer->Equals(key_2_2_protoValue, iterator->Key));
+    EXPECT_TRUE(valueComparer->Equals(value_2_2_protoValue, iterator->Value));
+
+    co_await ++iterator;
+    EXPECT_TRUE(iterator == readResult.end());
 }
 
 }

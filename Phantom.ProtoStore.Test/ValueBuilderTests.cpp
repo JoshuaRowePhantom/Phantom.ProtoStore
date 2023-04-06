@@ -29,25 +29,25 @@ TEST_F(ValueBuilderTests, can_intern_top_level_objects)
 
     auto offset1 = valueBuilder.CopyTableDag(
         FlatBuffersTestSchemas::TestSchema,
-        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        FlatBuffersTestSchemas::Test_FlatStringKey_Object,
         ProtoValue{ &key1 }.as_table_if()
     );
 
     auto offset2 = valueBuilder.CopyTableDag(
         FlatBuffersTestSchemas::TestSchema,
-        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        FlatBuffersTestSchemas::Test_FlatStringKey_Object,
         ProtoValue{ &key1 }.as_table_if()
     );
 
     auto offset3 = valueBuilder.CopyTableDag(
         FlatBuffersTestSchemas::TestSchema,
-        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        FlatBuffersTestSchemas::Test_FlatStringKey_Object,
         ProtoValue{ &key2 }.as_table_if()
     );
 
     auto offset4 = valueBuilder.CopyTableDag(
         FlatBuffersTestSchemas::TestSchema,
-        FlatBuffersTestSchemas::TestFlatStringKeySchema,
+        FlatBuffersTestSchemas::Test_FlatStringKey_Object,
         ProtoValue{ &key2 }.as_table_if()
     );
 

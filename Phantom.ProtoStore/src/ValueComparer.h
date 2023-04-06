@@ -437,17 +437,17 @@ public:
 struct KeyRangeComparerArgument
 {
     const ProtoValue& Key;
-    SequenceNumber SequenceNumber;
     Inclusivity Inclusivity;
+    std::optional<FieldId> LastFieldId;
 
     KeyRangeComparerArgument(
         const ProtoValue& key,
-        Phantom::ProtoStore::SequenceNumber sequenceNumber,
-        Phantom::ProtoStore::Inclusivity inclusivity
+        Phantom::ProtoStore::Inclusivity inclusivity,
+        std::optional<FieldId> lastFieldId
     ) :
         Key(key),
-        SequenceNumber(sequenceNumber),
-        Inclusivity(inclusivity)
+        Inclusivity(inclusivity),
+        LastFieldId(lastFieldId)
     {}
 };
 
@@ -461,42 +461,25 @@ public:
     {
     }
 
-    std::weak_ordering operator()(
-        const KeyAndSequenceNumberComparerArgument& left,
+    std::weak_ordering lower_bound_compare(
+        const ProtoValue& left,
         const KeyRangeComparerArgument& right
         ) const;
 
-    std::weak_ordering operator()(
+    std::weak_ordering upper_bound_compare(
         const KeyRangeComparerArgument& left,
-        const KeyAndSequenceNumberComparerArgument& right
+        const ProtoValue& right
         ) const;
-};
 
-class KeyRangeLessThanComparer
-{
-    KeyRangeComparer m_keyRangeComparer;
-public:
-    KeyRangeLessThanComparer(
-        const KeyRangeComparer& keyRangeComparer
-    ) :
-        m_keyRangeComparer(keyRangeComparer)
-    {}
-
-    bool operator()(
-        const KeyAndSequenceNumberComparerArgument& left,
+    bool lower_bound_less(
+        const ProtoValue& left,
         const KeyRangeComparerArgument& right
-        ) const
-    {
-        return m_keyRangeComparer(left, right) == std::weak_ordering::less;
-    }
+    ) const;
 
-    bool operator()(
+    bool upper_bound_less(
         const KeyRangeComparerArgument& left,
-        const KeyAndSequenceNumberComparerArgument& right
-        ) const
-    {
-        return m_keyRangeComparer(left, right) == std::weak_ordering::less;
-    }
+        const ProtoValue& right
+    ) const;
 };
 
 }

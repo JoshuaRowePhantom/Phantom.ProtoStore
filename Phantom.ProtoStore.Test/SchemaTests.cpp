@@ -65,8 +65,8 @@ TEST(SchemaTests, Can_round_trip_FlatBuffers_schema_to_key_comparer_with_compile
         indexSchemaDescriptionBuilder,
         Schema
         {
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringKeySchema },
-            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::TestFlatStringValueSchema },
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringKey_Object },
+            { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object },
         }
     );
     indexSchemaDescriptionBuilder.Finish(
