@@ -293,11 +293,6 @@ table MergesValue {
 
 table MergeProgressKey {
     merges_key : MergesKey;
-    
-    // This field is used only for query purposes.
-    // All rows have a value of 0.  One can query for a value of 1 at the high end of a range
-    // to get all the rows with the same MergesKey but different HeaderExtentName values.
-    range_discriminator : uint8;
 
     header_extent_name : IndexHeaderExtentName;
 }

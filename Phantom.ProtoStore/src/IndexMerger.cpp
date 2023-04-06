@@ -559,19 +559,22 @@ async_generator<IndexMerger::IncompleteMerge> IndexMerger::FindIncompleteMerges(
 
         FlatBuffers::MergeProgressKeyT mergeProgressKeyHigh;
         mergeProgressKeyHigh.merges_key.reset(result.Merge.Key->UnPack());
-        mergeProgressKeyHigh.range_discriminator = 1;
 
-        EnumerateRequest enumerateMergeProgressRequest;
-        enumerateMergeProgressRequest.KeyLow = result.Merge.Key;
-        enumerateMergeProgressRequest.KeyLowInclusivity = Inclusivity::Inclusive;
-        enumerateMergeProgressRequest.KeyHigh = &mergeProgressKeyHigh;
-        enumerateMergeProgressRequest.KeyHighInclusivity = Inclusivity::Exclusive;
-        enumerateMergeProgressRequest.SequenceNumber = SequenceNumber::LatestCommitted;
-        enumerateMergeProgressRequest.Index = mergesIndex;
+        EnumeratePrefixRequest enumerateMergeProgressRequest
+        {
+            .Index = mergesIndex,
+            .SequenceNumber = SequenceNumber::LatestCommitted,
+            .Prefix =
+            {
+                .Key = result.Merge.Key,
+                .LastFieldId = 1,
+            },
+            .ReadValueDisposition = ReadValueDisposition::ReadValue,
+        };
 
-        auto mergeProgressEnumeration = mergeProgressIndex->Enumerate(
+        auto mergeProgressEnumeration = mergeProgressIndex->EnumeratePrefix(
             nullptr,
-            enumerateMergeProgressRequest);
+            std::move(enumerateMergeProgressRequest));
 
         for (auto mergeProgressIterator = co_await mergeProgressEnumeration.begin();
             mergeProgressIterator != mergeProgressEnumeration.end();
