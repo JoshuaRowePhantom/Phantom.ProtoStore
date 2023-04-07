@@ -1,12 +1,19 @@
 #include "TestFactories.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.ProtoStore/src/PartitionImpl.h"
+#include "Phantom.ProtoStore/src/ProtoStore.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include "Phantom.System/utility.h"
 #include <flatbuffers/idl.h>
 
 namespace Phantom::ProtoStore
 {
+
+IUnresolvedTransactionsTracker* TestAccessors::GetUnresolvedTransactionsTracker(
+    const ProtoStore* protoStore)
+{
+    return protoStore->m_unresolvedTransactionsTracker.get();
+}
 
 task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
     IndexName indexName,
@@ -306,6 +313,16 @@ task<shared_ptr<IPartition>> TestFactories::TestPartitionBuilder::OpenPartition(
     co_await partition->Open();
 
     co_return partition;
+}
+
+
+shared_ptr<ProtoStore> TestFactories::ToProtoStore(
+    shared_ptr<IProtoStore> protoStore
+)
+{
+    return std::static_pointer_cast<ProtoStore>(
+        protoStore
+    );
 }
 
 }

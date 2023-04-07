@@ -86,6 +86,18 @@ const reflection::Object* const MergeProgressValue_Object
 const reflection::Object* const PartitionMessage_Object
 = ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.PartitionMessage");
 
+const reflection::Object* const DistributedTransactionsKey_Object
+= ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.DistributedTransactionsKey");
+
+const reflection::Object* const DistributedTransactionsValue_Object
+= ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.DistributedTransactionsValue");
+
+const reflection::Object* const DistributedTransactionReferencesKey_Object
+= ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.DistributedTransactionReferencesKey");
+
+const reflection::Object* const DistributedTransactionReferencesValue_Object
+= ProtoStoreInternalSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.DistributedTransactionReferencesValue");
+
 const reflection::Schema* const ProtoStoreSchema
 = flatbuffers::GetRoot<reflection::Schema>(
     cmrc::Phantom::ProtoStore::Resources::get_filesystem().open("ProtoStore.bfbs").begin());

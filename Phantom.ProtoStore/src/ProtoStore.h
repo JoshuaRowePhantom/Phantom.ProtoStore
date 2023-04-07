@@ -233,13 +233,8 @@ class ProtoStore
     virtual shared_ptr<IIndex> GetMergesIndex(
     ) override;
 
-    virtual shared_ptr<IIndex> GetDistributedTransactionsIndex(
-    ) override;
-    
-    virtual shared_ptr<IIndex> GetDistributedTransactionReferencesIndex(
-    ) override;
-
     friend class LocalTransaction;
+    friend class TestAccessors;
 
 public:
 

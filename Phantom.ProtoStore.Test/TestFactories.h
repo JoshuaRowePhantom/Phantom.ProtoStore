@@ -13,7 +13,18 @@
 namespace Phantom::ProtoStore
 {
 
+class IUnresolvedTransactionsTracker;
+
+class TestAccessors
+{
+protected:
+    static IUnresolvedTransactionsTracker* GetUnresolvedTransactionsTracker(
+        const ProtoStore* protoStore);
+};
+
 class TestFactories
+    :
+public TestAccessors
 {
 protected:
     std::atomic<uint64_t> m_nextTestLocalTransactionId;
@@ -323,6 +334,10 @@ protected:
         co_return co_await storeFactory->Open(
             request);
     }
+
+    shared_ptr<ProtoStore> ToProtoStore(
+        shared_ptr<IProtoStore>
+    );
 };
 
 }

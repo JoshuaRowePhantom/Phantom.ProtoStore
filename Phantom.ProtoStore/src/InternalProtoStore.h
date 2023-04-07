@@ -85,12 +85,6 @@ public:
     virtual shared_ptr<IIndex> GetMergesIndex(
     ) = 0;
 
-    virtual shared_ptr<IIndex> GetDistributedTransactionsIndex(
-    ) = 0;
-
-    virtual shared_ptr<IIndex> GetDistributedTransactionReferencesIndex(
-    ) = 0;
-
     virtual task<shared_ptr<IIndex>> GetIndex(
         google::protobuf::uint64 indexNumber
     ) = 0;

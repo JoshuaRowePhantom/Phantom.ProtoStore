@@ -196,40 +196,59 @@ task<> ProtoStore::Open(
         );
     }
 
-#if 0
     {
-        IndexesByNumberKey indexesByNumberKey;
-        IndexesByNumberValue indexesByNumberValue;
+        FlatValue<IndexesByNumberKey> indexesByNumberKey;
+        FlatValue<IndexesByNumberValue> indexesByNumberValue;
 
         MakeIndexesByNumberRow(
             indexesByNumberKey,
             indexesByNumberValue,
-            "__System.UnresolvedTransactions",
+            "__System.DistributedTransactions",
             6,
             SequenceNumber::Earliest,
             Schema::Make(
-                UnresolvedTransactionKey::descriptor(),
-                UnresolvedTransactionValue::descriptor()));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsKey_Object },
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsValue_Object }
+        ));
 
-        m_unresolvedTransactionIndex = MakeIndex(
+        m_distributedTransactionsIndex = MakeIndex(
             indexesByNumberKey,
             indexesByNumberValue
         );
     }
-#endif
+
+    {
+        FlatValue<IndexesByNumberKey> indexesByNumberKey;
+        FlatValue<IndexesByNumberValue> indexesByNumberValue;
+
+        MakeIndexesByNumberRow(
+            indexesByNumberKey,
+            indexesByNumberValue,
+            "__System.DistributedTransactionReferences",
+            7,
+            SequenceNumber::Earliest,
+            Schema::Make(
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesKey_Object },
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesValue_Object }
+        ));
+
+        m_distributedTransactionReferencesIndex = MakeIndex(
+            indexesByNumberKey,
+            indexesByNumberValue
+        );
+    }
 
     m_indexesByNumber[m_indexesByNumberIndex.IndexNumber] = m_indexesByNumberIndex;
     m_indexesByNumber[m_indexesByNameIndex.IndexNumber] = m_indexesByNameIndex;
     m_indexesByNumber[m_partitionsIndex.IndexNumber] = m_partitionsIndex;
     m_indexesByNumber[m_mergesIndex.IndexNumber] = m_mergesIndex;
     m_indexesByNumber[m_mergeProgressIndex.IndexNumber] = m_mergeProgressIndex;
-#if 0
-    m_indexesByNumber[m_unresolvedTransactionIndex.IndexNumber] = m_unresolvedTransactionIndex;
-#endif
+    m_indexesByNumber[m_distributedTransactionsIndex.IndexNumber] = m_distributedTransactionsIndex;
+    m_indexesByNumber[m_distributedTransactionReferencesIndex.IndexNumber] = m_distributedTransactionReferencesIndex;
 
     m_unresolvedTransactionsTracker = MakeUnresolvedTransactionsTracker(
-        this->GetDistributedTransactionsIndex().get(),
-        this->GetDistributedTransactionReferencesIndex().get(),
+        m_distributedTransactionsIndex.Index.get(),
+        m_distributedTransactionReferencesIndex.Index.get(),
         this,
         nullptr
         );
@@ -1633,16 +1652,6 @@ shared_ptr<IIndex> ProtoStore::GetMergeProgressIndex()
 shared_ptr<IIndex> ProtoStore::GetPartitionsIndex()
 {
     return m_partitionsIndex.Index;
-}
-
-shared_ptr<IIndex> ProtoStore::GetDistributedTransactionsIndex()
-{
-    return m_distributedTransactionsIndex.Index;
-}
-
-shared_ptr<IIndex> ProtoStore::GetDistributedTransactionReferencesIndex()
-{
-    return m_distributedTransactionReferencesIndex.Index;
 }
 
 

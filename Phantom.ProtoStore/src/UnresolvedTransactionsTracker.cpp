@@ -49,12 +49,12 @@ public:
 
         ReadRequest readRequest =
         {
-            .Index = m_distributedTransactionReferencesIndex,
+            .Index = m_distributedTransactionsIndex,
             .Key = key,
             .ReadValueDisposition = ReadValueDisposition::ReadValue,
         };
 
-        auto readResult = throw_if_failed(co_await m_distributedTransactionReferencesIndex->Read(
+        auto readResult = throw_if_failed(co_await m_distributedTransactionsIndex->Read(
             nullptr,
             readRequest));
         
