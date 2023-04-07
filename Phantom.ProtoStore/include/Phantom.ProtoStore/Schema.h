@@ -202,10 +202,23 @@ struct ValueSchema
     {}
 };
 
+enum class KeyToValueMultiplicity
+{
+    // The key is unique and maps to a single value.
+    SingleValue,
+    // The key is not unique, and maps to multiple values.
+    // Writing a value to a key that already exists will append the value to the set of
+    // values for the key. If the value already exists, no change is made.
+    // Removing a value eliminates all copies of that value.
+    MultiValue,
+};
+
 struct Schema
 {
     KeySchema KeySchema;
     ValueSchema ValueSchema;
+
+    KeyToValueMultiplicity KeyToValueMultiplicity = KeyToValueMultiplicity::SingleValue;
 
     static Schema Make(
         Phantom::ProtoStore::KeySchema keySchema,
