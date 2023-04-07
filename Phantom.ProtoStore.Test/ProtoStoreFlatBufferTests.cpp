@@ -1322,6 +1322,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_conflict_on_one_row_and_commits_firs
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memory_table_from_another_transaction)
 {
     auto store = co_await CreateMemoryStore();
@@ -1330,8 +1331,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
     key.value = "testKey1";
     FlatStringValueT expectedValue;
     expectedValue.value = "testValue1";
-    FlatStringValueT unexpectedValue;
-    unexpectedValue.value = "testValue2";
     TransactionId transactionId("transactionId1");
 
     auto index = co_await CreateTestFlatBufferIndex(
@@ -1350,7 +1349,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
             &key,
             &expectedValue);
 
-    co_return{};
+        co_return{};
     });
 
     {
@@ -1386,7 +1385,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
             },
             TransactionOutcome::Committed);
 
-    co_return{};
+        co_return{};
     });
 
     {
@@ -1400,8 +1399,11 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
 
         FlatStringValueT actualValue;
         readResult->Value.unpack(&actualValue);
+
+        EXPECT_EQ(expectedValue, actualValue);
     }
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memory_table_from_replayed_store)
 {
     auto createRequest = GetCreateMemoryStoreRequest();
