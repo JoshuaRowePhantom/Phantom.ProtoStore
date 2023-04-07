@@ -279,6 +279,50 @@ protected:
         task<shared_ptr<IPartition>> OpenPartition(
             const Schema& schema);
     };
+
+    CreateProtoStoreRequest GetCreateMemoryStoreRequest()
+    {
+        CreateProtoStoreRequest createRequest;
+
+        createRequest.ExtentStore = UseMemoryExtentStore();
+
+        return createRequest;
+    }
+
+    CreateProtoStoreRequest GetCreateFileStoreRequest(
+        string testName)
+    {
+        CreateProtoStoreRequest createRequest;
+        createRequest.ExtentStore = UseFilesystemStore(testName, "test", 4096);
+        createRequest.Schedulers = Schedulers::Inline();
+
+        return createRequest;
+    }
+
+    task<shared_ptr<IProtoStore>> CreateStore(
+        const CreateProtoStoreRequest& createRequest)
+    {
+        auto storeFactory = MakeProtoStoreFactory();
+
+        co_return co_await storeFactory->Create(
+            createRequest);
+    }
+
+    task<shared_ptr<IProtoStore>> CreateMemoryStore()
+    {
+        co_return co_await CreateStore(
+            GetCreateMemoryStoreRequest());
+    }
+
+    task<shared_ptr<IProtoStore>> OpenStore(
+        const OpenProtoStoreRequest& request
+    )
+    {
+        auto storeFactory = MakeProtoStoreFactory();
+
+        co_return co_await storeFactory->Open(
+            request);
+    }
 };
 
 }

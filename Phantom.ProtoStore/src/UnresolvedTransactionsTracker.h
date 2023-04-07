@@ -2,6 +2,7 @@
 
 #include "StandardTypes.h"
 #include "InternalProtoStore.h"
+#include "ExistingPartitions.h"
 
 namespace Phantom::ProtoStore
 {
@@ -25,14 +26,14 @@ public:
     ) = 0;
 
     // Filter out transactions from the DistributedTransactions table
-    // that have no referencing partitions.
+    // that have no references in DistributedTransactionReferences.
     virtual row_generator MergeDistributedTransactionsTable(
         PartitionNumber partitionNumber,
         row_generator source
     ) = 0;
 
-    // Filter out transactions from the DistributedTransactions table
-    // that have no referencing partitions.
+    // Filter out transactions from the DistributedTransactionReferences table
+    // for partitions that are no longer in existence.
     virtual row_generator MergeDistributedTransactionReferencesTable(
         PartitionNumber partitionNumber,
         row_generator source
@@ -47,9 +48,10 @@ public:
 };
 
 shared_ptr<IUnresolvedTransactionsTracker> MakeUnresolvedTransactionsTracker(
-    IInternalProtoStoreTransactionFactory* transactionFactory,
     IIndex* distributedTransactionsIndex,
-    IIndex* distributedTransactionReferencesIndex
+    IIndex* distributedTransactionReferencesIndex,
+    IInternalProtoStoreTransactionFactory* transactionFactory,
+    ExistingPartitions* existingPartitions
 );
 
 }

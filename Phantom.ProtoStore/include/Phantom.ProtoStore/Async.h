@@ -38,6 +38,44 @@ template<
 using OperationResult = std::expected<Result, FailedResult>;
 
 template<
+    typename Result
+> void throw_if_failed(
+    const OperationResult<Result>& operationResult
+)
+{
+    if (!operationResult)
+    {
+        operationResult.error().throw_exception();
+    }
+}
+
+template<
+    typename Result
+> void throw_if_failed(
+    OperationResult<Result>& operationResult
+)
+{
+    if (!operationResult)
+    {
+        std::move(operationResult).error().throw_exception();
+    }
+}
+
+template<
+    typename Result
+> OperationResult<Result>&& throw_if_failed(
+    OperationResult<Result>&& operationResult
+)
+{
+    if (!operationResult)
+    {
+        std::move(operationResult).error().throw_exception();
+    }
+
+    return std::move(operationResult);
+}
+
+template<
     typename Result = void
 > using operation_task =
 Phantom::Coroutines::basic_reusable_task

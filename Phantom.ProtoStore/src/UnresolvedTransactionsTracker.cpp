@@ -10,15 +10,16 @@ namespace Phantom::ProtoStore
 class UnresolvedTransactionsTracker :
     public IUnresolvedTransactionsTracker
 {
-    IInternalProtoStoreTransactionFactory* m_transactionFactory;
     IIndex* m_distributedTransactionsIndex;
     IIndex* m_distributedTransactionReferencesIndex;
+    IInternalProtoStoreTransactionFactory* m_transactionFactory;
 
 public:
     UnresolvedTransactionsTracker(
-        IInternalProtoStoreTransactionFactory* transactionFactory,
         IIndex* distributedTransactionsIndex,
-        IIndex* distributedTransactionReferencesIndex
+        IIndex* distributedTransactionReferencesIndex,
+        IInternalProtoStoreTransactionFactory* transactionFactory,
+        ExistingPartitions* existingPartitions
     ) :
         m_transactionFactory{ transactionFactory },
         m_distributedTransactionsIndex{ distributedTransactionsIndex },
@@ -53,16 +54,10 @@ public:
             .ReadValueDisposition = ReadValueDisposition::ReadValue,
         };
 
-        auto readResult = co_await m_distributedTransactionReferencesIndex->Read(
+        auto readResult = throw_if_failed(co_await m_distributedTransactionReferencesIndex->Read(
             nullptr,
-            readRequest);
+            readRequest));
         
-        // We should always be able to read from unresolved transactions.
-        if (!readResult)
-        {
-            std::move(readResult).error().throw_exception();
-        }
-
         if (readResult->ReadStatus == ReadStatus::NoValue)
         {
             co_return TransactionOutcome::Committed;
@@ -287,15 +282,17 @@ public:
 };
 
 shared_ptr<IUnresolvedTransactionsTracker> MakeUnresolvedTransactionsTracker(
-    IInternalProtoStoreTransactionFactory* transactionFactory,
     IIndex* distributedTransactionsIndex,
-    IIndex* distributedTransactionReferencesIndex
+    IIndex* distributedTransactionReferencesIndex,
+    IInternalProtoStoreTransactionFactory* transactionFactory,
+    ExistingPartitions* existingPartitions
 )
 {
     return std::make_shared<UnresolvedTransactionsTracker>(
-        transactionFactory,
         distributedTransactionsIndex,
-        distributedTransactionReferencesIndex);
+        distributedTransactionReferencesIndex,
+        transactionFactory,
+        existingPartitions);
 }
 
 }
