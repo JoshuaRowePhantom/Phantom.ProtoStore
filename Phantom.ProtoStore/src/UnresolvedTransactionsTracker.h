@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandardTypes.h"
+#include "InternalProtoStore.h"
 
 namespace Phantom::ProtoStore
 {
@@ -10,12 +11,12 @@ class IUnresolvedTransactionsTracker :
 {
 public:
     virtual task<TransactionOutcome> GetTransactionOutcome(
-        const TransactionId& transactionId
+        TransactionId transactionId
     ) = 0;
 
     virtual task<> ResolveTransaction(
         LogRecord& logRecord,
-        const TransactionId& transactionId,
+        TransactionId transactionId,
         const TransactionOutcome outcome
     ) = 0;
 
@@ -46,7 +47,9 @@ public:
 };
 
 shared_ptr<IUnresolvedTransactionsTracker> MakeUnresolvedTransactionsTracker(
-    IInternalProtoStore* protoStore
+    IInternalProtoStoreTransactionFactory* transactionFactory,
+    IIndex* distributedTransactionsIndex,
+    IIndex* distributedTransactionReferencesIndex
 );
 
 }

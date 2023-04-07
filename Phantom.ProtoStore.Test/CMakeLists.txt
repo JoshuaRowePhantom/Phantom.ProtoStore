@@ -39,6 +39,7 @@ add_executable(
     "StandardIncludes.h"
     "TestFactories.cpp"
     "TestFactories.h" 
+    "UnresolvedTransactionsTrackerTests.cpp"
     "ValueBuilderTests.cpp"
 )
     

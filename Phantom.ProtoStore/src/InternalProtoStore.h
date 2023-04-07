@@ -48,9 +48,19 @@ public:
 
 typedef std::function<status_task<>(IInternalTransaction*)> InternalTransactionVisitor;
 
+class IInternalProtoStoreTransactionFactory
+{
+public:
+    virtual operation_task<TransactionSucceededResult> InternalExecuteTransaction(
+        const BeginTransactionRequest beginRequest,
+        InternalTransactionVisitor visitor
+    ) = 0;
+};
+
 class IInternalProtoStore
     :
     public IProtoStore,
+    public IInternalProtoStoreTransactionFactory,
     public SerializationTypes
 {
 public:
@@ -79,11 +89,6 @@ public:
     ) = 0;
 
     virtual shared_ptr<IIndex> GetDistributedTransactionReferencesIndex(
-    ) = 0;
-
-    virtual operation_task<TransactionSucceededResult> InternalExecuteTransaction(
-        const BeginTransactionRequest beginRequest,
-        InternalTransactionVisitor visitor
     ) = 0;
 
     virtual task<shared_ptr<IIndex>> GetIndex(

@@ -228,7 +228,9 @@ task<> ProtoStore::Open(
 #endif
 
     m_unresolvedTransactionsTracker = MakeUnresolvedTransactionsTracker(
-        this);
+        this,
+        this->GetDistributedTransactionsIndex().get(),
+        this->GetDistributedTransactionReferencesIndex().get());
 
     m_logManager.emplace(
         m_schedulers,

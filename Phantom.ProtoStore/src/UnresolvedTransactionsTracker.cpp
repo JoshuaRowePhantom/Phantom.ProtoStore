@@ -10,17 +10,19 @@ namespace Phantom::ProtoStore
 class UnresolvedTransactionsTracker :
     public IUnresolvedTransactionsTracker
 {
-    IInternalProtoStore* m_protoStore;
-    const shared_ptr<IIndex> m_distributedTransactionsIndex;
-    const shared_ptr<IIndex> m_distributedTransactionReferencesIndex;
+    IInternalProtoStoreTransactionFactory* m_transactionFactory;
+    IIndex* m_distributedTransactionsIndex;
+    IIndex* m_distributedTransactionReferencesIndex;
 
 public:
     UnresolvedTransactionsTracker(
-        IInternalProtoStore* protoStore
+        IInternalProtoStoreTransactionFactory* transactionFactory,
+        IIndex* distributedTransactionsIndex,
+        IIndex* distributedTransactionReferencesIndex
     ) :
-        m_protoStore{ protoStore },
-        m_distributedTransactionsIndex{ protoStore->GetDistributedTransactionsIndex() },
-        m_distributedTransactionReferencesIndex{ protoStore->GetDistributedTransactionReferencesIndex() }
+        m_transactionFactory{ transactionFactory },
+        m_distributedTransactionsIndex{ distributedTransactionsIndex },
+        m_distributedTransactionReferencesIndex{ distributedTransactionReferencesIndex }
     {}
 
     bool PartitionNumberExists(
@@ -31,7 +33,7 @@ public:
 
     // Inherited via IUnresolvedTransactionsTracker
     virtual task<TransactionOutcome> GetTransactionOutcome(
-        const TransactionId& transactionId
+        TransactionId transactionId
     ) override
     {
         flatbuffers::FlatBufferBuilder keyBuilder;
@@ -77,7 +79,7 @@ public:
 
     virtual task<> ResolveTransaction(
         LogRecord& logRecord, 
-        const TransactionId& transactionId, 
+        TransactionId transactionId, 
         const TransactionOutcome outcome
     ) override
     {
@@ -243,7 +245,7 @@ public:
             }
             else if (transactionOutcome == TransactionOutcome::Unknown)
             { 
-                co_await m_protoStore->InternalExecuteTransaction({},
+                co_await m_transactionFactory->InternalExecuteTransaction({},
                     [&](IInternalTransaction* transaction) -> status_task<>
                 {
                     auto transactionIdOffset = keyBuilder.CreateString(
@@ -285,11 +287,15 @@ public:
 };
 
 shared_ptr<IUnresolvedTransactionsTracker> MakeUnresolvedTransactionsTracker(
-    IInternalProtoStore* protoStore
+    IInternalProtoStoreTransactionFactory* transactionFactory,
+    IIndex* distributedTransactionsIndex,
+    IIndex* distributedTransactionReferencesIndex
 )
 {
     return std::make_shared<UnresolvedTransactionsTracker>(
-        protoStore);
+        transactionFactory,
+        distributedTransactionsIndex,
+        distributedTransactionReferencesIndex);
 }
 
 }
