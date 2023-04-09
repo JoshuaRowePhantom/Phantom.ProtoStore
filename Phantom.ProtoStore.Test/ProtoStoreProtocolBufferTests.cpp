@@ -1143,10 +1143,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, DISABLED_Can_commit_transaction_in_m
         [&](ITransaction* operation)->status_task<>
     {
         co_await operation->ResolveTransaction(
-            WriteOperationMetadata
-            {
-                .TransactionId = transactionId,
-            },
+            transactionId,
             TransactionOutcome::Committed);
 
     co_return{};
@@ -1231,13 +1228,10 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, DISABLED_Can_commit_transaction_in_m
         [&](ITransaction* operation)->status_task<>
     {
         co_await operation->ResolveTransaction(
-            WriteOperationMetadata
-            {
-                .TransactionId = transactionId,
-            },
+            transactionId,
             TransactionOutcome::Committed);
 
-    co_return{};
+        co_return{};
     });
 
     // The transaction should work!

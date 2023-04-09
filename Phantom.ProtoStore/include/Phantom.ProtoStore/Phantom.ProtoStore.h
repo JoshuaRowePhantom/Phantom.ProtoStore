@@ -244,7 +244,7 @@ public:
     ) = 0;
 
     virtual operation_task<> ResolveTransaction(
-        const WriteOperationMetadata& writeOperationMetadata,
+        TransactionId transactionId,
         TransactionOutcome outcome
     ) = 0;
 };
@@ -315,6 +315,14 @@ public:
     ) = 0;
 };
 
+class TransactionResolver
+{
+public:
+    virtual status_task<TransactionOutcome> ResolveTransaction(
+        TransactionId transactionId
+    );
+};
+
 class IExtentStore;
 
 enum class IntegrityCheck
@@ -326,6 +334,7 @@ enum class IntegrityCheck
 struct OpenProtoStoreRequest
 {
     std::function<task<std::shared_ptr<IExtentStore>>()> ExtentStore;
+    std::shared_ptr<TransactionResolver> TransactionResolver;
     Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;
     MergeParameters DefaultMergeParameters;

@@ -1337,10 +1337,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         [&](ITransaction* operation)->status_task<>
     {
         co_await operation->ResolveTransaction(
-            WriteOperationMetadata
-            {
-                .TransactionId = transactionId,
-            },
+            transactionId,
             TransactionOutcome::Committed);
 
         co_return{};
@@ -1428,10 +1425,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DISABLED_Can_commit_transaction_in_memor
         [&](ITransaction* operation)->status_task<>
     {
         co_await operation->ResolveTransaction(
-            WriteOperationMetadata
-            {
-                .TransactionId = transactionId,
-            },
+            transactionId,
             TransactionOutcome::Committed);
 
     co_return{};

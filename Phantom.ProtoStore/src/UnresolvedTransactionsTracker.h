@@ -16,7 +16,7 @@ public:
     ) = 0;
 
     virtual task<> ResolveTransaction(
-        LogRecord& logRecord,
+        IInternalTransaction& transaction,
         TransactionId transactionId,
         const TransactionOutcome outcome
     ) = 0;

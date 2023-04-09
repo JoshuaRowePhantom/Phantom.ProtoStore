@@ -728,11 +728,17 @@ public:
     }
 
     virtual operation_task<> ResolveTransaction(
-        const WriteOperationMetadata& writeOperationMetadata, 
+        TransactionId transactionId,
         TransactionOutcome outcome
     ) override
     {
-        return operation_task<>();
+        co_await m_protoStore.m_unresolvedTransactionsTracker->ResolveTransaction(
+            *this,
+            transactionId,
+            outcome
+        );
+
+        co_return{};
     }
 
     virtual task<ProtoIndex> GetIndex(

@@ -1,11 +1,17 @@
 #include "UnresolvedTransactionsTracker.h"
 #include "InternalProtoStore.h"
-#include "ProtoStoreInternal.pb.h"
+#include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "Index.h"
 #include <limits>
 
 namespace Phantom::ProtoStore
 {
+
+status_task<TransactionOutcome> TransactionResolver::ResolveTransaction(
+    TransactionId transactionId)
+{
+    co_return TransactionOutcome::Unknown;
+}
 
 class UnresolvedTransactionsTracker :
     public IUnresolvedTransactionsTracker
@@ -73,12 +79,38 @@ public:
     }
 
     virtual task<> ResolveTransaction(
-        LogRecord& logRecord, 
+        IInternalTransaction& transaction,
         TransactionId transactionId, 
         const TransactionOutcome outcome
     ) override
     {
-        co_return;
+        FlatBuffers::DistributedTransactionsKeyT distributedTransactionsKey;
+        FlatBuffers::DistributedTransactionsValueT distributedTransactionsValue;
+
+        distributedTransactionsKey.distributed_transaction_id = transactionId;
+
+        ProtoValue distributedTransactionsKeyProtoValue{ &distributedTransactionsKey };
+        ProtoValue distributedTransactionsValueProtoValue;
+
+        if (outcome == TransactionOutcome::Committed)
+        {
+            // Do nothing: we'll delete the row.
+        }
+        else if (outcome == TransactionOutcome::Aborted)
+        {
+            distributedTransactionsValue.distributed_transaction_state = FlatBuffers::DistributedTransactionState::Aborted;
+            distributedTransactionsValueProtoValue = &distributedTransactionsValue;
+        }
+        else
+        {
+            throw std::range_error("outcome");
+        }
+
+        throw_if_failed(co_await transaction.AddRowInternal(
+            {},
+            m_distributedTransactionsIndex,
+            distributedTransactionsKeyProtoValue,
+            distributedTransactionsValueProtoValue));
     }
 
     virtual task<> Replay(
