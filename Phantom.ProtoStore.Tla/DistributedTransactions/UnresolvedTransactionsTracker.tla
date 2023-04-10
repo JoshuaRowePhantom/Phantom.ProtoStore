@@ -7,7 +7,9 @@ VARIABLE
     Log,
     Memory,
     Partitions,
-    NextSequenceNumber
+    NextSequenceNumber,
+    StartedTransactions,
+    WrittenKeys
 
 Max(S) == CHOOSE s \in S : ~ \E t \in S : t > s
 Min(S) == CHOOSE s \in S : ~ \E t \in S : t < s
@@ -23,7 +25,7 @@ ASSUME IsIndexSequence(PartitionNumbers)
 ASSUME IsIndexSequence(Keys)
 ASSUME IsIndexSequence(SequenceNumberType)
 
-vars == << Log, Memory, Partitions, NextSequenceNumber >>
+vars == << Log, Memory, Partitions, NextSequenceNumber, WrittenKeys, StartedTransactions >>
 
 Nil == << >>
 MapType(KeyType, ValueType) == UNION { [keys -> ValueType] : keys \in SUBSET KeyType }
@@ -47,6 +49,8 @@ LoggedCheckpointType == [
 ]
 LogRecordType == LoggedWriteType \union LoggedCheckpointType
 LogType == Seq(LogRecordType)
+OutcomeType == { "NotStarted", "Unknown", "Committed", "Aborted" }
+StartedTransactionsType == [ Transactions -> OutcomeType ]
 
 PartitionsType ==
     [ Tables -> MapType(PartitionNumbers, TableType) ]
@@ -56,7 +60,9 @@ TypeOk ==
     /\  Memory \in MemoryType
     /\  Partitions \in PartitionsType
     /\  NextSequenceNumber \in SequenceNumberType
-    
+    /\  WrittenKeys \in SUBSET Keys
+    /\  StartedTransactions \in StartedTransactionsType
+
 NextPartitionNumber == Max(
     { 1 } \union UNION { DOMAIN Partitions[table] : table \in Tables }
 ) + 1
@@ -66,10 +72,16 @@ Init ==
     /\  Memory = [table \in Tables |-> << {} >>]
     /\  Partitions = [table \in Tables |-> << >>]
     /\  NextSequenceNumber \in SequenceNumberType
+    /\  StartedTransactions = [ transaction \in Transactions |-> "NotStarted" ]
+    /\  WrittenKeys = {}
 
 Write(key, transaction, table) ==
     /\  NextSequenceNumber' \in SequenceNumberType
     /\  NextSequenceNumber' > NextSequenceNumber
+    /\  key \notin WrittenKeys
+    /\  WrittenKeys' = WrittenKeys \union { key }
+    /\  StartedTransactions[transaction] \in { "Unknown", "NotStarted" }
+    /\  StartedTransactions' = [StartedTransactions EXCEPT ![transaction] = "Unknown"]
     /\  LET row ==  [Key |-> key, Transaction |-> transaction, SequenceNumber |-> NextSequenceNumber] IN
         /\  Memory' = [Memory EXCEPT ![table][CurrentCheckpoint(table)] = @ \union { row }]
         /\  Log' = Log \o << [Type |-> "Write", Table |-> table, Row |-> row, CheckpointNumber |-> CurrentCheckpoint(table)] >>
@@ -80,7 +92,7 @@ StartCheckpoint(table) ==
         /\  nextCheckpointNumber = CurrentCheckpoint(table) + 1
         /\  Memory[table][CurrentCheckpoint(table)] # { }
         /\  Memory' = [Memory EXCEPT ![table] = nextCheckpointNumber :> << >> @@ @]
-        /\  UNCHANGED << Log, NextSequenceNumber, Partitions >>
+        /\  UNCHANGED << Log, NextSequenceNumber, Partitions, StartedTransactions, WrittenKeys >>
 
 Outcome(transaction) == "Committed"
 
@@ -121,14 +133,14 @@ Checkpoint(table) ==
                 [checkpointNumber \in (DOMAIN Memory[table] \ checkpointNumbers) |-> Memory[table][checkpointNumber]]
             ]
         /\  Log' = Log \o << [Type |-> "Checkpoint", Table |-> table, CheckpointNumbers |-> checkpointNumbers ] >>
-        /\  UNCHANGED << NextSequenceNumber >>
+        /\  UNCHANGED << NextSequenceNumber, StartedTransactions, WrittenKeys >>
 
 Truncate ==
     /\  Len(Log) > 0
     /\  Log[1].Type = "Write" =>
             Log[1].CheckpointNumber \notin DOMAIN Memory[Log[1].Table]
     /\  Log' = Tail(Log)
-    /\  UNCHANGED << Memory, Partitions, NextSequenceNumber >>
+    /\  UNCHANGED << Memory, Partitions, NextSequenceNumber, StartedTransactions, WrittenKeys >>
 
 LogRecords == { Log[index] : index \in DOMAIN Log }
 LoggedWrites(table) == { logRecord \in LogRecords : 
@@ -150,7 +162,7 @@ LoggedCheckpointNumbers(table) == UNION
 }
 
 Replay ==
-    /\  UNCHANGED << Log, Partitions >>
+    /\  UNCHANGED << Log, Partitions, StartedTransactions, WrittenKeys >>
     /\  LET memoryTablesFromWrites == 
             [ table \in Tables |->
                 [ checkpointNumber \in { write.CheckpointNumber : write \in LoggedWrites(table) } |-> 
@@ -196,7 +208,7 @@ Merge(table) ==
                     partitionNumber \in (DOMAIN Partitions[table] \ sourcePartitions) |-> Partitions[table][partitionNumber]
                 ]
             ]
-        /\  UNCHANGED << Memory, NextSequenceNumber, Log >>
+        /\  UNCHANGED << Memory, NextSequenceNumber, Log, StartedTransactions, WrittenKeys >>
 
 Next ==
     \E key \in Keys, transaction \in Transactions, table \in Tables :
@@ -209,11 +221,14 @@ Next ==
 Spec ==
     Init /\ [][Next]_vars
 
+
 Alias ==
 [
     Log |-> Log,
     Memory |-> Memory,
     Partitions |-> Partitions,
-    NextSequenceNumber |-> NextSequenceNumber
+    NextSequenceNumber |-> NextSequenceNumber,
+    StartedTransactions |-> StartedTransactions,
+    WrittenKeys |-> WrittenKeys
 ]
 ====
