@@ -1,15 +1,20 @@
 ---- MODULE UnresolvedTransactionsTracker ----
 EXTENDS Sequences, TLC, Integers
 
-CONSTANT Transactions, Tables, CheckpointNumbers, PartitionNumbers, Keys, SequenceNumberType
+CONSTANT 
+    Transactions,
+    PartitionNumbers,
+    Keys
 
 VARIABLE 
-    Log,
-    Memory,
     Partitions,
-    NextSequenceNumber,
     StartedTransactions,
-    WrittenKeys
+    WrittenKeys,
+    TransactionReferences,
+    TransactionOutcomes,
+    MergingPartitions
+
+vars == << Partitions, WrittenKeys, StartedTransactions, TransactionReferences, TransactionOutcomes, MergingPartitions >>
 
 Max(S) == CHOOSE s \in S : ~ \E t \in S : t > s
 Min(S) == CHOOSE s \in S : ~ \E t \in S : t < s
@@ -18,217 +23,222 @@ IsIndexSequence(S) ==
     /\  S \in SUBSET Nat 
     /\  1..Max(S) = S
 
-ASSUME IsIndexSequence(Transactions)
-ASSUME IsIndexSequence(Tables)
-ASSUME IsIndexSequence(CheckpointNumbers)
-ASSUME IsIndexSequence(PartitionNumbers)
-ASSUME IsIndexSequence(Keys)
-ASSUME IsIndexSequence(SequenceNumberType)
+Outcomes == { "Aborted", "Committed" }
 
-vars == << Log, Memory, Partitions, NextSequenceNumber, WrittenKeys, StartedTransactions >>
-
-Nil == << >>
-MapType(KeyType, ValueType) == UNION { [keys -> ValueType] : keys \in SUBSET KeyType }
-NillableTransactionIdType == { Nil } \union Transactions
-RowType == [Key : Keys, Transaction : NillableTransactionIdType, SequenceNumber : SequenceNumberType ]
-TableType == SUBSET RowType
-MemoryTablesType == MapType(CheckpointNumbers, TableType)
-MemoryType == [Tables -> MemoryTablesType]
-CurrentCheckpoint(table) == Max(DOMAIN Memory[table])
-CurrentMemoryTable(table) == Memory[table][CurrentCheckpoint(table)]
-LoggedWriteType == [
-    Type : { "Write" },
-    Table : Tables,
-    CheckpointNumber : CheckpointNumbers,
-    Row : RowType
-]
-LoggedCheckpointType == [
-    Type : { "Checkpoint" },
-    Table : Tables,
-    CheckpointNumbers : SUBSET CheckpointNumbers
-]
-LogRecordType == LoggedWriteType \union LoggedCheckpointType
-LogType == Seq(LogRecordType)
-OutcomeType == { "NotStarted", "Unknown", "Committed", "Aborted" }
-StartedTransactionsType == [ Transactions -> OutcomeType ]
-
-PartitionsType ==
-    [ Tables -> MapType(PartitionNumbers, TableType) ]
-
-TypeOk ==
-    /\  Log \in LogType
-    /\  Memory \in MemoryType
-    /\  Partitions \in PartitionsType
-    /\  NextSequenceNumber \in SequenceNumberType
-    /\  WrittenKeys \in SUBSET Keys
-    /\  StartedTransactions \in StartedTransactionsType
-
-NextPartitionNumber == Max(
-    { 1 } \union UNION { DOMAIN Partitions[table] : table \in Tables }
-) + 1
+Outcome(nillableTransaction) ==
+    IF nillableTransaction = << >> THEN "Committed"
+    ELSE IF \E transactionOutcome \in TransactionOutcomes : transactionOutcome.Transaction = nillableTransaction[1]
+    THEN (CHOOSE transactionOutcome \in TransactionOutcomes : transactionOutcome.Transaction = nillableTransaction[1]).Outcome
+    ELSE "Committed"
 
 Init ==
-    /\  Log = << >>
-    /\  Memory = [table \in Tables |-> << {} >>]
-    /\  Partitions = [table \in Tables |-> << >>]
-    /\  NextSequenceNumber \in SequenceNumberType
+    /\  TransactionOutcomes = {}
+    /\  TransactionReferences = {}
+    /\  Partitions = << >>
     /\  StartedTransactions = [ transaction \in Transactions |-> "NotStarted" ]
-    /\  WrittenKeys = {}
+    /\  WrittenKeys = [ key \in Keys |-> << >> ]
+    /\  MergingPartitions = [ partition \in PartitionNumbers |-> << >> ]
 
-Write(key, transaction, table) ==
-    /\  NextSequenceNumber' \in SequenceNumberType
-    /\  NextSequenceNumber' > NextSequenceNumber
-    /\  key \notin WrittenKeys
-    /\  WrittenKeys' = WrittenKeys \union { key }
-    /\  StartedTransactions[transaction] \in { "Unknown", "NotStarted" }
-    /\  StartedTransactions' = [StartedTransactions EXCEPT ![transaction] = "Unknown"]
-    /\  LET row ==  [Key |-> key, Transaction |-> transaction, SequenceNumber |-> NextSequenceNumber] IN
-        /\  Memory' = [Memory EXCEPT ![table][CurrentCheckpoint(table)] = @ \union { row }]
-        /\  Log' = Log \o << [Type |-> "Write", Table |-> table, Row |-> row, CheckpointNumber |-> CurrentCheckpoint(table)] >>
-    /\  UNCHANGED << Partitions >>
+WriteReference(transaction, partition) ==
+    /\  partition \in DOMAIN Partitions
+    /\  MergingPartitions[partition] = << >>
+    /\  StartedTransactions[transaction] = "Unknown"
+    /\  TransactionReferences' = TransactionReferences \union { [ Transaction |-> transaction, Partition |-> partition ] }
+    /\  UNCHANGED << Partitions, WrittenKeys, StartedTransactions, TransactionOutcomes, MergingPartitions >>
 
-StartCheckpoint(table) ==
-    /\  \E nextCheckpointNumber \in CheckpointNumbers :
-        /\  nextCheckpointNumber = CurrentCheckpoint(table) + 1
-        /\  Memory[table][CurrentCheckpoint(table)] # { }
-        /\  Memory' = [Memory EXCEPT ![table] = nextCheckpointNumber :> << >> @@ @]
-        /\  UNCHANGED << Log, NextSequenceNumber, Partitions, StartedTransactions, WrittenKeys >>
+StartTransaction(transaction) ==
+    /\  StartedTransactions[transaction] = "NotStarted"
+    /\  StartedTransactions' = [ StartedTransactions EXCEPT ![transaction] = "Unknown" ]
+    /\  TransactionOutcomes' = TransactionOutcomes \union { [ Transaction |-> transaction, Outcome |-> "Unknown" ] }
+    /\  UNCHANGED << Partitions, WrittenKeys, TransactionReferences, MergingPartitions >>
 
-Outcome(transaction) == "Committed"
+Write(key, transaction, partition) ==
+    /\  partition \in DOMAIN Partitions
+    /\  MergingPartitions[partition] = << >>
+    /\  StartedTransactions[transaction] = "Unknown"
+    /\  [ Transaction |-> transaction, Partition |-> partition ] \in TransactionReferences
+    /\  [ Transaction |-> transaction, Outcome |-> "Unknown" ] \in TransactionOutcomes
+    /\  WrittenKeys[key] = << >>
+    /\  Partitions' = [Partitions EXCEPT ![partition] = @ \union { [Key |-> key, Transaction |-> << transaction >>] }]
+    /\  WrittenKeys' = [WrittenKeys EXCEPT ![key] = << transaction >>]
+    /\  UNCHANGED << StartedTransactions, TransactionReferences, TransactionOutcomes, MergingPartitions >>
 
-ReadKey(key, sources) ==
-    LET allValues == UNION { sources }
-        matchingValues == { value \in allValues : value.Key = key }
-        nonAbortedValues == { value \in matchingValues : Outcome(value.Transaction) # "Aborted" } IN
-    IF nonAbortedValues = {} 
-    THEN << >>
-    ELSE CHOOSE highest \in nonAbortedValues : ~\E lower \in nonAbortedValues : lower.SequenceNumber > highest.SequenceNumber
+CollectReference(transaction, partition) ==
+    /\  partition \notin DOMAIN Partitions
+    /\  [ Transaction |-> transaction, Partition |-> partition ] \in TransactionReferences
+    /\  TransactionReferences' = TransactionReferences \ { [ Transaction |-> transaction, Partition |-> partition ] }
+    /\  UNCHANGED << Partitions, WrittenKeys, StartedTransactions, TransactionOutcomes, MergingPartitions >>
 
-CopyRowsToNewTable(sources) ==
-    LET nonAbortedRows ==         
-        {
-            nonAbortedRow \in UNION sources
-            :
-            Outcome(nonAbortedRow) # "Aborted"
+CollectOutcome(transaction) ==
+    /\  \E outcome \in TransactionOutcomes :
+        outcome.Transaction = transaction
+    /\  ~ \E reference \in TransactionReferences :
+        reference.Transaction = transaction
+    /\  TransactionOutcomes' = {
+            outcome \in TransactionOutcomes : outcome.Transaction # transaction
         }
-        IN
-    {
-        highestRow \in nonAbortedRows :
-            ~ \E lowerRow \in nonAbortedRows :
-                /\  lowerRow.Key = highestRow.Key
-                /\  lowerRow.SequenceNumber > highestRow.SequenceNumber
-    }
+    /\  UNCHANGED << Partitions, WrittenKeys, StartedTransactions, TransactionReferences, MergingPartitions >>
 
-Checkpoint(table) ==
-    /\  LET checkpointNumbers == { checkpointNumber \in DOMAIN Memory[table] : checkpointNumber # Max(DOMAIN Memory[table]) }
-            partitionNumber == NextPartitionNumber IN
-        /\  checkpointNumbers # { }
-        /\  partitionNumber \in PartitionNumbers
-        /\  Partitions' = [Partitions EXCEPT ![table] =
-                partitionNumber :> CopyRowsToNewTable(
-                    { Memory[table][checkpointNumber] : checkpointNumber \in checkpointNumbers }
-                ) @@ @
-            ]
-        /\  Memory' = [Memory EXCEPT ![table] =
-                [checkpointNumber \in (DOMAIN Memory[table] \ checkpointNumbers) |-> Memory[table][checkpointNumber]]
-            ]
-        /\  Log' = Log \o << [Type |-> "Checkpoint", Table |-> table, CheckpointNumbers |-> checkpointNumbers ] >>
-        /\  UNCHANGED << NextSequenceNumber, StartedTransactions, WrittenKeys >>
+StartPartition(newPartition) ==
+    /\  newPartition \notin DOMAIN Partitions
+    /\  ~ \E reference \in TransactionReferences : reference.Partition = newPartition
+    /\  Partitions' = 
+            newPartition :> {}
+            @@
+            Partitions
+    /\  UNCHANGED << WrittenKeys, StartedTransactions, TransactionReferences, TransactionOutcomes, MergingPartitions >>
 
-Truncate ==
-    /\  Len(Log) > 0
-    /\  Log[1].Type = "Write" =>
-            Log[1].CheckpointNumber \notin DOMAIN Memory[Log[1].Table]
-    /\  Log' = Tail(Log)
-    /\  UNCHANGED << Memory, Partitions, NextSequenceNumber, StartedTransactions, WrittenKeys >>
+StartMerge(sourcePartition, destinationPartition) ==
+    /\  MergingPartitions[sourcePartition] = << >>
+    /\  MergingPartitions[destinationPartition] = << >>
+    /\  sourcePartition # destinationPartition
+    /\  sourcePartition \in DOMAIN Partitions
+    /\  destinationPartition \in DOMAIN Partitions
+    /\  MergingPartitions' = [MergingPartitions EXCEPT ![sourcePartition] = << destinationPartition >>]
+    /\  UNCHANGED << WrittenKeys, StartedTransactions, TransactionOutcomes, TransactionReferences, Partitions >>
 
-LogRecords == { Log[index] : index \in DOMAIN Log }
-LoggedWrites(table) == { logRecord \in LogRecords : 
-    /\  logRecord.Type = "Write"
-    /\  logRecord.Table = table
-}
-LoggedWritesForCheckpoint(table, checkpointNumber) == {
-    loggedWrite \in LoggedWrites(table) :
-        loggedWrite.CheckpointNumber = checkpointNumber
-}
-LoggedCheckpoints(table) == {
-    logRecord \in LogRecords :
-        /\  logRecord.Type = "Checkpoint"
-        /\  logRecord.Table = table
-}
-LoggedCheckpointNumbers(table) == UNION 
-{
-    loggedCheckpoint.CheckpointNumbers : loggedCheckpoint \in LoggedCheckpoints(table)
-}
+MergeReference(key, transaction, sourcePartition, destinationPartition) ==
+    /\  sourcePartition # destinationPartition
+    /\  MergingPartitions[sourcePartition] = << destinationPartition >>
+    /\  [ Key |-> key, Transaction |-> transaction ] \in Partitions[sourcePartition]
+    /\  Outcome(<< transaction >>) = "Unknown"
+    /\  TransactionReferences' = TransactionReferences \union { [
+            Transaction |-> transaction,
+            Partition |-> destinationPartition
+        ] }
+    /\  UNCHANGED << WrittenKeys, StartedTransactions, TransactionOutcomes, Partitions, MergingPartitions >>
 
-Replay ==
-    /\  UNCHANGED << Log, Partitions, StartedTransactions, WrittenKeys >>
-    /\  LET memoryTablesFromWrites == 
-            [ table \in Tables |->
-                [ checkpointNumber \in { write.CheckpointNumber : write \in LoggedWrites(table) } |-> 
+Merge(key, sourcePartition, destinationPartition) ==
+    /\  MergingPartitions[sourcePartition] = << destinationPartition >>
+    /\  \E value \in Partitions[sourcePartition] : value.Key = key
+    /\  LET transaction == (CHOOSE value \in Partitions[sourcePartition] : value.Key = key).Transaction IN
+        /\  Outcome(transaction) = "Unknown" => 
+            [ Transaction |-> transaction[1], Partition |-> destinationPartition] \in TransactionReferences
+        /\  Partitions' = [Partitions EXCEPT 
+                ![sourcePartition] = { value \in Partitions[sourcePartition] : value.Key # key },
+                ![destinationPartition] = Partitions[destinationPartition] \union 
                     {
-                        loggedWrite.Row : loggedWrite \in LoggedWritesForCheckpoint(table, checkpointNumber)
+                        value \in 
+                        {
+                            [ 
+                                Key |-> key, 
+                                Transaction |-> IF Outcome(transaction) = "Committed" THEN << >> ELSE transaction
+                            ]
+                        }
+                        :
+                        Outcome(value.Transaction) # "Aborted"
                     }
                 ]
-            ] IN 
-        LET memoryTablesWithoutCheckpoints ==
-            [ table \in Tables |->
-                [
-                    checkpointNumber \in ((DOMAIN memoryTablesFromWrites[table]) \ LoggedCheckpointNumbers(table)) 
-                    |->
-                    memoryTablesFromWrites[table][checkpointNumber]
-                ]
-            ] IN 
-        LET memoryTablesWithActiveTables ==
-            [ table \in Tables |->
-                IF memoryTablesWithoutCheckpoints[table] # << >> 
-                THEN 
-                    memoryTablesWithoutCheckpoints[table]
-                ELSE
-                    [
-                        checkpointNumber \in { Max(DOMAIN memoryTablesFromWrites[table] \union { 1 }) } |-> { }
-                    ]
-            ] IN 
-        /\  Memory' = memoryTablesWithActiveTables
-        /\  NextSequenceNumber' \in SequenceNumberType
-        /\  ~ \E loggedWrite \in LogRecords :
-            /\  loggedWrite.Type = "Write"
-            /\  loggedWrite.Row.SequenceNumber >= NextSequenceNumber'
+    /\  UNCHANGED << WrittenKeys, StartedTransactions, TransactionOutcomes, TransactionReferences, MergingPartitions >>
 
-Merge(table) ==
-    /\  \E sourcePartitions \in SUBSET DOMAIN Partitions[table] :
-        \E nextPartitionNumber \in PartitionNumbers :
-        /\  sourcePartitions # {}
-        /\  nextPartitionNumber = NextPartitionNumber
-        /\  Partitions' = [Partitions EXCEPT ![table] =
-                nextPartitionNumber :> CopyRowsToNewTable(
-                    { Partitions[table][partitionNumber] : partitionNumber \in sourcePartitions }
-                ) @@
-                [
-                    partitionNumber \in (DOMAIN Partitions[table] \ sourcePartitions) |-> Partitions[table][partitionNumber]
-                ]
-            ]
-        /\  UNCHANGED << Memory, NextSequenceNumber, Log, StartedTransactions, WrittenKeys >>
+RemovePartition(oldPartition) ==
+    /\  MergingPartitions[oldPartition] # << >>
+    /\  ~ \E partition \in DOMAIN Partitions : MergingPartitions[partition] = << oldPartition >>
+    /\  Partitions[oldPartition] = {}
+    /\  MergingPartitions' = [MergingPartitions EXCEPT ![oldPartition] = << >>]
+    /\  Partitions' = [ partition \in DOMAIN Partitions \ { oldPartition } |-> Partitions[partition] ]
+    /\  UNCHANGED << WrittenKeys, StartedTransactions, TransactionReferences, TransactionOutcomes >>
+
+Resolve(transaction, outcome) ==
+    /\  StartedTransactions[transaction] = "Unknown"
+    /\  StartedTransactions' = [StartedTransactions EXCEPT ![transaction] = outcome]
+    /\  TransactionOutcomes' = { transactionOutcomes \in TransactionOutcomes : transactionOutcomes.Transaction # transaction } \union {
+            [ Transaction |-> transaction, Outcome |-> outcome ]
+        }
+    /\  UNCHANGED << WrittenKeys, TransactionReferences, Partitions, MergingPartitions >>
 
 Next ==
-    \E key \in Keys, transaction \in Transactions, table \in Tables :
-    \/  Write(key, transaction, table)
-    \/  StartCheckpoint(table)
-    \/  Checkpoint(table)
-    \/  Merge(table)
-    \/  Replay
+    \E  sourcePartition \in PartitionNumbers,
+        destinationPartition \in PartitionNumbers,
+        key \in Keys,
+        transaction \in Transactions,
+        outcome \in Outcomes
+        :
+        \/  WriteReference(transaction, sourcePartition)
+        \/  StartTransaction(transaction)
+        \/  Write(key, transaction, sourcePartition)
+        \/  CollectReference(transaction, sourcePartition)
+        \/  CollectOutcome(transaction)
+        \/  StartPartition(sourcePartition)
+        \/  StartMerge(sourcePartition, destinationPartition)
+        \/  Merge(key, sourcePartition, destinationPartition)
+        \/  RemovePartition(sourcePartition)
+        \/  Resolve(transaction, outcome)
+
+ReadKey(key) ==
+    {
+        value \in UNION { Partitions[partition] : partition \in DOMAIN Partitions }
+        :
+        /\  value.Key = key
+        /\  Outcome(value.Transaction) \in { "Committed", "Unknown" }
+    }
 
 Spec ==
-    Init /\ [][Next]_vars
+    /\  Init
+    /\  [][Next]_vars
 
+Fairness ==
+    /\  \A  transaction \in Transactions,
+            outcome \in Outcomes :
+        SF_vars(
+            \/  Resolve(transaction, outcome)
+        )
+    /\  SF_vars(
+        \E  transaction \in Transactions,
+            sourcePartition \in PartitionNumbers :
+                \/  CollectOutcome(transaction)
+                \/  CollectReference(transaction, sourcePartition)
+        )
+    /\  \A key \in Keys :
+        SF_vars(
+            \E  sourcePartition \in PartitionNumbers,
+                destinationPartition \in PartitionNumbers :
+            \/  Merge(key, sourcePartition, destinationPartition)
+        )
+    /\  \A sourcePartition \in PartitionNumbers :
+        /\  SF_vars(
+                \/  RemovePartition(sourcePartition)
+            )
+        /\  SF_vars(
+                \E  destinationPartition \in PartitionNumbers :
+                \/  StartMerge(sourcePartition, destinationPartition)
+            )
+    /\  WF_vars(
+            \E  sourcePartition \in PartitionNumbers :
+            \/  StartPartition(sourcePartition)
+        )
+
+SpecWithFairness ==
+    /\  Spec
+    /\  Fairness
+
+Consistent ==
+    \A key \in Keys :
+        WrittenKeys[key] # << >> =>
+        LET outcome == StartedTransactions[WrittenKeys[key][1]] IN
+            /\  outcome = "Aborted" =>
+                ReadKey(key) = {}
+            /\  outcome = "Unknown" =>
+                \A value \in ReadKey(key) : Outcome(value.Transaction) = "Unknown"
+            /\  outcome = "Committed" =>
+                { Outcome(value.Transaction) : value \in ReadKey(key) } = { "Committed" }
+
+Symmetry == Permutations(Keys) \union Permutations(PartitionNumbers) \union Permutations(Transactions)
+
+TransactionsAreCollected ==
+    <>[](
+        /\  TransactionOutcomes = {}
+        /\  TransactionReferences = {}
+        )
 
 Alias ==
-[
-    Log |-> Log,
-    Memory |-> Memory,
-    Partitions |-> Partitions,
-    NextSequenceNumber |-> NextSequenceNumber,
-    StartedTransactions |-> StartedTransactions,
-    WrittenKeys |-> WrittenKeys
-]
+    [
+        WrittenKeys |-> WrittenKeys,
+        Partitions |-> Partitions,
+        TransactionOutcomes |-> TransactionOutcomes,
+        TransactionReferences |-> TransactionReferences,
+        StartedTransactions |-> StartedTransactions,
+        MergingPartitions |-> MergingPartitions
+    ]
+
 ====
