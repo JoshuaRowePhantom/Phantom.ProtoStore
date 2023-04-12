@@ -142,11 +142,11 @@ Next ==
         \/  WriteData(write, partition)
         \/  CompleteCheckpoint(table, partition)
         \/  Replay
-(*
+
 Spec ==
     /\  Init
     /\  [][Next]_vars
-*)
+
 Symmetry ==
     Permutations(Writes)
 
