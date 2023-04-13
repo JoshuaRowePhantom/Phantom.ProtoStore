@@ -68,7 +68,7 @@ task<OperationResult<>> TestFactories::AddRow(
         writeSequenceNumber = ToSequenceNumber(m_nextWriteSequenceNumber.fetch_add(1));
     }
 
-    auto createLoggedRowWrite = [&](auto checkpointNumber) -> task<FlatMessage<FlatBuffers::LoggedRowWrite>>
+    auto createLoggedRowWrite = [&](auto partitionNumber) -> task<FlatMessage<FlatBuffers::LoggedRowWrite>>
     {
         ValueBuilder valueBuilder;
 
@@ -84,7 +84,7 @@ task<OperationResult<>> TestFactories::AddRow(
             valueBuilder.builder(),
             index->GetIndexNumber(),
             ToUint64(*writeSequenceNumber),
-            checkpointNumber,
+            partitionNumber,
             keyOffset,
             valueOffset,
             0,
@@ -102,13 +102,13 @@ task<OperationResult<>> TestFactories::AddRow(
         0
     );
 
-    auto checkpointNumber = co_await index->AddRow(
+    auto partitionNumber = co_await index->AddRow(
         readSequenceNumber,
         createLoggedRowWrite,
         delayedTransactionOutcome
     );
 
-    if (!checkpointNumber)
+    if (!partitionNumber)
     {
         co_return std::unexpected
         {

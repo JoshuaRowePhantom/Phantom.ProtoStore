@@ -55,7 +55,7 @@ table LoggedRowWrite
 {
     index_number : uint64;
     sequence_number : uint64;
-    checkpoint_number : uint64;
+    partition_number : uint64;
     key : DataValue;
     value : DataValue;
     distributed_transaction_id : string;
@@ -88,7 +88,7 @@ table LoggedCreateExtent
 table LoggedCheckpoint
 {
     index_number : uint64;
-    checkpoint_number : [uint64];
+    partition_number : [uint64];
 }
 
 table LoggedCommitExtent
@@ -99,7 +99,7 @@ table LoggedCommitExtent
 table LoggedDeleteExtentPendingPartitionsUpdated
 {
     extent_name : ExtentName;
-    partitions_table_checkpoint_number : uint64;
+    partitions_table_partition_number : uint64;
 }
 
 table LoggedUpdatePartitions
@@ -110,7 +110,7 @@ table LoggedUpdatePartitions
 table LoggedPartitionsData
 {
     header_extent_names : [IndexHeaderExtentName];
-    partitions_table_checkpoint_number : uint64;
+    partitions_table_partition_number : uint64;
 }
 
 table LoggedCreatePartition
@@ -264,7 +264,7 @@ table PartitionsValue {
     // The merge that generated the partition.
     merge_unique_id : MergesKey;
     // The latest checkpoint number that is in the partition
-    latest_checkpoint_number : uint64;
+    latest_partition_number : uint64;
 }
 
 table MergesKey {
@@ -283,7 +283,7 @@ table MergesValue {
     source_level_number : uint64;
     destination_level_number : uint64;
     // The checkpoint number to report for the generated partitions.
-    latest_checkpoint_number : uint64;
+    latest_partition_number : uint64;
 
     // If StartKey is set, then resume the merge at the
     // given start key.  Otherwise, resume the merge

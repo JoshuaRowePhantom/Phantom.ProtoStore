@@ -15,8 +15,8 @@ size_t LogManager::LogExtentUsageHasher::operator() (
     return
         (logExtentUsage.IndexNumber << 7)
         ^ (logExtentUsage.IndexNumber >> 25)
-        + (logExtentUsage.CheckpointNumber << 3)
-        ^ (logExtentUsage.CheckpointNumber >> 29)
+        + (logExtentUsage.PartitionNumber << 3)
+        ^ (logExtentUsage.PartitionNumber >> 29)
         + (logExtentUsage.LogExtentSequenceNumber << 17)
         ^ (logExtentUsage.LogExtentSequenceNumber >> 15);
 }
@@ -71,7 +71,7 @@ task<> LogManager::Replay(
             {
                 .LogExtentSequenceNumber = logExtentSequenceNumber,
                 .IndexNumber = loggedRowWrite->index_number(),
-                .CheckpointNumber = loggedRowWrite->checkpoint_number(),
+                .PartitionNumber = loggedRowWrite->partition_number(),
             };
 
             m_logExtentUsage.insert(
@@ -95,8 +95,8 @@ task<> LogManager::Replay(
             loggedDeleteExtentPendingPartitionsUpdated->extent_name()->UnPackTo(
                 &extentToDeletePendingPartitionsUpdated);
 
-            m_partitionsCheckpointNumberToExtentsToDelete.emplace(
-                loggedDeleteExtentPendingPartitionsUpdated->partitions_table_checkpoint_number(),
+            m_partitionsPartitionNumberToExtentsToDelete.emplace(
+                loggedDeleteExtentPendingPartitionsUpdated->partitions_table_partition_number(),
                 extentToDeletePendingPartitionsUpdated);
             break;
         }
@@ -113,9 +113,9 @@ task<> LogManager::Replay(
         {
             auto loggedCheckpoint = logRecord->log_entry()->GetAs<LoggedCheckpoint>(logEntryIndex);
 
-            auto loggedCheckpointNumbers = std::set(
-                loggedCheckpoint->checkpoint_number()->cbegin(),
-                loggedCheckpoint->checkpoint_number()->cend());
+            auto loggedPartitionNumbers = std::set(
+                loggedCheckpoint->partition_number()->cbegin(),
+                loggedCheckpoint->partition_number()->cend());
 
             std::erase_if(
                 m_logExtentUsage,
@@ -123,7 +123,7 @@ task<> LogManager::Replay(
             {
                 return
                 logExtentUsage.IndexNumber == loggedCheckpoint->index_number()
-                && loggedCheckpointNumbers.contains(logExtentUsage.CheckpointNumber);
+                && loggedPartitionNumbers.contains(logExtentUsage.PartitionNumber);
             });
             break;
         }
@@ -134,17 +134,17 @@ task<> LogManager::Replay(
             m_partitionsDataLogExtentSequenceNumber = logExtentSequenceNumber;
             loggedPartitionsData->UnPackTo(&m_latestLoggedPartitionsData);
 
-            if (m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber.contains(logExtentSequenceNumber))
+            if (m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber.contains(logExtentSequenceNumber))
             {
-                m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber[logExtentSequenceNumber] = std::min(
-                    m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber[logExtentSequenceNumber],
-                    loggedPartitionsData->partitions_table_checkpoint_number()
+                m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber] = std::min(
+                    m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber],
+                    loggedPartitionsData->partitions_table_partition_number()
                 );
             }
             else
             {
-                m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber[logExtentSequenceNumber] =
-                    loggedPartitionsData->partitions_table_checkpoint_number();
+                m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber] =
+                    loggedPartitionsData->partitions_table_partition_number();
             }
 
         }
@@ -185,7 +185,7 @@ bool LogManager::NeedToUpdateMaps(
             {
                 .LogExtentSequenceNumber = logExtentSequenceNumber,
                 .IndexNumber = loggedRowWrite->index_number(),
-                .CheckpointNumber = loggedRowWrite->checkpoint_number(),
+                .PartitionNumber = loggedRowWrite->partition_number(),
             };
 
             if (!m_logExtentUsage.contains(logExtentUsage))
@@ -354,35 +354,35 @@ task<> LogManager::DeleteExtents()
         co_await m_logExtentStore->DeleteExtent(
             move(extentNameToRemove));
 
-        m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber.erase(
+        m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber.erase(
             logExtentSequenceNumberToRemove);
 
-        std::optional<CheckpointNumber> minPartitionsDataCheckpointNumber;
+        std::optional<PartitionNumber> minPartitionsDataPartitionNumber;
 
-        for (auto lowestPartitionsDataCheckpointNumber : m_logExtentSequenceNumberToLowestPartitionsDataCheckpointNumber)
+        for (auto lowestPartitionsDataPartitionNumber : m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber)
         {
-            if (minPartitionsDataCheckpointNumber)
+            if (minPartitionsDataPartitionNumber)
             {
-                minPartitionsDataCheckpointNumber = std::min(
-                    *minPartitionsDataCheckpointNumber,
-                    lowestPartitionsDataCheckpointNumber.second);
+                minPartitionsDataPartitionNumber = std::min(
+                    *minPartitionsDataPartitionNumber,
+                    lowestPartitionsDataPartitionNumber.second);
             }
             else
             {
-                minPartitionsDataCheckpointNumber = lowestPartitionsDataCheckpointNumber.second;
+                minPartitionsDataPartitionNumber = lowestPartitionsDataPartitionNumber.second;
             }
         }
 
         while (
-            minPartitionsDataCheckpointNumber
+            minPartitionsDataPartitionNumber
             &&
-            !m_partitionsCheckpointNumberToExtentsToDelete.empty()
+            !m_partitionsPartitionNumberToExtentsToDelete.empty()
             &&
-            m_partitionsCheckpointNumberToExtentsToDelete.begin()->first < *minPartitionsDataCheckpointNumber)
+            m_partitionsPartitionNumberToExtentsToDelete.begin()->first < *minPartitionsDataPartitionNumber)
         {
-            auto extentName = m_partitionsCheckpointNumberToExtentsToDelete.begin()->second;
-            m_partitionsCheckpointNumberToExtentsToDelete.erase(
-                m_partitionsCheckpointNumberToExtentsToDelete.begin());
+            auto extentName = m_partitionsPartitionNumberToExtentsToDelete.begin()->second;
+            m_partitionsPartitionNumberToExtentsToDelete.erase(
+                m_partitionsPartitionNumberToExtentsToDelete.begin());
             co_await m_logExtentStore->DeleteExtent(
                 FlatValue{ extentName });
         }

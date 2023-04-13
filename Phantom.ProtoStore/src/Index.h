@@ -10,9 +10,9 @@ namespace Phantom::ProtoStore
 class IIndexData : public SerializationTypes
 {
 public:
-    using CreateLoggedRowWrite = std::function<task<FlatMessage<LoggedRowWrite>>(CheckpointNumber)>;
+    using CreateLoggedRowWrite = std::function<task<FlatMessage<LoggedRowWrite>>(PartitionNumber)>;
 
-    virtual operation_task<CheckpointNumber> AddRow(
+    virtual operation_task<PartitionNumber> AddRow(
         SequenceNumber readSequenceNumber,
         CreateLoggedRowWrite loggedRowWrite,
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
@@ -66,7 +66,7 @@ public:
 
     virtual task<> SetDataSources(
         shared_ptr<IMemoryTable> activeMemoryTable,
-        CheckpointNumber activeCheckpointNumber,
+        PartitionNumber activePartitionNumber,
         vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
         vector<shared_ptr<IPartition>> partitions
     ) = 0;

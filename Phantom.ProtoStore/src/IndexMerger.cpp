@@ -266,7 +266,7 @@ task<> IndexMerger::WriteMergeProgress(
         sourceHeaderExtentNamesOffset,
         previousMergesValue.source_level_number,
         previousMergesValue.destination_level_number,
-        previousMergesValue.latest_checkpoint_number,
+        previousMergesValue.latest_partition_number,
         mergeResumeKeyOffset
     );
 
@@ -383,7 +383,7 @@ task<> IndexMerger::WriteMergeCompletion(
             &completePartitionsValue);
     }
 
-    CheckpointNumber partitionsTableCheckpointNumber;
+    PartitionNumber partitionsTablePartitionNumber;
     
     // Add a Partitions row for the newly completed Partition.
     {
@@ -394,7 +394,7 @@ task<> IndexMerger::WriteMergeCompletion(
         PartitionsValueT completePartitionsValue;
         completePartitionsValue.merge_unique_id.reset(incompleteMerge.Merge.Key->UnPack());
         completePartitionsValue.size = writeRowsResult.writtenDataSize;
-        completePartitionsValue.latest_checkpoint_number = incompleteMerge.Merge.Value->latest_checkpoint_number();
+        completePartitionsValue.latest_partition_number = incompleteMerge.Merge.Value->latest_partition_number();
 
         auto loggedRowWrite = co_await operation->AddRowInternal(
             WriteOperationMetadata{},
@@ -406,7 +406,7 @@ task<> IndexMerger::WriteMergeCompletion(
         // This is magic.
         // AddRow doesn't return anything, but we know it adds a row to the log record with a checkpoint number.
         // We grab that value here so we can specify it as the time when the extents can be deleted.
-        partitionsTableCheckpointNumber = (*loggedRowWrite)->checkpoint_number();
+        partitionsTablePartitionNumber = (*loggedRowWrite)->partition_number();
     }
     
     // Mark the table as needing reload of its partitions.
@@ -432,7 +432,7 @@ task<> IndexMerger::WriteMergeCompletion(
             return FlatBuffers::CreateLoggedDeleteExtentPendingPartitionsUpdated(
                 builder,
                 FlatBuffers::CreateExtentName(builder, &fullHeaderExtentName),
-                partitionsTableCheckpointNumber
+                partitionsTablePartitionNumber
             ).Union();
         });
 
@@ -446,7 +446,7 @@ task<> IndexMerger::WriteMergeCompletion(
             return FlatBuffers::CreateLoggedDeleteExtentPendingPartitionsUpdated(
                 builder,
                 FlatBuffers::CreateExtentName(builder, &dataExtentName),
-                partitionsTableCheckpointNumber
+                partitionsTablePartitionNumber
             ).Union();
         });
     }
@@ -458,7 +458,7 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
     const IncompleteMerge& incompleteMerge)
 {
 
-    auto partitions_table_checkpoint_number = std::numeric_limits<CheckpointNumber>::max();
+    auto partitions_table_partition_number = std::numeric_limits<PartitionNumber>::max();
 
     std::unordered_set<
         FlatValue<ExtentName>,
@@ -479,10 +479,10 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
                 MakeExtentName(
                     existingPartition.Key->header_extent_name())));
 
-        partitions_table_checkpoint_number =
+        partitions_table_partition_number =
             std::max(
-                partitions_table_checkpoint_number,
-                existingPartition.Value->latest_checkpoint_number()
+                partitions_table_partition_number,
+                existingPartition.Value->latest_partition_number()
             );
     }
 
@@ -522,7 +522,7 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
         return FlatBuffers::CreateLoggedPartitionsDataDirect(
             builder,
             &headerExtentNameOffsets,
-            partitions_table_checkpoint_number
+            partitions_table_partition_number
         ).Union();
     });
 }

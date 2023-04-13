@@ -27,7 +27,7 @@ class Index
     async_reader_writer_lock m_dataSourcesLock;
 
     shared_ptr<IMemoryTable> m_activeMemoryTable;
-    CheckpointNumber m_activeCheckpointNumber;
+    PartitionNumber m_activePartitionNumber;
 
     typedef shared_ptr<vector<shared_ptr<IMemoryTable>>> MemoryTablesEnumeration;
     typedef shared_ptr<vector<shared_ptr<IPartition>>> PartitionsEnumeration;
@@ -68,7 +68,7 @@ public:
     virtual const shared_ptr<const ValueComparer>& GetValueComparer(
     ) override;
 
-    virtual operation_task<CheckpointNumber> AddRow(
+    virtual operation_task<PartitionNumber> AddRow(
         SequenceNumber readSequenceNumber,
         CreateLoggedRowWrite loggedRowWrite,
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
@@ -107,7 +107,7 @@ public:
 
     virtual task<> SetDataSources(
         shared_ptr<IMemoryTable> activeMemoryTable,
-        CheckpointNumber activeCheckpointNumber,
+        PartitionNumber activePartitionNumber,
         vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
         vector<shared_ptr<IPartition>> partitions
     ) override;

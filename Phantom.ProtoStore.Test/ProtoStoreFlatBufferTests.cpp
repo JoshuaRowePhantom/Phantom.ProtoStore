@@ -389,7 +389,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint)
         });
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_embedded_encoding)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_partition_embedded_encoding)
 {
     auto store = co_await CreateMemoryStore();
 
@@ -465,7 +465,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_update)
             { "testKey1", {"testValue1-2", 6}},
         });
 }
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_and_update)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_partition_and_update)
 {
     auto store = co_await CreateMemoryStore();
 
@@ -513,7 +513,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_a
             { "testKey1", {"testValue1-2", 6}},
         });
 }
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_two_checkpoint_and_update_and_checkpoint)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_two_partition_and_update_and_checkpoint)
 {
     auto store = co_await CreateMemoryStore();
 
@@ -1079,9 +1079,9 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpo
         ToSequenceNumber(5));
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_partition_and_reopen)
 {
-    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen");
+    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_partition_and_reopen");
 
     auto store = co_await CreateStore(createRequest);
 
@@ -1115,9 +1115,9 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpo
         ToSequenceNumber(5));
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpoint_and_reopen_embedded_encoding)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_partition_and_reopen_embedded_encoding)
 {
-    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen_embedded_encoding");
+    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_partition_and_reopen_embedded_encoding");
 
     auto store = co_await CreateStore(createRequest);
 

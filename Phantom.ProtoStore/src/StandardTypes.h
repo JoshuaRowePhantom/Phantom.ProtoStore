@@ -66,8 +66,6 @@ using google::protobuf::Descriptor;
 using google::protobuf::io::ZeroCopyInputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
 
-typedef uint64_t CheckpointNumber;
-
 typedef string IndexName;
 typedef uint64_t IndexNumber;
 typedef uint64_t LevelNumber;

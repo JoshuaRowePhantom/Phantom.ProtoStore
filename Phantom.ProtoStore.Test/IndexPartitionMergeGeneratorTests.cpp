@@ -55,12 +55,12 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_not_generate_merges_when_merges_p
             // Level 1
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 1, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
             // Level 2
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 2, index_number : 5, level : 2 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
         },
         {},
@@ -75,16 +75,16 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_generate_merges_when_merges_per_l
             // Level 1
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 1, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 2, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 4 }",
+                "{ latest_partition_number : 4 }",
             },
             // Level 2
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 3, index_number : 5, level : 2 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
         },
         {},
@@ -94,7 +94,7 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_generate_merges_when_merges_per_l
                 "{ source_header_extent_names : ["
                     "{ index_extent_name : { partition_number : 1, index_number : 5, level : 1 } }, "
                     "{ index_extent_name : { partition_number : 2, index_number : 5, level : 1 } }"
-                "], source_level_number : 1, destination_level_number : 2, latest_checkpoint_number : 4 }"
+                "], source_level_number : 1, destination_level_number : 2, latest_partition_number : 4 }"
             }
         }
     );
@@ -107,16 +107,16 @@ TEST_F(IndexPartitionMergeGeneratorTests, Generated_merges_are_at_max_level)
             // Level 4
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 1, index_number : 5, level : 4 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 2, index_number : 5, level : 4 } } }",
-                "{ latest_checkpoint_number : 4 }",
+                "{ latest_partition_number : 4 }",
             },
             // Level 2
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 3, index_number : 5, level : 2 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
         },
         {},
@@ -126,7 +126,7 @@ TEST_F(IndexPartitionMergeGeneratorTests, Generated_merges_are_at_max_level)
                 "{ source_header_extent_names : ["
                     "{ index_extent_name : { partition_number : 1, index_number : 5, level : 1 } }, "
                     "{ index_extent_name : { partition_number : 2, index_number : 5, level : 1 } }"
-                "], source_level_number : 3, destination_level_number : 3, latest_checkpoint_number : 4 }"
+                "], source_level_number : 3, destination_level_number : 3, latest_partition_number : 4 }"
             }
         }
         );
@@ -139,20 +139,20 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_not_generate_merges_for_partition
             // Level 1
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 1, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 2, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 4 }",
+                "{ latest_partition_number : 4 }",
             },
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 3, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 4 }",
+                "{ latest_partition_number : 4 }",
             },
             // Level 2
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 4, index_number : 5, level : 2 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
         },
         {
@@ -161,7 +161,7 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_not_generate_merges_for_partition
                 "{ source_header_extent_names : ["
                     "{ index_extent_name : { partition_number : 1, index_number : 5, level : 1 } }, "
                     "{ index_extent_name : { partition_number : 2, index_number : 5, level : 1 } }"
-                "], source_level_number : 1, destination_level_number : 2, latest_checkpoint_number : 4 }"
+                "], source_level_number : 1, destination_level_number : 2, latest_partition_number : 4 }"
             }
         },
         {}
@@ -175,24 +175,24 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_generate_merges_for_partitions_no
             // Level 1
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 1, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 2, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 5 }",
+                "{ latest_partition_number : 5 }",
             },
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 3, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 7 }",
+                "{ latest_partition_number : 7 }",
             },
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 4, index_number : 5, level : 1 } } }",
-                "{ latest_checkpoint_number : 4 }",
+                "{ latest_partition_number : 4 }",
             },
             // Level 2
             {
                 "{ index_number: 5, header_extent_name : { index_extent_name : { partition_number : 5, index_number : 5, level : 2 } } }",
-                "{ latest_checkpoint_number : 1 }",
+                "{ latest_partition_number : 1 }",
             },
         },
         {
@@ -201,7 +201,7 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_generate_merges_for_partitions_no
                 "{ source_header_extent_names : ["
                     "{ index_extent_name : { partition_number : 1, index_number : 5, level : 1 } }, "
                     "{ index_extent_name : { partition_number : 2, index_number : 5, level : 1 } }"
-                "], source_level_number : 1, destination_level_number : 2, latest_checkpoint_number : 4 }"
+                "], source_level_number : 1, destination_level_number : 2, latest_partition_number : 4 }"
             }
         },
         {
@@ -210,7 +210,7 @@ TEST_F(IndexPartitionMergeGeneratorTests, Does_generate_merges_for_partitions_no
                 "{ source_header_extent_names : ["
                     "{ index_extent_name : { partition_number : 3, index_number : 5, level : 1 } }, "
                     "{ index_extent_name : { partition_number : 4, index_number : 5, level : 1 } }"
-                "], source_level_number : 1, destination_level_number : 2, latest_checkpoint_number : 7 }"
+                "], source_level_number : 1, destination_level_number : 2, latest_partition_number : 7 }"
             }
         }
     );

@@ -52,14 +52,14 @@ const IndexName& Index::GetIndexName() const
     return m_indexName;
 }
 
-operation_task<CheckpointNumber> Index::AddRow(
+operation_task<PartitionNumber> Index::AddRow(
     SequenceNumber readSequenceNumber,
     CreateLoggedRowWrite createLoggedRowWrite,
     shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome)
 {
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
 
-    auto row = co_await createLoggedRowWrite(m_activeCheckpointNumber);;
+    auto row = co_await createLoggedRowWrite(m_activePartitionNumber);;
 
     shared_ptr<IMemoryTable> activeMemoryTable;
     MemoryTablesEnumeration inactiveMemoryTables;
@@ -124,7 +124,7 @@ operation_task<CheckpointNumber> Index::AddRow(
         co_return makeWriteConflict(*conflictingSequenceNumber);
     }
 
-    co_return m_activeCheckpointNumber;
+    co_return m_activePartitionNumber;
 }
 
 task<> Index::ReplayRow(
@@ -418,7 +418,7 @@ task<WriteRowsResult> Index::WriteMemoryTables(
 
 task<> Index::SetDataSources(
     shared_ptr<IMemoryTable> activeMemoryTable,
-    CheckpointNumber activeCheckpointNumber,
+    PartitionNumber activePartitionNumber,
     vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
     vector<shared_ptr<IPartition>> partitions
 )
@@ -426,7 +426,7 @@ task<> Index::SetDataSources(
     co_await m_dataSourcesLock.writer().scoped_lock_async();
 
     m_activeMemoryTable = activeMemoryTable;
-    m_activeCheckpointNumber = activeCheckpointNumber;
+    m_activePartitionNumber = activePartitionNumber;
     m_inactiveMemoryTables = make_shared<vector<shared_ptr<IMemoryTable>>>(
         inactiveMemoryTables);
     m_memoryTablesToEnumerate = make_shared<vector<shared_ptr<IMemoryTable>>>(

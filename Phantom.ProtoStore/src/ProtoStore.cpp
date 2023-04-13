@@ -620,7 +620,7 @@ public:
 
         FlatMessage<LoggedRowWrite> loggedRowWrite;
 
-        auto createLoggedRowWrite = [&](CheckpointNumber checkpointNumber) -> task<FlatMessage<LoggedRowWrite>>
+        auto createLoggedRowWrite = [&](PartitionNumber partitionNumber) -> task<FlatMessage<LoggedRowWrite>>
         {
             ValueBuilder loggedRowWriteBuilder;
 
@@ -650,7 +650,7 @@ public:
                 loggedRowWriteBuilder.builder(),
                 protoIndex.m_index->GetIndexNumber(),
                 ToUint64(writeSequenceNumber),
-                checkpointNumber,
+                partitionNumber,
                 keyOffset,
                 valueOffset,
                 transactionIdOffset,
@@ -687,15 +687,15 @@ public:
             };
         };
 
-        auto checkpointNumber = co_await index->AddRow(
+        auto partitionNumber = co_await index->AddRow(
             readSequenceNumber,
             createLoggedRowWrite,
             m_delayedOperationOutcome
         );
 
-        if (!checkpointNumber)
+        if (!partitionNumber)
         {
-            co_return std::unexpected{ checkpointNumber.error() };
+            co_return std::unexpected{ partitionNumber.error() };
         }
 
         m_writeIdsToCommit.push_back(writeId);
@@ -1312,7 +1312,7 @@ task<> ProtoStore::Checkpoint(
 {
     auto loggedCheckpoint = co_await indexEntry.DataSources->StartCheckpoint();
 
-    if (!loggedCheckpoint.checkpoint_number.size())
+    if (!loggedCheckpoint.partition_number.size())
     {
         co_return;
     }
@@ -1380,13 +1380,13 @@ task<> ProtoStore::Checkpoint(
         operation->BuildLogRecord(
             loggedUpdatePartitions);
 
-        auto highestCheckpointNumber = loggedCheckpoint.checkpoint_number[0];
-        for (auto checkpointIndex = 1; checkpointIndex < loggedCheckpoint.checkpoint_number.size(); checkpointIndex++)
+        auto highestPartitionNumber = loggedCheckpoint.partition_number[0];
+        for (auto checkpointIndex = 1; checkpointIndex < loggedCheckpoint.partition_number.size(); checkpointIndex++)
         {
-            highestCheckpointNumber =
+            highestPartitionNumber =
                 std::max(
-                    highestCheckpointNumber,
-                    loggedCheckpoint.checkpoint_number[checkpointIndex]
+                    highestPartitionNumber,
+                    loggedCheckpoint.partition_number[checkpointIndex]
                 );
         }
 
@@ -1397,8 +1397,8 @@ task<> ProtoStore::Checkpoint(
 
             // Set the checkpoint number of the added logged partitions data to be the greatest
             // checkpoint number being written.
-            addedLoggedPartitionsData->partitions_table_checkpoint_number =
-                highestCheckpointNumber;
+            addedLoggedPartitionsData->partitions_table_partition_number =
+                highestPartitionNumber;
         }
 
         PartitionsKeyT partitionsKey;
@@ -1408,7 +1408,7 @@ task<> ProtoStore::Checkpoint(
 
         PartitionsValueT partitionsValue;
         partitionsValue.size = writeRowsResult.writtenDataSize;
-        partitionsValue.latest_checkpoint_number = highestCheckpointNumber;
+        partitionsValue.latest_partition_number = highestPartitionNumber;
 
         {
             auto updatePartitionsMutex = co_await m_updatePartitionsMutex.scoped_lock_async();

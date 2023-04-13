@@ -12,7 +12,7 @@ IndexDataSources::IndexDataSources(
 ) :
     m_index(index),
     m_makeMemoryTable(makeMemoryTable),
-    m_currentCheckpointNumber(1),
+    m_currentPartitionNumber(1),
     m_activeMemoryTable(makeMemoryTable())
 {
 }
@@ -21,14 +21,14 @@ task<> IndexDataSources::Replay(
     FlatMessage<LoggedRowWrite> rowWrite
 )
 {
-    auto memoryTable = m_replayedMemoryTables[rowWrite->checkpoint_number()];
+    auto memoryTable = m_replayedMemoryTables[rowWrite->partition_number()];
     if (!memoryTable)
     {
-        memoryTable = m_replayedMemoryTables[rowWrite->checkpoint_number()] = m_makeMemoryTable();
+        memoryTable = m_replayedMemoryTables[rowWrite->partition_number()] = m_makeMemoryTable();
         
-        m_currentCheckpointNumber = std::max(
-            m_currentCheckpointNumber,
-            rowWrite->checkpoint_number() + 1
+        m_currentPartitionNumber = std::max(
+            m_currentPartitionNumber,
+            rowWrite->partition_number() + 1
         );
 
         co_await UpdateIndexDataSources();
@@ -44,10 +44,10 @@ task<> IndexDataSources::Replay(
     const LoggedCheckpoint* loggedCheckpoint
 )
 {
-    for (auto checkpointNumber : *loggedCheckpoint->checkpoint_number())
+    for (auto partitionNumber : *loggedCheckpoint->partition_number())
     {
         m_replayedMemoryTables.erase(
-            checkpointNumber);
+            partitionNumber);
     }
 
     co_return;
@@ -69,23 +69,23 @@ task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
 
     for (auto replayedMemoryTable : m_replayedMemoryTables)
     {
-        loggedCheckpoint.checkpoint_number.push_back(
+        loggedCheckpoint.partition_number.push_back(
             replayedMemoryTable.first
         );
         m_checkpointingMemoryTables[replayedMemoryTable.first] = replayedMemoryTable.second;
     }
     m_replayedMemoryTables.clear();
 
-    loggedCheckpoint.checkpoint_number.push_back(m_currentCheckpointNumber);
-    m_checkpointingMemoryTables[m_currentCheckpointNumber] = m_activeMemoryTable;
+    loggedCheckpoint.partition_number.push_back(m_currentPartitionNumber);
+    m_checkpointingMemoryTables[m_currentPartitionNumber] = m_activeMemoryTable;
 
-    m_currentCheckpointNumber++;
+    m_currentPartitionNumber++;
     m_activeMemoryTable = m_makeMemoryTable();
 
     co_await UpdateIndexDataSources();
 
     // Only return the loggedCheckpoint if there are in fact rows to checkpoint.
-    for (auto checkpoint : loggedCheckpoint.checkpoint_number)
+    for (auto checkpoint : loggedCheckpoint.partition_number)
     {
         if (co_await m_checkpointingMemoryTables[checkpoint]->GetRowCount() > 0)
         {
@@ -95,7 +95,7 @@ task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
 
     // If there are no rows to checkpoint, return an empty LoggedCheckpoint,
     // and forget about the empty memory tables.
-    for (auto checkpoint : loggedCheckpoint.checkpoint_number)
+    for (auto checkpoint : loggedCheckpoint.partition_number)
     {
         co_await m_checkpointingMemoryTables[checkpoint]->Join();
         m_checkpointingMemoryTables.erase(
@@ -115,9 +115,9 @@ task<WriteRowsResult> IndexDataSources::Checkpoint(
     {
         auto lock = co_await m_dataSourcesLock.scoped_lock_async();
 
-        for (auto checkpointNumber : loggedCheckpoint.checkpoint_number)
+        for (auto partitionNumber : loggedCheckpoint.partition_number)
         {
-            auto memoryTable = m_checkpointingMemoryTables[checkpointNumber];
+            auto memoryTable = m_checkpointingMemoryTables[partitionNumber];
             assert(memoryTable);
 
             memoryTablesToCheckpoint.push_back(
@@ -141,9 +141,9 @@ task<> IndexDataSources::UpdatePartitions(
     {
         auto lock = co_await m_dataSourcesLock.scoped_lock_async();
 
-        for (auto checkpointNumber : loggedCheckpoint.checkpoint_number)
+        for (auto partitionNumber : loggedCheckpoint.partition_number)
         {
-            m_checkpointingMemoryTables.erase(checkpointNumber);
+            m_checkpointingMemoryTables.erase(partitionNumber);
         }
 
         m_partitions = partitions;
@@ -175,7 +175,7 @@ task<> IndexDataSources::UpdateIndexDataSources()
 
     co_await m_index->SetDataSources(
         m_activeMemoryTable,
-        m_currentCheckpointNumber,
+        m_currentPartitionNumber,
         inactiveMemoryTables,
         m_partitions);
 }

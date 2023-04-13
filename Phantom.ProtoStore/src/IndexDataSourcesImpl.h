@@ -16,10 +16,10 @@ class IndexDataSources
 
     vector<shared_ptr<IPartition>> m_partitions;
     shared_ptr<IMemoryTable> m_activeMemoryTable;
-    CheckpointNumber m_currentCheckpointNumber;
+    PartitionNumber m_currentPartitionNumber;
     
-    std::map<CheckpointNumber, shared_ptr<IMemoryTable>> m_checkpointingMemoryTables;
-    std::map<CheckpointNumber, shared_ptr<IMemoryTable>> m_replayedMemoryTables;
+    std::map<PartitionNumber, shared_ptr<IMemoryTable>> m_checkpointingMemoryTables;
+    std::map<PartitionNumber, shared_ptr<IMemoryTable>> m_replayedMemoryTables;
 
     shared_ptr<IIndex> m_index;
     function<shared_ptr<IMemoryTable>()> m_makeMemoryTable;
