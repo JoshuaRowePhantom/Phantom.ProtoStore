@@ -29,8 +29,8 @@ Tables == { "Partitions", "Data" }
 
 CurrentLogExtent == Max(DOMAIN(LogExtents))
 
-AppendLog(logEntry) ==
-    LogExtents' = [LogExtents EXCEPT ![CurrentLogExtent] = @ \o << logEntry >>]
+AppendLog(logEntries) ==
+    LogExtents' = [LogExtents EXCEPT ![CurrentLogExtent] = @ \o logEntries]
 
 AllocatePartition(newPartition) ==
     /\  NextPartition = newPartition
@@ -50,14 +50,14 @@ StartCheckpoint(table, newPartition) ==
         \/  Memory[table] # << >> /\ Memory[table][CurrentMemory[table]] # {}
     /\  Memory' = [Memory EXCEPT ![table] = newPartition :> {} @@ @]
     /\  CurrentMemory' = [CurrentMemory EXCEPT ![table] = newPartition]
-    /\  AppendLog([ Type |-> "CreateMemoryTable", Table |-> table, NewPartition |-> newPartition ])
+    /\  AppendLog(<< [ Type |-> "CreateMemoryTable", Table |-> table, NewPartition |-> newPartition ] >>)
     /\  UNCHANGED << Partitions, CommittedWrites >>
 
 Write(table, write, partition) ==
     /\  partition \in DOMAIN Memory[table]
     /\  partition = CurrentMemory[table]
     /\  Memory' = [Memory EXCEPT ![table][partition] = @ \union { write }]
-    /\  AppendLog([ Type |-> "Write", Table |-> table, Partition |-> partition, Value |-> write ])
+    /\  AppendLog(<< [ Type |-> "Write", Table |-> table, Partition |-> partition, Value |-> write ] >>)
     /\  UNCHANGED << Partitions, CurrentMemory, NextPartition >>
 
 WriteData(write, partition) ==
@@ -73,7 +73,7 @@ CompleteCheckpoint(table, diskPartition) ==
         /\  CurrentMemory[table] \notin memoryPartitions
         /\  LET writes ==  UNION { Memory[table][memoryPartition] : memoryPartition \in memoryPartitions } IN
             /\  writes # {}
-            /\  AppendLog([ Type |-> "Checkpoint", Table |-> table, Partitions |-> memoryPartitions, NewPartition |-> diskPartition ])
+            /\  AppendLog(<< [ Type |-> "Checkpoint", Table |-> table, Partitions |-> memoryPartitions, NewPartition |-> diskPartition ] >>)
             /\  Memory' = [Memory EXCEPT ![table] = [ partition \in DOMAIN Memory[table] \ memoryPartitions |-> Memory[table][partition]]]
             /\  Partitions' = [Partitions EXCEPT ![table] = diskPartition :> writes
                     @@ Partitions[table]
