@@ -390,10 +390,10 @@ task<WriteRowsResult> Index::WriteMemoryTables(
     const vector<shared_ptr<IMemoryTable>>& memoryTablesToCheckpoint
 )
 {
-    size_t rowCount = 0;
+    size_t approximateRowCount = 0;
     for (auto& memoryTable : memoryTablesToCheckpoint)
     {
-        rowCount += co_await memoryTable->GetRowCount();
+        approximateRowCount += memoryTable->GetApproximateRowCount();
     }
 
     auto rows = m_rowMerger->Merge([&]() -> row_generators
@@ -406,7 +406,7 @@ task<WriteRowsResult> Index::WriteMemoryTables(
 
     WriteRowsRequest writeRowsRequest =
     {
-        .approximateRowCount = rowCount,
+        .approximateRowCount = approximateRowCount,
         .rows = &rows,
         .targetExtentSize = std::numeric_limits<ExtentOffset>::max(),
         .targetMessageSize = 1024*1024*1024,

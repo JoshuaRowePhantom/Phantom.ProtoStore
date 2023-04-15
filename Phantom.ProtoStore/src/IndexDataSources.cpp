@@ -87,7 +87,7 @@ task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
     // Only return the loggedCheckpoint if there are in fact rows to checkpoint.
     for (auto checkpoint : loggedCheckpoint.partition_number)
     {
-        if (co_await m_checkpointingMemoryTables[checkpoint]->GetRowCount() > 0)
+        if (m_checkpointingMemoryTables[checkpoint]->GetApproximateRowCount() > 0)
         {
             co_return loggedCheckpoint;
         }

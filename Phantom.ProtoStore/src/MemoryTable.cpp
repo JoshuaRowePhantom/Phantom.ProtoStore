@@ -81,16 +81,10 @@ MemoryTable::~MemoryTable()
     SyncDestroy();
 }
 
-task<size_t> MemoryTable::GetRowCount()
+size_t MemoryTable::GetApproximateRowCount()
 {
-    while (m_unresolvedRowCount.load(
-        std::memory_order_acquire))
-    {
-        co_await m_rowResolved;
-    }
-
-    co_return m_committedRowCount.load(
-        std::memory_order_relaxed);
+    return m_approximateRowCount.load(
+        std::memory_order_acquire);
 }
 
 task<std::optional<SequenceNumber>> MemoryTable::AddRow(
@@ -203,7 +197,7 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         break;
     }
 
-    m_unresolvedRowCount.fetch_add(
+    m_approximateRowCount.fetch_add(
         1,
         std::memory_order_acq_rel);
 
@@ -232,12 +226,6 @@ task<> MemoryTable::UpdateOutcome(
     {
         lock.unlock();
 
-        m_unresolvedRowCount.fetch_add(
-            -1,
-            std::memory_order_release);
-        
-        m_rowResolved.set();
-
         co_return;
     }
 
@@ -249,23 +237,10 @@ task<> MemoryTable::UpdateOutcome(
         std::memory_order_release
     );
 
-    if (outcome.Outcome == TransactionOutcome::Committed)
-    {
-        m_committedRowCount.fetch_add(
-            1, 
-            std::memory_order_release);
-    }
-
     // We don't need the resolver anymore.
     memoryTableValue.DelayedTransactionOutcome = nullptr;
     
     lock.unlock();
-
-    m_unresolvedRowCount.fetch_add(
-        -1,
-        std::memory_order_release);
-
-    m_rowResolved.set();
 }
 
 task<> MemoryTable::ReplayRow(
@@ -278,7 +253,7 @@ task<> MemoryTable::ReplayRow(
     auto [iterator, succeeded] = m_skipList.insert(
         move(replayKey));
 
-    m_committedRowCount.fetch_add(
+    m_approximateRowCount.fetch_add(
         1,
         std::memory_order_relaxed);
 
@@ -468,9 +443,24 @@ row_generator MemoryTable::Checkpoint()
         iterator != end;
         ++iterator)
     {
-        auto outcome = GetTransactionOutcome(iterator->WriteSequenceNumber.load(std::memory_order_acquire));
+        auto& memoryTableValue = *iterator;
+        auto transactionOutcome = GetTransactionOutcome(iterator->WriteSequenceNumber.load(std::memory_order_acquire));
 
-        if (outcome == TransactionOutcome::Committed)
+        if (transactionOutcome == TransactionOutcome::Unknown)
+        {
+            // We need to wait for resolution of this row.
+            auto lock = co_await memoryTableValue.Mutex.scoped_lock_async();
+            auto targetRowDelayedTransactionOutcome = memoryTableValue.DelayedTransactionOutcome;
+            lock.unlock();
+
+            transactionOutcome = (co_await targetRowDelayedTransactionOutcome->GetOutcome())
+                .Outcome;
+
+            assert(transactionOutcome == TransactionOutcome::Aborted
+                || transactionOutcome == TransactionOutcome::Committed);
+        }
+
+        if (transactionOutcome == TransactionOutcome::Committed)
         {
             co_yield iterator->GetResultRow(*m_schema);
         }

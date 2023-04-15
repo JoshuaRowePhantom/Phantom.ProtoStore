@@ -89,7 +89,9 @@ class IMemoryTable
 public:
     using Row = FlatMessage<FlatBuffers::LoggedRowWrite>;
 
-    virtual task<size_t> GetRowCount(
+    // Get the approximate number of rows in the memory table.
+    // Rows that were rolled back may be included in the count.
+    virtual size_t GetApproximateRowCount(
     ) = 0;
 
     // Add the specified row.

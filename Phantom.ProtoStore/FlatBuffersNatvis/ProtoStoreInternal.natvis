@@ -315,6 +315,14 @@
             <Item Optional="true" Name="index_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]))</Item>
         </Expand>
     </Type>
+    <Type Name="Phantom::ProtoStore::FlatBuffers::LoggedCreateMemoryTable">
+        <Expand>
+            <!-- If partition_number is not present -->
+            <Item Optional="true" Name="partition_number" Condition="!(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">"Not Present"</Item>
+            <!-- If partition_number present -->
+            <Item Optional="true" Name="partition_number" Condition="(reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[0] &gt; (0 * 2 + 4) &amp;&amp; (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]) != 0)">*reinterpret_cast&lt;unsigned long long*&gt;(data_ + (reinterpret_cast&lt;uint16_t*&gt;(data_ - *reinterpret_cast&lt;int32_t*&gt;(&amp;data_[0]))[2]))</Item>
+        </Expand>
+    </Type>
     <Type Name="Phantom::ProtoStore::FlatBuffers::LoggedCreatePartition">
         <Expand>
             <!-- If header_extent_name is not present -->

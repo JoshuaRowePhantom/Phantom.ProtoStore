@@ -189,17 +189,11 @@ class MemoryTable
         shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
     );
 
-    // Resolve a memory table row with acquiring the mutex.
-    task<TransactionOutcome> Resolve(
-        MemoryTableValue& memoryTableValue);
-
     void UpdateSequenceNumberRange(
         SequenceNumber writeSequenceNumber
     );
 
-    std::atomic<size_t> m_unresolvedRowCount;
-    std::atomic<size_t> m_committedRowCount;
-    cppcoro::async_auto_reset_event m_rowResolved;
+    std::atomic<size_t> m_approximateRowCount;
 
     std::atomic<SequenceNumber> m_earliestSequenceNumber;
     std::atomic<SequenceNumber> m_latestSequenceNumber;
@@ -212,7 +206,7 @@ public:
 
     ~MemoryTable();
 
-    virtual task<size_t> GetRowCount(
+    virtual size_t GetApproximateRowCount(
     ) override;
 
     virtual task<std::optional<SequenceNumber>> AddRow(
