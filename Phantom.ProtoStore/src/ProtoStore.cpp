@@ -1,6 +1,6 @@
 #include "ExtentName.h"
 #include "HeaderAccessor.h"
-#include "IndexDataSourcesImpl.h"
+#include "IndexDataSources.h"
 #include "Index.h"
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
@@ -52,12 +52,14 @@ task<> ProtoStore::Create(
 {
     m_schedulers = createRequest.Schedulers;
 
+    auto logExtentName = MakeLogExtentName(1);
+
     auto header = std::make_unique<FlatBuffers::DatabaseHeaderT>();
-    header->version = 1,
-    header->log_alignment = createRequest.LogAlignment,
-    header->epoch = 0,
-    header->next_index_number = 1000,
-    header->next_partition_number = 0,
+    header->version = 1;
+    header->log_alignment = createRequest.LogAlignment;
+    header->epoch = 0;
+    header->next_index_number = 1000;
+    header->next_partition_number = 1000;
 
     // Write both copies of the header,
     // so that ordinary open operations don't get a range_error exception
@@ -283,6 +285,8 @@ task<> ProtoStore::Open(
     co_await UpdateHeader([](auto) -> task<> { co_return; });
 
     co_await postUpdateHeaderTask;
+
+    co_await CreateInitialMemoryTables();
 }
 
 task<> ProtoStore::ReplayPartitionsForOpenedIndexes()
@@ -291,6 +295,14 @@ task<> ProtoStore::ReplayPartitionsForOpenedIndexes()
     {
         co_await ReplayPartitionsForIndex(
             indexEntry.second);
+    }
+}
+
+task<> ProtoStore::CreateInitialMemoryTables()
+{
+    for (auto indexEntry : m_indexesByNumber)
+    {
+        co_await indexEntry.second.DataSources->EnsureHasActiveMemoryTable();
     }
 }
 
@@ -367,41 +379,46 @@ task<> ProtoStore::Replay(
 task<> ProtoStore::Replay(
     const FlatMessage<LogRecord>& logRecord)
 {
-    if (!logRecord->log_entry())
+    if (!logRecord->log_entries())
     {
         co_return;
     }
 
-    for(auto logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); logEntryIndex++)
+    for(auto logEntryIndex = 0; logEntryIndex < logRecord->log_entries()->size(); logEntryIndex++)
     {
+        auto logEntry = logRecord->log_entries()->Get(logEntryIndex);
         auto getMessage = [&]<typename T>(tag<T>)
         {
-            return FlatMessage{ logRecord, logRecord->log_entry()->GetAs<T>(logEntryIndex) };
+            return FlatMessage{ logRecord, logEntry->log_entry_as<T>()};
         };
 
-        switch (logRecord->log_entry_type()->Get(logEntryIndex))
+        switch (logEntry->log_entry_type())
         {
-        case LogEntry::LoggedRowWrite:
+        case LogEntryUnion::LoggedRowWrite:
             co_await Replay(getMessage(tag<LoggedRowWrite>()));
             break;
 
-        case LogEntry::LoggedCreateIndex:
+        case LogEntryUnion::LoggedCreateIndex:
             co_await Replay(getMessage(tag<LoggedCreateIndex>()));
             break;
 
-        case LogEntry::LoggedPartitionsData:
+        case LogEntryUnion::LoggedPartitionsData:
             co_await Replay(getMessage(tag<LoggedPartitionsData>()));
             break;
 
-        case LogEntry::LoggedCreatePartition:
+        case LogEntryUnion::LoggedCreateMemoryTable:
+            co_await Replay(getMessage(tag<LoggedCreateMemoryTable>()));
+            break;
+
+        case LogEntryUnion::LoggedCreatePartition:
             co_await Replay(getMessage(tag<LoggedCreatePartition>()));
             break;
 
-        case LogEntry::LoggedCommitLocalTransaction:
+        case LogEntryUnion::LoggedCommitLocalTransaction:
             co_await Replay(getMessage(tag<LoggedCommitLocalTransaction>()));
             break;
 
-        case LogEntry::LoggedUpdatePartitions:
+        case LogEntryUnion::LoggedUpdatePartitions:
             co_await Replay(getMessage(tag<LoggedUpdatePartitions>()));
             break;
         }
@@ -479,6 +496,24 @@ task<> ProtoStore::Replay(
 }
 
 task<> ProtoStore::Replay(
+    const FlatMessage<LoggedCreateMemoryTable>& logRecord)
+{
+    m_nextPartitionNumber = std::max(
+        m_nextPartitionNumber.load(),
+        logRecord->partition_number());
+
+    auto index = co_await GetIndexEntryInternal(
+        logRecord->index_number(),
+        DoReplayPartitions);
+
+    co_await index->DataSources->Replay(
+        logRecord.get()
+    );
+
+    co_return;
+}
+
+task<> ProtoStore::Replay(
     const FlatMessage<LoggedCreatePartition>& logRecord)
 {
     m_nextPartitionNumber = std::max(
@@ -499,7 +534,7 @@ task<> ProtoStore::Replay(
     }
 }
 
-task<ProtoIndex> ProtoStore::GetIndex(
+operation_task<ProtoIndex> ProtoStore::GetIndex(
     const GetIndexRequest& getIndexRequest
 )
 {
@@ -553,8 +588,7 @@ class LocalTransaction
     ProtoStore& m_protoStore;
     flatbuffers::FlatBufferBuilder m_logRecordBuilder;
     
-    std::vector<FlatBuffers::LogEntry> m_logEntryTypes;
-    std::vector<flatbuffers::Offset<void>> m_logEntries;
+    std::vector<flatbuffers::Offset<FlatBuffers::LogEntry>> m_logEntries;
     uint32_t m_nextWriteId = 1;
     std::vector<uint32_t> m_writeIdsToCommit;
 
@@ -593,13 +627,19 @@ public:
     }
 
     virtual void BuildLogRecord(
-        LogEntry logEntry,
+        LogEntryUnion logEntryUnion,
         std::function<Offset<void>(flatbuffers::FlatBufferBuilder&)> builder
     ) override
     {
+        assert(logEntryUnion != LogEntryUnion::NONE);
+
         auto result = builder(m_logRecordBuilder);
-        m_logEntryTypes.push_back(logEntry);
-        m_logEntries.push_back(result);
+        auto logEntryOffset = FlatBuffers::CreateLogEntry(
+            m_logRecordBuilder,
+            logEntryUnion,
+            result
+        );
+        m_logEntries.push_back(logEntryOffset);
     }
 
     // Inherited via ITransaction
@@ -658,19 +698,18 @@ public:
                 writeId
             ).Union();
 
-            auto logEntryType = LogEntry::LoggedRowWrite;
-            auto logEntryTypeOffset = loggedRowWriteBuilder.builder().CreateVector(
-                &logEntryType,
-                1);
+            auto logEntryOffset = FlatBuffers::CreateLogEntry(
+                loggedRowWriteBuilder.builder(),
+                LogEntryUnion::LoggedRowWrite,
+                loggedRowWriteOffset);
 
-            auto logEntryOffset = loggedRowWriteBuilder.builder().CreateVector(
-                &loggedRowWriteOffset,
+            auto logEntriesOffset = loggedRowWriteBuilder.builder().CreateVector(
+                &logEntryOffset,
                 1);
 
             auto logRecordOffset = FlatBuffers::CreateLogRecord(
                 loggedRowWriteBuilder.builder(),
-                logEntryTypeOffset,
-                logEntryOffset);
+                logEntriesOffset);
 
             loggedRowWriteBuilder.builder().Finish(
                 logRecordOffset);
@@ -683,7 +722,7 @@ public:
             co_return loggedRowWrite = FlatMessage<LoggedRowWrite>
             {
                 std::move(logRecord),
-                logRecord->log_entry()->GetAs<LoggedRowWrite>(0),
+                logRecord->log_entries()->Get(0)->log_entry_as<LoggedRowWrite>(),
             };
         };
 
@@ -741,7 +780,7 @@ public:
         co_return{};
     }
 
-    virtual task<ProtoIndex> GetIndex(
+    virtual operation_task<ProtoIndex> GetIndex(
         const GetIndexRequest& getIndexRequest
     ) override
     {
@@ -789,7 +828,7 @@ private:
         if (result.Outcome == TransactionOutcome::Committed)
         {
             BuildLogRecord(
-                LogEntry::LoggedCommitLocalTransaction,
+                LogEntryUnion::LoggedCommitLocalTransaction,
                 [&](auto& builder)
             {
                 return FlatBuffers::CreateLoggedCommitLocalTransactionDirect(
@@ -802,7 +841,6 @@ private:
 
             auto logRecordOffset = FlatBuffers::CreateLogRecordDirect(
                 m_logRecordBuilder,
-                &m_logEntryTypes,
                 &m_logEntries
             );
 
@@ -1026,6 +1064,8 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
         indexNumber,
         DoReplayPartitions);
 
+    co_await indexEntry->DataSources->EnsureHasActiveMemoryTable();
+
     co_return ProtoIndex(
         indexEntry->Index);
 }
@@ -1166,16 +1206,9 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
         m_unresolvedTransactionsTracker.get(),
         schema);
 
-    auto makeMemoryTable = [=]()
-    {
-        return MakeMemoryTable(
-            index->GetSchema(),
-            index->GetKeyComparer());
-    };
-
-    auto indexDataSources = make_shared<IndexDataSources>(
-        index,
-        makeMemoryTable);
+    auto indexDataSources = MakeIndexDataSources(
+        this,
+        index);
 
     auto mergeGenerator = make_shared<IndexPartitionMergeGenerator>();
 
@@ -1344,7 +1377,7 @@ task<> ProtoStore::Checkpoint(
         [&](IInternalTransaction* operation) -> status_task<>
     {
         operation->BuildLogRecord(
-            LogEntry::LoggedCommitExtent,
+            LogEntryUnion::LoggedCommitExtent,
             [&](auto& builder)
         {
             auto headerExtentNameOffset = FlatBuffers::CreateExtentName(
@@ -1358,7 +1391,7 @@ task<> ProtoStore::Checkpoint(
         });
 
         operation->BuildLogRecord(
-            LogEntry::LoggedCommitExtent,
+            LogEntryUnion::LoggedCommitExtent,
             [&](auto& builder)
         {
             auto dataExtentNameOffset = FlatBuffers::CreateExtentName(
@@ -1564,27 +1597,65 @@ task<> ProtoStore::AllocatePartitionExtents(
     FlatBuffers::LoggedCreateExtentT createHeaderExtent;
     createHeaderExtent.extent_name = std::make_unique<FlatBuffers::ExtentNameT>();
     *createHeaderExtent.extent_name = MakeExtentName(FlatValue(out_partitionHeaderExtentName.extent_name.AsIndexHeaderExtentName()));
-    FlatBuffers::LogEntryUnion createHeaderExtentUnion;
-    createHeaderExtentUnion.Set(std::move(createHeaderExtent));
-    logRecord.log_entry.push_back(std::move(createHeaderExtentUnion));
+
+    FlatBuffers::LogEntryT createHeaderExtentLogEntry;
+    createHeaderExtentLogEntry.log_entry.Set(createHeaderExtent);
+    logRecord.log_entries.push_back(copy_unique(createHeaderExtentLogEntry));
 
     FlatBuffers::LoggedCreateExtentT createDataExtent;
     createDataExtent.extent_name = std::make_unique<FlatBuffers::ExtentNameT>();
     *createDataExtent.extent_name = out_partitionDataExtentName;
-    FlatBuffers::LogEntryUnion createDataExtentUnion;
-    createDataExtentUnion.Set(std::move(createDataExtent));
-    logRecord.log_entry.push_back(std::move(createDataExtentUnion));
+
+    FlatBuffers::LogEntryT createDataExtentLogEntry;
+    createDataExtentLogEntry.log_entry.Set(createDataExtent);
+    logRecord.log_entries.push_back(copy_unique(createDataExtentLogEntry));
 
     FlatBuffers::LoggedCreatePartitionT createPartition;
     createPartition.header_extent_name = copy_unique(*out_partitionHeaderExtentName.extent_name.AsIndexHeaderExtentName());
-    FlatBuffers::LogEntryUnion createPartitionUnion;
-    createPartitionUnion.Set(std::move(createPartition));
-    logRecord.log_entry.push_back(std::move(createPartitionUnion));
 
+    FlatBuffers::LogEntryT createPartitionLogEntry;
+    createPartitionLogEntry.log_entry.Set(createPartition);
+    logRecord.log_entries.push_back(copy_unique(createPartitionLogEntry));
+    
     FlatMessage<FlatBuffers::LogRecord> logRecordMessage{ &logRecord };
 
     co_await m_logManager->WriteLogRecord(
         logRecordMessage);
+}
+
+task<PartitionNumber> ProtoStore::CreateMemoryTable(
+    const std::shared_ptr<IIndex>& index,
+    PartitionNumber partitionNumber,
+    std::shared_ptr<IMemoryTable>& memoryTable
+)
+{
+    // If the caller's partitionNumber was zero,
+    // then we need to allocate a new partition number,
+    // which is a logged operation.
+    if (partitionNumber == 0)
+    {
+        partitionNumber = m_nextPartitionNumber.fetch_add(1);
+
+        co_await InternalExecuteTransaction(
+            BeginTransactionRequest(),
+            [&](IInternalTransaction* transaction) -> status_task<>
+        {
+            FlatBuffers::LoggedCreateMemoryTableT loggedCreateMemoryTable;
+            loggedCreateMemoryTable.index_number = index->GetIndexNumber();
+            loggedCreateMemoryTable.partition_number = partitionNumber;
+
+            transaction->BuildLogRecord(
+                loggedCreateMemoryTable);
+
+            co_return{};
+        });
+    }
+
+    memoryTable = MakeMemoryTable(
+        index->GetSchema(),
+        index->GetKeyComparer());
+
+    co_return partitionNumber;
 }
 
 task<> ProtoStore::OpenPartitionWriter(

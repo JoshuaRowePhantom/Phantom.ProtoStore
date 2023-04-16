@@ -1,5 +1,6 @@
 #include "IndexDataSourcesImpl.h"
 #include "Index.h"
+#include "InternalProtoStore.h"
 #include "ProtoStoreInternal.pb.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
@@ -7,13 +8,12 @@ namespace Phantom::ProtoStore
 {
 
 IndexDataSources::IndexDataSources(
-    shared_ptr<IIndex> index,
-    function<shared_ptr<IMemoryTable>()> makeMemoryTable
+    IInternalProtoStore* protoStore,
+    shared_ptr<IIndex> index
 ) :
-    m_index(index),
-    m_makeMemoryTable(makeMemoryTable),
-    m_currentPartitionNumber(1),
-    m_activeMemoryTable(makeMemoryTable())
+    m_protoStore(protoStore),
+    m_index(std::move(index)),
+    m_activeMemoryTablePartitionNumber(0)
 {
 }
 
@@ -21,23 +21,42 @@ task<> IndexDataSources::Replay(
     FlatMessage<LoggedRowWrite> rowWrite
 )
 {
-    auto memoryTable = m_replayedMemoryTables[rowWrite->partition_number()];
-    if (!memoryTable)
+    auto iterator = m_replayedMemoryTables.find(rowWrite->partition_number());
+    if (iterator == m_replayedMemoryTables.end())
     {
-        memoryTable = m_replayedMemoryTables[rowWrite->partition_number()] = m_makeMemoryTable();
-        
-        m_currentPartitionNumber = std::max(
-            m_currentPartitionNumber,
-            rowWrite->partition_number() + 1
-        );
+        m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
+            m_index,
+            rowWrite->partition_number(),
+            m_activeMemoryTable);
+        m_replayedMemoryTables[m_activeMemoryTablePartitionNumber] = m_activeMemoryTable;
 
         co_await UpdateIndexDataSources();
     }
 
     co_await m_index->ReplayRow(
-        memoryTable,
+        iterator->second,
         std::move(rowWrite)
     );
+}
+
+task<> IndexDataSources::Replay(
+    const LoggedCreateMemoryTable* loggedCreateMemoryTable
+)
+{
+    //if (m_replayedMemoryTables.find(loggedCreateMemoryTable->partition_number()) != m_replayedMemoryTables.end())
+    //{
+    //    co_return;
+    //}
+
+    //m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
+    //    m_index,
+    //    loggedCreateMemoryTable->partition_number(),
+    //    m_activeMemoryTable);
+    //m_replayedMemoryTables[m_activeMemoryTablePartitionNumber] = m_activeMemoryTable;
+
+    co_await UpdateIndexDataSources();
+
+    co_return;
 }
 
 task<> IndexDataSources::Replay(
@@ -76,33 +95,28 @@ task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
     }
     m_replayedMemoryTables.clear();
 
-    loggedCheckpoint.partition_number.push_back(m_currentPartitionNumber);
-    m_checkpointingMemoryTables[m_currentPartitionNumber] = m_activeMemoryTable;
+    // Only checkpoint the active memory table if it has rows in it.
+    // This might race with the actual addition of rows to the memory table,
+    // but that's ok. In that case, we may not checkpoint the memory table,
+    // but that's ok because the memory table will be checkpointed on the next
+    // checkpoint.
+    // It's also possible that we'll actually write zero rows, if all the rows
+    // in the memory table are transaction aborts. This is also okay and desirable:
+    // The aborted rows use in-process memory, and checkpointing will free that memory.
+    if (m_activeMemoryTable->GetApproximateRowCount() > 0)
+    {
+        loggedCheckpoint.partition_number.push_back(m_activeMemoryTablePartitionNumber);
+        m_checkpointingMemoryTables[m_activeMemoryTablePartitionNumber] = std::move(m_activeMemoryTable);
 
-    m_currentPartitionNumber++;
-    m_activeMemoryTable = m_makeMemoryTable();
+        m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
+            m_index,
+            0,
+            m_activeMemoryTable);
+    }
 
     co_await UpdateIndexDataSources();
 
-    // Only return the loggedCheckpoint if there are in fact rows to checkpoint.
-    for (auto checkpoint : loggedCheckpoint.partition_number)
-    {
-        if (m_checkpointingMemoryTables[checkpoint]->GetApproximateRowCount() > 0)
-        {
-            co_return loggedCheckpoint;
-        }
-    }
-
-    // If there are no rows to checkpoint, return an empty LoggedCheckpoint,
-    // and forget about the empty memory tables.
-    for (auto checkpoint : loggedCheckpoint.partition_number)
-    {
-        co_await m_checkpointingMemoryTables[checkpoint]->Join();
-        m_checkpointingMemoryTables.erase(
-            checkpoint);
-    }
-
-    co_return FlatBuffers::LoggedCheckpointT();
+    co_return loggedCheckpoint;
 }
 
 task<WriteRowsResult> IndexDataSources::Checkpoint(
@@ -174,10 +188,107 @@ task<> IndexDataSources::UpdateIndexDataSources()
     }
 
     co_await m_index->SetDataSources(
-        m_activeMemoryTable,
-        m_currentPartitionNumber,
-        inactiveMemoryTables,
-        m_partitions);
+        std::make_shared<IndexDataSourcesSelector>(
+            m_activeMemoryTable,
+            m_activeMemoryTablePartitionNumber,
+            inactiveMemoryTables,
+            m_partitions));
+}
+
+task<> IndexDataSources::EnsureHasActiveMemoryTable(
+)
+{
+    if (!m_activeMemoryTable)
+    {
+        m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
+            m_index,
+            0,
+            m_activeMemoryTable);
+
+        co_await UpdateIndexDataSources();
+    }
+}
+
+IndexDataSourcesSelector::IndexDataSourcesSelector(
+    std::shared_ptr<IMemoryTable> activeMemoryTable,
+    PartitionNumber activeMemoryTablePartitionNumber,
+    std::vector<std::shared_ptr<IMemoryTable>> inactiveMemoryTables,
+    std::vector<std::shared_ptr<IPartition>> partitions
+)
+{
+    m_activeMemoryTable = std::move(activeMemoryTable);
+    m_activeMemoryTablePartitionNumber = activeMemoryTablePartitionNumber;
+
+    auto readAndEnumerateMemoryTables = inactiveMemoryTables;
+    if (m_activeMemoryTable)
+    {
+        readAndEnumerateMemoryTables.push_back(m_activeMemoryTable);
+    }
+
+    m_readAndEnumerateSelection = std::make_shared<IndexDataSourcesSelection>(
+        std::move(readAndEnumerateMemoryTables),
+        partitions
+    );
+
+    m_checkConflictSelection = std::make_shared<IndexDataSourcesSelection>(
+        std::move(inactiveMemoryTables),
+        std::move(partitions)
+    );
+}
+
+std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::SelectForCheckConflict(
+    const ProtoValue& key,
+    SequenceNumber readSequenceNumber
+) const
+{
+    return m_checkConflictSelection;
+}
+
+std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::SelectForRead(
+    const ProtoValue& key,
+    SequenceNumber readSequenceNumber
+) const
+{
+    return m_readAndEnumerateSelection;
+}
+
+std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::SelectForEnumerate(
+    const ProtoValue& keyLow,
+    const ProtoValue& keyHigh,
+    SequenceNumber readSequenceNumber
+) const
+{
+    return m_readAndEnumerateSelection;
+}
+
+std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::SelectForEnumeratePrefix(
+    const Prefix& prefix,
+    SequenceNumber readSequenceNumber
+) const
+{
+    return m_readAndEnumerateSelection;
+}
+
+const std::shared_ptr<IMemoryTable>& IndexDataSourcesSelector::ActiveMemoryTable(
+) const
+{
+    return m_activeMemoryTable;
+}
+
+PartitionNumber IndexDataSourcesSelector::ActiveMemoryTablePartitionNumber(
+) const
+{
+    return m_activeMemoryTablePartitionNumber;
+}
+
+std::shared_ptr<IIndexDataSources> MakeIndexDataSources(
+    IInternalProtoStore* protoStore,
+    shared_ptr<IIndex> index
+)
+{
+    return std::make_shared<IndexDataSources>(
+        protoStore,
+        std::move(index));
 }
 
 }

@@ -153,7 +153,7 @@ task<> IndexMerger::RestartIncompleteMerge(
             [&](auto operation) -> status_task<>
         {
             operation->BuildLogRecord(
-                LogEntry::LoggedCommitExtent,
+                LogEntryUnion::LoggedCommitExtent,
                 [&](auto& builder)
             {
                 return FlatBuffers::CreateLoggedCommitExtent(
@@ -163,7 +163,7 @@ task<> IndexMerger::RestartIncompleteMerge(
             });
 
             operation->BuildLogRecord(
-                LogEntry::LoggedCommitExtent,
+                LogEntryUnion::LoggedCommitExtent,
                 [&](auto& builder)
             {
                 return FlatBuffers::CreateLoggedCommitExtent(
@@ -411,7 +411,7 @@ task<> IndexMerger::WriteMergeCompletion(
     
     // Mark the table as needing reload of its partitions.
     operation->BuildLogRecord(
-        LogEntry::LoggedUpdatePartitions,
+        LogEntryUnion::LoggedUpdatePartitions,
         [&](auto& builder)
     {
         return FlatBuffers::CreateLoggedUpdatePartitions(
@@ -424,7 +424,7 @@ task<> IndexMerger::WriteMergeCompletion(
     for (auto headerExtentName : *incompleteMerge.Merge.Value->source_header_extent_names())
     {
         operation->BuildLogRecord(
-            LogEntry::LoggedDeleteExtentPendingPartitionsUpdated,
+            LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated,
             [&](auto& builder)
         {
             auto fullHeaderExtentName = MakeExtentName(headerExtentName);
@@ -440,7 +440,7 @@ task<> IndexMerger::WriteMergeCompletion(
             headerExtentName);
 
         operation->BuildLogRecord(
-            LogEntry::LoggedDeleteExtentPendingPartitionsUpdated,
+            LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated,
             [&](auto& builder)
         {
             return FlatBuffers::CreateLoggedDeleteExtentPendingPartitionsUpdated(
@@ -502,7 +502,7 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
         headerExtentName);
 
     operation->BuildLogRecord(
-        LogEntry::LoggedPartitionsData,
+        LogEntryUnion::LoggedPartitionsData,
         [&](auto& builder) -> Offset<void>
     {
         std::vector<Offset<FlatBuffers::IndexHeaderExtentName>> headerExtentNameOffsets;

@@ -7,6 +7,8 @@
 namespace Phantom::ProtoStore
 {
 
+class IIndexDataSourcesSelector;
+
 class IIndexData : public SerializationTypes
 {
 public:
@@ -65,10 +67,7 @@ public:
         ) = 0;
 
     virtual task<> SetDataSources(
-        shared_ptr<IMemoryTable> activeMemoryTable,
-        PartitionNumber activePartitionNumber,
-        vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
-        vector<shared_ptr<IPartition>> partitions
+        std::shared_ptr<IIndexDataSourcesSelector> indexDataSourcesSelector
     ) = 0;
 };
 

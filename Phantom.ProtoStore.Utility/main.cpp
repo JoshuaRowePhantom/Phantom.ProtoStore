@@ -19,7 +19,7 @@ void DumpMessage(
     ExtentOffset offset
 )
 {
-    cout << name << " @ [" << offset << "]\n" << message << "\n";
+    cout << "{\n" << "  type: " << name << "\n  offset: " << offset << "\n  message: " << message << "}\n";
 }
 
 void PrintUsage()

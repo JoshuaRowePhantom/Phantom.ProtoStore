@@ -64,12 +64,12 @@ public:
             nullptr,
             readRequest));
         
-        if (readResult->ReadStatus == ReadStatus::NoValue)
+        if (readResult.ReadStatus == ReadStatus::NoValue)
         {
             co_return TransactionOutcome::Committed;
         }
 
-        auto unresolvedTransactionValue = readResult->Value.cast_if<FlatBuffers::DistributedTransactionsValue>();
+        auto unresolvedTransactionValue = readResult.Value.cast_if<FlatBuffers::DistributedTransactionsValue>();
         if (unresolvedTransactionValue->distributed_transaction_state() == FlatBuffers::DistributedTransactionState::Unknown)
         {
             co_return TransactionOutcome::Unknown;

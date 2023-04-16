@@ -7,6 +7,8 @@
 namespace Phantom::ProtoStore
 {
 
+class IMemoryTable;
+
 class IInternalTransaction
     :
     public ICommittableTransaction,
@@ -14,7 +16,7 @@ class IInternalTransaction
 {
 public:
     virtual void BuildLogRecord(
-        LogEntry logEntry,
+        LogEntryUnion logEntry,
         std::function<Offset<void>(flatbuffers::FlatBufferBuilder&)> builder
     ) = 0;
 
@@ -25,7 +27,7 @@ public:
     )
     {
         BuildLogRecord(
-            FlatBuffers::LogEntryUnionTraits<NativeTable>::enum_value,
+            FlatBuffers::LogEntryUnionUnionTraits<NativeTable>::enum_value,
             [&](auto& builder)
         {
             return NativeTable::TableType::Pack(
@@ -87,6 +89,12 @@ public:
 
     virtual task<shared_ptr<IIndex>> GetIndex(
         google::protobuf::uint64 indexNumber
+    ) = 0;
+
+    virtual task<PartitionNumber> CreateMemoryTable(
+        const std::shared_ptr<IIndex>& index,
+        PartitionNumber partitionNumber,
+        std::shared_ptr<IMemoryTable>& memoryTable
     ) = 0;
 
     virtual task<vector<shared_ptr<IPartition>>> OpenPartitionsForIndex(

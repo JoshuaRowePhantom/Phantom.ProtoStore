@@ -1,4 +1,5 @@
 #include "TestFactories.h"
+#include "Phantom.ProtoStore/src/IndexDataSourcesImpl.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.ProtoStore/src/PartitionImpl.h"
 #include "Phantom.ProtoStore/src/ProtoStore.h"
@@ -45,15 +46,15 @@ task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
         keyComparer);
 
     co_await index->SetDataSources(
-        memoryTable,
-        0,
-        {},
-        {}
-    );
+        std::make_shared<IndexDataSourcesSelector>(
+            memoryTable,
+            1000,
+            std::vector<std::shared_ptr<IMemoryTable>>(),
+            std::vector<std::shared_ptr<IPartition>>()
+    ));
 
     co_return index;
 }
-
 
 task<OperationResult<>> TestFactories::AddRow(
     const std::shared_ptr<IIndexData>& index,

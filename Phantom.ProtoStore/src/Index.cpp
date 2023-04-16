@@ -1,4 +1,5 @@
 #include <algorithm>
+#include "IndexDataSources.h"
 #include "IndexImpl.h"
 #include "ProtoStoreInternal.pb.h"
 #include "ValueComparer.h"
@@ -59,11 +60,17 @@ operation_task<PartitionNumber> Index::AddRow(
 {
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
 
-    auto row = co_await createLoggedRowWrite(m_activePartitionNumber);;
+    auto partitionNumber = m_indexDataSourcesSelector->ActiveMemoryTablePartitionNumber();
+    auto row = co_await createLoggedRowWrite(
+        partitionNumber);
+    auto key = SchemaDescriptions::MakeProtoValueKey(
+        *m_schema,
+        row->key());
 
-    shared_ptr<IMemoryTable> activeMemoryTable;
-    MemoryTablesEnumeration inactiveMemoryTables;
-    PartitionsEnumeration partitions;
+    auto dataSourcesSelection = m_indexDataSourcesSelector->SelectForCheckConflict(
+        key,
+        readSequenceNumber);
+
     auto writeSequenceNumber = ToSequenceNumber(row->sequence_number());
     
     auto makeWriteConflict = [&](SequenceNumber conflictingSequenceNumber)
@@ -82,7 +89,7 @@ operation_task<PartitionNumber> Index::AddRow(
         };
     };
 
-    for (auto& memoryTable : *m_inactiveMemoryTables)
+    for (auto& memoryTable : dataSourcesSelection->memoryTables)
     {
         if (memoryTable->GetLatestSequenceNumber() < writeSequenceNumber
             &&
@@ -92,7 +99,7 @@ operation_task<PartitionNumber> Index::AddRow(
         }
     }
 
-    for (auto& partition : *m_partitions)
+    for (auto& partition : dataSourcesSelection->partitions)
     {
         if (partition->GetLatestSequenceNumber() < writeSequenceNumber
             &&
@@ -114,7 +121,7 @@ operation_task<PartitionNumber> Index::AddRow(
         }
     }
 
-    auto conflictingSequenceNumber = co_await m_activeMemoryTable->AddRow(
+    auto conflictingSequenceNumber = co_await m_indexDataSourcesSelector->ActiveMemoryTable()->AddRow(
         readSequenceNumber,
         std::move(row),
         std::move(delayedTransactionOutcome));
@@ -124,7 +131,7 @@ operation_task<PartitionNumber> Index::AddRow(
         co_return makeWriteConflict(*conflictingSequenceNumber);
     }
 
-    co_return m_activePartitionNumber;
+    co_return partitionNumber;
 }
 
 task<> Index::ReplayRow(
@@ -152,15 +159,6 @@ std::unexpected<FailedResult> Index::MakeUnresolvedTransactionFailedResult(
     };
 }
 
-task<> Index::GetEnumerationDataSources(
-    MemoryTablesEnumeration& memoryTables,
-    PartitionsEnumeration& partitions)
-{
-    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
-    memoryTables = m_memoryTablesToEnumerate;
-    partitions = m_partitions;
-}
-
 operation_task<ReadResult> Index::Read(
     shared_ptr<DelayedMemoryTableTransactionOutcome> originatingTransactionOutcome,
     const ReadRequest& readRequest
@@ -174,16 +172,15 @@ operation_task<ReadResult> Index::Read(
         .Inclusivity = Inclusivity::Inclusive,
     };
 
-    MemoryTablesEnumeration memoryTablesEnumeration;
-    PartitionsEnumeration partitionsEnumeration;
-
-    co_await GetEnumerationDataSources(
-        memoryTablesEnumeration,
-        partitionsEnumeration);
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+    auto dataSourcesSelection = m_indexDataSourcesSelector->SelectForRead(
+        unowningKey,
+        readRequest.SequenceNumber);
+    lock.unlock();
 
     auto enumerateAllItemsLambda = [&]() -> row_generators
     {
-        for (auto& memoryTable : *memoryTablesEnumeration)
+        for (auto& memoryTable : dataSourcesSelection->memoryTables)
         {
             co_yield memoryTable->Enumerate(
                 originatingTransactionOutcome,
@@ -193,7 +190,7 @@ operation_task<ReadResult> Index::Read(
             );
         }
 
-        for (auto& partition : *partitionsEnumeration)
+        for (auto& partition : dataSourcesSelection->partitions)
         {
             co_yield partition->Read(
                 readRequest.SequenceNumber,
@@ -267,16 +264,16 @@ EnumerateResultGenerator Index::Enumerate(
         .Inclusivity = enumerateRequest.KeyHighInclusivity,
     };
 
-    MemoryTablesEnumeration memoryTablesEnumeration;
-    PartitionsEnumeration partitionsEnumeration;
-
-    co_await GetEnumerationDataSources(
-        memoryTablesEnumeration,
-        partitionsEnumeration);
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+    auto dataSourcesSelection = m_indexDataSourcesSelector->SelectForEnumerate(
+        unowningKeyLow,
+        unowningKeyHigh,
+        enumerateRequest.SequenceNumber);
+    lock.unlock();
 
     auto enumerateAllItemsLambda = [&]() -> row_generators
     {
-        for (auto& memoryTable : *memoryTablesEnumeration)
+        for (auto& memoryTable : dataSourcesSelection->memoryTables)
         {
             co_yield memoryTable->Enumerate(
                 originatingTransactionOutcome,
@@ -286,7 +283,7 @@ EnumerateResultGenerator Index::Enumerate(
             );
         }
 
-        for (auto& partition : *partitionsEnumeration)
+        for (auto& partition : dataSourcesSelection->partitions)
         {
             co_yield partition->Enumerate(
                 enumerateRequest.SequenceNumber,
@@ -336,16 +333,15 @@ EnumerateResultGenerator Index::EnumeratePrefix(
         .LastFieldId = enumeratePrefixRequest.Prefix.LastFieldId,
     };
 
-    MemoryTablesEnumeration memoryTablesEnumeration;
-    PartitionsEnumeration partitionsEnumeration;
-
-    co_await GetEnumerationDataSources(
-        memoryTablesEnumeration,
-        partitionsEnumeration);
+    auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+    auto dataSourcesSelection = m_indexDataSourcesSelector->SelectForEnumeratePrefix(
+        unknowningPrefix,
+        enumeratePrefixRequest.SequenceNumber);
+    lock.unlock();
 
     auto enumerateAllItemsLambda = [&]() -> row_generators
     {
-        for (auto& memoryTable : *memoryTablesEnumeration)
+        for (auto& memoryTable : dataSourcesSelection->memoryTables)
         {
             co_yield memoryTable->Enumerate(
                 originatingTransactionOutcome,
@@ -355,7 +351,7 @@ EnumerateResultGenerator Index::EnumeratePrefix(
             );
         }
 
-        for (auto& partition : *partitionsEnumeration)
+        for (auto& partition : dataSourcesSelection->partitions)
         {
             co_yield partition->EnumeratePrefix(
                 enumeratePrefixRequest.SequenceNumber,
@@ -417,24 +413,12 @@ task<WriteRowsResult> Index::WriteMemoryTables(
 }
 
 task<> Index::SetDataSources(
-    shared_ptr<IMemoryTable> activeMemoryTable,
-    PartitionNumber activePartitionNumber,
-    vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
-    vector<shared_ptr<IPartition>> partitions
+    std::shared_ptr<IIndexDataSourcesSelector> indexDataSourcesSelector
 )
 {
-    co_await m_dataSourcesLock.writer().scoped_lock_async();
+    auto lock = co_await m_dataSourcesLock.writer().scoped_lock_async();
 
-    m_activeMemoryTable = activeMemoryTable;
-    m_activePartitionNumber = activePartitionNumber;
-    m_inactiveMemoryTables = make_shared<vector<shared_ptr<IMemoryTable>>>(
-        inactiveMemoryTables);
-    m_memoryTablesToEnumerate = make_shared<vector<shared_ptr<IMemoryTable>>>(
-        inactiveMemoryTables);
-    m_memoryTablesToEnumerate->push_back(
-        activeMemoryTable);
-    m_partitions = make_shared<vector<shared_ptr<IPartition>>>(
-        partitions);
+    m_indexDataSourcesSelector = indexDataSourcesSelector;
 }
 
 const shared_ptr<const Schema>& Index::GetSchema() const

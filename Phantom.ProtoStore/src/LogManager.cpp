@@ -54,18 +54,19 @@ task<> LogManager::Replay(
 {
     auto logExtentSequenceNumber = extentName->log_extent_sequence_number;
 
-    if (!logRecord->log_entry())
+    if (!logRecord->log_entries())
     {
         co_return;
     }
 
-    for (uoffset_t logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); ++logEntryIndex)
+    for (uoffset_t logEntryIndex = 0; logEntryIndex < logRecord->log_entries()->size(); ++logEntryIndex)
     {
-        switch (logRecord->log_entry_type()->Get(logEntryIndex))
+        auto logEntry = logRecord->log_entries()->Get(logEntryIndex);
+        switch (logEntry->log_entry_type())
         {
-        case LogEntry::LoggedRowWrite:
+        case LogEntryUnion::LoggedRowWrite:
         {
-            auto loggedRowWrite = logRecord->log_entry()->GetAs<LoggedRowWrite>(logEntryIndex);
+            auto loggedRowWrite = logEntry->log_entry_as<LoggedRowWrite>();
 
             LogExtentUsage logExtentUsage =
             {
@@ -79,18 +80,18 @@ task<> LogManager::Replay(
             break;
         }
 
-        case LogEntry::LoggedCreateExtent:
+        case LogEntryUnion::LoggedCreateExtent:
         {
-            auto loggedCreateExtent = logRecord->log_entry()->GetAs<LoggedCreateExtent>(logEntryIndex);
+            auto loggedCreateExtent = logEntry->log_entry_as<LoggedCreateExtent>();
             FlatBuffers::ExtentNameT createdExtent;
             loggedCreateExtent->extent_name()->UnPackTo(&createdExtent);
             m_uncommittedExtentToLogExtentSequenceNumber[createdExtent] = logExtentSequenceNumber;
             break;
         }
 
-        case LogEntry::LoggedDeleteExtentPendingPartitionsUpdated:
+        case LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated:
         {
-            auto loggedDeleteExtentPendingPartitionsUpdated = logRecord->log_entry()->GetAs<LoggedDeleteExtentPendingPartitionsUpdated>(logEntryIndex);
+            auto loggedDeleteExtentPendingPartitionsUpdated = logEntry->log_entry_as<LoggedDeleteExtentPendingPartitionsUpdated>();
             FlatBuffers::ExtentNameT extentToDeletePendingPartitionsUpdated;
             loggedDeleteExtentPendingPartitionsUpdated->extent_name()->UnPackTo(
                 &extentToDeletePendingPartitionsUpdated);
@@ -101,17 +102,32 @@ task<> LogManager::Replay(
             break;
         }
 
-        case LogEntry::LoggedCommitExtent:
+        case LogEntryUnion::LoggedCommitExtent:
         {
-            auto loggedCommitExtent = logRecord->log_entry()->GetAs<LoggedCommitExtent>(logEntryIndex);
+            auto loggedCommitExtent = logEntry->log_entry_as<LoggedCommitExtent>();
             FlatBuffers::ExtentNameT committedExtent;
             m_uncommittedExtentToLogExtentSequenceNumber.erase(committedExtent);
             break;
         }
 
-        case LogEntry::LoggedCheckpoint:
+        case LogEntryUnion::LoggedCreateMemoryTable:
         {
-            auto loggedCheckpoint = logRecord->log_entry()->GetAs<LoggedCheckpoint>(logEntryIndex);
+            auto loggedCreateMemoryTable = logEntry->log_entry_as<LoggedCreateMemoryTable>();
+            LogExtentUsage logExtentUsage =
+            {
+                .LogExtentSequenceNumber = logExtentSequenceNumber,
+                .IndexNumber = loggedCreateMemoryTable->index_number(),
+                .PartitionNumber = loggedCreateMemoryTable->partition_number(),
+            };
+
+            m_logExtentUsage.insert(
+                logExtentUsage);
+            break;
+        }
+
+        case LogEntryUnion::LoggedCheckpoint:
+        {
+            auto loggedCheckpoint = logEntry->log_entry_as<LoggedCheckpoint>();
 
             auto loggedPartitionNumbers = std::set(
                 loggedCheckpoint->partition_number()->cbegin(),
@@ -128,9 +144,9 @@ task<> LogManager::Replay(
             break;
         }
 
-        case LogEntry::LoggedPartitionsData:
+        case LogEntryUnion::LoggedPartitionsData:
         {
-            auto loggedPartitionsData = logRecord->log_entry()->GetAs<LoggedPartitionsData>(logEntryIndex);
+            auto loggedPartitionsData = logEntry->log_entry_as<LoggedPartitionsData>();
             m_partitionsDataLogExtentSequenceNumber = logExtentSequenceNumber;
             loggedPartitionsData->UnPackTo(&m_latestLoggedPartitionsData);
 
@@ -167,19 +183,21 @@ bool LogManager::NeedToUpdateMaps(
     const LogRecord* logRecord
 )
 {
-    for(int logEntryIndex = 0; logEntryIndex < logRecord->log_entry()->size(); logEntryIndex++)
+    for(int logEntryIndex = 0; logEntryIndex < logRecord->log_entries()->size(); logEntryIndex++)
     {
-        switch (logRecord->log_entry_type()->Get(logEntryIndex))
+        auto logEntry = logRecord->log_entries()->Get(logEntryIndex);
+        switch (logEntry->log_entry_type())
         {
-        case LogEntry::LoggedCreateExtent:
-        case LogEntry::LoggedDeleteExtentPendingPartitionsUpdated:
-        case LogEntry::LoggedCommitExtent:
-        case LogEntry::LoggedCheckpoint:
+        case LogEntryUnion::LoggedCreateExtent:
+        case LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated:
+        case LogEntryUnion::LoggedCommitExtent:
+        case LogEntryUnion::LoggedCheckpoint:
+        case LogEntryUnion::LoggedCreateMemoryTable:
             return true;
 
-        case LogEntry::LoggedRowWrite:
+        case LogEntryUnion::LoggedRowWrite:
         {
-            auto loggedRowWrite = logRecord->log_entry()->GetAs<LoggedRowWrite>(logEntryIndex);
+            auto loggedRowWrite = logEntry->log_entry_as<LoggedRowWrite>();
 
             LogExtentUsage logExtentUsage =
             {
@@ -417,11 +435,9 @@ task<> LogManager::OpenNewLogWriter()
     // ensures that all replay actions will have a set of partitions
     // to start from.
     FlatBuffers::LogRecordT firstLogRecord;
-    FlatBuffers::LogEntryUnion firstLogEntry;
-    firstLogEntry.Set(m_latestLoggedPartitionsData);
-    firstLogRecord.log_entry.push_back(
-        std::move(firstLogEntry)
-    );
+    FlatBuffers::LogEntryT firstLogEntry;
+    firstLogEntry.log_entry.Set(m_latestLoggedPartitionsData);
+    firstLogRecord.log_entries.push_back(copy_unique(firstLogEntry));
     FlatMessage flatFirstLogRecord{ &firstLogRecord };
 
     FlatBuffers::LogExtentNameT fbLogExtentName;

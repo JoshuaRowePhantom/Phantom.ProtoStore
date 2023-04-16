@@ -27,6 +27,7 @@ add_executable(
     "pch.h"
     "ProtocolBuffersValueComparerTests.cpp"
     "ProtoStoreFlatBufferTests.cpp"
+    "ProtoStoreIndexTests.cpp"
     "ProtoStoreProtocolBufferTests.cpp"
     "ProtoStoreTest.proto"
     "ProtoValueTests.cpp"

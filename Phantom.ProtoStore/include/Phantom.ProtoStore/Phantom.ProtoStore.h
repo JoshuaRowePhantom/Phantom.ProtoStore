@@ -197,7 +197,7 @@ using EnumerateResultGenerator = operation_generator<EnumerateResult>;
 class IReadableProtoStore
 {
 public:
-    virtual task<ProtoIndex> GetIndex(
+    virtual operation_task<ProtoIndex> GetIndex(
         const GetIndexRequest& getIndexRequest
     ) = 0;
 

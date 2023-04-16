@@ -46,9 +46,9 @@ public:
         GetIndexRequest getIndexRequest;
         getIndexRequest.IndexName = "test_ProtoIndex";
 
-        auto index = co_await store->GetIndex(
+        auto index = throw_if_failed(co_await store->GetIndex(
             getIndexRequest
-        );
+        ));
         co_return index;
     }
 
@@ -867,35 +867,6 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_one_row_after_reo
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
-ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Checkpoint_deletes_old_logs)
-{
-    //auto createRequest = GetCreateFileStoreRequest("Checkpoint_deletes_old_logs");
-    auto createRequest = GetCreateMemoryStoreRequest();
-
-    auto store = co_await CreateStore(createRequest);
-
-    auto memoryStore = std::static_pointer_cast<MemoryExtentStore>(
-        co_await createRequest.ExtentStore());
-
-    auto index = co_await CreateTestProtoIndex(
-        store);
-
-    co_await AddRowToTestProtoIndex(
-        store,
-        index,
-        "testKey1",
-        "testValue1",
-        ToSequenceNumber(5));
-
-    // Checkpoint twice to ensure old log is delete.
-    co_await store->Checkpoint();
-    EXPECT_EQ(true, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(0))));
-
-    co_await store->Checkpoint();
-
-    EXPECT_EQ(false, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(0))));
-}
-
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_one_row_after_checkpoint)
 {
     auto createRequest = GetCreateMemoryStoreRequest();

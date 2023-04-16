@@ -130,6 +130,12 @@ class ProtoStore
         ExtentNameT& out_partitionHeaderExtentName,
         ExtentNameT& out_partitionDataExtentName);
 
+    virtual task<PartitionNumber> CreateMemoryTable(
+        const std::shared_ptr<IIndex>& index,
+        PartitionNumber partitionNumber,
+        std::shared_ptr<IMemoryTable>& memoryTable
+    ) override;
+
     virtual task<> OpenPartitionWriter(
         IndexNumber indexNumber,
         IndexName indexName,
@@ -165,12 +171,16 @@ class ProtoStore
         const FlatMessage<LoggedCreateIndex>& logRecord);
 
     task<> Replay(
+        const FlatMessage<LoggedCreateMemoryTable>& logRecord);
+    
+    task<> Replay(
         const FlatMessage<LoggedCreatePartition>& logRecord);
 
     task<> Replay(
         const FlatMessage<LoggedPartitionsData>& logRecord);
 
     task<> ReplayPartitionsForOpenedIndexes();
+    task<> CreateInitialMemoryTables();
 
     task<> ReplayPartitionsForIndex(
         const IndexEntry& indexEntry);
@@ -284,7 +294,7 @@ public:
         const CreateIndexRequest& createIndexRequest
     ) override;
 
-    virtual task<ProtoIndex> GetIndex(
+    virtual operation_task<ProtoIndex> GetIndex(
         const GetIndexRequest& getIndexRequest
     ) override;
 

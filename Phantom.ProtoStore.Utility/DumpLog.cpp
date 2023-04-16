@@ -44,6 +44,15 @@ task<> DumpLog(
             std::cout << "Invalid message!\n";
         }
 
+        FlatValue<FlatBuffers::LogRecord> flatMessage
+        {
+            ProtoValue::FlatBuffer(
+                ProtoValue::backing_store
+                {
+                    as_bytes(span)
+                })
+        };
+
         DumpMessage(
             "LogRecord",
             flatbuffers::FlatBufferToString(

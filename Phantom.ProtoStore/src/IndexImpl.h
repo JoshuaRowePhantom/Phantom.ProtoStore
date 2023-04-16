@@ -25,28 +25,9 @@ class Index
     // This lock control access to the following members:
     // vvvvvvvvvvvvvvvvv
     async_reader_writer_lock m_dataSourcesLock;
-
-    shared_ptr<IMemoryTable> m_activeMemoryTable;
-    PartitionNumber m_activePartitionNumber;
-
-    typedef shared_ptr<vector<shared_ptr<IMemoryTable>>> MemoryTablesEnumeration;
-    typedef shared_ptr<vector<shared_ptr<IPartition>>> PartitionsEnumeration;
-
-    MemoryTablesEnumeration m_inactiveMemoryTables;
-    MemoryTablesEnumeration m_memoryTablesToEnumerate;
-    PartitionsEnumeration m_partitions;
+    std::shared_ptr<IIndexDataSourcesSelector> m_indexDataSourcesSelector;
     // ^^^^^^^^^^^^^^^^^
     // The above members are locked with m_dataSourcesLock
-
-    void UpdateMemoryTablesToEnumerate();
-
-    task<> GetEnumerationDataSources(
-        MemoryTablesEnumeration& memoryTables,
-        PartitionsEnumeration& partitions);
-
-    task<vector<shared_ptr<IMemoryTable>>> StartCheckpoint(
-        const LoggedCheckpoint& loggedCheckpoint
-    );
 
     std::unexpected<FailedResult> MakeUnresolvedTransactionFailedResult(
         TransactionId unresolvedTransactionId);
@@ -106,10 +87,7 @@ public:
     ) override;
 
     virtual task<> SetDataSources(
-        shared_ptr<IMemoryTable> activeMemoryTable,
-        PartitionNumber activePartitionNumber,
-        vector<shared_ptr<IMemoryTable>> inactiveMemoryTables,
-        vector<shared_ptr<IPartition>> partitions
+        std::shared_ptr<IIndexDataSourcesSelector> indexDataSourcesSelector
     ) override;
 
     virtual const shared_ptr<const Schema>& GetSchema(
@@ -117,8 +95,7 @@ public:
 
     virtual task<> Join(
     ) override;
-
-
 };
+
 
 }

@@ -57,9 +57,9 @@ public:
         GetIndexRequest getIndexRequest;
         getIndexRequest.IndexName = "test_FlatIndex";
 
-        auto index = co_await store->GetIndex(
+        auto index = throw_if_failed(co_await store->GetIndex(
             getIndexRequest
-        );
+        ));
         co_return index;
     }
 
@@ -245,6 +245,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Open_fails_on_uncreated_store)
             openRequest),
         range_error);
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row)
 {
     auto store = co_await CreateMemoryStore();
@@ -267,6 +268,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row)
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_delete_and_enumerate_one_row)
 {
     auto store = co_await CreateMemoryStore();
@@ -389,7 +391,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint)
         });
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_partition_embedded_encoding)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_embedded_encoding)
 {
     auto store = co_await CreateMemoryStore();
 
@@ -465,7 +467,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_update)
             { "testKey1", {"testValue1-2", 6}},
         });
 }
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_partition_and_update)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint_and_update)
 {
     auto store = co_await CreateMemoryStore();
 
@@ -513,7 +515,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_partition_an
             { "testKey1", {"testValue1-2", 6}},
         });
 }
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_two_partition_and_update_and_checkpoint)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_two_checkpoints_and_update_and_checkpoint)
 {
     auto store = co_await CreateMemoryStore();
 
@@ -992,6 +994,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_conflict_after_row_checkpointed)
         ToSequenceNumber(4),
         ToSequenceNumber(5));
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_reopen)
 {
     //auto createRequest = GetCreateMemoryStoreRequest();
@@ -1023,6 +1026,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_reopen)
         ToSequenceNumber(5),
         ToSequenceNumber(5));
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Checkpoint_deletes_old_logs)
 {
     //auto createRequest = GetCreateFileStoreRequest("Checkpoint_deletes_old_logs");
@@ -1079,9 +1083,9 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpo
         ToSequenceNumber(5));
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_partition_and_reopen)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpoint_and_reopen)
 {
-    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_partition_and_reopen");
+    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen");
 
     auto store = co_await CreateStore(createRequest);
 
@@ -1115,9 +1119,9 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_partiti
         ToSequenceNumber(5));
 }
 
-ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_partition_and_reopen_embedded_encoding)
+ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpoint_and_reopen_embedded_encoding)
 {
-    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_partition_and_reopen_embedded_encoding");
+    auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_one_row_after_checkpoint_and_reopen_embedded_encoding");
 
     auto store = co_await CreateStore(createRequest);
 
