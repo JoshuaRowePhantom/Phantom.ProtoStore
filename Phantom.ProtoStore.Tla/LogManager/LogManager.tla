@@ -3,7 +3,8 @@ EXTENDS TLC, Sequences, Integers
 
 CONSTANT 
     Writes,
-    PartitionIds
+    PartitionIds,
+    Tables
 
 VARIABLE
     Log,
@@ -29,8 +30,6 @@ Min(S) == CHOOSE s \in S : ~ \E t \in S : t < s
 
 NonExistentPartition == Min(PartitionIds) - 1
 
-Tables == { "Partitions", "Data" }
-
 AppendLog(logEntries) ==
     Log' = Log \o logEntries
 
@@ -43,7 +42,7 @@ Init ==
     /\  CurrentMemory = [table \in Tables |-> NonExistentPartition]
     /\  Memory = [table \in Tables |-> << >>]
     /\  Partitions = [table \in Tables |-> << >>]
-    /\  CommittedWrites = {}
+    /\  CommittedWrites = << >>
     /\  NextPartition = Min(PartitionIds)
     /\  CurrentDiskPartitions = [table \in Tables |-> {}]
 
@@ -63,10 +62,10 @@ Write(table, write, partition) ==
     /\  AppendLog(<< [ Type |-> "Write", Table |-> table, Partition |-> partition, Value |-> write ] >>)
     /\  UNCHANGED << Partitions, CurrentMemory, NextPartition, CurrentDiskPartitions >>
 
-WriteData(write, partition) ==
-    /\  write \notin CommittedWrites 
-    /\  CommittedWrites' = CommittedWrites \union { write }
-    /\  Write("Data", write, partition)
+WriteData(table, write, partition) ==
+    /\  write \notin DOMAIN CommittedWrites 
+    /\  CommittedWrites' = write :> table @@ CommittedWrites
+    /\  Write(table, write, partition)
 
 CompleteCheckpoint(table, diskPartition) ==
     /\  \E memoryPartitions \in SUBSET DOMAIN Memory[table] :
@@ -173,7 +172,7 @@ Next ==
         table \in Tables
         :
         \/  StartCheckpoint(table, partition)
-        \/  WriteData(write, partition)
+        \/  WriteData(table, write, partition)
         \/  CompleteCheckpoint(table, partition)
         \/  Replay
         \/  TruncateLog
@@ -185,15 +184,15 @@ Spec ==
 Symmetry ==
     Permutations(Writes)
 
-CanRead(write) ==
-    \/  \E partition \in DOMAIN Memory["Data"] :
-            write \in Memory["Data"][partition]
-    \/  \E partition \in CurrentDiskPartitions["Data"] :
-            write \in Partitions["Data"][partition]
+CanRead(table, write) ==
+    \/  \E partition \in DOMAIN Memory[table] :
+            write \in Memory[table][partition]
+    \/  \E partition \in CurrentDiskPartitions[table] :
+            write \in Partitions[table][partition]
 
 CanAlwaysReadCommittedWrites ==
-    \A write \in CommittedWrites :
-        CanRead(write)
+    \A write \in DOMAIN CommittedWrites :
+        CanRead(CommittedWrites[write], write)
 
 Alias ==
     [
@@ -204,7 +203,7 @@ Alias ==
         CurrentMemory |-> CurrentMemory,
         NextPartition |-> NextPartition,
         CurrentDiskPartitions |-> CurrentDiskPartitions,
-        CanRead |-> [ write \in CommittedWrites |-> CanRead(write) ]
+        CanRead |-> [ write \in DOMAIN CommittedWrites |-> CanRead(CommittedWrites[write], write) ]
     ]
 
 ====
