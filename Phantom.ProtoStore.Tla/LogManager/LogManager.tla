@@ -168,6 +168,16 @@ Spec ==
 Symmetry ==
     Permutations(Writes)
 
+CanRead(write) ==
+    \/  \E partition \in DOMAIN Memory["Data"] :
+            write \in Memory["Data"][partition]
+    \/  \E partition \in CurrentDiskPartitions["Data"] :
+            write \in Partitions["Data"][partition]
+
+CanAlwaysReadCommittedWrites ==
+    \A write \in CommittedWrites :
+        CanRead(write)
+
 Alias ==
     [
         Log |-> Log,
