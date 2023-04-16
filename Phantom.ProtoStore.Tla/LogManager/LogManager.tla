@@ -57,11 +57,13 @@ AllocatePartition(newPartition) ==
 
 IsReplaying == CurrentReplayIndex > 0
 
+EmptyPartitionSet == [table \in Tables |-> << >>]
+
 Init ==
     /\  Log = << >>
     /\  CurrentMemory = [table \in Tables |-> NonExistentPartition]
-    /\  Memory = [table \in Tables |-> << >>]
-    /\  Partitions = [table \in Tables |-> << >>]
+    /\  Memory = EmptyPartitionSet
+    /\  Partitions = EmptyPartitionSet
     /\  CommittedWrites = << >>
     /\  NextPartition = Min(PartitionIds)
     /\  CurrentDiskPartitions = [table \in Tables |-> {}]
@@ -95,7 +97,7 @@ CreateTable(table) ==
 WriteData(table, write, partition) ==
     /\  ~IsReplaying
     /\  table \in UserTables
-    /\  CanRead("Tables", table)
+    /\  CanReadEphemeral(EmptyPartitionSet, CurrentDiskPartitions, "Tables", table)
     /\  write \notin DOMAIN CommittedWrites 
     /\  CommittedWrites' = write :> table @@ CommittedWrites
     /\  Write(table, write, partition)
@@ -211,7 +213,7 @@ FinishReplay ==
 StartReplay ==
     /\  CurrentReplayIndex' = 1
     /\  CurrentMemory' = [table \in Tables |-> NonExistentPartition]
-    /\  Memory' = [table \in Tables |-> << >>]
+    /\  Memory' = EmptyPartitionSet
     /\  NextPartition' = Min(PartitionIds)
     /\  CurrentDiskPartitions' = [table \in Tables |-> {}]
     /\  UNCHANGED << CommittedWrites, Log, Partitions >>
@@ -268,7 +270,9 @@ Alias ==
         CurrentMemory |-> CurrentMemory,
         NextPartition |-> NextPartition,
         CurrentDiskPartitions |-> CurrentDiskPartitions,
-        CanRead |-> [ write \in DOMAIN CommittedWrites |-> CanRead(CommittedWrites[write], write) ]
+        CanRead |-> [ write \in DOMAIN CommittedWrites |-> CanRead(CommittedWrites[write], write) ],
+        CanReadMetadata |-> [ userTable \in UserTables |-> CanRead("Tables", userTable) ],
+        CurrentReplayIndex |-> CurrentReplayIndex
     ]
 
 ====
