@@ -6,20 +6,22 @@ CONSTANT
     PartitionIds
 
 VARIABLE
-    LogExtents,
+    Log,
     Memory,
     Partitions,
     CommittedWrites,
     CurrentMemory,
-    NextPartition
+    NextPartition,
+    CurrentDiskPartitions
 
 vars == <<
-    LogExtents,
+    Log,
     Memory,
     Partitions,
     CommittedWrites,
     CurrentMemory,
-    NextPartition
+    NextPartition,
+    CurrentDiskPartitions
 >>
 
 Max(S) == CHOOSE s \in S : ~ \E t \in S : t > s
@@ -27,22 +29,21 @@ Min(S) == CHOOSE s \in S : ~ \E t \in S : t < s
 
 Tables == { "Partitions", "Data" }
 
-CurrentLogExtent == Max(DOMAIN(LogExtents))
-
 AppendLog(logEntries) ==
-    LogExtents' = [LogExtents EXCEPT ![CurrentLogExtent] = @ \o logEntries]
+    Log' = Log \o logEntries
 
 AllocatePartition(newPartition) ==
     /\  NextPartition = newPartition
     /\  NextPartition' = newPartition + 1
 
 Init ==
-    /\  LogExtents = << << >> >>
+    /\  Log = << >>
     /\  CurrentMemory = [table \in Tables |-> << >>]
     /\  Memory = [table \in Tables |-> << >>]
     /\  Partitions = [table \in Tables |-> << >>]
     /\  CommittedWrites = {}
     /\  NextPartition = Min(PartitionIds)
+    /\  CurrentDiskPartitions = [table \in Tables |-> {}]
 
 StartCheckpoint(table, newPartition) == 
     /\  AllocatePartition(newPartition)
@@ -51,14 +52,14 @@ StartCheckpoint(table, newPartition) ==
     /\  Memory' = [Memory EXCEPT ![table] = newPartition :> {} @@ @]
     /\  CurrentMemory' = [CurrentMemory EXCEPT ![table] = newPartition]
     /\  AppendLog(<< [ Type |-> "CreateMemoryTable", Table |-> table, NewPartition |-> newPartition ] >>)
-    /\  UNCHANGED << Partitions, CommittedWrites >>
+    /\  UNCHANGED << Partitions, CommittedWrites, CurrentDiskPartitions >>
 
 Write(table, write, partition) ==
     /\  partition \in DOMAIN Memory[table]
     /\  partition = CurrentMemory[table]
     /\  Memory' = [Memory EXCEPT ![table][partition] = @ \union { write }]
     /\  AppendLog(<< [ Type |-> "Write", Table |-> table, Partition |-> partition, Value |-> write ] >>)
-    /\  UNCHANGED << Partitions, CurrentMemory, NextPartition >>
+    /\  UNCHANGED << Partitions, CurrentMemory, NextPartition, CurrentDiskPartitions >>
 
 WriteData(write, partition) ==
     /\  write \notin CommittedWrites 
@@ -73,15 +74,20 @@ CompleteCheckpoint(table, diskPartition) ==
         /\  CurrentMemory[table] \notin memoryPartitions
         /\  LET writes ==  UNION { Memory[table][memoryPartition] : memoryPartition \in memoryPartitions } IN
             /\  writes # {}
-            /\  AppendLog(<< [ Type |-> "Checkpoint", Table |-> table, Partitions |-> memoryPartitions, NewPartition |-> diskPartition ] >>)
+            /\  CurrentDiskPartitions' = [CurrentDiskPartitions EXCEPT ![table] = @ \union { diskPartition }]
+            /\  AppendLog(<< [ 
+                    Type |-> "Checkpoint", 
+                    Table |-> table, 
+                    RemovedPartitions |-> memoryPartitions, 
+                    DiskPartitions |-> CurrentDiskPartitions'[table] 
+                ] >>)
             /\  Memory' = [Memory EXCEPT ![table] = [ partition \in DOMAIN Memory[table] \ memoryPartitions |-> Memory[table][partition]]]
             /\  Partitions' = [Partitions EXCEPT ![table] = diskPartition :> writes
                     @@ Partitions[table]
                 ]
             /\  UNCHANGED << CommittedWrites, CurrentMemory >>
 
-AllLogRecords ==
-    UNION { { LogExtents[extent][index] : index \in DOMAIN LogExtents[extent] } : extent \in DOMAIN LogExtents }
+AllLogRecords == { Log[index] : index \in DOMAIN Log }
 
 AllCreateMemoryTableLogRecords ==
     { logRecord \in AllLogRecords : logRecord.Type = "CreateMemoryTable" }
@@ -92,46 +98,58 @@ AllWriteLogRecords ==
 AllCheckpointLogRecords ==
     { logRecord \in AllLogRecords : logRecord.Type = "Checkpoint" }
 
-RECURSIVE FindLastCreateMemoryTable(_, _, _, _)
-FindLastCreateMemoryTable(table, extent, index, value) == 
-    IF extent \notin DOMAIN LogExtents THEN value
-    ELSE IF index \notin DOMAIN LogExtents[extent] THEN FindLastCreateMemoryTable(table, extent + 1, 1, value)
-    ELSE 
-        LET newValue == 
-            IF
-                /\  LogExtents[extent][index].Type = "CreateMemoryTable" 
-                /\  LogExtents[extent][index].Table = table
-            THEN LogExtents[extent][index].NewPartition 
-            ELSE value
-        IN FindLastCreateMemoryTable(table, extent, index + 1, newValue)
+RECURSIVE ReplayLogEntry(_, _, _, _, _)
 
-Replay ==
-    LET uncheckpointedMemory == [
-        table \in Tables |->
-            [
-                partition \in { 
-                        logRecord.NewPartition : logRecord \in { forTable \in AllCreateMemoryTableLogRecords : forTable.Table = table }
-                    } |-> 
-                    { selectedWrite.Value : selectedWrite \in { write \in AllWriteLogRecords : 
-                        /\  write.Partition = partition
-                        /\  write.Table = table
-                    } }
-            ]
-        ]
-        checkpointedPartitions == [
-            table \in Tables |->
-                UNION { logRecord.Partitions : logRecord \in { checkpoint \in AllCheckpointLogRecords : checkpoint.Table = table } }
-        ]
-        createdPartitions == { 
-            newPartitionRecord.NewPartition : newPartitionRecord \in AllCreateMemoryTableLogRecords \union AllCheckpointLogRecords
-        }
-    IN 
-        /\  Memory' = [table \in Tables |-> 
-                [ partition \in DOMAIN uncheckpointedMemory[table] \ checkpointedPartitions[table] |-> uncheckpointedMemory[table][partition] ]
-            ]
-        /\  CurrentMemory' = [ table \in Tables |-> FindLastCreateMemoryTable(table, 1, 1, {}) ]
-        /\  NextPartition' = IF createdPartitions = {} THEN Min(PartitionIds) ELSE Max(createdPartitions) + 1
-        /\  UNCHANGED << CommittedWrites, LogExtents, Partitions >>
+ReplayLogEntry(
+    currentMemory,
+    memory,
+    nextPartition,
+    currentDiskPartitions,
+    logIndex
+)  ==
+    IF logIndex > Len(Log) THEN
+        /\  CurrentMemory' = currentMemory
+        /\  Memory' = memory
+        /\  NextPartition' = nextPartition
+        /\  CurrentDiskPartitions' = currentDiskPartitions
+    ELSE
+        LET logEntry == Log[logIndex] IN 
+        IF logEntry.Type = "CreateMemoryTable" THEN
+            ReplayLogEntry(
+                [currentMemory EXCEPT ![logEntry.Table] = logEntry.NewPartition],
+                [memory EXCEPT ![logEntry.Table] = logEntry.NewPartition :> {} @@ @],
+                Max({nextPartition, logEntry.NewPartition}) + 1,
+                currentDiskPartitions,
+                logIndex + 1
+            )
+        ELSE IF logEntry.Type = "Write" THEN
+            ReplayLogEntry(
+                currentMemory,
+                [memory EXCEPT ![logEntry.Table][logEntry.Partition] = memory[logEntry.Table][logEntry.Partition] \union { logEntry.Value }],
+                nextPartition,
+                currentDiskPartitions,
+                logIndex + 1
+            )
+        ELSE IF logEntry.Type = "Checkpoint" THEN 
+            ReplayLogEntry(
+                currentMemory,
+                [memory EXCEPT ![logEntry.Table] = [partition \in DOMAIN @ \ logEntry.RemovedPartitions |-> @[partition]]],
+                Max({ nextPartition } \union logEntry.DiskPartitions) + 1,
+                [currentDiskPartitions EXCEPT ![logEntry.Table] = logEntry.DiskPartitions],
+                logIndex + 1
+            )
+        ELSE
+            Assert(FALSE, "Invalid logEntry.Type")
+
+Replay == 
+    /\  ReplayLogEntry(
+            [table \in Tables |-> << >>],
+            [table \in Tables |-> << >>],
+            Min(PartitionIds),
+            [table \in Tables |-> {}],
+            1
+        )
+    /\  UNCHANGED << CommittedWrites, Log, Partitions >>
 
 Next ==
     \E  write \in Writes,
@@ -152,11 +170,13 @@ Symmetry ==
 
 Alias ==
     [
-        LogExtents |-> LogExtents,
+        Log |-> Log,
         Memory |-> Memory,
         Partitions |-> Partitions,
         CommittedWrites |-> CommittedWrites,
-        CurrentMemory |-> CurrentMemory
+        CurrentMemory |-> CurrentMemory,
+        NextPartition |-> NextPartition,
+        CurrentDiskPartitions |-> CurrentDiskPartitions
     ]
 
 ====
