@@ -39,7 +39,7 @@ using OperationResult = std::expected<Result, FailedResult>;
 
 template<
     typename Result
-> void throw_if_failed(
+> const Result& throw_if_failed(
     const OperationResult<Result>& operationResult
 )
 {
@@ -47,11 +47,12 @@ template<
     {
         operationResult.error().throw_exception();
     }
+    return *operationResult;
 }
 
 template<
     typename Result
-> void throw_if_failed(
+> Result& throw_if_failed(
     OperationResult<Result>& operationResult
 )
 {
@@ -59,11 +60,12 @@ template<
     {
         std::move(operationResult).error().throw_exception();
     }
+    return *operationResult;
 }
 
 template<
     typename Result
-> OperationResult<Result>&& throw_if_failed(
+> Result&& throw_if_failed(
     OperationResult<Result>&& operationResult
 )
 {
@@ -72,7 +74,7 @@ template<
         std::move(operationResult).error().throw_exception();
     }
 
-    return std::move(operationResult);
+    return std::move(*operationResult);
 }
 
 template<
