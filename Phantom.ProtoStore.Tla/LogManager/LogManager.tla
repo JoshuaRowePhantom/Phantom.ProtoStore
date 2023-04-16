@@ -88,6 +88,27 @@ CompleteCheckpoint(table, diskPartition) ==
                 ]
             /\  UNCHANGED << CommittedWrites, CurrentMemory >>
 
+Merge(table, mergedPartitions, diskPartition) ==
+    /\  mergedPartitions # {}
+    /\  mergedPartitions \subseteq CurrentDiskPartitions[table]
+    /\  AllocatePartition(diskPartition)
+    /\  Partitions' = [Partitions EXCEPT ![table] =
+            diskPartition :> UNION { Partitions[table][mergedPartition] : mergedPartition \in mergedPartitions }
+            @@
+            [
+                oldPartition \in DOMAIN @ \ mergedPartitions |-> @[oldPartition]
+            ]
+        ]
+    /\  CurrentDiskPartitions' = [CurrentDiskPartitions EXCEPT ![table] = 
+            (@ \ mergedPartitions) \union { diskPartition }]
+    /\  AppendLog(<< [
+                Type |-> "Checkpoint",
+                Table |-> table,
+                RemovedPartitions |-> mergedPartitions,
+                DiskPartitions |-> CurrentDiskPartitions'[table]
+            ] >>)
+    /\  UNCHANGED << Memory, CommittedWrites, CurrentMemory >>
+
 RECURSIVE ReplayLogEntry(_, _, _, _, _)
 
 ReplayLogEntry(
@@ -169,6 +190,7 @@ TruncateLog ==
 Next ==
     \E  write \in Writes,
         partition \in PartitionIds,
+        partitions \in SUBSET PartitionIds,
         table \in Tables
         :
         \/  StartCheckpoint(table, partition)
@@ -176,6 +198,7 @@ Next ==
         \/  CompleteCheckpoint(table, partition)
         \/  Replay
         \/  TruncateLog
+        \/  Merge(table, partitions, partition)
 
 Spec ==
     /\  Init
