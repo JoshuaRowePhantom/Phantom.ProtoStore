@@ -27,6 +27,8 @@ vars == <<
 Max(S) == CHOOSE s \in S : ~ \E t \in S : t > s
 Min(S) == CHOOSE s \in S : ~ \E t \in S : t < s
 
+NonExistentPartition == Min(PartitionIds) - 1
+
 Tables == { "Partitions", "Data" }
 
 AppendLog(logEntries) ==
@@ -38,7 +40,7 @@ AllocatePartition(newPartition) ==
 
 Init ==
     /\  Log = << >>
-    /\  CurrentMemory = [table \in Tables |-> << >>]
+    /\  CurrentMemory = [table \in Tables |-> NonExistentPartition]
     /\  Memory = [table \in Tables |-> << >>]
     /\  Partitions = [table \in Tables |-> << >>]
     /\  CommittedWrites = {}
@@ -48,11 +50,12 @@ Init ==
 StartCheckpoint(table, newPartition) == 
     /\  AllocatePartition(newPartition)
     /\  \/  Memory[table] = << >>
-        \/  Memory[table] # << >> /\ Memory[table][CurrentMemory[table]] # {}
+        \/  /\  CurrentMemory[table] \in DOMAIN Memory[table]
+            /\  Memory[table][CurrentMemory[table]] # {}
     /\  Memory' = [Memory EXCEPT ![table] = newPartition :> {} @@ @]
     /\  CurrentMemory' = [CurrentMemory EXCEPT ![table] = newPartition]
-    /\  AppendLog(<< [ Type |-> "CreateMemoryTable", Table |-> table, NewPartition |-> newPartition ] >>)
-    /\  UNCHANGED << Partitions, CommittedWrites, CurrentDiskPartitions >>
+    \* /\  AppendLog(<< [ Type |-> "CreateMemoryTable", Table |-> table, NewPartition |-> newPartition ] >>)
+    /\  UNCHANGED << Log, Partitions, CommittedWrites, CurrentDiskPartitions >>
 
 Write(table, write, partition) ==
     /\  partition \in DOMAIN Memory[table]
@@ -118,23 +121,42 @@ ReplayLogEntry(
             ReplayLogEntry(
                 [currentMemory EXCEPT ![logEntry.Table] = logEntry.NewPartition],
                 [memory EXCEPT ![logEntry.Table] = logEntry.NewPartition :> {} @@ @],
-                Max({nextPartition, logEntry.NewPartition}) + 1,
+                Max({nextPartition, logEntry.NewPartition + 1}),
                 currentDiskPartitions,
                 logIndex + 1
             )
         ELSE IF logEntry.Type = "Write" THEN
             ReplayLogEntry(
-                currentMemory,
-                [memory EXCEPT ![logEntry.Table][logEntry.Partition] = memory[logEntry.Table][logEntry.Partition] \union { logEntry.Value }],
-                nextPartition,
+                
+                IF logEntry.Partition \in DOMAIN memory[logEntry.Table] 
+                THEN currentMemory
+                ELSE [currentMemory EXCEPT ![logEntry.Table] = logEntry.Partition],
+
+                [memory EXCEPT ![logEntry.Table] =
+                    [
+                        @ @@ logEntry.Partition :> {}
+                        EXCEPT ![logEntry.Partition]
+                        =
+                        @ \union { logEntry.Value }
+                    ]
+                ],
+                Max({nextPartition, logEntry.Partition + 1}),
                 currentDiskPartitions,
                 logIndex + 1
             )
         ELSE IF logEntry.Type = "Checkpoint" THEN 
             ReplayLogEntry(
-                currentMemory,
+                IF
+                    /\  currentMemory[logEntry.Table] \in logEntry.RemovedPartitions
+                THEN
+                    [currentMemory EXCEPT ![logEntry.Table] = NonExistentPartition]
+                ELSE
+                    currentMemory,
+
                 [memory EXCEPT ![logEntry.Table] = [partition \in DOMAIN @ \ logEntry.RemovedPartitions |-> @[partition]]],
-                Max({ nextPartition } \union logEntry.DiskPartitions) + 1,
+                Max({ nextPartition } \union {
+                    diskPartition + 1 : diskPartition \in logEntry.DiskPartitions
+                    }),
                 [currentDiskPartitions EXCEPT ![logEntry.Table] = logEntry.DiskPartitions],
                 logIndex + 1
             )
@@ -143,13 +165,27 @@ ReplayLogEntry(
 
 Replay == 
     /\  ReplayLogEntry(
-            [table \in Tables |-> << >>],
+            [table \in Tables |-> NonExistentPartition],
             [table \in Tables |-> << >>],
             Min(PartitionIds),
             [table \in Tables |-> {}],
             1
         )
     /\  UNCHANGED << CommittedWrites, Log, Partitions >>
+
+TruncateLog ==
+    /\  Log # << >>
+    /\  Log' = Tail(Log)
+    /\  Log[1].Type = "Write" =>
+        \E index \in 2..Len(Log):
+            /\  Log[index].Type = "Checkpoint"
+            /\  Log[index].Table = Log[1].Table
+            /\  Log[1].Partition \in Log[index].RemovedPartitions
+    /\  Log[1].Type = "Checkpoint" =>
+        \E index \in 2..Len(Log):
+            /\  Log[index].Type = "Checkpoint"
+            /\  Log[index].Table = Log[1].Table
+    /\  UNCHANGED << CommittedWrites, Partitions, CurrentMemory, CurrentDiskPartitions, NextPartition, Memory >>
 
 Next ==
     \E  write \in Writes,
@@ -160,6 +196,7 @@ Next ==
         \/  WriteData(write, partition)
         \/  CompleteCheckpoint(table, partition)
         \/  Replay
+        \/  TruncateLog
 
 Spec ==
     /\  Init
@@ -186,7 +223,8 @@ Alias ==
         CommittedWrites |-> CommittedWrites,
         CurrentMemory |-> CurrentMemory,
         NextPartition |-> NextPartition,
-        CurrentDiskPartitions |-> CurrentDiskPartitions
+        CurrentDiskPartitions |-> CurrentDiskPartitions,
+        CanRead |-> [ write \in CommittedWrites |-> CanRead(write) ]
     ]
 
 ====
