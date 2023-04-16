@@ -54,7 +54,6 @@ StartCheckpoint(table, newPartition) ==
             /\  Memory[table][CurrentMemory[table]] # {}
     /\  Memory' = [Memory EXCEPT ![table] = newPartition :> {} @@ @]
     /\  CurrentMemory' = [CurrentMemory EXCEPT ![table] = newPartition]
-    \* /\  AppendLog(<< [ Type |-> "CreateMemoryTable", Table |-> table, NewPartition |-> newPartition ] >>)
     /\  UNCHANGED << Log, Partitions, CommittedWrites, CurrentDiskPartitions >>
 
 Write(table, write, partition) ==
@@ -90,17 +89,6 @@ CompleteCheckpoint(table, diskPartition) ==
                 ]
             /\  UNCHANGED << CommittedWrites, CurrentMemory >>
 
-AllLogRecords == { Log[index] : index \in DOMAIN Log }
-
-AllCreateMemoryTableLogRecords ==
-    { logRecord \in AllLogRecords : logRecord.Type = "CreateMemoryTable" }
-
-AllWriteLogRecords ==
-    { logRecord \in AllLogRecords : logRecord.Type = "Write" }
-
-AllCheckpointLogRecords ==
-    { logRecord \in AllLogRecords : logRecord.Type = "Checkpoint" }
-
 RECURSIVE ReplayLogEntry(_, _, _, _, _)
 
 ReplayLogEntry(
@@ -117,15 +105,7 @@ ReplayLogEntry(
         /\  CurrentDiskPartitions' = currentDiskPartitions
     ELSE
         LET logEntry == Log[logIndex] IN 
-        IF logEntry.Type = "CreateMemoryTable" THEN
-            ReplayLogEntry(
-                [currentMemory EXCEPT ![logEntry.Table] = logEntry.NewPartition],
-                [memory EXCEPT ![logEntry.Table] = logEntry.NewPartition :> {} @@ @],
-                Max({nextPartition, logEntry.NewPartition + 1}),
-                currentDiskPartitions,
-                logIndex + 1
-            )
-        ELSE IF logEntry.Type = "Write" THEN
+        IF logEntry.Type = "Write" THEN
             ReplayLogEntry(
                 
                 IF logEntry.Partition \in DOMAIN memory[logEntry.Table] 
