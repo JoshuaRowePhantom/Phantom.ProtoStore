@@ -14,7 +14,8 @@ VARIABLE
     CurrentMemory,
     NextPartition,
     CurrentDiskPartitions,
-    CurrentReplayIndex
+    CurrentReplayIndex,
+    CurrentReplayPhase
 
 vars == <<
     Log,
@@ -24,7 +25,8 @@ vars == <<
     CurrentMemory,
     NextPartition,
     CurrentDiskPartitions,
-    CurrentReplayIndex
+    CurrentReplayIndex,
+    CurrentReplayPhase
 >>
 
 Tables == UserTables \union { "Tables" }
@@ -55,7 +57,7 @@ AllocatePartition(newPartition) ==
     /\  NextPartition = newPartition
     /\  NextPartition' = newPartition + 1
 
-IsReplaying == CurrentReplayIndex > 0
+IsReplaying == CurrentReplayPhase > 0
 
 EmptyPartitionSet == [table \in Tables |-> << >>]
 
@@ -68,6 +70,7 @@ Init ==
     /\  NextPartition = Min(PartitionIds)
     /\  CurrentDiskPartitions = [table \in Tables |-> {}]
     /\  CurrentReplayIndex = 0
+    /\  CurrentReplayPhase = 0
 
 StartCheckpoint(table, newPartition) == 
     /\  ~IsReplaying
@@ -77,7 +80,7 @@ StartCheckpoint(table, newPartition) ==
             /\  Memory[table][CurrentMemory[table]] # {}
     /\  Memory' = [Memory EXCEPT ![table] = newPartition :> {} @@ @]
     /\  CurrentMemory' = [CurrentMemory EXCEPT ![table] = newPartition]
-    /\  UNCHANGED << Log, Partitions, CommittedWrites, CurrentDiskPartitions, CurrentReplayIndex >>
+    /\  UNCHANGED << Log, Partitions, CommittedWrites, CurrentDiskPartitions, CurrentReplayIndex, CurrentReplayPhase >>
 
 Write(table, write, partition) ==
     /\  ~IsReplaying
@@ -85,19 +88,19 @@ Write(table, write, partition) ==
     /\  partition = CurrentMemory[table]
     /\  Memory' = [Memory EXCEPT ![table][partition] = @ \union { write }]
     /\  AppendLog(<< [ Type |-> "Write", Table |-> table, Partition |-> partition, Value |-> write ] >>)
-    /\  UNCHANGED << Partitions, CurrentMemory, NextPartition, CurrentDiskPartitions, CurrentReplayIndex >>
+    /\  UNCHANGED << Partitions, CurrentMemory, NextPartition, CurrentDiskPartitions, CurrentReplayIndex, CurrentReplayPhase >>
 
 CreateTable(table) ==
     /\  ~IsReplaying
     /\  table \in UserTables
     /\  ~ CanRead("Tables", table)
     /\  Write("Tables", table, CurrentMemory["Tables"])
-    /\  UNCHANGED << CommittedWrites >>
+    /\  UNCHANGED << CommittedWrites, CurrentReplayIndex, CurrentReplayPhase >>
 
 WriteData(table, write, partition) ==
     /\  ~IsReplaying
     /\  table \in UserTables
-    /\  CanReadEphemeral(EmptyPartitionSet, CurrentDiskPartitions, "Tables", table)
+    /\  CanRead("Tables", table)
     /\  write \notin DOMAIN CommittedWrites 
     /\  CommittedWrites' = write :> table @@ CommittedWrites
     /\  Write(table, write, partition)
@@ -122,7 +125,7 @@ CompleteCheckpoint(table, diskPartition) ==
             /\  Partitions' = [Partitions EXCEPT ![table] = diskPartition :> writes
                     @@ Partitions[table]
                 ]
-            /\  UNCHANGED << CommittedWrites, CurrentMemory, CurrentReplayIndex >>
+            /\  UNCHANGED << CommittedWrites, CurrentMemory, CurrentReplayIndex, CurrentReplayPhase >>
 
 Merge(table, mergedPartitions, diskPartition) ==
     /\  ~IsReplaying
@@ -142,7 +145,7 @@ Merge(table, mergedPartitions, diskPartition) ==
                 RemovedPartitions |-> mergedPartitions,
                 DiskPartitions |-> CurrentDiskPartitions'[table]
             ] >>)
-    /\  UNCHANGED << Memory, CommittedWrites, CurrentMemory, CurrentReplayIndex >>
+    /\  UNCHANGED << Memory, CommittedWrites, CurrentMemory, CurrentReplayIndex, CurrentReplayPhase >>
 
 RemovePartition(table, partition) ==
     /\  ~IsReplaying
@@ -153,21 +156,15 @@ RemovePartition(table, partition) ==
                 existingPartition \in DOMAIN @ \ { partition } |-> @[existingPartition]
             ]
         ]
-    /\  UNCHANGED << Memory, CommittedWrites, CurrentMemory, CurrentDiskPartitions, NextPartition, Log, CurrentReplayIndex >>
+    /\  UNCHANGED << Memory, CommittedWrites, CurrentMemory, CurrentDiskPartitions, NextPartition, Log, CurrentReplayIndex, CurrentReplayPhase >>
 
 CheckTableExistence(table) ==
     /\  Assert(
             table \in UserTables => CanRead("Tables", table),
             "Table metadata not found")
 
-ReplayLogEntry ==
-    /\  IsReplaying
-    /\  CurrentReplayIndex <= Len(Log)
-    /\  CurrentReplayIndex' = CurrentReplayIndex + 1
-    /\  UNCHANGED << CommittedWrites, Log, Partitions >>
-    /\  LET logEntry == Log[CurrentReplayIndex] IN 
+Replay_LogEntry(logEntry) ==
         IF logEntry.Type = "Write" THEN
-            /\  CheckTableExistence(logEntry.Table)
             /\  CurrentMemory' = 
                     IF logEntry.Partition \in DOMAIN Memory[logEntry.Table] 
                     THEN CurrentMemory
@@ -185,7 +182,6 @@ ReplayLogEntry ==
                     Max({NextPartition, logEntry.Partition + 1})
             /\  UNCHANGED CurrentDiskPartitions
         ELSE IF logEntry.Type = "Checkpoint" THEN 
-            /\  CheckTableExistence(logEntry.Table)
             /\  CurrentMemory' =
                     IF
                         /\  CurrentMemory[logEntry.Table] \in logEntry.RemovedPartitions
@@ -202,21 +198,54 @@ ReplayLogEntry ==
             /\  CurrentDiskPartitions' =
                     [CurrentDiskPartitions EXCEPT ![logEntry.Table] = logEntry.DiskPartitions]
         ELSE
-            Assert(FALSE, "Invalid logEntry.Type")
-
-FinishReplay ==
-    /\  IsReplaying
-    /\  CurrentReplayIndex > Len(Log)
-    /\  CurrentReplayIndex' = 0
-    /\  UNCHANGED << CommittedWrites, Memory, CurrentMemory, CurrentDiskPartitions, Partitions, NextPartition, Log >>
+            TRUE
 
 StartReplay ==
     /\  CurrentReplayIndex' = 1
+    /\  CurrentReplayPhase' = 1
     /\  CurrentMemory' = [table \in Tables |-> NonExistentPartition]
     /\  Memory' = EmptyPartitionSet
     /\  NextPartition' = Min(PartitionIds)
     /\  CurrentDiskPartitions' = [table \in Tables |-> {}]
     /\  UNCHANGED << CommittedWrites, Log, Partitions >>
+
+ReplayLogEntry_Phase1 ==
+    /\  CurrentReplayPhase = 1
+    /\  CurrentReplayIndex <= Len(Log)
+    /\  CurrentReplayIndex' = CurrentReplayIndex + 1
+    /\  UNCHANGED << CommittedWrites, Log, Partitions, CurrentReplayPhase >>
+    /\  LET logEntry == Log[CurrentReplayIndex] IN 
+        IF logEntry.Table = "Tables" 
+        THEN Replay_LogEntry(logEntry)
+        ELSE 
+        /\  UNCHANGED << Memory, CurrentMemory, CurrentDiskPartitions, NextPartition >>
+
+FinishReplay_Phase1 ==
+    /\  CurrentReplayPhase = 1
+    /\  CurrentReplayIndex > Len(Log)
+    /\  CurrentReplayIndex' = 1
+    /\  CurrentReplayPhase' = 2
+    /\  UNCHANGED << CommittedWrites, Memory, CurrentMemory, CurrentDiskPartitions, Partitions, NextPartition, Log >>
+
+ReplayLogEntry_Phase2 ==
+    /\  CurrentReplayPhase = 2
+    /\  CurrentReplayIndex <= Len(Log)
+    /\  CurrentReplayIndex' = CurrentReplayIndex + 1
+    /\  UNCHANGED << CommittedWrites, Log, Partitions, CurrentReplayPhase >>
+    /\  LET logEntry == Log[CurrentReplayIndex] IN 
+        IF logEntry.Table # "Tables" 
+        THEN 
+        /\  Replay_LogEntry(logEntry)
+        /\  CheckTableExistence(logEntry.Table)
+        ELSE 
+        /\  UNCHANGED << Memory, CurrentMemory, CurrentDiskPartitions, NextPartition >>
+
+FinishReplay_Phase2 ==
+    /\  CurrentReplayPhase = 2
+    /\  CurrentReplayIndex > Len(Log)
+    /\  CurrentReplayIndex' = 1
+    /\  CurrentReplayPhase' = 0
+    /\  UNCHANGED << CommittedWrites, Memory, CurrentMemory, CurrentDiskPartitions, Partitions, NextPartition, Log >>
 
 TruncateLog ==
     /\  ~IsReplaying
@@ -231,7 +260,7 @@ TruncateLog ==
         \E index \in 2..Len(Log):
             /\  Log[index].Type = "Checkpoint"
             /\  Log[index].Table = Log[1].Table
-    /\  UNCHANGED << CommittedWrites, Partitions, CurrentMemory, CurrentDiskPartitions, NextPartition, Memory, CurrentReplayIndex >>
+    /\  UNCHANGED << CommittedWrites, Partitions, CurrentMemory, CurrentDiskPartitions, NextPartition, Memory, CurrentReplayIndex, CurrentReplayPhase >>
 
 Next ==
     \E  write \in Writes,
@@ -247,8 +276,10 @@ Next ==
         \/  Merge(table, partitions, partition)
         \/  RemovePartition(table, partition)
         \/  StartReplay
-        \/  ReplayLogEntry
-        \/  FinishReplay
+        \/  ReplayLogEntry_Phase1
+        \/  ReplayLogEntry_Phase2
+        \/  FinishReplay_Phase1
+        \/  FinishReplay_Phase2
 
 Spec ==
     /\  Init
