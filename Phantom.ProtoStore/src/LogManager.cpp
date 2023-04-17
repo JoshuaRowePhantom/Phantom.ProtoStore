@@ -110,21 +110,6 @@ task<> LogManager::Replay(
             break;
         }
 
-        case LogEntryUnion::LoggedCreateMemoryTable:
-        {
-            auto loggedCreateMemoryTable = logEntry->log_entry_as<LoggedCreateMemoryTable>();
-            LogExtentUsage logExtentUsage =
-            {
-                .LogExtentSequenceNumber = logExtentSequenceNumber,
-                .IndexNumber = loggedCreateMemoryTable->index_number(),
-                .PartitionNumber = loggedCreateMemoryTable->partition_number(),
-            };
-
-            m_logExtentUsage.insert(
-                logExtentUsage);
-            break;
-        }
-
         case LogEntryUnion::LoggedCheckpoint:
         {
             auto loggedCheckpoint = logEntry->log_entry_as<LoggedCheckpoint>();
@@ -192,7 +177,7 @@ bool LogManager::NeedToUpdateMaps(
         case LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated:
         case LogEntryUnion::LoggedCommitExtent:
         case LogEntryUnion::LoggedCheckpoint:
-        case LogEntryUnion::LoggedCreateMemoryTable:
+        //case LogEntryUnion::LoggedCreateMemoryTable:
             return true;
 
         case LogEntryUnion::LoggedRowWrite:

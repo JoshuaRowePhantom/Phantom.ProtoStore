@@ -113,12 +113,6 @@ table LoggedPartitionsData
     partitions_table_partition_number : uint64;
 }
 
-table LoggedCreateMemoryTable
-{
-    index_number : uint64;
-    partition_number : uint64;
-}
-
 table LoggedCreatePartition
 {
     header_extent_name : IndexHeaderExtentName;
@@ -132,7 +126,6 @@ union LogEntryUnion
     LoggedCreateIndex,
     LoggedCreateExtent,
     LoggedCommitExtent,
-    LoggedCreateMemoryTable,
     LoggedCheckpoint,
     LoggedDeleteExtentPendingPartitionsUpdated,
     LoggedUpdatePartitions,

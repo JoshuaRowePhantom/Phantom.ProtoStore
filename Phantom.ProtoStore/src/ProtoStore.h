@@ -171,9 +171,6 @@ class ProtoStore
         const FlatMessage<LoggedCreateIndex>& logRecord);
 
     task<> Replay(
-        const FlatMessage<LoggedCreateMemoryTable>& logRecord);
-    
-    task<> Replay(
         const FlatMessage<LoggedCreatePartition>& logRecord);
 
     task<> Replay(

@@ -406,10 +406,6 @@ task<> ProtoStore::Replay(
             co_await Replay(getMessage(tag<LoggedPartitionsData>()));
             break;
 
-        case LogEntryUnion::LoggedCreateMemoryTable:
-            co_await Replay(getMessage(tag<LoggedCreateMemoryTable>()));
-            break;
-
         case LogEntryUnion::LoggedCreatePartition:
             co_await Replay(getMessage(tag<LoggedCreatePartition>()));
             break;
@@ -493,24 +489,6 @@ task<> ProtoStore::Replay(
     // If DataSources changed its partitions list, 
     // then all other indexes may have changed.
     co_await ReplayPartitionsForOpenedIndexes();
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LoggedCreateMemoryTable>& logRecord)
-{
-    m_nextPartitionNumber = std::max(
-        m_nextPartitionNumber.load(),
-        logRecord->partition_number());
-
-    auto index = co_await GetIndexEntryInternal(
-        logRecord->index_number(),
-        DoReplayPartitions);
-
-    co_await index->DataSources->Replay(
-        logRecord.get()
-    );
-
-    co_return;
 }
 
 task<> ProtoStore::Replay(
@@ -1184,6 +1162,9 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     FlatValue<IndexesByNumberValue> indexesByNumberValue
 )
 {
+    assert(indexesByNumberKey);
+    assert(indexesByNumberValue);
+
     auto schema = SchemaDescriptions::MakeSchema(
         indexesByNumberValue.SubValue(
             indexesByNumberValue->schema())
@@ -1635,20 +1616,6 @@ task<PartitionNumber> ProtoStore::CreateMemoryTable(
     if (partitionNumber == 0)
     {
         partitionNumber = m_nextPartitionNumber.fetch_add(1);
-
-        co_await InternalExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](IInternalTransaction* transaction) -> status_task<>
-        {
-            FlatBuffers::LoggedCreateMemoryTableT loggedCreateMemoryTable;
-            loggedCreateMemoryTable.index_number = index->GetIndexNumber();
-            loggedCreateMemoryTable.partition_number = partitionNumber;
-
-            transaction->BuildLogRecord(
-                loggedCreateMemoryTable);
-
-            co_return{};
-        });
     }
 
     memoryTable = MakeMemoryTable(
