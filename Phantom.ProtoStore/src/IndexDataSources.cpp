@@ -28,7 +28,14 @@ task<> IndexDataSources::Replay(
             m_index,
             rowWrite->partition_number(),
             m_activeMemoryTable);
-        m_replayedMemoryTables[m_activeMemoryTablePartitionNumber] = m_activeMemoryTable;
+        
+        iterator = m_replayedMemoryTables.insert(
+            std::pair
+            {
+                m_activeMemoryTablePartitionNumber,
+                m_activeMemoryTable
+            }
+        ).first;
 
         co_await UpdateIndexDataSources();
     }
