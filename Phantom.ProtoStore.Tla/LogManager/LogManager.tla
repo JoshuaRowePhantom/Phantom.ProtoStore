@@ -51,8 +51,12 @@ ReadPartitions(table, memory, currentDiskPartitions) ==
         {
             value \in tableValues : value.IsDelete = TRUE
         }
+        deletesAsAdds ==
+        {
+            [delete EXCEPT !.IsDelete = FALSE] : delete \in deletes
+        }
         withoutDeletes == tableValues \ deletes
-        withoutDeletedValues == withoutDeletes \ { [delete EXCEPT !.IsDelete = TRUE] : delete \in deletes }
+        withoutDeletedValues == withoutDeletes \ deletesAsAdds
     IN
         withoutDeletedValues
 
@@ -100,10 +104,9 @@ Init ==
 
 StartCheckpoint(table, newPartition) == 
     /\  ~IsReplaying
+    /\  CurrentMemory[table] \in DOMAIN Memory[table] => 
+        Memory[table][CurrentMemory[table]] # {}
     /\  AllocatePartition(newPartition)
-    /\  \/  Memory[table] = << >>
-        \/  /\  CurrentMemory[table] \in DOMAIN Memory[table]
-            /\  Memory[table][CurrentMemory[table]] # {}
     /\  Memory' = [Memory EXCEPT ![table] = newPartition :> {} @@ @]
     /\  CurrentMemory' = [CurrentMemory EXCEPT ![table] = newPartition]
     /\  UNCHANGED << Log, Partitions, CommittedWrites, CurrentDiskPartitions, CurrentReplayIndex, CurrentReplayPhase >>
@@ -141,9 +144,9 @@ CompleteCheckpoint(table, diskPartition) ==
     /\  \E memoryPartitions \in SUBSET DOMAIN Memory[table] :
         /\  memoryPartitions # { }
         /\  memoryPartitions \subseteq DOMAIN Memory[table]
-        /\  AllocatePartition(diskPartition)
         /\  CurrentMemory[table] \notin memoryPartitions
         /\  CanWrite("Partitions")
+        /\  AllocatePartition(diskPartition)
         /\  CurrentDiskPartitions' = [CurrentDiskPartitions EXCEPT ![table] = @ \union { diskPartition }]
         /\  LET writes ==  UNION { Memory[table][memoryPartition] : memoryPartition \in memoryPartitions }
                 partitionsValue == [ Table |-> table, Partition |-> diskPartition, IsDelete |-> FALSE ]
@@ -196,8 +199,8 @@ Merge(table, mergedPartitions, diskPartition) ==
     /\  ~IsReplaying
     /\  mergedPartitions # {}
     /\  mergedPartitions \subseteq CurrentDiskPartitions[table]
-    /\  AllocatePartition(diskPartition)
     /\  CanWrite("Partitions")
+    /\  AllocatePartition(diskPartition)
     /\  Partitions' = [Partitions EXCEPT ![table] =
             diskPartition :> UNION { Partitions[table][mergedPartition] : mergedPartition \in mergedPartitions }
             @@
@@ -214,6 +217,12 @@ Merge(table, mergedPartitions, diskPartition) ==
                     Table |-> table,
                     RemovedPartitions |-> mergedPartitions
                 ] >>
+            \o << [
+                Type |-> "Write",
+                Table |-> "Partitions",
+                Partition |-> CurrentMemory["Partitions"],
+                Value |-> addedPartitionsValue
+            ] >>
             \o deletedPartitionsValuesLogEntries)
         /\  Memory' = [Memory EXCEPT !["Partitions"][CurrentMemory["Partitions"]] = 
                 @ 
@@ -228,9 +237,17 @@ RemovePartition(table, partition) ==
     /\  ~IsReplaying
     /\  partition \notin CurrentDiskPartitions[table]
     /\  partition \in DOMAIN Partitions[table]
+    /\  ~ \E logIndex \in 1..Len(Log) :
+        LET logEntry == Log[logIndex] IN
+        /\  logEntry.Type = "Write"
+        /\  logEntry.Table = "Partitions"
+        /\  \/  /\  logEntry.Value.Table \in UserTables
+                /\  logEntry.Value.IsDelete = FALSE
+            \/  /\  logEntry.Value.Table \notin UserTables
+        /\  logEntry.Value.Partition = partition
     /\  Partitions' = [Partitions EXCEPT ![table] = 
             [
-                existingPartition \in DOMAIN @ \ { partition } |-> @[existingPartition]
+                existingPartition \in DOMAIN Partitions[table] \ { partition } |-> Partitions[table][existingPartition]
             ]
         ]
     /\  UNCHANGED << Memory, CommittedWrites, CurrentMemory, CurrentDiskPartitions, NextPartition, Log, CurrentReplayIndex, CurrentReplayPhase >>
@@ -258,25 +275,23 @@ Replay_LogEntry(logEntry) ==
                     ]
             /\  IF logEntry.Table # "Partitions" 
                 THEN
-                /\  UpdateNextPartition({ logEntry.Partition })
-                /\  UNCHANGED << CurrentDiskPartitions >>
+                    /\  UpdateNextPartition({ logEntry.Partition })
+                    /\  UNCHANGED << CurrentDiskPartitions >>
                 ELSE
-                LET tableWithUpdatedPartitions == logEntry.Value.Table
-                    updatedPartitions == ReadPartitions(
-                            logEntry.Value.Table,
-                            Memory',
-                            CurrentDiskPartitions)
-                    diskPartitions == { partition.Partition : partition \in updatedPartitions } IN
-                /\  tableWithUpdatedPartitions \in UserTables => CheckTableExistence(logEntry.Table)
-                /\  CurrentDiskPartitions' = [
-                        CurrentDiskPartitions EXCEPT ![tableWithUpdatedPartitions] = diskPartitions
-                    ]
-                /\  UpdateNextPartition(
-                        { logEntry.Partition }
-                        \union
-                        diskPartitions
-                    )
-                /\  UNCHANGED CurrentDiskPartitions
+                    LET tableWithUpdatedPartitions == logEntry.Value.Table
+                        updatedPartitions == ReadPartitions(
+                                logEntry.Value.Table,
+                                Memory',
+                                CurrentDiskPartitions)
+                        diskPartitions == { partition.Partition : partition \in updatedPartitions } IN
+                    /\  CurrentDiskPartitions' = [
+                            CurrentDiskPartitions EXCEPT ![tableWithUpdatedPartitions] = diskPartitions
+                        ]
+                    /\  UpdateNextPartition(
+                            { logEntry.Partition }
+                            \union
+                            diskPartitions
+                        )
         ELSE IF logEntry.Type = "Checkpoint" THEN 
             /\  logEntry.Table \in UserTables => CheckTableExistence(logEntry.Table)
             /\  CurrentMemory' =
@@ -290,14 +305,29 @@ Replay_LogEntry(logEntry) ==
                     [Memory EXCEPT ![logEntry.Table] = [partition \in DOMAIN @ \ logEntry.RemovedPartitions |-> @[partition]]]
             /\  UNCHANGED << CurrentDiskPartitions, NextPartition >>
         ELSE IF logEntry.Type = "PartitionsData" THEN
-            /\  CurrentDiskPartitions' = [CurrentDiskPartitions EXCEPT !["Partitions"] = logEntry.DiskPartitions]
+            LET currentDiskPartitionsWithUpdatedPartitionsTable == [
+                CurrentDiskPartitions EXCEPT !["Partitions"] = logEntry.DiskPartitions
+            ] IN
+            \* Because the partitions table has changed in a dramatic way,
+            \* all tables may have changed their current partitions.
+            \* Therefore, reread all the partitions for all tables.
+            /\  CurrentDiskPartitions' = [
+                    table \in Tables |->
+                        IF table = "Partitions" THEN logEntry.DiskPartitions ELSE
+                        { partition.Partition : partition \in ReadPartitions(table, Memory, currentDiskPartitionsWithUpdatedPartitionsTable) }
+                ]
             /\  UpdateNextPartition(
                     logEntry.DiskPartitions)
             /\  UNCHANGED << CurrentMemory, Memory >>
         ELSE
-            TRUE
+            Assert(FALSE, "Invalid log entry type")
 
 StartReplay ==
+    \* Technically, we could start replay at any time,
+    \* but this reduces the number of states that TLC needs to check,
+    \* and by checking for deadlock we guarantee that log replay can always complete.
+    /\  CurrentReplayPhase = 0
+
     /\  CurrentReplayIndex' = 1
     /\  CurrentReplayPhase' = 1
     /\  CurrentMemory' = [table \in Tables |-> NonExistentPartition]
@@ -307,19 +337,13 @@ StartReplay ==
     /\  UNCHANGED << CommittedWrites, Log, Partitions >>
 
 IsPhase1LogEntry(logEntry) ==
-    \/  logEntry.Table = "Tables"
-    \/  /\  logEntry.Table = "Partitions" 
-        /\  logEntry.Type = "Write"
-        /\  logEntry.Value.Table = "Tables"
-    \/  /\  logEntry.Type = "PartitionsData"
+    \/  logEntry.Type = "PartitionsData"
+    \/  /\  logEntry.Type \in { "Checkpoint", "Write" }
+        /\  \/  logEntry.Table = "Tables"
+            \/  logEntry.Table = "Partitions" 
 
 IsPhase2LogEntry(logEntry) ==
     /\  ~ IsPhase1LogEntry(logEntry)
-    /\  logEntry.Table = "Partitions"
-
-IsPhase3LogEntry(logEntry) ==
-    /\  ~ IsPhase1LogEntry(logEntry)
-    /\  ~ IsPhase2LogEntry(logEntry)
 
 ReplayLogEntry_Phase1 ==
     /\  CurrentReplayPhase = 1
@@ -347,29 +371,17 @@ ReplayLogEntry_Phase2 ==
     /\  LET logEntry == Log[CurrentReplayIndex] IN
         /\  IF IsPhase2LogEntry(logEntry)
             THEN Replay_LogEntry(logEntry)
-            ELSE
-            UNCHANGED << CurrentMemory, Memory, CurrentDiskPartitions, NextPartition >>
+            ELSE 
+                /\  (
+                        /\  logEntry.Type = "Write"
+                        /\  logEntry.Table = "Partitions"
+                    ) => (
+                        /\  logEntry.Value.Table \in UserTables => CheckTableExistence(logEntry.Table)
+                    )                
+                /\  UNCHANGED << CurrentMemory, Memory, CurrentDiskPartitions, NextPartition >>
 
 FinishReplay_Phase2 ==
     /\  CurrentReplayPhase = 2
-    /\  CurrentReplayIndex > Len(Log)
-    /\  CurrentReplayIndex' = 1
-    /\  CurrentReplayPhase' = 3
-    /\  UNCHANGED << CommittedWrites, Memory, CurrentMemory, CurrentDiskPartitions, Partitions, NextPartition, Log >>
-
-ReplayLogEntry_Phase3 ==
-    /\  CurrentReplayPhase = 3
-    /\  CurrentReplayIndex <= Len(Log)
-    /\  CurrentReplayIndex' = CurrentReplayIndex + 1
-    /\  UNCHANGED << CommittedWrites, Log, Partitions, CurrentReplayPhase >>
-    /\  LET logEntry == Log[CurrentReplayIndex] IN
-        /\  IF IsPhase3LogEntry(logEntry)
-            THEN Replay_LogEntry(logEntry)
-            ELSE
-            UNCHANGED << CurrentMemory, Memory, CurrentDiskPartitions, NextPartition >>
-
-FinishReplay_Phase3 ==
-    /\  CurrentReplayPhase = 3
     /\  CurrentReplayIndex > Len(Log)
     /\  CurrentReplayIndex' = 1
     /\  CurrentReplayPhase' = 0
@@ -378,7 +390,6 @@ FinishReplay_Phase3 ==
 TruncateLog ==
     /\  ~IsReplaying
     /\  Log # << >>
-    /\  Log' = Tail(Log)
     /\  Log[1].Type = "Write" =>
         \E index \in 2..Len(Log):
             /\  Log[index].Type = "Checkpoint"
@@ -391,35 +402,45 @@ TruncateLog ==
     /\  Log[1].Type = "PartitionsData" =>
         \E index \in 2..Len(Log):
             /\  Log[index].Type = "PartitionsData"
+    /\  Log' = Tail(Log)
     /\  UNCHANGED << CommittedWrites, Partitions, CurrentMemory, CurrentDiskPartitions, NextPartition, Memory, CurrentReplayIndex, CurrentReplayPhase >>
 
+RemoveSomePartition ==
+    \/  \E  table \in Tables :
+        \E  partition \in DOMAIN Partitions[table] :
+        \/  RemovePartition(table, partition)
+
+MergeSomePartition ==
+    \/  \E  table \in Tables,
+            partition \in PartitionIds :
+        \E  partitions \in SUBSET DOMAIN Partitions[table]
+        :
+        \/  Merge(table, partitions, partition)
+        
 Next ==
-    \E  write \in Writes,
+    \/  TruncateLog
+    \/  StartReplay
+    \/  ReplayLogEntry_Phase1
+    \/  FinishReplay_Phase1
+    \/  ReplayLogEntry_Phase2
+    \/  FinishReplay_Phase2
+    \/  \E  write \in Writes,
         partition \in PartitionIds,
-        partitions \in SUBSET PartitionIds,
         table \in Tables
         :
         \/  CreateTable(table)
         \/  StartCheckpoint(table, partition)
         \/  WriteData(table, write, partition)
         \/  CompleteCheckpoint(table, partition)
-        \/  TruncateLog
-        \/  Merge(table, partitions, partition)
-        \/  RemovePartition(table, partition)
-        \/  StartReplay
-        \/  ReplayLogEntry_Phase1
-        \/  FinishReplay_Phase1
-        \/  ReplayLogEntry_Phase2
-        \/  FinishReplay_Phase2
-        \/  ReplayLogEntry_Phase3
-        \/  FinishReplay_Phase3
+    \/  RemoveSomePartition
+    \/  MergeSomePartition
 
 Spec ==
     /\  Init
     /\  [][Next]_vars
 
 Symmetry ==
-    Permutations(Writes)
+    Permutations(Writes) \union Permutations(UserTables)
 
 CanAlwaysReadCommittedWrites ==
     ~ IsReplaying => \A write \in DOMAIN CommittedWrites :
@@ -437,6 +458,7 @@ Alias ==
         CanRead |-> [ write \in DOMAIN CommittedWrites |-> CanRead(CommittedWrites[write], write) ],
         CanReadMetadata |-> [ userTable \in UserTables |-> CanRead("Tables", userTable) ],
         CurrentReplayIndex |-> CurrentReplayIndex,
+        CurrentReplayPhase |-> CurrentReplayPhase,
         TablePartitions |-> [
             table \in Tables |-> ReadPartitions(table, Memory, CurrentDiskPartitions)
         ],
@@ -444,5 +466,26 @@ Alias ==
             table \in Tables |-> ReadTable(table, Memory, CurrentDiskPartitions)
         ]
     ]
+
+\* Use these operators to determine if RemovePartition is being
+\* used meaningfully.
+FailIfRemovedUserPartition == [][~(
+    \E table \in UserTables :
+    \E partition \in PartitionIds :
+        /\  partition \in DOMAIN Partitions[table]
+        /\  partition \notin DOMAIN Partitions[table]'
+)]_vars
+
+FailIfRemovedTablesPartition == [][~(
+    \E partition \in PartitionIds :
+        /\  partition \in DOMAIN Partitions["Tables"]
+        /\  partition \notin DOMAIN Partitions["Tables"]'
+)]_vars
+
+FailIfRemovedPartitionsPartition == [][~(
+    \E partition \in PartitionIds :
+        /\  partition \in DOMAIN Partitions["Partitions"]
+        /\  partition \notin DOMAIN Partitions["Partitions"]'
+)]_vars
 
 ====
