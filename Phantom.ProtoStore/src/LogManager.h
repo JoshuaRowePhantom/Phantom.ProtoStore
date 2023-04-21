@@ -68,8 +68,8 @@ public:
     );
 
     task<> Replay(
-        const FlatBuffers::LogExtentNameT* logExtentName,
-        const LogRecord* logRecord
+        const FlatBuffers::LogExtentName* extentName,
+        const LogEntry* logEntry
     );
 
     task<task<>> FinishReplay(

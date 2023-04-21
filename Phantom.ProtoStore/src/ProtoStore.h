@@ -23,6 +23,17 @@
 namespace Phantom::ProtoStore
 {
 
+struct SystemIndexNumbers
+{
+    static constexpr IndexNumber IndexesByNumber = 1;
+    static constexpr IndexNumber IndexesByName = 2;
+    static constexpr IndexNumber Partitions = 3;
+    static constexpr IndexNumber Merges = 4;
+    static constexpr IndexNumber MergeProgress = 5;
+    static constexpr IndexNumber DistributedTransactions = 6;
+    static constexpr IndexNumber DistributedTransactionReferences = 7;
+};
+
 class ProtoStore
     :
     public IInternalProtoStore,
@@ -148,18 +159,25 @@ class ProtoStore
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
+    bool IsLogEntryForPhase(
+        int phase,
+        const FlatMessage<LogEntry>& logEntry
+    );
+
+    task<> Replay();
+
     task<> Replay(
-        const ExtentNameT& logExtent,
-        const FlatBuffers::LogExtentNameT* fbLogExtent);
+        int phase,
+        const ExtentName* extentName);
+
+    task<> Replay(
+        const FlatMessage<LogEntry>& logEntry);
 
     task<> Replay(
         const FlatMessage<LoggedRowWrite>& logRecord);
 
     task<> Replay(
         const FlatMessage<LoggedCommitLocalTransaction>& logRecord);
-
-    task<> Replay(
-        const FlatMessage<LogRecord>& logRecord);
 
     task<> Replay(
         const FlatMessage<LoggedUpdatePartitions>& logRecord);
