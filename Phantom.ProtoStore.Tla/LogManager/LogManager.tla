@@ -328,10 +328,6 @@ IsPhase1LogEntry(logEntry) ==
 IsPhase2LogEntry(logEntry) ==
     /\  ~ IsPhase1LogEntry(logEntry)
 
-IsPhase3LogEntry(logEntry) ==
-    /\  ~ IsPhase1LogEntry(logEntry)
-    /\  ~ IsPhase2LogEntry(logEntry)
-
 ReplayLogEntry_Phase1 ==
     /\  CurrentReplayPhase = 1
     /\  CurrentReplayIndex <= Len(Log)
@@ -373,24 +369,6 @@ ReplayLogEntry_Phase2 ==
 
 FinishReplay_Phase2 ==
     /\  CurrentReplayPhase = 2
-    /\  CurrentReplayIndex > Len(Log)
-    /\  CurrentReplayIndex' = 1
-    /\  CurrentReplayPhase' = 0
-    /\  UNCHANGED << CommittedWrites, Memory, CurrentMemory, CurrentDiskPartitions, Partitions, NextPartition, Log >>
-
-ReplayLogEntry_Phase3 ==
-    /\  CurrentReplayPhase = 3
-    /\  CurrentReplayIndex <= Len(Log)
-    /\  CurrentReplayIndex' = CurrentReplayIndex + 1
-    /\  UNCHANGED << CommittedWrites, Log, Partitions, CurrentReplayPhase >>
-    /\  LET logEntry == Log[CurrentReplayIndex] IN
-        /\  IF IsPhase3LogEntry(logEntry)
-            THEN Replay_LogEntry(logEntry)
-            ELSE
-            UNCHANGED << CurrentMemory, Memory, CurrentDiskPartitions, NextPartition >>
-
-FinishReplay_Phase3 ==
-    /\  CurrentReplayPhase = 3
     /\  CurrentReplayIndex > Len(Log)
     /\  CurrentReplayIndex' = 1
     /\  CurrentReplayPhase' = 0
@@ -442,8 +420,6 @@ Next ==
     \/  FinishReplay_Phase1
     \/  ReplayLogEntry_Phase2
     \/  FinishReplay_Phase2
-    \/  ReplayLogEntry_Phase3
-    \/  FinishReplay_Phase3
 
 Spec ==
     /\  Init
@@ -478,8 +454,7 @@ Alias ==
         LogPhases |-> [
             logIndex \in 1..Len(Log) |-> [
                 IsPhase1 |-> IsPhase1LogEntry(Log[logIndex]),
-                IsPhase2 |-> IsPhase2LogEntry(Log[logIndex]),
-                IsPhase3 |-> IsPhase3LogEntry(Log[logIndex])
+                IsPhase2 |-> IsPhase2LogEntry(Log[logIndex])
             ]
         ],
         ReplayLogEntry_Phase1_ENABLED |-> ENABLED(ReplayLogEntry_Phase1)
