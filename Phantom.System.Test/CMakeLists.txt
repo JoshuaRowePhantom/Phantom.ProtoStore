@@ -4,6 +4,7 @@ add_executable(
     "ArgumentConverterTests.cpp"
     "as_awaitable_tests.cpp"
     "async_bound_tests.cpp"
+    "async_reader_writer_lock_tests.cpp"
     "async_ring_buffer_tests.cpp"
     "async_test.cpp"
     "async_test.h" 
@@ -24,7 +25,7 @@ add_executable(
     "ThreadingTests.cpp"
     "ThreadingTests.h"
     "utility_test.cpp"
- )
+  )
 
 target_link_libraries(
     Phantom.System.Test

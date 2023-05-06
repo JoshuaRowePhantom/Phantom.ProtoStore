@@ -30,30 +30,32 @@ Task<void> execute_conditional_read_unlikely_write_operation(
 {
     while (true)
     {
-        Phantom::Coroutines::suspend_result suspendResult;
-        auto readlock = co_await(suspendResult << reader_writer_lock.reader().scoped_lock_async());
-        if (suspendResult.did_suspend())
         {
-            co_await scheduler.schedule();
+            Phantom::Coroutines::suspend_result suspendResult;
+            auto readlock = co_await(suspendResult << reader_writer_lock.reader().scoped_lock_async());
+            if (suspendResult.did_suspend())
+            {
+                co_await scheduler.schedule();
+            }
+
+            if (co_await lambda(false))
+            {
+                co_return;
+            }
         }
 
-        if (co_await lambda(false))
         {
-            co_return;
-        }
-    }
+            Phantom::Coroutines::suspend_result suspendResult;
+            auto writeLock = co_await(suspendResult << reader_writer_lock.writer().scoped_lock_async());
+            if (suspendResult.did_suspend())
+            {
+                co_await scheduler.schedule();
+            }
 
-    {
-        Phantom::Coroutines::suspend_result suspendResult;
-        auto writeLock = co_await(suspendResult << reader_writer_lock.reader().scoped_lock_async());
-        if (suspendResult.did_suspend())
-        {
-            co_await scheduler.schedule();
-        }
-
-        if (co_await lambda(true))
-        {
-            co_return;
+            if (co_await lambda(true))
+            {
+                co_return;
+            }
         }
     }
 }
