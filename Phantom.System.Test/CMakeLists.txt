@@ -12,6 +12,7 @@ add_executable(
     "concepts_test.cpp" 
     "crc32_test.cpp"
     "encompassing_pending_task_tests.cpp"
+    "hash_tests.cpp"
     "invoke_as_awaitable_tests.cpp"
     "merge_tests.cpp"
     "move_and_copy_counter.h"
@@ -23,7 +24,7 @@ add_executable(
     "ThreadingTests.cpp"
     "ThreadingTests.h"
     "utility_test.cpp"
-)
+ )
 
 target_link_libraries(
     Phantom.System.Test

@@ -12,6 +12,7 @@ add_library (
     "empty.cpp"
     "encompassing_pending_task.h"
     "functional.h"
+    "hash.h"
     "lifetime_tracker.h" 
     "merge.h"
     "pooled_ptr.h" 
@@ -23,7 +24,7 @@ add_library (
     "ThreadingProvider.cpp"
     "ThreadingProvider.h" 
     "utility.h" 
-)
+ )
 
 target_link_libraries(
     Phantom.System
