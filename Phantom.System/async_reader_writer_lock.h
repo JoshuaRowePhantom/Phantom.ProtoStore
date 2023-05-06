@@ -89,7 +89,12 @@ Task<void> execute_conditional_read_unlikely_write_operation(
             else
             {
                 co_await writeLambda();
+                co_return true;
             }
+        }
+        else
+        {
+            co_return true;
         }
     }
     );
