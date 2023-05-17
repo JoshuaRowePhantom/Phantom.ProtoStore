@@ -101,7 +101,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.IndexesByNumber",
-            1,
+            SystemIndexNumbers::IndexesByNumber,
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberKey_Object },
@@ -122,7 +122,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.IndexesByName",
-            2,
+            SystemIndexNumbers::IndexesByName,
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameKey_Object },
@@ -143,7 +143,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.Partitions",
-            3,
+            SystemIndexNumbers::Partitions,
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsKey_Object },
@@ -164,7 +164,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.Merges",
-            4,
+            SystemIndexNumbers::Merges,
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesKey_Object },
@@ -185,7 +185,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.MergeProgress",
-            5,
+            SystemIndexNumbers::MergeProgress,
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressKey_Object },
@@ -206,7 +206,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.DistributedTransactions",
-            6,
+            SystemIndexNumbers::DistributedTransactions,
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsKey_Object },
@@ -227,7 +227,7 @@ task<> ProtoStore::Open(
             indexesByNumberKey,
             indexesByNumberValue,
             "__System.DistributedTransactionReferences",
-            7,
+            SystemIndexNumbers::DistributedTransactionReferences,
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesKey_Object },
