@@ -159,18 +159,25 @@ class ProtoStore
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
+    bool IsLogEntryForPhase(
+        int phase,
+        const FlatMessage<LogEntry>& logEntry
+    );
+
+    task<> Replay();
+
     task<> Replay(
-        const ExtentNameT& logExtent,
-        const FlatBuffers::LogExtentNameT* fbLogExtent);
+        int phase,
+        const ExtentName* extentName);
+
+    task<> Replay(
+        const FlatMessage<LogEntry>& logEntry);
 
     task<> Replay(
         const FlatMessage<LoggedRowWrite>& logRecord);
 
     task<> Replay(
         const FlatMessage<LoggedCommitLocalTransaction>& logRecord);
-
-    task<> Replay(
-        const FlatMessage<LogRecord>& logRecord);
 
     task<> Replay(
         const FlatMessage<LoggedUpdatePartitions>& logRecord);

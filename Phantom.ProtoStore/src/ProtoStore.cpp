@@ -270,14 +270,7 @@ task<> ProtoStore::Open(
 
     co_await ReplayPartitionsForOpenedIndexes();
 
-    for (auto& logReplayExtentName : m_header->log_replay_extent_names)
-    {
-        co_await Replay(
-            MakeLogExtentName(logReplayExtentName->log_extent_sequence_number),
-            logReplayExtentName.get());
-    }
-
-    m_replayedWrites = {};
+    co_await Replay();
 
     auto postUpdateHeaderTask = co_await m_logManager->FinishReplay(
         m_header.get());
@@ -348,13 +341,81 @@ task<> ProtoStore::UpdateHeader(
         m_header.get());
 }
 
+// This function implements the
+// IsPhase1LogEntry, IsPhase2LogEntry operators
+// in LogManager.tla.
+bool ProtoStore::IsLogEntryForPhase(
+    int phase,
+    const FlatMessage<LogEntry>& logEntry
+)
+{
+    if (phase == 1)
+    {
+        if (logEntry->log_entry_as_LoggedPartitionsData())
+        {
+            return true;
+        }
+        if (auto logEntryAsWrite = logEntry->log_entry_as_LoggedRowWrite())
+        {
+            return
+                logEntryAsWrite->index_number() == SystemIndexNumbers::IndexesByNumber
+                || logEntryAsWrite->index_number() == SystemIndexNumbers::Partitions;
+        }
+        if (auto logEntryAsCheckpoint = logEntry->log_entry_as_LoggedRowWrite())
+        {
+            return
+                logEntryAsCheckpoint->index_number() == SystemIndexNumbers::IndexesByNumber
+                || logEntryAsCheckpoint->index_number() == SystemIndexNumbers::Partitions;
+        }
+        if (auto logEntryAsUpdatePartitions = logEntry->log_entry_as_LoggedUpdatePartitions())
+        {
+            return
+                logEntryAsUpdatePartitions->index_number() == SystemIndexNumbers::IndexesByNumber
+                || logEntryAsUpdatePartitions->index_number() == SystemIndexNumbers::Partitions;
+        }
+        return false;
+    }
+
+    if (phase == 2)
+    {
+        if (IsLogEntryForPhase(1, logEntry))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    // An invalid phase was passed in.
+    assert(false);
+    abort();
+}
+
+task<> ProtoStore::Replay()
+{
+    for (auto phase = 1; phase <= 2; ++phase)
+    {
+        for (auto& logReplayExtentName : m_header->log_replay_extent_names)
+        {
+            auto extentName = MakeLogExtentName(logReplayExtentName->log_extent_sequence_number);
+            auto flatExtentName = FlatMessage{ &extentName };
+
+            co_await Replay(
+                phase,
+                flatExtentName.get());
+        }
+    }
+
+    m_replayedWrites = {};
+}
+
 task<> ProtoStore::Replay(
-    const ExtentNameT& logExtent,
-    const FlatBuffers::LogExtentNameT* extentName
+    int phase,
+    const ExtentName* extentName
 )
 {
     auto logReader = co_await m_messageStore->OpenExtentForSequentialReadAccess(
-        FlatValue{ &logExtent }
+        extentName
     );
 
     while (true)
@@ -366,58 +427,66 @@ task<> ProtoStore::Replay(
             co_return;
         }
 
-        co_await m_logManager->Replay(
-            extentName,
-            logRecordMessage.get()
-        );
+        if (!logRecordMessage->log_entries())
+        {
+            continue;
+        }
 
-        co_await Replay(
-            logRecordMessage);
+        for (auto logEntry : *logRecordMessage->log_entries())
+        {
+            auto logEntryMessage = FlatMessage{ logRecordMessage, logEntry };
+
+            if (!IsLogEntryForPhase(
+                phase,
+                logEntryMessage))
+            {
+                continue;
+            }
+
+            m_logManager->Replay(
+                extentName->extent_name_as_LogExtentName(),
+                logEntry
+            );
+
+            co_await Replay(
+                logEntryMessage);
+        }
     }
 }
 
 task<> ProtoStore::Replay(
-    const FlatMessage<LogRecord>& logRecord)
+    const FlatMessage<LogEntry>& logEntry)
 {
-    if (!logRecord->log_entries())
+    auto getMessage = [&]<typename T>(tag<T>)
     {
-        co_return;
-    }
+        return FlatMessage{ logEntry, logEntry->log_entry_as<T>() };
+    };
 
-    for(auto logEntryIndex = 0; logEntryIndex < logRecord->log_entries()->size(); logEntryIndex++)
+    switch (logEntry->log_entry_type())
     {
-        auto logEntry = logRecord->log_entries()->Get(logEntryIndex);
-        auto getMessage = [&]<typename T>(tag<T>)
-        {
-            return FlatMessage{ logRecord, logEntry->log_entry_as<T>()};
-        };
+    case LogEntryUnion::LoggedRowWrite:
+        co_await Replay(getMessage(tag<LoggedRowWrite>()));
+        break;
 
-        switch (logEntry->log_entry_type())
-        {
-        case LogEntryUnion::LoggedRowWrite:
-            co_await Replay(getMessage(tag<LoggedRowWrite>()));
-            break;
+    case LogEntryUnion::LoggedCreateIndex:
+        co_await Replay(getMessage(tag<LoggedCreateIndex>()));
+        break;
 
-        case LogEntryUnion::LoggedCreateIndex:
-            co_await Replay(getMessage(tag<LoggedCreateIndex>()));
-            break;
+    case LogEntryUnion::LoggedPartitionsData:
+        co_await Replay(getMessage(tag<LoggedPartitionsData>()));
+        break;
 
-        case LogEntryUnion::LoggedPartitionsData:
-            co_await Replay(getMessage(tag<LoggedPartitionsData>()));
-            break;
+    case LogEntryUnion::LoggedCreatePartition:
+        co_await Replay(getMessage(tag<LoggedCreatePartition>()));
+        break;
 
-        case LogEntryUnion::LoggedCreatePartition:
-            co_await Replay(getMessage(tag<LoggedCreatePartition>()));
-            break;
+    case LogEntryUnion::LoggedCommitLocalTransaction:
+        co_await Replay(getMessage(tag<LoggedCommitLocalTransaction>()));
+        break;
 
-        case LogEntryUnion::LoggedCommitLocalTransaction:
-            co_await Replay(getMessage(tag<LoggedCommitLocalTransaction>()));
-            break;
-
-        case LogEntryUnion::LoggedUpdatePartitions:
-            co_await Replay(getMessage(tag<LoggedUpdatePartitions>()));
-            break;
-        }
+    case LogEntryUnion::LoggedUpdatePartitions:
+        co_await Replay(getMessage(tag<LoggedUpdatePartitions>()));
+        break;
     }
 }
 
@@ -1416,6 +1485,7 @@ task<> ProtoStore::Checkpoint(
         }
 
         PartitionsKeyT partitionsKey;
+        partitionsKey.use = FlatBuffers::PartitionUseState::InUse;
         partitionsKey.index_number = indexEntry.IndexNumber;
         
         partitionsKey.header_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexHeaderExtentName());
@@ -1482,23 +1552,25 @@ task<> ProtoStore::Checkpoint(
 task<partition_row_list_type> ProtoStore::GetPartitionsForIndex(
     IndexNumber indexNumber)
 {
-    PartitionsKeyT partitionsKeyLow;
-    partitionsKeyLow.index_number = indexNumber;
+    PartitionsKeyT partitionsKey;
+    partitionsKey.use = FlatBuffers::PartitionUseState::InUse;
+    partitionsKey.index_number = indexNumber;
 
-    PartitionsKeyT partitionsKeyHigh;
-    partitionsKeyHigh.index_number = indexNumber + 1;
+    EnumeratePrefixRequest enumeratePrefixRequest =
+    {
+        .Index = m_partitionsIndex.Index,
+        .SequenceNumber = SequenceNumber::LatestCommitted,
+        .Prefix =
+        {
+            .Key = &partitionsKey,
+            .LastFieldId = 2,
+        },
+        .ReadValueDisposition = ReadValueDisposition::ReadValue,
+    };
 
-    EnumerateRequest enumerateRequest;
-    enumerateRequest.KeyLow = &partitionsKeyLow;
-    enumerateRequest.KeyLowInclusivity = Inclusivity::Inclusive;
-    enumerateRequest.KeyHigh = &partitionsKeyHigh;
-    enumerateRequest.KeyHighInclusivity = Inclusivity::Exclusive;
-    enumerateRequest.SequenceNumber = SequenceNumber::LatestCommitted;
-    enumerateRequest.Index = ProtoIndex{ m_partitionsIndex.Index };
-
-    auto enumeration = m_partitionsIndex.Index->Enumerate(
+    auto enumeration = m_partitionsIndex.Index->EnumeratePrefix(
         nullptr,
-        enumerateRequest);
+        enumeratePrefixRequest);
 
     partition_row_list_type result;
 

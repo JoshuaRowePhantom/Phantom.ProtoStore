@@ -259,7 +259,13 @@ table IndexesByNameValue {
     index_number : uint64;
 }
 
+enum PartitionUseState : byte {
+    InUse = 0,
+    PendingRemoval = 1,
+}
+
 table PartitionsKey {
+    use : PartitionUseState = 0;
     index_number : uint64;
     header_extent_name : IndexHeaderExtentName;
 }

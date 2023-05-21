@@ -4,6 +4,7 @@
 #include "MessageStore.h"
 #include "Phantom.Coroutines/suspend_result.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
+#include "Phantom.System/hash.h"
 
 namespace Phantom::ProtoStore
 {
@@ -12,13 +13,11 @@ size_t LogManager::LogExtentUsageHasher::operator() (
     const LogManager::LogExtentUsage& logExtentUsage
 ) const 
 {
-    return
-        (logExtentUsage.IndexNumber << 7)
-        ^ (logExtentUsage.IndexNumber >> 25)
-        + (logExtentUsage.PartitionNumber << 3)
-        ^ (logExtentUsage.PartitionNumber >> 29)
-        + (logExtentUsage.LogExtentSequenceNumber << 17)
-        ^ (logExtentUsage.LogExtentSequenceNumber >> 15);
+    return hash(
+        logExtentUsage.IndexNumber,
+        logExtentUsage.PartitionNumber,
+        logExtentUsage.LogExtentSequenceNumber
+    );
 }
 
 LogManager::LogManager(
@@ -47,112 +46,101 @@ LogManager::LogManager(
     }
 }
 
-task<> LogManager::Replay(
-    const FlatBuffers::LogExtentNameT* extentName,
-    const LogRecord* logRecord
+void LogManager::Replay(
+    const FlatBuffers::LogExtentName* extentName,
+    const LogEntry* logEntry
 )
 {
-    auto logExtentSequenceNumber = extentName->log_extent_sequence_number;
+    auto logExtentSequenceNumber = extentName->log_extent_sequence_number();
 
-    if (!logRecord->log_entries())
+    switch (logEntry->log_entry_type())
     {
-        co_return;
+    case LogEntryUnion::LoggedRowWrite:
+    {
+        auto loggedRowWrite = logEntry->log_entry_as<LoggedRowWrite>();
+
+        LogExtentUsage logExtentUsage =
+        {
+            .LogExtentSequenceNumber = logExtentSequenceNumber,
+            .IndexNumber = loggedRowWrite->index_number(),
+            .PartitionNumber = loggedRowWrite->partition_number(),
+        };
+
+        m_logExtentUsage.insert(
+            logExtentUsage);
+        break;
     }
 
-    for (uoffset_t logEntryIndex = 0; logEntryIndex < logRecord->log_entries()->size(); ++logEntryIndex)
+    case LogEntryUnion::LoggedCreateExtent:
     {
-        auto logEntry = logRecord->log_entries()->Get(logEntryIndex);
-        switch (logEntry->log_entry_type())
+        auto loggedCreateExtent = logEntry->log_entry_as<LoggedCreateExtent>();
+        FlatBuffers::ExtentNameT createdExtent;
+        loggedCreateExtent->extent_name()->UnPackTo(&createdExtent);
+        m_uncommittedExtentToLogExtentSequenceNumber[createdExtent] = logExtentSequenceNumber;
+        break;
+    }
+
+    case LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated:
+    {
+        auto loggedDeleteExtentPendingPartitionsUpdated = logEntry->log_entry_as<LoggedDeleteExtentPendingPartitionsUpdated>();
+        FlatBuffers::ExtentNameT extentToDeletePendingPartitionsUpdated;
+        loggedDeleteExtentPendingPartitionsUpdated->extent_name()->UnPackTo(
+            &extentToDeletePendingPartitionsUpdated);
+
+        m_partitionsPartitionNumberToExtentsToDelete.emplace(
+            loggedDeleteExtentPendingPartitionsUpdated->partitions_table_partition_number(),
+            extentToDeletePendingPartitionsUpdated);
+        break;
+    }
+
+    case LogEntryUnion::LoggedCommitExtent:
+    {
+        auto loggedCommitExtent = logEntry->log_entry_as<LoggedCommitExtent>();
+        FlatBuffers::ExtentNameT committedExtent;
+        m_uncommittedExtentToLogExtentSequenceNumber.erase(committedExtent);
+        break;
+    }
+
+    case LogEntryUnion::LoggedCheckpoint:
+    {
+        auto loggedCheckpoint = logEntry->log_entry_as<LoggedCheckpoint>();
+
+        auto loggedPartitionNumbers = std::set(
+            loggedCheckpoint->partition_number()->cbegin(),
+            loggedCheckpoint->partition_number()->cend());
+
+        std::erase_if(
+            m_logExtentUsage,
+            [&](const LogExtentUsage& logExtentUsage)
         {
-        case LogEntryUnion::LoggedRowWrite:
-        {
-            auto loggedRowWrite = logEntry->log_entry_as<LoggedRowWrite>();
-
-            LogExtentUsage logExtentUsage =
-            {
-                .LogExtentSequenceNumber = logExtentSequenceNumber,
-                .IndexNumber = loggedRowWrite->index_number(),
-                .PartitionNumber = loggedRowWrite->partition_number(),
-            };
-
-            m_logExtentUsage.insert(
-                logExtentUsage);
-            break;
-        }
-
-        case LogEntryUnion::LoggedCreateExtent:
-        {
-            auto loggedCreateExtent = logEntry->log_entry_as<LoggedCreateExtent>();
-            FlatBuffers::ExtentNameT createdExtent;
-            loggedCreateExtent->extent_name()->UnPackTo(&createdExtent);
-            m_uncommittedExtentToLogExtentSequenceNumber[createdExtent] = logExtentSequenceNumber;
-            break;
-        }
-
-        case LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated:
-        {
-            auto loggedDeleteExtentPendingPartitionsUpdated = logEntry->log_entry_as<LoggedDeleteExtentPendingPartitionsUpdated>();
-            FlatBuffers::ExtentNameT extentToDeletePendingPartitionsUpdated;
-            loggedDeleteExtentPendingPartitionsUpdated->extent_name()->UnPackTo(
-                &extentToDeletePendingPartitionsUpdated);
-
-            m_partitionsPartitionNumberToExtentsToDelete.emplace(
-                loggedDeleteExtentPendingPartitionsUpdated->partitions_table_partition_number(),
-                extentToDeletePendingPartitionsUpdated);
-            break;
-        }
-
-        case LogEntryUnion::LoggedCommitExtent:
-        {
-            auto loggedCommitExtent = logEntry->log_entry_as<LoggedCommitExtent>();
-            FlatBuffers::ExtentNameT committedExtent;
-            m_uncommittedExtentToLogExtentSequenceNumber.erase(committedExtent);
-            break;
-        }
-
-        case LogEntryUnion::LoggedCheckpoint:
-        {
-            auto loggedCheckpoint = logEntry->log_entry_as<LoggedCheckpoint>();
-
-            auto loggedPartitionNumbers = std::set(
-                loggedCheckpoint->partition_number()->cbegin(),
-                loggedCheckpoint->partition_number()->cend());
-
-            std::erase_if(
-                m_logExtentUsage,
-                [&](const LogExtentUsage& logExtentUsage)
-            {
-                return
+            return
                 logExtentUsage.IndexNumber == loggedCheckpoint->index_number()
                 && loggedPartitionNumbers.contains(logExtentUsage.PartitionNumber);
-            });
-            break;
-        }
-
-        case LogEntryUnion::LoggedPartitionsData:
-        {
-            auto loggedPartitionsData = logEntry->log_entry_as<LoggedPartitionsData>();
-            m_partitionsDataLogExtentSequenceNumber = logExtentSequenceNumber;
-            loggedPartitionsData->UnPackTo(&m_latestLoggedPartitionsData);
-
-            if (m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber.contains(logExtentSequenceNumber))
-            {
-                m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber] = std::min(
-                    m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber],
-                    loggedPartitionsData->partitions_table_partition_number()
-                );
-            }
-            else
-            {
-                m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber] =
-                    loggedPartitionsData->partitions_table_partition_number();
-            }
-
-        }
-        }
+        });
+        break;
     }
 
-    co_return;
+    case LogEntryUnion::LoggedPartitionsData:
+    {
+        auto loggedPartitionsData = logEntry->log_entry_as<LoggedPartitionsData>();
+        m_partitionsDataLogExtentSequenceNumber = logExtentSequenceNumber;
+        loggedPartitionsData->UnPackTo(&m_latestLoggedPartitionsData);
+
+        if (m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber.contains(logExtentSequenceNumber))
+        {
+            m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber] = std::min(
+                m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber],
+                loggedPartitionsData->partitions_table_partition_number()
+            );
+        }
+        else
+        {
+            m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber[logExtentSequenceNumber] =
+                loggedPartitionsData->partitions_table_partition_number();
+        }
+        break;
+    }
+    }
 }
 
 task<task<>> LogManager::FinishReplay(
@@ -207,51 +195,42 @@ task<FlatMessage<FlatBuffers::LogRecord>> LogManager::WriteLogRecord(
     FlushBehavior flushBehavior
 )
 {
-    RetryWithReadLock:
+    DataReference<StoredMessage> writeResult;
+
+    co_await execute_conditional_read_unlikely_write_operation(
+        m_logExtentUsageLock,
+        *m_schedulers.IoScheduler,
+        [&](bool hasWriteLock) -> task<bool>
     {
-        Phantom::Coroutines::suspend_result suspendResult;
-        auto readlock = co_await(suspendResult << m_logExtentUsageLock.reader().scoped_lock_async());
-        if (suspendResult.did_suspend())
+        if (
+            logRecord->log_entries()
+            &&
+            NeedToUpdateMaps(
+                m_currentLogExtentSequenceNumber,
+                logRecord.get()
+            ))
         {
-            co_await *m_schedulers.IoScheduler;
+            if (!hasWriteLock)
+            {
+                co_return false;
+            }
+
+            for (const auto* logEntry : *logRecord->log_entries())
+            {
+                Replay(
+                    m_currentLogExtentName.get(),
+                    logEntry);
+            }
         }
 
-        if (!NeedToUpdateMaps(
-            m_currentLogExtentSequenceNumber,
-            logRecord.get()))
-        {
-            auto writeResult = co_await m_logMessageWriter->Write(
-                logRecord.data(),
-                flushBehavior);
-
-            co_return writeResult;
-        }
-    }
-
-    {
-        auto writeLock = co_await m_logExtentUsageLock.writer().scoped_lock_async();
-        co_await *m_schedulers.IoScheduler;
-
-        if (!NeedToUpdateMaps(
-            m_currentLogExtentSequenceNumber,
-            logRecord.get()))
-        {
-            goto RetryWithReadLock;
-        }
-
-        FlatBuffers::LogExtentNameT logExtentName;
-        logExtentName.log_extent_sequence_number = m_currentLogExtentSequenceNumber;
-
-        co_await Replay(
-            &logExtentName,
-            logRecord.get());
-
-        auto writeResult = co_await m_logMessageWriter->Write(
+        writeResult = co_await m_logMessageWriter->Write(
             logRecord.data(),
             flushBehavior);
 
-        co_return writeResult;
-    }
+        co_return true;
+    });
+
+    co_return writeResult;
 }
 
 task<task<>> LogManager::Checkpoint(
@@ -412,6 +391,9 @@ task<> LogManager::OpenNewLogWriter()
     
     FlatValue logExtentName = MakeLogExtentName(
         m_currentLogExtentSequenceNumber);
+    m_currentLogExtentName = logExtentName.SubValue(
+        logExtentName->extent_name_as_LogExtentName()
+    );
 
     m_logMessageWriter = co_await m_logMessageStore->OpenExtentForSequentialWriteAccess(
         logExtentName);
@@ -428,9 +410,9 @@ task<> LogManager::OpenNewLogWriter()
     FlatBuffers::LogExtentNameT fbLogExtentName;
     fbLogExtentName.log_extent_sequence_number = m_currentLogExtentSequenceNumber;
 
-    co_await Replay(
-        &fbLogExtentName,
-        flatFirstLogRecord.get());
+    Replay(
+        m_currentLogExtentName,
+        flatFirstLogRecord->log_entries()->Get(0));
 
     co_await m_logMessageWriter->Write(
         flatFirstLogRecord.data(),

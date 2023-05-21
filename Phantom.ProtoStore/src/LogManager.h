@@ -45,6 +45,7 @@ class LogManager : SerializationTypes
 
     shared_ptr<ISequentialMessageWriter> m_logMessageWriter;
     LogExtentSequenceNumber m_currentLogExtentSequenceNumber;
+    FlatValue<FlatBuffers::LogExtentName> m_currentLogExtentName;
 
     LogExtentSequenceNumber m_nextLogExtentSequenceNumber;
 
@@ -67,9 +68,9 @@ public:
         const DatabaseHeaderT* header
     );
 
-    task<> Replay(
-        const FlatBuffers::LogExtentNameT* logExtentName,
-        const LogRecord* logRecord
+    void Replay(
+        const FlatBuffers::LogExtentName* extentName,
+        const LogEntry* logEntry
     );
 
     task<task<>> FinishReplay(
