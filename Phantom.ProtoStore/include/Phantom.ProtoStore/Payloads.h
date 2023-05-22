@@ -10,6 +10,7 @@
 #include <variant>
 #include "Primitives.h"
 #include "Phantom.System/concepts.h"
+#include "Phantom.System/utility.h"
 
 namespace Phantom::ProtoStore
 {

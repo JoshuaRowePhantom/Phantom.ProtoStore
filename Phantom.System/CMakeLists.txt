@@ -4,7 +4,6 @@ add_library (
     Phantom.System
     STATIC
     "async_reader_writer_lock.h"
-    "async_ring_buffer.h"
     "async_utility.h"
     "async_value_source.h"
     "concepts.h" 

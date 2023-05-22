@@ -7,8 +7,6 @@
 #include <optional>
 #include <string>
 #include <type_traits>
-#include <google/protobuf/any.pb.h>
-#include <google/protobuf/message.h>
 
 namespace Phantom::ProtoStore
 {

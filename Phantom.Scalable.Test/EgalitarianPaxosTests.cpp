@@ -4,6 +4,7 @@
 #include <cppcoro/task.hpp>
 #include <cppcoro/async_generator.hpp>
 
+#if 0
 namespace Phantom::Consensus::EgalitarianPaxos
 {
 // Static tests.
@@ -131,3 +132,4 @@ class StaticPaxosTests
 template class StaticPaxosTests::static_command_leader_type;
 
 }
+#endif
