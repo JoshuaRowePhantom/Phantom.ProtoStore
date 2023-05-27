@@ -1,9 +1,12 @@
 ﻿cmake_minimum_required (VERSION 3.24)
 
 find_package(cmakerc REQUIRED)
+find_package(gtest REQUIRED)
+find_package(flatbuffers CONFIG REQUIRED )
+
 enable_testing()
 
-project ("Phantom.Scalable.Native")
+project ("Phantom.Scalable.ProtoStore")
 
 if (MSVC)
 	add_compile_options("/std:c++latest")
@@ -20,5 +23,3 @@ add_subdirectory ("Phantom.System.Test")
 add_subdirectory ("Phantom.ProtoStore")
 add_subdirectory ("Phantom.ProtoStore.Test")
 add_subdirectory ("Phantom.ProtoStore.Utility")
-add_subdirectory ("Phantom.Scalable")
-add_subdirectory ("Phantom.Scalable.Test")

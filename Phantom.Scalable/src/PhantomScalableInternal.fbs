@@ -1,3 +1,0 @@
-include "Phantom.Scalable/PhantomScalable.fbs";
-
-namespace Phantom.Scalable.FlatBuffers;
