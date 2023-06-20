@@ -12,6 +12,11 @@
 #include "Phantom.System/concepts.h"
 #include "Phantom.System/utility.h"
 
+// Make sure that flatbuffers is configured to use the STL classes,
+// not the internal flatbuffers classes.
+static_assert(FLATBUFFERS_USE_STD_SPAN);
+static_assert(FLATBUFFERS_USE_STD_OPTIONAL);
+
 namespace Phantom::ProtoStore
 {
 namespace FlatBuffers

@@ -149,7 +149,7 @@ public:
 
         m_storedMessage =
         {
-            std::shared_ptr<uint8_t[]>{ builder.ReleaseRaw(size, offset) },
+            std::make_shared<flatbuffers::DetachedBuffer>(builder.Release()),
             storedMessage,
         };
 
