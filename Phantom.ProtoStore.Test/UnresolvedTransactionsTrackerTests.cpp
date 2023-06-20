@@ -14,7 +14,7 @@ class UnresolvedTransactionsTrackerTests :
 
 };
 
-ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, DISABLED_GetTransactionOutcome_returns_Committed_for_nonexisting_row)
+ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, GetTransactionOutcome_returns_Committed_for_nonexisting_row)
 {
     auto store = ToProtoStore(co_await CreateMemoryStore());
     auto unresolvedTransactionsTracker = GetUnresolvedTransactionsTracker(store.get());
@@ -24,7 +24,7 @@ ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, DISABLED_GetTransactionOutcome_
     EXPECT_EQ(TransactionOutcome::Committed, transactionOutcome);
 }
 
-ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, DISABLED_GetTransactionOutcome_returns_Committed_for_Committed_transaction)
+ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, GetTransactionOutcome_returns_Committed_for_Committed_transaction)
 {
     auto store = ToProtoStore(co_await CreateMemoryStore());
     auto unresolvedTransactionsTracker = GetUnresolvedTransactionsTracker(store.get());
@@ -42,7 +42,7 @@ ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, DISABLED_GetTransactionOutcome_
     EXPECT_EQ(TransactionOutcome::Committed, transactionOutcome);
 }
 
-ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, DISABLED_GetTransactionOutcome_returns_Aborted_for_Aborted_transaction)
+ASYNC_TEST_F(UnresolvedTransactionsTrackerTests, GetTransactionOutcome_returns_Aborted_for_Aborted_transaction)
 {
     auto store = ToProtoStore(co_await CreateMemoryStore());
     auto unresolvedTransactionsTracker = GetUnresolvedTransactionsTracker(store.get());

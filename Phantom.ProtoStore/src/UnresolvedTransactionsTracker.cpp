@@ -49,9 +49,9 @@ public:
         auto keyOffset = FlatBuffers::CreateDistributedTransactionsKey(
             keyBuilder,
             transactionIdOffset);
+        keyBuilder.Finish(keyOffset);
 
-        auto key = flatbuffers::GetRoot<FlatBuffers::DistributedTransactionsKey>(
-            keyBuilder.GetCurrentBufferPointer());
+        FlatValue<FlatBuffers::DistributedTransactionReferencesKey> key{ std::move(keyBuilder) };
 
         ReadRequest readRequest =
         {
