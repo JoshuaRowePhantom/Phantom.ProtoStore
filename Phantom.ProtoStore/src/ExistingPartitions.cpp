@@ -86,6 +86,30 @@ public:
         m_existingPartitionsByIndex[indexNumber].insert(partitionNumber);
         m_uncommittedPartitionsByIndex[indexNumber].insert(partitionNumber);
     }
+    
+    virtual task<> Replay(
+        const FlatMessage<FlatBuffers::LoggedRowWrite>& loggedRowWrite
+    ) override
+    {
+        auto indexNumber = loggedRowWrite->index_number();
+        auto partitionNumber = loggedRowWrite->partition_number();
+
+        // If we check with a read lock (which is cheaper globally,
+        // but overall a bit more expensive when serving this request),
+        // and the partition number exists, then we know that the
+        // data structures have already been updated.
+        if (co_await DoesPartitionNumberExist(partitionNumber))
+        {
+            co_return;
+        }
+
+        // Lock required, since this is called whenever the log message is written
+        // AND during replay at startup.
+        auto lock = co_await m_lock.writer().scoped_lock_async();
+        m_allExistingPartitions.insert(partitionNumber);
+        m_existingPartitionsByIndex[indexNumber].insert(partitionNumber);
+        m_uncommittedPartitionsByIndex[indexNumber].insert(partitionNumber);
+    }
 
     virtual task<> Replay(
         const FlatMessage<FlatBuffers::LoggedUpdatePartitions>& loggedUpdatePartitions

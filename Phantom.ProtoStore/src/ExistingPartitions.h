@@ -14,6 +14,10 @@ public:
     virtual task<> Replay(
         const FlatMessage<FlatBuffers::LoggedCreatePartition>& loggedCreatePartition
     ) = 0;
+    
+    virtual task<> Replay(
+        const FlatMessage<FlatBuffers::LoggedRowWrite>& loggedRowWrite
+    ) = 0;
 
     virtual task<> Replay(
         const FlatMessage<FlatBuffers::LoggedUpdatePartitions>& loggedUpdatePartitions

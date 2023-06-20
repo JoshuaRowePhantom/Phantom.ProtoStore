@@ -117,6 +117,21 @@ ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedCreatePartition_adds_partitio
     EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
 }
 
+ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedRowWrite_adds_partition_to_existing_partitions)
+{
+    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
+
+    FlatBuffers::LoggedRowWriteT loggedRowWriteT;
+    loggedRowWriteT.index_number = 1010;
+    loggedRowWriteT.partition_number = 1008;
+
+    FlatMessage loggedRowWrite{ &loggedRowWriteT };
+    co_await existingPartitions->Replay(
+        loggedRowWrite);
+
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
+}
+
 ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedUpdatePartitions_replaces_content_for_that_index_with_values_from_Partitions_Index)
 {
     co_await AddPartitionsRow(
