@@ -18,8 +18,6 @@ endif()
 
 include(cmake/FlatBuffersSchemaResource.cmake)
 
-add_subdirectory ("Phantom.System")
-add_subdirectory ("Phantom.System.Test") 
 add_subdirectory ("Phantom.ProtoStore")
 add_subdirectory ("Phantom.ProtoStore.Test")
 add_subdirectory ("Phantom.ProtoStore.Utility")
