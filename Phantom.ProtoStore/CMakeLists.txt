@@ -154,3 +154,20 @@ target_link_libraries(
     Phantom.System
     protobuf::libprotobuf
 )
+
+add_library (
+    Phantom.ProtoStore.Internal
+    INTERFACE
+)
+
+target_include_directories(
+    Phantom.ProtoStore.Internal
+    INTERFACE
+    ${CMAKE_CURRENT_LIST_DIR}/..
+)
+
+target_link_libraries(
+    Phantom.ProtoStore.Internal
+    INTERFACE
+    Phantom.ProtoStore
+)

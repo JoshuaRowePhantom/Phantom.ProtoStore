@@ -91,7 +91,7 @@ target_link_libraries(
     Phantom.ProtoStore.Test
     PRIVATE
     Phantom.System
-    Phantom.ProtoStore
+    Phantom.ProtoStore.Internal
     Phantom.ProtoStore.Test.Resources
     Phantom.ProtoStore.Test.FlatBuffers
     GTest::gtest
