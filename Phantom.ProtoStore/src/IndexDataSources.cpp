@@ -130,7 +130,6 @@ task<WriteRowsResult> IndexDataSources::Checkpoint(
     const LoggedCheckpointT& loggedCheckpoint,
     shared_ptr<IPartitionWriter> partitionWriter)
 {
-
     vector<shared_ptr<IMemoryTable>> memoryTablesToCheckpoint;
 
     {
