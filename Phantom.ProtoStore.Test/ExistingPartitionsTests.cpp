@@ -73,205 +73,197 @@ public:
 
         EXPECT_EQ(true, result.has_value());
     }
+
+    task<> LogRowWrite(
+        IndexNumber indexNumber,
+        PartitionNumber partitionNumber
+    )
+    {
+        FlatBuffers::LoggedRowWriteT loggedRowWriteT;
+        loggedRowWriteT.index_number = indexNumber;
+        loggedRowWriteT.partition_number = partitionNumber;
+
+        FlatMessage loggedRowWrite{ &loggedRowWriteT };
+        co_await existingPartitions->Replay(
+            loggedRowWrite);
+    }
+
+    task<> LogCheckpoint(
+        IndexNumber indexNumber,
+        std::vector<PartitionNumber> partitionNumbers
+    )
+    {
+        FlatBuffers::LoggedCheckpointT loggedCheckpointT;
+        loggedCheckpointT.index_number = indexNumber;
+        loggedCheckpointT.partition_number = partitionNumbers;
+
+        FlatMessage loggedCheckpoint{ &loggedCheckpointT };
+        co_await existingPartitions->Replay(
+            loggedCheckpoint);
+    }
+
+    task<> LogPartitionsData(
+    )
+    {
+        FlatBuffers::LoggedPartitionsDataT loggedPartitionsData;
+
+        co_await existingPartitions->Replay(
+            FlatMessage{ &loggedPartitionsData });
+    }
+
+    task<> LogCreateIndexHeaderExtent(
+        IndexNumber indexNumber,
+        PartitionNumber partitionNumber
+    )
+    {
+        FlatBuffers::LoggedCreateExtentT loggedCreateExtent;
+        auto extentName = MakePartitionHeaderExtentName(
+            indexNumber,
+            partitionNumber,
+            1,
+            "");
+        loggedCreateExtent.extent_name = copy_unique(extentName);
+
+        co_await existingPartitions->Replay(
+            FlatMessage { &loggedCreateExtent });
+    }
+    
+    task<> LogDeleteIndexHeaderExtent(
+        IndexNumber indexNumber,
+        PartitionNumber partitionNumber
+    )
+    {
+        FlatBuffers::LoggedDeleteExtentT loggedDeleteExtent;
+        auto extentName = MakePartitionHeaderExtentName(
+            indexNumber,
+            partitionNumber,
+            1,
+            "");
+        loggedDeleteExtent.extent_name = copy_unique(extentName);
+
+        co_await existingPartitions->Replay(
+            FlatMessage { &loggedDeleteExtent });
+    }
+
+    task<> LogCommitIndexHeaderExtent(
+        IndexNumber indexNumber,
+        PartitionNumber partitionNumber
+    )
+    {
+        FlatBuffers::LoggedCommitExtentT loggedCommitExtent;
+        auto extentName = MakePartitionHeaderExtentName(
+            indexNumber,
+            partitionNumber,
+            1,
+            "");
+        loggedCommitExtent.extent_name = copy_unique(extentName);
+
+        co_await existingPartitions->Replay(
+            FlatMessage { &loggedCommitExtent });
+    }
 };
-
-ASYNC_TEST_F(ExistingPartitionsTests, BeginReplay_adds_preexisting_partitions)
-{
-    co_await AddPartitionsRow(
-        5,
-        1005);
-
-    co_await AddPartitionsRow(
-        6,
-        1006);
-
-    co_await AddPartitionsRow(
-        6,
-        1007);
-
-    co_await existingPartitions->BeginReplay();
-
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1005));
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1006));
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1007));
-    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
-}
-
 
 ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedCreatePartition_adds_partition_to_existing_partitions)
 {
     EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
 
-    FlatBuffers::LoggedCreatePartitionT loggedCreatePartitionT;
-    auto extentName = MakePartitionHeaderExtentName(
-        1010,
-        1008,
-        1,
-        "");
-    loggedCreatePartitionT.header_extent_name = copy_unique(*extentName.extent_name.AsIndexHeaderExtentName());
-
-    FlatMessage loggedCreatePartition{ &loggedCreatePartitionT };
-    co_await existingPartitions->Replay(
-        loggedCreatePartition);
+    co_await LogCreateIndexHeaderExtent(1010, 1008);
 
     EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
+}
+
+ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedDeletePartition_remove_partition)
+{
+    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
+
+    co_await LogCreateIndexHeaderExtent(1010, 1008);
+
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
+
+    co_await LogDeleteIndexHeaderExtent(1010, 1008);
+
+    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
 }
 
 ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedRowWrite_adds_partition_to_existing_partitions)
 {
     EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
 
-    FlatBuffers::LoggedRowWriteT loggedRowWriteT;
-    loggedRowWriteT.index_number = 1010;
-    loggedRowWriteT.partition_number = 1008;
-
-    FlatMessage loggedRowWrite{ &loggedRowWriteT };
-    co_await existingPartitions->Replay(
-        loggedRowWrite);
+    co_await LogRowWrite(1010, 1008);
 
     EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
 }
 
-ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedUpdatePartitions_replaces_content_for_that_index_with_values_from_Partitions_Index)
+ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedCheckpoint_removes_existing_LoggedRowWrite_partition)
 {
-    co_await AddPartitionsRow(
-        1002,
-        100000);
+    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
 
+    co_await LogRowWrite(1010, 1008);
+
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
+
+    co_await LogCheckpoint(1010, { 1008 });
+
+    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(1008));
+}
+
+ASYNC_TEST_F(ExistingPartitionsTests, Replay_LoggedPartitionsData_adds_existing_partitions)
+{
     co_await existingPartitions->BeginReplay();
 
-    {
-        FlatBuffers::LoggedCreatePartitionT loggedCreatePartition;
-        auto extentName = MakePartitionHeaderExtentName(
-            1001,
-            100001,
-            1,
-            "");
-        loggedCreatePartition.header_extent_name = copy_unique(*extentName.extent_name.AsIndexHeaderExtentName());
-
-        co_await existingPartitions->Replay(
-            FlatMessage{ &loggedCreatePartition });
-    }
-
-    {
-        FlatBuffers::LoggedCreatePartitionT loggedCreatePartition;
-        auto extentName = MakePartitionHeaderExtentName(
-            1002,
-            100002,
-            1,
-            "");
-        loggedCreatePartition.header_extent_name = copy_unique(*extentName.extent_name.AsIndexHeaderExtentName());
-
-        co_await existingPartitions->Replay(
-            FlatMessage{ &loggedCreatePartition });
-    }
-
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100000));
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100001));
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100002));
-    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(100003));
+    co_await LogRowWrite(1010, 1008);
 
     co_await AddPartitionsRow(
-        1002,
-        100003);
-
-    co_await RemovePartitionsRow(
-        1002,
+        1010,
         100000);
 
-    {
-        FlatBuffers::LoggedUpdatePartitionsT loggedUpdatePartitions;
-        loggedUpdatePartitions.index_number = 1002;
-
-        co_await existingPartitions->Replay(
-            FlatMessage{ &loggedUpdatePartitions });
-    }
-
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
     EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(100000));
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100001));
-    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(100002));
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100003));
+
+    co_await LogPartitionsData();
+
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100000));
 }
 
-ASYNC_TEST_F(ExistingPartitionsTests, FinishReplay_removes_uncommitted_LoggedCreatePartition_partitions)
+ASYNC_TEST_F(ExistingPartitionsTests, FinishReplay_removes_uncommitted_LoggedCreateExtent_partitions)
 {
-    co_await AddPartitionsRow(
-        1002,
-        100000);
-
     co_await existingPartitions->BeginReplay();
 
-    {
-        FlatBuffers::LoggedCreatePartitionT loggedCreatePartition;
-        auto extentName = MakePartitionHeaderExtentName(
-            1001,
-            100001,
-            1,
-            "");
-        loggedCreatePartition.header_extent_name = copy_unique(*extentName.extent_name.AsIndexHeaderExtentName());
+    co_await LogCreateIndexHeaderExtent(1001, 100001);
 
-        co_await existingPartitions->Replay(
-            FlatMessage{ &loggedCreatePartition });
-    }
-
-    {
-        FlatBuffers::LoggedCreatePartitionT loggedCreatePartition;
-        auto extentName = MakePartitionHeaderExtentName(
-            1002,
-            100002,
-            1,
-            "");
-        loggedCreatePartition.header_extent_name = copy_unique(*extentName.extent_name.AsIndexHeaderExtentName());
-
-        co_await existingPartitions->Replay(
-            FlatMessage{ &loggedCreatePartition });
-    }
-
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100000));
     EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100001));
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100002));
 
     co_await existingPartitions->FinishReplay();
 
-    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100000));
     EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(100001));
-    EXPECT_EQ(false, co_await existingPartitions->DoesPartitionNumberExist(100002));
 }
 
-ASYNC_TEST_F(ExistingPartitionsTests, FinishReplay_leaves_committed_partitions)
+ASYNC_TEST_F(ExistingPartitionsTests, FinishReplay_leaves_LoggedCommittedExtent_partitions)
 {
     co_await existingPartitions->BeginReplay();
 
-    {
-        FlatBuffers::LoggedCreatePartitionT loggedCreatePartition;
-        auto extentName = MakePartitionHeaderExtentName(
-            1001,
-            100000,
-            1,
-            "");
-        loggedCreatePartition.header_extent_name = copy_unique(*extentName.extent_name.AsIndexHeaderExtentName());
-
-        co_await existingPartitions->Replay(
-            FlatMessage{ &loggedCreatePartition });
-    }
-
-    co_await AddPartitionsRow(
-        1001,
-        100000);
-
-    {
-        FlatBuffers::LoggedUpdatePartitionsT loggedUpdatePartitions;
-        loggedUpdatePartitions.index_number = 1001;
-
-        co_await existingPartitions->Replay(
-            FlatMessage{ &loggedUpdatePartitions });
-    }
+    co_await LogCreateIndexHeaderExtent(1001, 100000);
+    co_await LogCommitIndexHeaderExtent(1001, 100000);
 
     EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100000));
 
     co_await existingPartitions->FinishReplay();
 
     EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(100000));
+}
+
+ASYNC_TEST_F(ExistingPartitionsTests, FinishReplay_leaves_LoggedRowWrite_partitions)
+{
+    co_await existingPartitions->BeginReplay();
+
+    co_await LogRowWrite(1010, 1008);
+    
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
+
+    co_await existingPartitions->FinishReplay();
+
+    EXPECT_EQ(true, co_await existingPartitions->DoesPartitionNumberExist(1008));
 }
 
 }

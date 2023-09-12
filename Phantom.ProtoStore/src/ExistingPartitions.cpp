@@ -19,36 +19,9 @@ class ExistingPartitionsImpl :
     
     Phantom::Coroutines::async_reader_writer_lock<> m_lock;
     partitions_set m_allExistingPartitions;
-    index_partitions_map m_existingPartitionsByIndex;
+    partitions_set m_allMemoryTablePartitions;
+    index_partitions_map m_diskPartitionsByIndex;
     index_partitions_map m_uncommittedPartitionsByIndex;
-
-    task<> ReadPartitionsTableAndInsertIntoMaps(
-        Prefix prefix
-    )
-    {
-        EnumeratePrefixRequest enumeratePrefixRequest
-        {
-            .Index = m_partitionsIndex.get(),
-            .Prefix = std::move(prefix),
-            .ReadValueDisposition = ReadValueDisposition::DontReadValue,
-        };
-
-        auto partitions = m_partitionsIndex->EnumeratePrefix(
-            nullptr,
-            std::move(enumeratePrefixRequest));
-
-        for (auto partitionsIterator = co_await partitions.begin();
-            partitionsIterator != partitions.end();
-            co_await ++partitionsIterator)
-        {
-            const FlatBuffers::PartitionsKey* partitionsKey = (*partitionsIterator)->Key.cast_if<FlatBuffers::PartitionsKey>();
-            auto indexNumber = partitionsKey->index_number();
-            auto partitionNumber = partitionsKey->header_extent_name()->index_extent_name()->partition_number();
-            
-            m_existingPartitionsByIndex[indexNumber].insert(partitionNumber);
-            m_allExistingPartitions.insert(partitionNumber);
-        }
-    }
 
 public:
     ExistingPartitionsImpl(
@@ -61,32 +34,70 @@ public:
     ) override
     {
         // No locking required since this is called once at startup.
-
-        // Find all the partitions that exist at the start of replay
-        // and add them to the existing partitions map.
-        co_await ReadPartitionsTableAndInsertIntoMaps(
-            Prefix
-            {
-                .LastFieldId = 0,
-            }
-        );
+        co_return;
     }
 
     virtual task<> Replay(
-        const FlatMessage<FlatBuffers::LoggedCreatePartition>& loggedCreatePartition
+        const FlatMessage<FlatBuffers::LoggedCreateExtent>& loggedCreateExtent
     ) override
     {
-        auto indexNumber = loggedCreatePartition->header_extent_name()->index_extent_name()->index_number();
-        auto partitionNumber = loggedCreatePartition->header_extent_name()->index_extent_name()->partition_number();
+        auto indexHeaderExtentName = loggedCreateExtent->extent_name()->extent_name_as_IndexHeaderExtentName();
+        if (!indexHeaderExtentName)
+        {
+            co_return;
+        }
+
+        auto indexNumber = indexHeaderExtentName->index_extent_name()->index_number();
+        auto partitionNumber = indexHeaderExtentName->index_extent_name()->partition_number();
 
         // Lock required, since this is called whenever the log message is written
         // AND during replay at startup.
         auto lock = co_await m_lock.writer().scoped_lock_async();
         m_allExistingPartitions.insert(partitionNumber);
-        m_existingPartitionsByIndex[indexNumber].insert(partitionNumber);
+        m_diskPartitionsByIndex[indexNumber].insert(partitionNumber);
         m_uncommittedPartitionsByIndex[indexNumber].insert(partitionNumber);
     }
+
+    virtual task<> Replay(
+        const FlatMessage<FlatBuffers::LoggedCommitExtent>& loggedCommitExtent
+    ) override
+    {
+        auto indexHeaderExtentName = loggedCommitExtent->extent_name()->extent_name_as_IndexHeaderExtentName();
+        if (!indexHeaderExtentName)
+        {
+            co_return;
+        }
+
+        auto indexNumber = indexHeaderExtentName->index_extent_name()->index_number();
+        auto partitionNumber = indexHeaderExtentName->index_extent_name()->partition_number();
+
+        // Lock required, since this is called whenever the log message is written
+        // AND during replay at startup.
+        auto lock = co_await m_lock.writer().scoped_lock_async();
+        m_uncommittedPartitionsByIndex[indexNumber].erase(partitionNumber);
+    }
     
+    virtual task<> Replay(
+        const FlatMessage<FlatBuffers::LoggedDeleteExtent>& loggedDeleteExtent
+    ) override
+    {
+        auto indexHeaderExtentName = loggedDeleteExtent->extent_name()->extent_name_as_IndexHeaderExtentName();
+        if (!indexHeaderExtentName)
+        {
+            co_return;
+        }
+
+        auto indexNumber = indexHeaderExtentName->index_extent_name()->index_number();
+        auto partitionNumber = indexHeaderExtentName->index_extent_name()->partition_number();
+
+        // Lock required, since this is called whenever the log message is written
+        // AND during replay at startup.
+        auto lock = co_await m_lock.writer().scoped_lock_async();
+        m_uncommittedPartitionsByIndex[indexNumber].erase(partitionNumber);
+        m_diskPartitionsByIndex[indexNumber].erase(partitionNumber);
+        m_allExistingPartitions.erase(partitionNumber);
+    }
+
     virtual task<> Replay(
         const FlatMessage<FlatBuffers::LoggedRowWrite>& loggedRowWrite
     ) override
@@ -107,37 +118,61 @@ public:
         // AND during replay at startup.
         auto lock = co_await m_lock.writer().scoped_lock_async();
         m_allExistingPartitions.insert(partitionNumber);
-        m_existingPartitionsByIndex[indexNumber].insert(partitionNumber);
-        m_uncommittedPartitionsByIndex[indexNumber].insert(partitionNumber);
+        m_allMemoryTablePartitions.insert(partitionNumber);
     }
 
     virtual task<> Replay(
-        const FlatMessage<FlatBuffers::LoggedUpdatePartitions>& loggedUpdatePartitions
+        const FlatMessage<FlatBuffers::LoggedCheckpoint>& loggedCheckpoint
     ) override
     {
-        auto indexNumber = loggedUpdatePartitions->index_number();
+        auto lock = co_await m_lock.writer().scoped_lock_async();
+        
+        auto indexNumber = loggedCheckpoint->index_number();
 
+        for (auto partitionNumber : *loggedCheckpoint->partition_number())
+        {
+            m_allExistingPartitions.erase(partitionNumber);
+            m_allMemoryTablePartitions.erase(partitionNumber);
+        }
+    }
+
+    virtual task<> Replay(
+        const FlatMessage<FlatBuffers::LoggedPartitionsData>& loggedPartitionsData
+    ) override
+    {
         // Lock required, since this is called whenever the log message is written
         // AND during replay at startup.
         auto lock = co_await m_lock.writer().scoped_lock_async();
 
-        // The partitions table now represents the correct view of the set of partitions.
-        // We have to completely remove our old view of the index.
-        for (auto partitionNumber : m_existingPartitionsByIndex[indexNumber])
+        // We read the entire partitions table and add all partitions we find.
+        FlatBuffers::PartitionsKeyT prefix;
+
+        EnumeratePrefixRequest enumeratePrefixRequest
         {
-            m_allExistingPartitions.erase(partitionNumber);
-        }
-        m_uncommittedPartitionsByIndex.erase(indexNumber);
-
-        FlatBuffers::PartitionsKeyT lowInclusive;
-        lowInclusive.index_number = indexNumber;
-
-        co_await ReadPartitionsTableAndInsertIntoMaps(
-            Prefix
+            .Index = m_partitionsIndex.get(),
+            .Prefix = 
             {
-                .Key = &lowInclusive,
+                .Key = { &prefix },
                 .LastFieldId = 1,
-            });
+            },
+            .ReadValueDisposition = ReadValueDisposition::DontReadValue,
+        };
+
+        auto partitions = m_partitionsIndex->EnumeratePrefix(
+            nullptr,
+            std::move(enumeratePrefixRequest));
+
+        for (auto partitionsIterator = co_await partitions.begin();
+            partitionsIterator != partitions.end();
+            co_await ++partitionsIterator)
+        {
+            const FlatBuffers::PartitionsKey* partitionsKey = (*partitionsIterator)->Key.cast_if<FlatBuffers::PartitionsKey>();
+            auto indexNumber = partitionsKey->index_number();
+            auto partitionNumber = partitionsKey->header_extent_name()->index_extent_name()->partition_number();
+
+            m_diskPartitionsByIndex[indexNumber].insert(partitionNumber);
+            m_allExistingPartitions.insert(partitionNumber);
+        }
     }
 
     virtual task<> FinishReplay(
@@ -145,8 +180,8 @@ public:
     {
         // No locking required since this is called once at startup.
         
-        // All the items in uncomittedPartitionsbyIndex represent nonexistent partitions,
-        // since we never logged the UpdatePartitions.
+        // All the items in uncommittedPartitionsbyIndex represent nonexistent partitions,
+        // since we never logged the CommitExtent message.
         for (auto& index : m_uncommittedPartitionsByIndex)
         {
             for (auto partitionNumber : index.second)

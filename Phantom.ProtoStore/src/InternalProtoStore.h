@@ -44,6 +44,11 @@ public:
         const ProtoValue& value
     ) = 0;
 
+    virtual void BuildCommitPartitionLogEntries(
+        const ExtentNameT& headerExtentName,
+        const ExtentNameT& dataExtentName
+    ) = 0;
+
     //virtual LoggedUnresolvedTransactions& GetLoggedUnresolvedTransactions(
     //) = 0;
 };

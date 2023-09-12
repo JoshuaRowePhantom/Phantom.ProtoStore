@@ -151,7 +151,7 @@ struct LoggedCreateMemoryTable;
 struct LoggedCreatePartition;
 struct LoggedUpdatePartitions;
 struct LoggedCommitExtent;
-struct LoggedDeleteExtentPendingPartitionsUpdated;
+struct LoggedDeleteExtent;
 struct LoggedUnresolvedTransactions;
 struct LoggedPartitionsData;
 struct LoggedPartitionsDataT;
@@ -256,7 +256,7 @@ public:
     using LoggedCreatePartition = FlatBuffers::LoggedCreatePartition;
     using LoggedUpdatePartitions = FlatBuffers::LoggedUpdatePartitions;
     using LoggedCommitExtent = FlatBuffers::LoggedCommitExtent;
-    using LoggedDeleteExtentPendingPartitionsUpdated = FlatBuffers::LoggedDeleteExtentPendingPartitionsUpdated;
+    using LoggedDeleteExtent = FlatBuffers::LoggedDeleteExtent;
     using LoggedUnresolvedTransactions = FlatBuffers::LoggedUnresolvedTransactions;
     using LoggedPartitionsData = FlatBuffers::LoggedPartitionsData;
     using LoggedPartitionsDataT = FlatBuffers::LoggedPartitionsDataT;

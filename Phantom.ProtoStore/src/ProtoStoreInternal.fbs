@@ -80,6 +80,8 @@ table LoggedCreateIndex
     index_number : uint64;
 }
 
+// A LoggedCreateExtent on a index header extent name
+// implies the creation of the partition.
 table LoggedCreateExtent
 {
     extent_name : ExtentName;
@@ -96,10 +98,11 @@ table LoggedCommitExtent
     extent_name : ExtentName;
 }
 
-table LoggedDeleteExtentPendingPartitionsUpdated
+// A LoggedDeleteExtent on a index header extent name
+// implies the deletion of the partition.
+table LoggedDeleteExtent
 {
     extent_name : ExtentName;
-    partitions_table_partition_number : uint64;
 }
 
 table LoggedUpdatePartitions
@@ -107,15 +110,14 @@ table LoggedUpdatePartitions
     index_number : uint64;
 }
 
+// LoggedPartitionsData contains the set of partitions for the Partitions index.
+// We write this at the beginning of each log stream so that we can recover
+// the set of partitions for the Partitions index.
+// We also write it whenever the Partitions index is checkpointed or merged.
 table LoggedPartitionsData
 {
     header_extent_names : [IndexHeaderExtentName];
     partitions_table_partition_number : uint64;
-}
-
-table LoggedCreatePartition
-{
-    header_extent_name : IndexHeaderExtentName;
 }
 
 union LogEntryUnion
@@ -127,10 +129,9 @@ union LogEntryUnion
     LoggedCreateExtent,
     LoggedCommitExtent,
     LoggedCheckpoint,
-    LoggedDeleteExtentPendingPartitionsUpdated,
+    LoggedDeleteExtent,
     LoggedUpdatePartitions,
-    LoggedPartitionsData,
-    LoggedCreatePartition
+    LoggedPartitionsData
 }
 
 table LogEntry

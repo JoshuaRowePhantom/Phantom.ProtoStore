@@ -80,16 +80,15 @@ void LogManager::Replay(
         break;
     }
 
-    case LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated:
+    case LogEntryUnion::LoggedDeleteExtent:
     {
-        auto loggedDeleteExtentPendingPartitionsUpdated = logEntry->log_entry_as<LoggedDeleteExtentPendingPartitionsUpdated>();
-        FlatBuffers::ExtentNameT extentToDeletePendingPartitionsUpdated;
-        loggedDeleteExtentPendingPartitionsUpdated->extent_name()->UnPackTo(
-            &extentToDeletePendingPartitionsUpdated);
+        auto loggedDeleteExtent = logEntry->log_entry_as<LoggedDeleteExtent>();
+        FlatBuffers::ExtentNameT extentToDelete;
+        loggedDeleteExtent->extent_name()->UnPackTo(
+            &extentToDelete);
 
-        m_partitionsPartitionNumberToExtentsToDelete.emplace(
-            loggedDeleteExtentPendingPartitionsUpdated->partitions_table_partition_number(),
-            extentToDeletePendingPartitionsUpdated);
+        m_partitionExtentsToDelete.emplace(
+            std::move(extentToDelete));
         break;
     }
 
@@ -162,10 +161,9 @@ bool LogManager::NeedToUpdateMaps(
         switch (logEntry->log_entry_type())
         {
         case LogEntryUnion::LoggedCreateExtent:
-        case LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated:
+        case LogEntryUnion::LoggedDeleteExtent:
         case LogEntryUnion::LoggedCommitExtent:
         case LogEntryUnion::LoggedCheckpoint:
-        //case LogEntryUnion::LoggedCreateMemoryTable:
             return true;
 
         case LogEntryUnion::LoggedRowWrite:
@@ -328,6 +326,15 @@ task<task<>> LogManager::DelayedOpenNewLogWriter(
 
 task<> LogManager::DeleteExtents()
 {
+    // We want to remove partition extents before removing the log extents
+    // that might ask for their deletion.
+    for (auto& partitionExtentToDelete : m_partitionExtentsToDelete)
+    {
+        co_await m_logExtentStore->DeleteExtent(
+            FlatValue{ partitionExtentToDelete });
+    }
+    m_partitionExtentsToDelete.clear();
+
     for (auto logExtentSequenceNumberToRemove : m_logExtentSequenceNumbersToRemove)
     {
         FlatValue extentNameToRemove = MakeLogExtentName(
@@ -338,36 +345,6 @@ task<> LogManager::DeleteExtents()
 
         m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber.erase(
             logExtentSequenceNumberToRemove);
-
-        std::optional<PartitionNumber> minPartitionsDataPartitionNumber;
-
-        for (auto lowestPartitionsDataPartitionNumber : m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber)
-        {
-            if (minPartitionsDataPartitionNumber)
-            {
-                minPartitionsDataPartitionNumber = std::min(
-                    *minPartitionsDataPartitionNumber,
-                    lowestPartitionsDataPartitionNumber.second);
-            }
-            else
-            {
-                minPartitionsDataPartitionNumber = lowestPartitionsDataPartitionNumber.second;
-            }
-        }
-
-        while (
-            minPartitionsDataPartitionNumber
-            &&
-            !m_partitionsPartitionNumberToExtentsToDelete.empty()
-            &&
-            m_partitionsPartitionNumberToExtentsToDelete.begin()->first < *minPartitionsDataPartitionNumber)
-        {
-            auto extentName = m_partitionsPartitionNumberToExtentsToDelete.begin()->second;
-            m_partitionsPartitionNumberToExtentsToDelete.erase(
-                m_partitionsPartitionNumberToExtentsToDelete.begin());
-            co_await m_logExtentStore->DeleteExtent(
-                FlatValue{ extentName });
-        }
     }
 
     m_logExtentSequenceNumbersToRemove.clear();

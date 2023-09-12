@@ -37,9 +37,7 @@ class LogManager : SerializationTypes
     // For each log extent, maps the log extent sequence number to the lowest partitions data checkpoint number
     // referenced by the log extent.
     std::unordered_map<LogExtentSequenceNumber, PartitionNumber> m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber;
-    // For each partitions table checkpoint number, records the extents to delete when
-    // that checkpoint number becomes the lowest available.
-    std::multimap<PartitionNumber, FlatBuffers::ExtentNameT> m_partitionsPartitionNumberToExtentsToDelete;
+    std::set<FlatBuffers::ExtentNameT> m_partitionExtentsToDelete;
     optional<LogExtentSequenceNumber> m_partitionsDataLogExtentSequenceNumber;
     LoggedPartitionsDataT m_latestLoggedPartitionsData;
 

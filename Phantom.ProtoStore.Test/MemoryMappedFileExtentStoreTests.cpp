@@ -71,7 +71,7 @@ ASYNC_TEST(MemoryMappedFileExtentStoreTests, Data_is_readable_after_Commit_and_F
 {
     auto store = MakeFilesystemStore(
         "MemoryMappedFileExtentStoreTests",
-        "DeleteExtent_erases_the_content_while_a_DataReference_exists",
+        "Data_is_readable_after_Commit_and_Flush",
         4096);
     co_await ExtentStoreTests::Data_is_readable_after_Commit_and_Flush(*store);
 }

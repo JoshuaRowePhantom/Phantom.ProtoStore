@@ -41,6 +41,8 @@ add_library (
     "src/InternalProtoStore.h"
     "src/LogManager.cpp"
     "src/LogManager.h"
+    "src/LogReplayTarget.cpp"
+    "src/LogReplayTarget.h"
     "src/MemoryExtentStore.cpp"
     "src/MemoryExtentStore.h"
     "src/MemoryMappedFileExtentStore.cpp"
@@ -83,7 +85,7 @@ add_library (
     "src/ValueBuilder.cpp"
     "src/ValueComparer.cpp"
     "src/ValueComparer.h"
-)
+ )
     
 target_include_directories(
     Phantom.ProtoStore

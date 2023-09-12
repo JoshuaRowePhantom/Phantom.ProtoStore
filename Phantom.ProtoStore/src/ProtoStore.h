@@ -189,7 +189,7 @@ class ProtoStore
         const FlatMessage<LoggedCreateIndex>& logRecord);
 
     task<> Replay(
-        const FlatMessage<LoggedCreatePartition>& logRecord);
+        const FlatMessage<LoggedCreateExtent>& logRecord);
 
     task<> Replay(
         const FlatMessage<LoggedPartitionsData>& logRecord);

@@ -152,25 +152,9 @@ task<> IndexMerger::RestartIncompleteMerge(
             BeginTransactionRequest{},
             [&](auto operation) -> status_task<>
         {
-            operation->BuildLogRecord(
-                LogEntryUnion::LoggedCommitExtent,
-                [&](auto& builder)
-            {
-                return FlatBuffers::CreateLoggedCommitExtent(
-                    builder,
-                    FlatBuffers::CreateExtentName(builder, &headerExtentName)
-                ).Union();
-            });
-
-            operation->BuildLogRecord(
-                LogEntryUnion::LoggedCommitExtent,
-                [&](auto& builder)
-            {
-                return FlatBuffers::CreateLoggedCommitExtent(
-                    builder,
-                    FlatBuffers::CreateExtentName(builder, &dataExtentName)
-                ).Union();
-            });
+            operation->BuildCommitPartitionLogEntries(
+                headerExtentName,
+                dataExtentName);
 
             if (!isCompleteMerge)
             {
@@ -200,7 +184,7 @@ task<> IndexMerger::RestartIncompleteMerge(
                     updatePartitionsLock);
             }
 
-            co_return{};
+            co_return StatusResult<>{};
         });
     } while (!isCompleteMerge);
 }
@@ -402,11 +386,6 @@ task<> IndexMerger::WriteMergeCompletion(
             &completePartitionsKey,
             &completePartitionsValue);
         if (!loggedRowWrite) { std::move(loggedRowWrite).error().throw_exception(); }
-
-        // This is magic.
-        // AddRow doesn't return anything, but we know it adds a row to the log record with a checkpoint number.
-        // We grab that value here so we can specify it as the time when the extents can be deleted.
-        partitionsTablePartitionNumber = (*loggedRowWrite)->partition_number();
     }
     
     // Mark the table as needing reload of its partitions.
@@ -424,15 +403,14 @@ task<> IndexMerger::WriteMergeCompletion(
     for (auto headerExtentName : *incompleteMerge.Merge.Value->source_header_extent_names())
     {
         operation->BuildLogRecord(
-            LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated,
+            LogEntryUnion::LoggedDeleteExtent,
             [&](auto& builder)
         {
             auto fullHeaderExtentName = MakeExtentName(headerExtentName);
 
-            return FlatBuffers::CreateLoggedDeleteExtentPendingPartitionsUpdated(
+            return FlatBuffers::CreateLoggedDeleteExtent(
                 builder,
-                FlatBuffers::CreateExtentName(builder, &fullHeaderExtentName),
-                partitionsTablePartitionNumber
+                FlatBuffers::CreateExtentName(builder, &fullHeaderExtentName)
             ).Union();
         });
 
@@ -440,13 +418,12 @@ task<> IndexMerger::WriteMergeCompletion(
             headerExtentName);
 
         operation->BuildLogRecord(
-            LogEntryUnion::LoggedDeleteExtentPendingPartitionsUpdated,
+            LogEntryUnion::LoggedDeleteExtent,
             [&](auto& builder)
         {
-            return FlatBuffers::CreateLoggedDeleteExtentPendingPartitionsUpdated(
+            return FlatBuffers::CreateLoggedDeleteExtent(
                 builder,
-                FlatBuffers::CreateExtentName(builder, &dataExtentName),
-                partitionsTablePartitionNumber
+                FlatBuffers::CreateExtentName(builder, &dataExtentName)
             ).Union();
         });
     }

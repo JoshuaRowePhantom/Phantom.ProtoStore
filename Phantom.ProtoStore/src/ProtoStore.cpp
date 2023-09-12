@@ -476,8 +476,8 @@ task<> ProtoStore::Replay(
         co_await Replay(getMessage(tag<LoggedPartitionsData>()));
         break;
 
-    case LogEntryUnion::LoggedCreatePartition:
-        co_await Replay(getMessage(tag<LoggedCreatePartition>()));
+    case LogEntryUnion::LoggedCreateExtent:
+        co_await Replay(getMessage(tag<LoggedCreateExtent>()));
         break;
 
     case LogEntryUnion::LoggedCommitLocalTransaction:
@@ -561,11 +561,22 @@ task<> ProtoStore::Replay(
 }
 
 task<> ProtoStore::Replay(
-    const FlatMessage<LoggedCreatePartition>& logRecord)
+    const FlatMessage<LoggedCreateExtent>& logRecord
+)
+{
+    auto headerExtentName = logRecord->extent_name()->extent_name_as_IndexHeaderExtentName();
+    auto dataExtentName = logRecord->extent_name()->extent_name_as_IndexDataExtentName();
+    auto indexExtentName = 
+        headerExtentName ? headerExtentName->index_extent_name() :
+        dataExtentName ? dataExtentName->index_extent_name() :
+        nullptr;
+
+    if (indexExtentName)
 {
     m_nextPartitionNumber = std::max(
         m_nextPartitionNumber.load(),
-        logRecord->header_extent_name()->index_extent_name()->partition_number());
+            indexExtentName->partition_number());
+    }
 
     co_return;
 }
@@ -589,6 +600,12 @@ operation_task<ProtoIndex> ProtoStore::GetIndex(
         getIndexRequest.IndexName,
         getIndexRequest.SequenceNumber
     );
+
+    if (!index)
+    {
+        co_return make_unexpected(
+            ProtoStoreErrorCode::IndexNotFound);
+    }
 
     co_return ProtoIndex(
         index
@@ -687,6 +704,40 @@ public:
             result
         );
         m_logEntries.push_back(logEntryOffset);
+    }
+
+    virtual void BuildCommitPartitionLogEntries(
+        const ExtentNameT& headerExtentName,
+        const ExtentNameT& dataExtentName
+    ) override
+    {
+        BuildLogRecord(
+            LogEntryUnion::LoggedCommitExtent,
+            [&](auto& builder)
+        {
+            auto headerExtentNameOffset = FlatBuffers::CreateExtentName(
+                builder,
+                &headerExtentName);
+
+            return FlatBuffers::CreateLoggedCommitExtent(
+                builder,
+                headerExtentNameOffset
+            ).Union();
+        });
+
+        BuildLogRecord(
+            LogEntryUnion::LoggedCommitExtent,
+            [&](auto& builder)
+        {
+            auto dataExtentNameOffset = FlatBuffers::CreateExtentName(
+                builder,
+                &dataExtentName);
+
+            return FlatBuffers::CreateLoggedCommitExtent(
+                builder,
+                dataExtentNameOffset
+            ).Union();
+        });
     }
 
     // Inherited via ITransaction
@@ -1426,33 +1477,9 @@ task<> ProtoStore::Checkpoint(
         BeginTransactionRequest{},
         [&](IInternalTransaction* operation) -> status_task<>
     {
-        operation->BuildLogRecord(
-            LogEntryUnion::LoggedCommitExtent,
-            [&](auto& builder)
-        {
-            auto headerExtentNameOffset = FlatBuffers::CreateExtentName(
-                builder,
-                &headerExtentName);
-
-            return FlatBuffers::CreateLoggedCommitExtent(
-                builder,
-                headerExtentNameOffset
-            ).Union();
-        });
-
-        operation->BuildLogRecord(
-            LogEntryUnion::LoggedCommitExtent,
-            [&](auto& builder)
-        {
-            auto dataExtentNameOffset = FlatBuffers::CreateExtentName(
-                builder,
-                &dataExtentName);
-
-            return FlatBuffers::CreateLoggedCommitExtent(
-                builder,
-                dataExtentNameOffset
-            ).Union();
-        });
+        operation->BuildCommitPartitionLogEntries(
+            headerExtentName,
+            dataExtentName);
 
         operation->BuildLogRecord(
             loggedCheckpoint);
@@ -1663,13 +1690,6 @@ task<> ProtoStore::AllocatePartitionExtents(
     createDataExtentLogEntry.log_entry.Set(createDataExtent);
     logRecord.log_entries.push_back(copy_unique(createDataExtentLogEntry));
 
-    FlatBuffers::LoggedCreatePartitionT createPartition;
-    createPartition.header_extent_name = copy_unique(*out_partitionHeaderExtentName.extent_name.AsIndexHeaderExtentName());
-
-    FlatBuffers::LogEntryT createPartitionLogEntry;
-    createPartitionLogEntry.log_entry.Set(createPartition);
-    logRecord.log_entries.push_back(copy_unique(createPartitionLogEntry));
-    
     FlatMessage<FlatBuffers::LogRecord> logRecordMessage{ &logRecord };
 
     co_await m_logManager->WriteLogRecord(
