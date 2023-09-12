@@ -754,4 +754,20 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
     co_return;
 }
 
+std::function<task<std::shared_ptr<IExtentStore>>()> CreateMemoryMappedFileExtentStore(
+    Schedulers schedulers,
+    std::string extentFilenamePrefix)
+{
+    return [=]() -> task<std::shared_ptr<IExtentStore>>
+    {
+        co_return std::make_shared<MemoryMappedFileExtentStore>(
+            schedulers,
+            extentFilenamePrefix,
+            "",
+            512,
+            MemoryMappedFileExtentStore::ExtentDeleteAction::Delete
+        );
+    };
+}
+
 }

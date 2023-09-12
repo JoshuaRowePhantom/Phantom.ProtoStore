@@ -354,6 +354,10 @@ struct OpenProtoStoreRequest
         ) = default;
 };
 
+std::function<task<std::shared_ptr<IExtentStore>>()> CreateMemoryMappedFileExtentStore(
+    Schedulers schedulers,
+    std::string extentFilenamePrefix);
+
 struct CreateProtoStoreRequest
     : public OpenProtoStoreRequest
 {
