@@ -108,6 +108,7 @@ enum class ProtoStoreErrorCode
     AbortedTransaction,
     WriteConflict,
     UnresolvedTransaction,
+    IndexNotFound,
 };
 
 std::error_code make_error_code(
