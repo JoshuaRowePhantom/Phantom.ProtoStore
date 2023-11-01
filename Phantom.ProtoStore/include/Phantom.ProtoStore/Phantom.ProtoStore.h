@@ -57,6 +57,7 @@ struct CreateIndexRequest
     : GetIndexRequest
 {
     Schema Schema;
+    FlatValue<FlatBuffers::Metadata> Metadata;
 
     friend bool operator==(
         const CreateIndexRequest&,
@@ -323,6 +324,22 @@ public:
     );
 };
 
+using RowExpirerEnumeration = async_generator<EnumerateResult>;
+
+class RowExpirer
+{
+public:
+    struct RowExpirerRequest
+    {
+        ProtoIndex Index;
+        RowExpirerEnumeration Rows;
+    };
+
+    virtual RowExpirerEnumeration FilterRows(
+        RowExpirerRequest
+    );
+};
+
 class IExtentStore;
 
 enum class IntegrityCheck
@@ -335,10 +352,11 @@ struct OpenProtoStoreRequest
 {
     std::function<task<std::shared_ptr<IExtentStore>>()> ExtentStore;
     std::shared_ptr<TransactionResolver> TransactionResolver;
+    std::shared_ptr<RowExpirer> RowExpirer;
     Schedulers Schedulers = Schedulers::Default();
     uint64_t CheckpointLogSize = 10 * 1024 * 1024;
     MergeParameters DefaultMergeParameters;
-
+    
     std::set<IntegrityCheck> IntegrityChecks = 
     {
 #ifndef NDEBUG
