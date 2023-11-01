@@ -371,6 +371,7 @@ table IndexesByNumberValue {
     schema : IndexSchemaDescription;
     index_name : string;
     create_sequence_number : uint64;
+    metadata : Metadata;
 }
 
 // The DistributedTransactions table tracks unresolved and aborted transactions.

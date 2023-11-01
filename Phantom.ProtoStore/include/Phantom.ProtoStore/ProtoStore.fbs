@@ -81,3 +81,16 @@ enum FlatBuffersMessageEncodingOptions : uint8 {
     // DagDuplicateDetection works best with this option.
     EmbeddedMessage
 }
+
+// Used for storing arbitrary metadata.
+table MetadataItem
+{
+    key : string;
+    value : [ubyte];
+}
+
+// Used for storing arbitrary metadata.
+table Metadata
+{
+    items : [MetadataItem];
+}
