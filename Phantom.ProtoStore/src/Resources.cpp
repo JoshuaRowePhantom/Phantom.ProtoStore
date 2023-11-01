@@ -108,6 +108,9 @@ const reflection::Object* const ExtentName_Object
 const reflection::Object* const IndexHeaderExtentName_Object
 = ProtoStoreSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.IndexHeaderExtentName");
 
+const reflection::Object* const Metadata_Object
+= ProtoStoreSchema->objects()->LookupByKey("Phantom.ProtoStore.FlatBuffers.Metadata");
+
 const ProtoValueComparers ExtentName_Comparers_Owning
 = FlatBuffersObjectSchema{ ProtoStoreSchema, ExtentName_Object }.MakeComparers();
 

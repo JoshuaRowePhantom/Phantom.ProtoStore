@@ -18,7 +18,8 @@ IUnresolvedTransactionsTracker* TestAccessors::GetUnresolvedTransactionsTracker(
 
 task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
     IndexName indexName,
-    const Schema& schema
+    const Schema& schema,
+    FlatValue<FlatBuffers::Metadata> metadata
 )
 {
     static std::atomic<IndexNumber> nextIndexNumber = 10000;
@@ -38,7 +39,8 @@ task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
         keyComparer,
         valueComparer,
         nullptr,
-        schemaPtr
+        schemaPtr,
+        std::move(metadata)
     );
 
     auto memoryTable = MakeMemoryTable(

@@ -124,7 +124,8 @@ class ProtoStore
         const IndexName& indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
-        const Schema& schema
+        const Schema& schema,
+        const FlatValue<FlatBuffers::Metadata>& metadata
     );
 
     IndexEntry MakeIndex(

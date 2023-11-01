@@ -18,7 +18,8 @@ Index::Index(
     shared_ptr<const ValueComparer> keyComparer,
     shared_ptr<const ValueComparer> valueComparer,
     IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
-    std::shared_ptr<const Schema> schema
+    std::shared_ptr<const Schema> schema,
+    FlatValue<FlatBuffers::Metadata> metadata
 )
     :
     m_indexName(std::move(indexName)),
@@ -29,7 +30,8 @@ Index::Index(
     m_rowMerger(make_shared<RowMerger>(
         m_keyComparer)),
     m_unresolvedTransactionsTracker(unresolvedTransactionsTracker),
-    m_schema(std::move(schema))
+    m_schema(std::move(schema)),
+    m_metadata(std::move(metadata))
 {
 }
 
@@ -426,6 +428,11 @@ const shared_ptr<const Schema>& Index::GetSchema() const
     return m_schema;
 }
 
+const FlatValue<FlatBuffers::Metadata>& Index::GetMetadata() const
+{
+    return m_metadata;
+}
+
 task<> Index::Join()
 {
     co_return;
@@ -438,7 +445,8 @@ std::shared_ptr<IIndex> MakeIndex(
     shared_ptr<const ValueComparer> keyComparer,
     shared_ptr<const ValueComparer> valueComparer,
     IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
-    std::shared_ptr<const Schema> schema
+    std::shared_ptr<const Schema> schema,
+    FlatValue<FlatBuffers::Metadata> metadata
 )
 {
     return std::make_shared<Index>(
@@ -448,7 +456,8 @@ std::shared_ptr<IIndex> MakeIndex(
         std::move(keyComparer),
         std::move(valueComparer),
         unresolvedTransactionsTracker,
-        std::move(schema)
+        std::move(schema),
+        std::move(metadata)
     );
 }
 

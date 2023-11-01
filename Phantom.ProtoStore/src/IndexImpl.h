@@ -17,6 +17,7 @@ class Index
     const shared_ptr<const ValueComparer> m_keyComparer;
     const shared_ptr<const ValueComparer> m_valueComparer;
     const IndexName m_indexName;
+    const FlatValue<FlatBuffers::Metadata> m_metadata;
     const IndexNumber m_indexNumber;
     const SequenceNumber m_createSequenceNumber;
     const shared_ptr<RowMerger> m_rowMerger;
@@ -40,8 +41,9 @@ public:
         shared_ptr<const ValueComparer> keyComparer,
         shared_ptr<const ValueComparer> valueComparer,
         IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
-        std::shared_ptr<const Schema> schema
-    );
+        std::shared_ptr<const Schema> schema,
+        FlatValue<FlatBuffers::Metadata> metadata
+        );
 
     virtual const shared_ptr<const ValueComparer>& GetKeyComparer(
     ) override;
@@ -91,6 +93,9 @@ public:
     ) override;
 
     virtual const shared_ptr<const Schema>& GetSchema(
+    ) const override;
+
+    virtual const FlatValue<FlatBuffers::Metadata>& GetMetadata(
     ) const override;
 
     virtual task<> Join(

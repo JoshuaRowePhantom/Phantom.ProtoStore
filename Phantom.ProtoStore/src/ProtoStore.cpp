@@ -105,8 +105,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberValue_Object }
-        ));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberValue_Object }),
+            {});
 
         m_indexesByNumberIndex = MakeIndex(
             indexesByNumberKey,
@@ -126,8 +126,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameValue_Object }
-        ));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameValue_Object }),
+            {});
 
         m_indexesByNameIndex = MakeIndex(
             indexesByNumberKey,
@@ -147,8 +147,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsValue_Object }
-        ));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsValue_Object }),
+            {});
 
         m_partitionsIndex = MakeIndex(
             indexesByNumberKey,
@@ -168,8 +168,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesValue_Object }
-        ));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesValue_Object }),
+            {});
 
         m_mergesIndex = MakeIndex(
             indexesByNumberKey,
@@ -189,8 +189,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressValue_Object }
-        ));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressValue_Object }),
+            {});
 
         m_mergeProgressIndex = MakeIndex(
             indexesByNumberKey,
@@ -210,8 +210,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsValue_Object }
-        ));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsValue_Object }),
+            {});
 
         m_distributedTransactionsIndex = MakeIndex(
             indexesByNumberKey,
@@ -231,8 +231,8 @@ task<> ProtoStore::Open(
             SequenceNumber::Earliest,
             Schema::Make(
                 { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesValue_Object }
-        ));
+                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesValue_Object }),
+            {});
 
         m_distributedTransactionReferencesIndex = MakeIndex(
             indexesByNumberKey,
@@ -1126,7 +1126,8 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
         createIndexRequest.IndexName,
         indexNumber,
         SequenceNumber::Earliest,
-        createIndexRequest.Schema
+        createIndexRequest.Schema,
+        createIndexRequest.Metadata
     );
 
     auto transactionResult = co_await co_await InternalExecuteTransaction(
@@ -1242,7 +1243,8 @@ void ProtoStore::MakeIndexesByNumberRow(
     const IndexName& indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
-    const Schema& schema
+    const Schema& schema,
+    const FlatValue<FlatBuffers::Metadata>& metadata
 )
 {
     flatbuffers::FlatBufferBuilder indexesByNumberKeyBuilder;
@@ -1265,11 +1267,17 @@ void ProtoStore::MakeIndexesByNumberRow(
     auto indexNameOffset = indexesByNumberValueBuilder.CreateString(
         indexName);
 
+    auto metadataOffset = metadata.Clone(
+        indexesByNumberValueBuilder,
+        *FlatBuffersSchemas::ProtoStoreSchema,
+        *FlatBuffersSchemas::Metadata_Object);
+
     auto indexesByNumberValueOffset = FlatBuffers::CreateIndexesByNumberValue(
         indexesByNumberValueBuilder,
         indexSchemaDescriptionOffset,
         indexNameOffset,
-        ToUint64(createSequenceNumber));
+        ToUint64(createSequenceNumber),
+        metadataOffset);
 
     indexesByNumberValueBuilder.Finish(
         indexesByNumberValueOffset);
@@ -1305,7 +1313,9 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
         keyComparer,
         valueComparer,
         m_unresolvedTransactionsTracker.get(),
-        schema);
+        schema,
+        indexesByNumberValue.SubValue(
+            indexesByNumberValue->metadata()));
 
     auto indexDataSources = MakeIndexDataSources(
         this,
@@ -1820,6 +1830,11 @@ ProtoIndex::ProtoIndex(
 const IndexName& ProtoIndex::IndexName() const
 {
     return m_index->GetIndexName();
+}
+
+const FlatValue<FlatBuffers::Metadata>& ProtoIndex::Metadata() const
+{
+    return m_index->GetMetadata();
 }
 
 }

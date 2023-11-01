@@ -33,7 +33,8 @@ protected:
 
     task<std::shared_ptr<IIndexData>> MakeInMemoryIndex(
         IndexName indexName,
-        const Schema& schema
+        const Schema& schema,
+        FlatValue<FlatBuffers::Metadata> metadata = {}
     );
 
     task<OperationResult<>> AddRow(

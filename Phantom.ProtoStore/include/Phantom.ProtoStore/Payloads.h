@@ -696,6 +696,11 @@ public:
         return std::move(m_protoValue);
     }
 
+    const flatbuffers::Table* as_table_if() const
+    {
+        return m_protoValue.as_table_if();
+    }
+
     template<
         IsFlatBufferTable OtherTable
     >
@@ -756,6 +761,26 @@ public:
         builder.Finish(offset);
 
         return FlatValue{ std::move(builder) };
+    }
+
+    flatbuffers::Offset<Table> Clone(
+        flatbuffers::FlatBufferBuilder& builder,
+        const reflection::Schema& schema,
+        const reflection::Object& object
+    ) const
+    {
+        if (!m_protoValue.as_table_if())
+        {
+            return {};
+        }
+
+        auto offset = flatbuffers::CopyTable(
+            builder,
+            schema,
+            object,
+            *m_protoValue.as_table_if());
+        
+        return { offset.o };
     }
 };
 

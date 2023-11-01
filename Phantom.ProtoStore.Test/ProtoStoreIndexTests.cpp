@@ -192,4 +192,34 @@ ASYNC_TEST_F(ProtoStoreIndexTests, Can_create_two_indexes_after_two_reopens)
 
     EXPECT_EQ("value2", actualValue2->Value.cast_if<FlatBuffers::FlatStringValue>()->value()->str());
 }
+
+ASYNC_TEST_F(ProtoStoreIndexTests, Can_read_metadata_written_at_Create_time)
+{
+    FlatBuffers::MetadataT metadata;
+    FlatBuffers::MetadataItemT metadataItem;
+    metadataItem.key = "hello world";
+    metadataItem.value = { 1, 2, 3 };
+    metadata.items.push_back(std::make_unique< FlatBuffers::MetadataItemT>(metadataItem));
+
+    CreateIndexRequest createIndex1;
+    createIndex1.IndexName = "index1";
+    createIndex1.Schema = Schema::Make(
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringKey_Object },
+        { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object }
+    );
+    createIndex1.Metadata = { &metadata };
+
+    auto index1 = throw_if_failed(co_await store->CreateIndex(createIndex1));
+    FlatBuffers::MetadataT actualMetadata;
+    index1.Metadata()->UnPackTo(&actualMetadata);
+
+    EXPECT_EQ(metadata, actualMetadata);
+
+    co_await ReopenStore();
+
+    index1 = throw_if_failed(co_await store->GetIndex(createIndex1));
+    index1.Metadata()->UnPackTo(&actualMetadata);
+
+    EXPECT_EQ(metadata, actualMetadata);
+}
 }

@@ -31,6 +31,7 @@ namespace FlatBuffersSchemas
 extern const reflection::Schema* const ProtoStoreSchema;
 extern const reflection::Object* const ExtentName_Object;
 extern const reflection::Object* const IndexHeaderExtentName_Object;
+extern const reflection::Object* const Metadata_Object;
 extern const ProtoValueComparers ExtentName_Comparers;
 }
 

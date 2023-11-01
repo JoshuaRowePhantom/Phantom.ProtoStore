@@ -48,6 +48,9 @@ public:
     ) const = 0;
 
     virtual const shared_ptr<const Schema>& GetSchema() const = 0;
+
+    virtual const FlatValue<FlatBuffers::Metadata>& GetMetadata(
+    ) const = 0;
 };
 
 class IIndex : public IIndexData
@@ -78,7 +81,8 @@ std::shared_ptr<IIndex> MakeIndex(
     shared_ptr<const ValueComparer> keyComparer,
     shared_ptr<const ValueComparer> valueComparer,
     IUnresolvedTransactionsTracker* unresolvedTransactionsTracker,
-    std::shared_ptr<const Schema> schema
+    std::shared_ptr<const Schema> schema,
+    FlatValue<FlatBuffers::Metadata> metadata
 );
 
 }
