@@ -211,6 +211,8 @@ enum class KeyToValueMultiplicity
     // values for the key. If the value already exists, no change is made.
     // Removing a value eliminates all copies of that value.
     MultiValue,
+    // The key is unique and maps to no value.
+    NoValue
 };
 
 struct Schema
