@@ -621,7 +621,7 @@ using FieldId = uint16_t;
 struct Prefix
 {
     ProtoValue Key;
-    FieldId LastFieldId;
+    FieldId LastFieldId = 0;
 };
 
 template<
