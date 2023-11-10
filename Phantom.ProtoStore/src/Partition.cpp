@@ -40,6 +40,10 @@ Partition::Partition(
     m_partitionHeaderReader(std::move(partitionHeaderReader)),
     m_partitionDataReader(std::move(partitionDataReader))
 {
+    assert(m_schema);
+    assert(m_keyComparer);
+    assert(m_partitionHeaderReader);
+    assert(m_partitionDataReader);
 }
 
 Partition::~Partition()
