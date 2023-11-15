@@ -4,11 +4,11 @@ namespace Phantom.ProtoStore.FlatBuffers;
 
 table DatabaseHeader {
     version : uint32;
-    log_alignment:uint32;
-    log_replay_extent_names : [LogExtentName];
     epoch : uint64;
     next_index_number : uint64;
     next_partition_number : uint64;
+    log_alignment:uint32;
+    log_replay_extent_names : [LogExtentName];
 }
 
 enum ExtentFormatVersion : byte {
