@@ -311,6 +311,13 @@ protected:
         return createRequest;
     }
 
+    CreateProtoStoreRequest GetCreateTestStoreRequest(
+        string testName)
+    {
+        return GetCreateFileStoreRequest(
+            testName);
+    }
+
     task<shared_ptr<IProtoStore>> CreateStore(
         const CreateProtoStoreRequest& createRequest)
     {

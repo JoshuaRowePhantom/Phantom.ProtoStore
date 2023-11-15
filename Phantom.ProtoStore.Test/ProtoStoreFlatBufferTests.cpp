@@ -219,6 +219,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, CanCreate_memory_backed_store)
     auto store = CreateMemoryStore();
     co_return;
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, CanOpen_memory_backed_store)
 {
     auto storeFactory = MakeProtoStoreFactory();
@@ -233,6 +234,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, CanOpen_memory_backed_store)
     store = co_await storeFactory->Open(
         createRequest);
 }
+
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Open_fails_on_uncreated_store)
 {
     auto storeFactory = MakeProtoStoreFactory();
@@ -309,7 +311,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_delete_and_enumerate_one_ro
         Inclusivity::Inclusive,
         ToSequenceNumber(6));
 
-
     co_await AssertEnumeration(
         store,
         index,
@@ -321,7 +322,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_delete_and_enumerate_one_ro
         {
             { "testKey1", {"testValue1", 5}},
         });
-
 
     co_await AssertEnumeration(
         store,
@@ -568,11 +568,9 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_two_checkpoi
 
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_rows_after_checkpoints_and_merges)
 {
-    //auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
-    auto createRequest = GetCreateMemoryStoreRequest();
+    auto createRequest = GetCreateTestStoreRequest("ProtoStoreFlatBufferTests_Can_read_and_write_rows_after_checkpoints_and_merges");
     createRequest.DefaultMergeParameters.set_mergesperlevel(2);
     createRequest.DefaultMergeParameters.set_maxlevel(3);
-    //auto createRequest = GetCreateMemoryStoreRequest();
     auto store = co_await CreateStore(createRequest);
 
     auto index = co_await CreateTestFlatBufferIndex(
