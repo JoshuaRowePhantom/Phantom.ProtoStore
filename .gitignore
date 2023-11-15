@@ -5,3 +5,4 @@
 *.pmap
 /**/*.toolbox/.settings
 /**/*.toolbox/.project
+/.vscode/
