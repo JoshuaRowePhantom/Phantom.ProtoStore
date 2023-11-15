@@ -376,16 +376,17 @@ FinishReplay_Phase2 ==
 
 TruncateLog ==
     /\  ~IsReplaying
-    /\  Log # << >>
-    /\  Log[1].Type = "Write" =>
-        \E index \in 2..Len(Log):
-            /\  Log[index].Type = "Checkpoint"
-            /\  Log[index].Table = Log[1].Table
-            /\  Log[1].Partition \in Log[index].RemovedPartitions
-    /\  Log[1].Type = "PartitionsData" =>
-        \E index \in 2..Len(Log):
-            /\  Log[index].Type = "PartitionsData"
-    /\  Log' = Tail(Log)
+    /\  \E truncateIndex \in 1..Len(Log) :
+        /\  \A earlierIndex \in 1..truncateIndex :
+            /\  Log[earlierIndex].Type = "Write" =>
+                \E index \in truncateIndex+1..Len(Log):
+                    /\  Log[index].Type = "Checkpoint"
+                    /\  Log[index].Table = Log[earlierIndex].Table
+                    /\  Log[earlierIndex].Partition \in Log[index].RemovedPartitions
+            /\  Log[earlierIndex].Type = "PartitionsData" =>
+                \E index \in truncateIndex+1..Len(Log):
+                    /\  Log[index].Type = "PartitionsData"
+        /\  Log' = SubSeq(Log, truncateIndex + 1, Len(Log))
     /\  UNCHANGED << CommittedWrites, Partitions, CurrentMemory, CurrentDiskPartitions, NextPartition, Memory, CurrentReplayIndex, CurrentReplayPhase >>
 
 RemoveSomePartition ==
