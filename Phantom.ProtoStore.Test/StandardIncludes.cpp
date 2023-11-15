@@ -76,7 +76,7 @@ shared_ptr<IExtentStore> MakeFilesystemStore(
 {
     auto path = MakeCleanTestDirectory(
         testName + "_" + storeName
-    );
+    ) / "";
 
     auto store = make_shared<MemoryMappedFileExtentStore>(
         Schedulers::Default(),
