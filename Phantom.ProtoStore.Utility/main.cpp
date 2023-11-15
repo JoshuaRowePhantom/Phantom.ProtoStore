@@ -27,7 +27,8 @@ void PrintUsage()
     cout <<
         "Phantom.ProtoStore.Utility: \n"
         "    DumpLog <log>\n"
-        "    DumpPartition <data>\n";
+        "    DumpPartition <data>\n"
+        "    DumpHeader <header>\n";
 }
 
 int main(
@@ -83,5 +84,23 @@ int main(
                 logPath);
 
             co_return 0;
-        }    });
+        }
+
+        if (arg == "DumpHeader")
+        {
+            if (args.empty())
+            {
+                PrintUsage();
+                co_return 0;
+            }
+
+            auto headerPath = args.front();
+            args.pop_front();
+
+            co_await DumpHeader(
+                headerPath);
+
+            co_return 0;
+        }    
+    });
 }

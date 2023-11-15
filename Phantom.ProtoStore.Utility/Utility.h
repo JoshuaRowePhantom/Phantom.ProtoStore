@@ -31,3 +31,6 @@ cppcoro::task<> DumpPartition(
 
 cppcoro::task<> DumpLog(
     string logPath);
+
+cppcoro::task<> DumpHeader(
+    string headerPath);
