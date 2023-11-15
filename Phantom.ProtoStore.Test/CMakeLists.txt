@@ -20,6 +20,7 @@ add_executable(
     "HeaderAccessorTests.cpp"
     "IndexPartitionMergeGeneratorTests.cpp"
     "KeyComparerTests.cpp"
+    "LogManagerTests.cpp"
     "MemoryMappedFileExtentStoreTests.cpp"
     "MemoryTableTests.cpp"
     "MessageStoreTests.cpp"

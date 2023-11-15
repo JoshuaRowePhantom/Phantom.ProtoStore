@@ -105,4 +105,26 @@ std::function<task<shared_ptr<IExtentStore>>()> UseFilesystemStore(
     };
 }
 
+shared_ptr<IExtentStore> MakeTestExtentStore(
+    string testName,
+    string prefix,
+    size_t blockSize)
+{
+    return MakeFilesystemStore(
+        testName,
+        prefix,
+        blockSize);
+}
+
+std::function<task<shared_ptr<IExtentStore>>()> UseTestExtentStore(
+    string testName,
+    string storeName,
+    size_t blockSize)
+{
+    return UseFilesystemStore(
+        testName,
+        storeName,
+        blockSize);
+}
+
 }

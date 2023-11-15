@@ -33,12 +33,22 @@ std::filesystem::path MakeCleanTestDirectory(
 shared_ptr<IExtentStore> MakeFilesystemStore(
     string testName,
     string prefix,
-    size_t blockSize);
+    size_t blockSize = 4096);
+
+shared_ptr<IExtentStore> MakeTestExtentStore(
+    string testName,
+    string prefix,
+    size_t blockSize = 4096);
 
 std::function<task<shared_ptr<IExtentStore>>()> UseFilesystemStore(
     string testName,
     string prefix,
-    size_t blockSize);
+    size_t blockSize = 4096);
+
+std::function<task<shared_ptr<IExtentStore>>()> UseTestExtentStore(
+    string testName,
+    string prefix,
+    size_t blockSize = 4096);
 
 }
 
