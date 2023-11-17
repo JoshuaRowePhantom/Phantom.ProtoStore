@@ -283,7 +283,7 @@ struct Partition::FindTreeEntryKeyLessThanComparer
     }
 };
 
-int Partition::FindLowTreeEntryIndex(
+ptrdiff_t Partition::FindLowTreeEntryIndex(
     const FlatMessage<PartitionMessage>& treeNode,
     KeyRangeEnd low
 )
@@ -311,8 +311,8 @@ int Partition::FindLowTreeEntryIndex(
     return upperBound - treeNode->tree_node()->keys()->begin();
 }
 
-int Partition::FindHighTreeEntryIndex(
-    int lowTreeEntryIndex,
+ptrdiff_t Partition::FindHighTreeEntryIndex(
+    ptrdiff_t lowTreeEntryIndex,
     const FlatMessage<PartitionMessage>& treeNode,
     KeyRangeEnd high
 )
@@ -330,7 +330,7 @@ int Partition::FindHighTreeEntryIndex(
     };
 
     auto upperBound = std::upper_bound(
-        treeNode->tree_node()->keys()->begin() + lowTreeEntryIndex,
+        treeNode->tree_node()->keys()->begin() + numeric_cast(lowTreeEntryIndex),
         treeNode->tree_node()->keys()->end(),
         key,
         std::bind_front(&FindTreeEntryKeyLessThanComparer::upper_bound_less, comparer)
@@ -339,7 +339,7 @@ int Partition::FindHighTreeEntryIndex(
     return upperBound - treeNode->tree_node()->keys()->begin();
 }
 
-int Partition::FindMatchingValueIndexByWriteSequenceNumber(
+ptrdiff_t Partition::FindMatchingValueIndexByWriteSequenceNumber(
     const FlatBuffers::PartitionTreeEntryKey* keyEntry,
     SequenceNumber readSequenceNumber)
 {
@@ -430,16 +430,14 @@ row_generator Partition::Enumerate(
     EnumerateLastReturnedKey& lastReturnedKey
 )
 {
-    int lowTreeEntryIndex = FindLowTreeEntryIndex(
+    auto lowTreeEntryIndex = FindLowTreeEntryIndex(
         treeNode,
         low);
 
-    int highTreeEntryIndex = FindHighTreeEntryIndex(
+    auto highTreeEntryIndex = FindHighTreeEntryIndex(
         lowTreeEntryIndex,
         treeNode,
         high);
-
-    const Message* lastReturnedKeyMessage = nullptr;
 
     while (
         (
@@ -450,7 +448,8 @@ row_generator Partition::Enumerate(
         &&
         lowTreeEntryIndex < treeNode->tree_node()->keys()->size())
     {
-        const FlatBuffers::PartitionTreeEntryKey* keyEntry = treeNode->tree_node()->keys()->Get(lowTreeEntryIndex);
+        const FlatBuffers::PartitionTreeEntryKey* keyEntry = treeNode->tree_node()->keys()->Get(
+            numeric_cast(lowTreeEntryIndex));
         
         ProtoValue key = GetProtoValueKey(
             treeNode,
@@ -522,7 +521,7 @@ row_generator Partition::Enumerate(
                 if (valueIndex < keyEntry->values()->size())
                 {
                     hasValue = true;
-                    auto treeEntryValue = keyEntry->values()->Get(valueIndex);
+                    auto treeEntryValue = keyEntry->values()->Get(numeric_cast(valueIndex));
                     writeSequenceNumber = ToSequenceNumber(treeEntryValue->write_sequence_number());
                     dataValue = treeEntryValue->value();
                     valuePlaceholder = treeEntryValue->flat_value();
@@ -557,8 +556,6 @@ row_generator Partition::Enumerate(
                 }
             }
 
-            AlignedMessageData value;
-
             // The node matched, and we might have a value to return;
             // except we might have found a tree entry whose values are all newer
             // than the read sequence number.
@@ -574,12 +571,12 @@ row_generator Partition::Enumerate(
                 // If the value is also in the tree entry, we can return a DataReference
                 // to the tree entry.
                 // Otherwise we need to return a composite tree entry.
-                ProtoValue value;
+                ProtoValue protoValue;
                 if (readValueDisposition == ReadValueDisposition::DontReadValue)
                 {
                 } else if (dataValue)
                 {
-                    value = SchemaDescriptions::MakeProtoValueValue(
+                    protoValue = SchemaDescriptions::MakeProtoValueValue(
                         *m_schema,
                         GetAlignedMessageData(
                             treeNode,
@@ -590,7 +587,7 @@ row_generator Partition::Enumerate(
                     auto valueMessage = co_await ReadData(
                         bigValue);
                     
-                    value = SchemaDescriptions::MakeProtoValueValue(
+                    protoValue = SchemaDescriptions::MakeProtoValueValue(
                         *m_schema,
                         GetAlignedMessageData(
                             valueMessage,
@@ -598,7 +595,7 @@ row_generator Partition::Enumerate(
                 }
                 else if (valuePlaceholder)
                 {
-                    value = ProtoValue::FlatBuffer(
+                    protoValue = ProtoValue::FlatBuffer(
                         AlignedMessageData(
                             static_cast<DataReference<StoredMessage>>(treeNode),
                             treeNode.data().Content),
@@ -615,7 +612,7 @@ row_generator Partition::Enumerate(
                 {
                     .Key = key,
                     .WriteSequenceNumber = writeSequenceNumber,
-                    .Value = std::move(value),
+                    .Value = std::move(protoValue),
                     .TransactionId = std::move(transactionId),
                 };
 
@@ -719,7 +716,7 @@ task<> Partition::CheckTreeNodeIntegrity(
     ProtoValue previousKey = minKeyExclusive;
     SequenceNumber previousKeyLowestSequenceNumber = minKeyExclusiveLowestSequenceNumber;
 
-    for (auto index = 0;
+    for (uoffset_t index = 0;
         index < treeNodeMessage->tree_node()->keys()->size();
         index++)
     {
@@ -806,7 +803,7 @@ task<> Partition::CheckChildTreeEntryIntegrity(
     FlatMessage<FlatBuffers::PartitionTreeEntryKey> treeEntry
     {
         parent,
-        parent->tree_node()->keys()->Get(treeEntryIndex),
+        parent->tree_node()->keys()->Get(numeric_cast(treeEntryIndex)),
     };
 
     SequenceNumber currentHighestSequenceNumber;
@@ -920,7 +917,7 @@ task<> Partition::CheckChildTreeEntryIntegrity(
         }
         else if (treeEntry->values())
         {
-            for (auto valueIndex = 1;
+            for (uoffset_t valueIndex = 1;
                 valueIndex < treeEntry->values()->size();
                 valueIndex++)
             {

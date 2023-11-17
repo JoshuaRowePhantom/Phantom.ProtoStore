@@ -28,7 +28,7 @@ public TestAccessors
 {
 protected:
     std::atomic<uint64_t> m_nextTestLocalTransactionId;
-    std::atomic<uint64_t> m_nextTestWriteId;
+    std::atomic<uint32_t> m_nextTestWriteId;
     std::atomic<uint64_t> m_nextWriteSequenceNumber;
 
     task<std::shared_ptr<IIndexData>> MakeInMemoryIndex(

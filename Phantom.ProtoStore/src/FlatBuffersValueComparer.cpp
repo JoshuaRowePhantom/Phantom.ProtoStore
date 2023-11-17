@@ -1,5 +1,6 @@
 #include "StandardTypes.h"
 #include "FlatBuffersValueComparer.h"
+#include "Phantom.ProtoStore/numeric_cast.h"
 #include "Resources.h"
 #include <compare>
 #include <set>
@@ -204,8 +205,10 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetFieldComparer(
                 &InternalFieldComparer::CompareTableField
             };
         }
-
-        throw std::range_error("flatBuffersReflectionField->type()->base_type()");
+        else
+        {
+            throw std::range_error("flatBuffersReflectionField->type()->base_type()");
+        }
     }
 
     case BaseType::Vector:
@@ -408,7 +411,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetUnionFieldComparer(
             &InternalFieldComparer::CompareUnionFieldValue
         };
 
-        comparer.unionComparers[typeEnumerationValue->value()] = unionFieldComparer;
+        comparer.unionComparers[numeric_cast(typeEnumerationValue->value())] = unionFieldComparer;
     }
 
     comparer.unionComparers[0] =
@@ -448,6 +451,8 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
     const void* value2
 ) const
 {
+    std::ignore = value1;
+    std::ignore = value2;
     // Do nothing.
     return std::weak_ordering::equivalent;
 }
@@ -658,6 +663,8 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetTypedVectorFieldCompa
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
+    std::ignore = flatBuffersReflectionObject;
+
     InternalObjectComparer* elementObjectComparer = nullptr;
     
     if (flatBuffersReflectionField->type()->element() == reflection::BaseType::Obj)
@@ -796,6 +803,8 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetTypedArrayFieldCompar
     const ::reflection::Field* flatBuffersReflectionField
 )
 {
+    std::ignore = flatBuffersReflectionObject;
+    
     InternalObjectComparer* elementObjectComparer = nullptr;
 
     if (flatBuffersReflectionField->type()->element() == reflection::BaseType::Obj)
@@ -1070,10 +1079,10 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
         size2
     );
 
-    for (int32_t index = 0; index < sizeToCompare; ++index)
+    for (size_t index = 0; index < sizeToCompare; ++index)
     {
-        auto value1 = vector1->Get(index);
-        auto value2 = vector2->Get(index);
+        auto vectorValue1 = vector1->Get(numeric_cast(index));
+        auto vectorValue2 = vector2->Get(numeric_cast(index));
 
         std::weak_ordering result;
 
@@ -1081,20 +1090,20 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
             || std::same_as<flatbuffers::Offset<flatbuffers::Struct>, Value>)
         {
             result = elementObjectComparer->Compare(
-                value1,
-                value2);
+                vectorValue1,
+                vectorValue2);
         }
         else if constexpr (std::same_as<flatbuffers::Offset<flatbuffers::String>, Value>)
         {
             result = ComparePrimitive(
-                value1->string_view(),
-                value2->string_view());
+                vectorValue1->string_view(),
+                vectorValue2->string_view());
         }
         else
         {
             result = ComparePrimitive(
-                value1,
-                value2);
+                vectorValue1,
+                vectorValue2);
         }
 
         if (result != std::weak_ordering::equivalent)
@@ -1135,16 +1144,16 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
     )
         * elementSize;
 
-    for (int32_t index = 0; index < sizeToCompare; index += elementSize)
+    for (flatbuffers::uoffset_t index = 0; index < sizeToCompare; index += elementSize)
     {
-        auto value1 = vector1->Data() + index;
-        auto value2 = vector2->Data() + index;
+        auto vectorValue1 = vector1->Data() + index;
+        auto vectorValue2 = vector2->Data() + index;
 
         std::weak_ordering result;
 
         result = elementObjectComparer->Compare(
-            value1,
-            value2);
+            vectorValue1,
+            vectorValue2);
 
         if (result != std::weak_ordering::equivalent)
         {
@@ -1154,6 +1163,9 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
 
     return size1 <=> size2;
 }
+
+#pragma warning (push)
+#pragma warning (disable: 4702)
 
 template<
     typename Value
@@ -1170,19 +1182,19 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
     auto array2 = flatbuffers::GetAnyFieldAddressOf<const Value>(
         *reinterpret_cast<const flatbuffers::Struct*>(value2),
         *flatBuffersReflectionField);
-
-    for (int32_t index = 0; index < elementSize; ++index)
+    for (uint32_t index = 0; index < elementSize; ++index)
     {
-        auto value1 = *(array1 + index);
-        auto value2 = *(array2 + index);
+        auto arrayValue1 = *(array1 + index);
+        auto arrayValue2 = *(array2 + index);
 
         return ComparePrimitive(
-            value1,
-            value2);
+            arrayValue1,
+            arrayValue2);
     }
 
     return std::weak_ordering::equivalent;
 }
+#pragma warning (pop)
 
 template<
 >
@@ -1203,12 +1215,12 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
 
     for (int32_t index = 0; index < fixedLength; ++index)
     {
-        auto value1 = array1 + index * elementSize;
-        auto value2 = array2 + index * elementSize;
+        auto arrayValue1 = array1 + index * elementSize;
+        auto arrayValue2 = array2 + index * elementSize;
 
         elementObjectComparer->Compare(
-            value1,
-            value2);
+            arrayValue1,
+            arrayValue2);
     }
 
     return std::weak_ordering::equivalent;
@@ -1288,7 +1300,7 @@ flatbuffers::Offset<FlatBuffers::DataValue> FlatBufferValueComparer::BuildDataVa
     throw std::range_error("value is not a flatbuffer value");
 }
 
-int32_t FlatBufferValueComparer::GetEstimatedSize(
+size_t FlatBufferValueComparer::GetEstimatedSize(
     const ProtoValue& value
 ) const
 {

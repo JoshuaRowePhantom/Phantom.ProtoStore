@@ -30,7 +30,9 @@ public:
         m_transactionFactory{ transactionFactory },
         m_distributedTransactionsIndex{ distributedTransactionsIndex },
         m_distributedTransactionReferencesIndex{ distributedTransactionReferencesIndex }
-    {}
+    {
+        std::ignore = existingPartitions;
+    }
 
     bool PartitionNumberExists(
         PartitionNumber)

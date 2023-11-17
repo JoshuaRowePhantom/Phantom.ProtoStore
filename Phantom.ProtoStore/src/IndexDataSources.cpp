@@ -247,6 +247,8 @@ std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::Selec
     SequenceNumber readSequenceNumber
 ) const
 {
+    std::ignore = key;
+    std::ignore = readSequenceNumber;
     return m_checkConflictSelection;
 }
 
@@ -255,6 +257,8 @@ std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::Selec
     SequenceNumber readSequenceNumber
 ) const
 {
+    std::ignore = key;
+    std::ignore = readSequenceNumber;
     return m_readAndEnumerateSelection;
 }
 
@@ -264,6 +268,9 @@ std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::Selec
     SequenceNumber readSequenceNumber
 ) const
 {
+    std::ignore = keyLow;
+    std::ignore = keyHigh;
+    std::ignore = readSequenceNumber;
     return m_readAndEnumerateSelection;
 }
 
@@ -272,6 +279,8 @@ std::shared_ptr<const IndexDataSourcesSelection> IndexDataSourcesSelector::Selec
     SequenceNumber readSequenceNumber
 ) const
 {
+    std::ignore = prefix;
+    std::ignore = readSequenceNumber;
     return m_readAndEnumerateSelection;
 }
 

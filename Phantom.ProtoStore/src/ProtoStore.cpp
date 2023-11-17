@@ -317,6 +317,13 @@ task<> ProtoStore::ReplayPartitionsForIndex(
         indexEntry.Index,
         headerExtentNames);
 
+    // During replay, it's possible that some partitions won't exist.
+    // We're guaranteed to reopen a valid set when we replay later message,
+    // but for the current set we just skip partitions that don't exist.
+    //std::erase_if(
+    //    partitions,
+    //    [](auto& partition) { return !partition; });
+
     co_await indexEntry.DataSources->UpdatePartitions(
         LoggedCheckpointT(),
         partitions);
@@ -517,7 +524,7 @@ task<> ProtoStore::Replay(
         
         auto index = co_await GetIndexEntryInternal(
             write->index_number(),
-            DoReplayPartitions);
+            DontReplayPartitions);
 
         co_await index->DataSources->Replay(
             write);
@@ -1347,9 +1354,19 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     auto headerReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
         FlatValue(MakeExtentName(headerExtentName)));
 
+    if (!headerReader)
+    {
+        throw std::runtime_error("Missing partition header");
+    }
+
     auto dataReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
         FlatValue(dataExtentName));
     
+    if (!dataReader)
+    {
+        throw std::runtime_error("Missing partition data");
+    }
+
     auto partition = make_shared<Partition>(
         index->GetSchema(),
         index->GetKeyComparer(),
@@ -1480,8 +1497,7 @@ task<> ProtoStore::Checkpoint(
         loggedCheckpoint,
         partitionWriter);
 
-    auto writeSequenceNumber = ToSequenceNumber(
-        m_nextWriteSequenceNumber.fetch_add(1));
+    m_nextWriteSequenceNumber.fetch_add(1);
 
     co_await InternalExecuteTransaction(
         BeginTransactionRequest{},

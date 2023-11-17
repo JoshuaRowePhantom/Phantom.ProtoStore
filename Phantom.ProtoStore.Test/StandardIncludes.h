@@ -1,3 +1,9 @@
+[[deprecated]]
+void x_y_z() {}
+void zyx()
+{
+    x_y_z();
+}
 #pragma once
 
 #include <cppcoro/sync_wait.hpp>

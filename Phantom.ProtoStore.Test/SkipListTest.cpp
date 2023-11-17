@@ -496,10 +496,10 @@ TEST(SkipListPerformanceTests, PerformanceTest(Perf1))
     allValues.reserve(valueCountPerThread * threadCount);
     for (int valueCounter = 0; valueCounter < valueCountPerThread * threadCount; valueCounter++)
     {
-        string randomString(' ', 20);
+        string randomString(20, ' ');
         for (int stringIndex = 0; stringIndex < randomString.size(); stringIndex++)
         {
-            randomString[stringIndex] = distribution(rng);
+            randomString[stringIndex] = static_cast<char>(distribution(rng));
         }
         allValues.push_back(
             {

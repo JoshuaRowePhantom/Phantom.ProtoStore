@@ -236,8 +236,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
         auto nextPartitionTreeEntryKey = FlatBuffers::CreatePartitionTreeEntryKeyDirect(
             parent->partitionTreeNodeValueBuilder->builder(),
             nextKeyDataOffset,
+            0,
             ToUint64(parent->lowestSequenceNumberForKey),
-            {},
             nullptr,
             0,
             0,
@@ -291,7 +291,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             row.Value);
 
         auto approximateRowSize =
-            estimatedKeySize
+            approximateNeededExtentSize
+            + estimatedKeySize
             + estimatedValueSize
             + 100;
 
@@ -355,7 +356,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
         }
 
         current().highestKey = std::move(row.Key);
-        current().estimatedHighestKeySize = estimatedKeySize;
+        current().estimatedHighestKeySize = numeric_cast(estimatedKeySize);
         current().lowestSequenceNumberForKey = row.WriteSequenceNumber;
         m_bloomFilter.add(
             current().highestKey);
@@ -390,7 +391,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     // There may be leftover nodes in the tree node stack.
     // Flush them.
     // The rightmost side of the tree will be unbalanced.
-    for (auto level = 0; level < m_treeNodeStack.size(); level++)
+    for (uint8_t level = 0; level < m_treeNodeStack.size(); level++)
     {
         root = co_await Flush(level, true);
     }
@@ -451,7 +452,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     auto partitionBloomFilter = std::make_unique<FlatBuffers::PartitionBloomFilterT>();
     partitionBloomFilter->filter.resize((bloomFilterBitCount + 7) / 8);
     partitionBloomFilter->algorithm = FlatBuffers::PartitionBloomFilterHashAlgorithm::Version1;
-    partitionBloomFilter->hash_function_count = bloomFilterHashFunctionCount;
+    partitionBloomFilter->hash_function_count = numeric_cast(bloomFilterHashFunctionCount);
 
     auto bloomFilterSpan = std::span(
         reinterpret_cast<char*>(partitionBloomFilter->filter.data()), 

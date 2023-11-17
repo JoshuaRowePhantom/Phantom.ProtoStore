@@ -1,6 +1,7 @@
 #include "Phantom.ProtoStore/Payloads.h"
 #include "ProtoStoreInternal.pb.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
+#include "Phantom.ProtoStore/numeric_cast.h"
 
 namespace Phantom::ProtoStore
 {
@@ -305,10 +306,10 @@ bool ProtoValue::pack(
         return true;
     }
 
-    auto message = as_message_if();
-    if (message)
+    auto asMessageIf = as_message_if();
+    if (asMessageIf)
     {
-        return message->SerializeToString(
+        return asMessageIf->SerializeToString(
             destination);
     }
 
@@ -319,10 +320,10 @@ void ProtoValue::unpack(
     google::protobuf::Message* destination
 ) const
 {
-    auto message = as_message_if();
-    if (message)
+    auto asMessageIf = as_message_if();
+    if (asMessageIf)
     {
-        destination->CopyFrom(*message);
+        destination->CopyFrom(*asMessageIf);
         return;
     }
 
@@ -331,7 +332,7 @@ void ProtoValue::unpack(
     {
         destination->ParseFromArray(
             bytes.data(),
-            bytes.size_bytes()
+            numeric_cast(bytes.size_bytes())
         );
         return;
     }

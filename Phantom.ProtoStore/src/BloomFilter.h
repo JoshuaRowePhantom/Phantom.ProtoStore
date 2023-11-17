@@ -6,6 +6,7 @@
 #include <random>
 #include <vector>
 #include <stdint.h>
+#include "Phantom.ProtoStore/numeric_cast.h"
 
 namespace Phantom::ProtoStore
 {
@@ -420,6 +421,7 @@ protected:
         std::memory_order memoryOrder
     )
     {
+        std::ignore = memoryOrder;
         element |= value;
     }
 
@@ -429,6 +431,7 @@ protected:
         std::memory_order memoryOrder
     ) const
     {
+        std::ignore = memoryOrder;
         return element & value;
     }
 };
@@ -569,26 +572,26 @@ inline size_t get_BloomFilter_optimal_bit_count(
     double desiredFalsePositiveErrorRate,
     size_t numberOfElements)
 {
-    return std::ceil(
+    return numeric_cast(std::ceil(
         get_BloomFilter_optimal_bit_count_per_element(desiredFalsePositiveErrorRate)
-        * numberOfElements);
+        * numberOfElements));
 }
 
 inline size_t get_BloomFilter_optimal_hash_function_count(
     double bloomFilterSize,
     size_t numberOfElements)
 {
-    return std::ceil(
+    return numeric_cast(std::ceil(
         bloomFilterSize / numberOfElements * std::log(2)
-    );
+    ));
 }
 
 inline size_t get_BloomFilter_optimal_hash_function_count_for_optimal_bit_count(
     double desiredFalsePositiveErrorRate)
 {
-    return std::ceil(
+    return numeric_cast(std::ceil(
         -std::log2(desiredFalsePositiveErrorRate)
-    );
+    ));
 }
 
 }

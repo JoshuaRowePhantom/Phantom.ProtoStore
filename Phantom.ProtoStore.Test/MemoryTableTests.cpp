@@ -17,7 +17,7 @@ class MemoryTableTests : public ::testing::Test
 protected:
     std::shared_ptr<Schema> schema;
     std::shared_ptr<ValueComparer> keyComparer;
-    MemoryTable memoryTable;
+    std::shared_ptr<MemoryTable> memoryTable;
 
 public:
     MemoryTableTests()
@@ -31,8 +31,9 @@ public:
             std::make_shared<ProtocolBuffersValueComparer>(
                 StringKey::descriptor())),
         memoryTable(
-            schema,
-            keyComparer)
+            std::make_shared<MemoryTable>(
+                schema,
+                keyComparer))
     {}
 
 protected:
@@ -66,7 +67,6 @@ protected:
     }
 
     task<shared_ptr<DelayedMemoryTableTransactionOutcome>> AddRow(
-        MemoryTable& memoryTable,
         MemoryTableTransactionSequenceNumber transactionSequenceNumber,
         const Message& rowKey,
         const Message& rowValue,
@@ -95,7 +95,7 @@ protected:
 
         auto delayedOutcome = WithOutcome(transactionSequenceNumber, outcome, writeSequenceNumber);
 
-        auto result = co_await memoryTable.AddRow(
+        auto result = co_await memoryTable->AddRow(
             ToSequenceNumber(readSequenceNumber),
             std::move(loggedRowWriteMessage),
             delayedOutcome);
@@ -124,7 +124,6 @@ protected:
         rowValue.set_value(value);
 
         co_return co_await AddRow(
-            memoryTable,
             transactionSequenceNumber,
             rowKey,
             rowValue,
@@ -174,7 +173,7 @@ protected:
             keyHighProto = ProtoValue(&keyHighMessage).pack();
         }
 
-        auto enumeration = memoryTable.Enumerate(
+        auto enumeration = memoryTable->Enumerate(
             delayedTransactionOutcome,
             ToSequenceNumber(readSequenceNumber),
             {
@@ -216,7 +215,7 @@ protected:
             expectedRows,
             storedRows);
 
-        co_await memoryTable.Join();
+        co_await memoryTable->Join();
     }
 };
 
@@ -240,7 +239,7 @@ ASYNC_TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Can_add_distinct_rows)
@@ -270,7 +269,7 @@ ASYNC_TEST_F(MemoryTableTests, Can_add_distinct_rows)
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Enumerate_skips_aborted_rows)
@@ -300,7 +299,7 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_skips_aborted_rows)
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumber)
@@ -344,7 +343,7 @@ ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_ReadSequenceNumbe
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Committed_Row)
@@ -388,7 +387,7 @@ ASYNC_TEST_F(MemoryTableTests, Fail_to_add_write_conflict_from_Committed_Row)
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_commits)
@@ -446,7 +445,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_WriteConflict_from_Uncommitted_Row_that_co
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
     co_await scope.join();
 }
 
@@ -502,7 +501,7 @@ ASYNC_TEST_F(MemoryTableTests, AddRow_no_WriteConflict_from_Uncommitted_Row_that
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_abort)
@@ -532,7 +531,7 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_abort)
     delayedTransactionOutcome->Complete();
     EXPECT_EQ(true, completed);
     co_await scope.join();
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_commit)
@@ -564,7 +563,7 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_waits_for_transaction_resolution_commit
     delayedTransactionOutcome->Complete();
     EXPECT_EQ(true, completed);
     co_await scope.join();
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_earlier_sequence_number_if_operation_aborted)
@@ -602,7 +601,7 @@ ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_earlier_sequenc
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_later_sequence_number_if_operation_aborted)
@@ -639,7 +638,7 @@ ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_later_sequence_
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_number_if_operation_aborted)
@@ -669,7 +668,7 @@ ASYNC_TEST_F(MemoryTableTests, Succeed_to_add_conflicting_row_at_same_sequence_n
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_write)
@@ -724,7 +723,7 @@ ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_at_same_version_as_wr
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_version)
@@ -788,26 +787,23 @@ ASYNC_TEST_F(MemoryTableTests, Add_new_version_of_row_read_version_after_write_v
         }
     );
 
-    co_await memoryTable.Join();
+    co_await memoryTable->Join();
 }
 
 ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and_ignores_rows_not_matching_prefix)
 {
-    std::shared_ptr<Schema> schema(
-        std::make_shared<Schema>(
+    schema = std::make_shared<Schema>(
             KeySchema{ TestKey::descriptor() },
-            ValueSchema{ StringValue::descriptor() }
-    ));
+            ValueSchema{ StringValue::descriptor() });
 
-    std::shared_ptr<ValueComparer> keyComparer(
-        std::make_shared<ProtocolBuffersValueComparer>(
-            TestKey::descriptor()));
+    keyComparer = std::make_shared<ProtocolBuffersValueComparer>(
+        TestKey::descriptor());
 
     std::shared_ptr<ValueComparer> valueComparer(
         std::make_shared<ProtocolBuffersValueComparer>(
             StringValue::descriptor()));
 
-    MemoryTable memoryTable(
+    memoryTable = std::make_shared<MemoryTable>(
         schema,
         keyComparer);
 
@@ -840,7 +836,6 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and
     std::optional<SequenceNumber> conflictingSequenceNumber;
 
     co_await AddRow(
-        memoryTable,
         0,
         testKey_1,
         testValue_1,
@@ -853,7 +848,6 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and
     EXPECT_FALSE(conflictingSequenceNumber);
 
     co_await AddRow(
-        memoryTable,
         0,
         testKey_2_1,
         testValue_2_1,
@@ -866,7 +860,6 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and
     EXPECT_FALSE(conflictingSequenceNumber);
 
     co_await AddRow(
-        memoryTable,
         0,
         testKey_2_2,
         testValue_2_2,
@@ -879,7 +872,6 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and
     EXPECT_FALSE(conflictingSequenceNumber);
 
     co_await AddRow(
-        memoryTable,
         0,
         testKey_3,
         testValue_3,
@@ -900,7 +892,7 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and
         .LastFieldId = 3
     };
 
-    auto enumeration = memoryTable.Enumerate(
+    auto enumeration = memoryTable->Enumerate(
         nullptr,
         ToSequenceNumber(10),
         keyRangeLow,

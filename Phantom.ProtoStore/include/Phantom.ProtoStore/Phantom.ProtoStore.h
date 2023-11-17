@@ -380,7 +380,7 @@ std::function<task<std::shared_ptr<IExtentStore>>()> CreateMemoryMappedFileExten
 struct CreateProtoStoreRequest
     : public OpenProtoStoreRequest
 {
-    size_t LogAlignment = 0;
+    uint32_t LogAlignment = 0;
 
     friend bool operator==(
         const CreateProtoStoreRequest&,
@@ -434,7 +434,7 @@ struct IntegrityCheckError
 
 typedef std::vector<IntegrityCheckError> IntegrityCheckErrorList;
 
-class IntegrityException : std::exception
+class IntegrityException : public std::exception
 {
 public:
     const IntegrityCheckErrorList Errors;

@@ -5,6 +5,7 @@ add_library (
     STATIC
     "include/Phantom.ProtoStore/Async.h"
     "include/Phantom.ProtoStore/Errors.h"
+    "include/Phantom.ProtoStore/numeric_cast.h"
     "include/Phantom.ProtoStore/Payloads.h"  
     "include/Phantom.ProtoStore/Phantom.ProtoStore.h"
     "include/Phantom.ProtoStore/Primitives.h"
@@ -85,7 +86,7 @@ add_library (
     "src/ValueBuilder.cpp"
     "src/ValueComparer.cpp"
     "src/ValueComparer.h"
- )
+)
     
 target_include_directories(
     Phantom.ProtoStore

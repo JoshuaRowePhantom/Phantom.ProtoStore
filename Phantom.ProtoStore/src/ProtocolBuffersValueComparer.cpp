@@ -1,4 +1,5 @@
 #include "ProtocolBuffersValueComparer.h"
+#include "Phantom.ProtoStore/numeric_cast.h"
 
 namespace Phantom::ProtoStore
 {
@@ -103,10 +104,10 @@ std::weak_ordering ProtocolBuffersValueComparer::CompareImpl(
 
     google::protobuf::io::CodedInputStream coded1(
         span1.data(),
-        span1.size());
+        numeric_cast(span1.size()));
     google::protobuf::io::CodedInputStream coded2(
         span2.data(),
-        span2.size());
+        numeric_cast(span2.size()));
 
     struct Context
     {
@@ -502,7 +503,7 @@ flatbuffers::Offset<FlatBuffers::DataValue> ProtocolBuffersValueComparer::BuildD
     throw std::range_error("value is not a flatbuffer value");
 }
 
-int32_t ProtocolBuffersValueComparer::GetEstimatedSize(
+size_t ProtocolBuffersValueComparer::GetEstimatedSize(
     const ProtoValue& value
 ) const
 {
@@ -513,7 +514,7 @@ int32_t ProtocolBuffersValueComparer::GetEstimatedSize(
 
     if (value.as_message_if())
     {
-        return value.as_message_if()->ByteSize();
+        return value.as_message_if()->ByteSizeLong();
     }
 
     return 0;

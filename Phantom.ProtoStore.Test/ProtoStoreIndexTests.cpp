@@ -32,9 +32,6 @@ public:
 
 ASYNC_TEST_F(ProtoStoreIndexTests, Can_create_two_indexes_before_reopen)
 {
-    auto createStoreRequest = GetCreateMemoryStoreRequest();
-    auto store = co_await CreateStore(createStoreRequest);
-
     CreateIndexRequest createIndex1;
     createIndex1.IndexName = "index1";
     createIndex1.Schema = Schema::Make(
@@ -111,9 +108,6 @@ ASYNC_TEST_F(ProtoStoreIndexTests, Can_create_two_indexes_before_reopen)
 
 ASYNC_TEST_F(ProtoStoreIndexTests, Can_create_two_indexes_after_two_reopens)
 {
-    auto createStoreRequest = GetCreateMemoryStoreRequest();
-    auto store = co_await CreateStore(createStoreRequest);
-
     co_await ReopenStore();
 
     CreateIndexRequest createIndex1;

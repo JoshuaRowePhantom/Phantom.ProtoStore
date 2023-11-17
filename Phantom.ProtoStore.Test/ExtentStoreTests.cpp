@@ -1,5 +1,6 @@
 #include "ExtentStoreTests.h"
 #include "async_test.h"
+#include "Phantom.ProtoStore/numeric_cast.h"
 #include "Phantom.ProtoStore/src/ExtentStore.h"
 #include <google/protobuf/io/coded_stream.h>
 
@@ -36,13 +37,13 @@ task<> ExtentStoreTests::OpenExtentForRead_can_read_data_written_by_OpenExtentFo
     auto rawData = co_await writeBuffer->Write(0, expectedData.size());
     google::protobuf::io::ArrayOutputStream outputStream(
         rawData.data().data(),
-        rawData.data().size());
+        numeric_cast(rawData.data().size()));
 
     {
         CodedOutputStream writeStream(&outputStream);
         writeStream.WriteRaw(
             expectedData.data(),
-            expectedData.size());
+            numeric_cast(expectedData.size()));
     }
     co_await writeBuffer->Flush();
 
@@ -50,11 +51,11 @@ task<> ExtentStoreTests::OpenExtentForRead_can_read_data_written_by_OpenExtentFo
     auto readBuffer = co_await readExtent->Read(0, expectedData.size());
     CodedInputStream readStream(
         reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
-        readBuffer.data().size());
+        numeric_cast(readBuffer.data().size()));
     vector<uint8_t> actualData(expectedData.size());
     readStream.ReadRaw(
         actualData.data(),
-        actualData.size());
+        numeric_cast(actualData.size()));
 
     EXPECT_EQ(
         expectedData,
@@ -71,26 +72,26 @@ task<> ExtentStoreTests::OpenExtentForWrite_can_do_Flush_after_grow(IExtentStore
     auto rawData1 = co_await writeBuffer1->Write(0, writeData1.size());
     google::protobuf::io::ArrayOutputStream outputStream1(
         rawData1.data().data(),
-        rawData1.data().size());
+        numeric_cast(rawData1.data().size()));
 
     auto writeBuffer2 = co_await writeExtent->CreateWriteBuffer();
     auto rawData2 = co_await writeBuffer2->Write(writeData1.size(), writeData2.size());
     google::protobuf::io::ArrayOutputStream outputStream2(
         rawData2.data().data(),
-        rawData2.data().size());
+        numeric_cast(rawData2.data().size()));
 
     {
         CodedOutputStream writeStream(&outputStream1);
         writeStream.WriteRaw(
             writeData1.data(),
-            writeData1.size());
+            numeric_cast(writeData1.size()));
     }
 
     {
         CodedOutputStream writeStream(&outputStream2);
         writeStream.WriteRaw(
             writeData2.data(),
-            writeData2.size());
+            numeric_cast(writeData2.size()));
     }
 
     co_await writeBuffer2->Flush();
@@ -102,11 +103,11 @@ task<> ExtentStoreTests::OpenExtentForWrite_can_do_Flush_after_grow(IExtentStore
     auto readBuffer = co_await readExtent->Read(0, expectedData.size());
     CodedInputStream readStream(
         reinterpret_cast<const uint8_t*>(readBuffer.data().data()),
-        readBuffer.data().size());
+        numeric_cast(readBuffer.data().size()));
     std::basic_string<uint8_t> actualData(expectedData.size(), '3');
     readStream.ReadRaw(
         actualData.data(),
-        actualData.size());
+        numeric_cast(actualData.size()));
 
     EXPECT_EQ(
         expectedData,

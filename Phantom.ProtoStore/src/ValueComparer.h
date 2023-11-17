@@ -264,12 +264,12 @@ public:
         const reflection::Type* type,
         const flatbuffers::VectorOfAny* value);
 
-    [[nodiscard]] static int32_t GetEstimatedSize(
+    [[nodiscard]] static size_t GetEstimatedSize(
         const reflection::Schema* schema,
         const reflection::Object* object,
         const flatbuffers::Table* value);
 
-    [[nodiscard]] static int32_t GetEstimatedSize(
+    [[nodiscard]] static size_t GetEstimatedSize(
         const reflection::Schema* schema,
         const reflection::Type* type,
         const flatbuffers::VectorOfAny* value);
@@ -354,7 +354,7 @@ public:
         const ProtoValue& value
     ) const = 0;
 
-    virtual int32_t GetEstimatedSize(
+    virtual size_t GetEstimatedSize(
         const ProtoValue& value
     ) const = 0;
 };

@@ -96,6 +96,8 @@ void LogManager::Replay(
     {
         auto loggedCommitExtent = logEntry->log_entry_as<LoggedCommitExtent>();
         FlatBuffers::ExtentNameT committedExtent;
+        loggedCommitExtent->extent_name()->UnPackTo(
+            &committedExtent);
         m_uncommittedExtentToLogExtentSequenceNumber.erase(committedExtent);
         break;
     }
@@ -155,7 +157,7 @@ bool LogManager::NeedToUpdateMaps(
     const LogRecord* logRecord
 )
 {
-    for(int logEntryIndex = 0; logEntryIndex < logRecord->log_entries()->size(); logEntryIndex++)
+    for(uoffset_t logEntryIndex = 0; logEntryIndex < logRecord->log_entries()->size(); logEntryIndex++)
     {
         auto logEntry = logRecord->log_entries()->Get(logEntryIndex);
         switch (logEntry->log_entry_type())

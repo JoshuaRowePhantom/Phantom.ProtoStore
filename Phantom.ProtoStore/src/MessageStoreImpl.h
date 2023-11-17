@@ -47,7 +47,7 @@ public:
     ExtentOffset to_underlying_extent_offset(
         ExtentOffset
     );
-
+    
     RandomMessageReaderWriterBase(
         FlatMessage<FlatBuffers::ExtentHeader> header);
 };
@@ -68,7 +68,7 @@ public:
         ExtentOffset extentOffset
     ) override;
 
-    virtual task< DataReference<StoredMessage>> Read(
+    virtual task<DataReference<StoredMessage>> Read(
         ExtentOffset extentOffset,
         Message& message
     ) override;

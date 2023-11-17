@@ -102,7 +102,6 @@ public:
         const FlatMessage<FlatBuffers::LoggedRowWrite>& loggedRowWrite
     ) override
     {
-        auto indexNumber = loggedRowWrite->index_number();
         auto partitionNumber = loggedRowWrite->partition_number();
 
         // If we check with a read lock (which is cheaper globally,
@@ -127,8 +126,6 @@ public:
     {
         auto lock = co_await m_lock.writer().scoped_lock_async();
         
-        auto indexNumber = loggedCheckpoint->index_number();
-
         for (auto partitionNumber : *loggedCheckpoint->partition_number())
         {
             m_allExistingPartitions.erase(partitionNumber);

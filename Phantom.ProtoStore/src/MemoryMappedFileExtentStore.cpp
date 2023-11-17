@@ -520,6 +520,9 @@ shared_task<> MemoryMappedWritableExtent::Flush()
         flushMap);
 }
 
+// Disable warning assignment within conditional expression
+#pragma warning (push)
+#pragma warning (disable: 4706)
 task<> MemoryMappedWritableExtent::Flush(
     shared_ptr<mapped_region>& mappedRegion,
     flush_region flushRegion
@@ -555,6 +558,7 @@ task<> MemoryMappedWritableExtent::Flush(
     co_await flushTask;
     co_await m_schedulers.ComputeScheduler->schedule();
 }
+#pragma warning (pop)
 
 MemoryMappedFileExtentStore::MemoryMappedFileExtentStore(
     Schedulers schedulers,

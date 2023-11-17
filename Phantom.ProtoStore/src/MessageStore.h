@@ -10,10 +10,17 @@ namespace Phantom::ProtoStore
     class IRandomMessageReader
     {
     public:
+        // Read a message at the given offset.
+        // If there is no message at that offset,
+        // return a null DataReference.
         virtual task<DataReference<StoredMessage>> Read(
             ExtentOffset extentOffset
         ) = 0;
 
+        // Read a message at the given offset.
+        // If there is no message at that offset,
+        // return a null DataReference.
+        //[[deprecated]]
         virtual task<DataReference<StoredMessage>> Read(
             ExtentOffset extentOffset,
             Message& message

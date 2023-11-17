@@ -48,9 +48,6 @@ shared_ptr<const Schema> SchemaDescriptions::MakeSchema(
     auto getProtocolBufferDescriptor = [&](const FlatBuffers::ProtocolBuffersSchemaDescription* description)
     {
         auto messageDescription = description->message_description();
-        auto generatedDescriptorPool = google::protobuf::DescriptorPool::generated_pool();
-        auto generatedDescriptor = generatedDescriptorPool->FindMessageTypeByName(
-            messageDescription->message_name()->str());
 
         std::string fileDescriptorSetString(
             reinterpret_cast<const char*>(messageDescription->file_descriptors()->data()),
@@ -521,7 +518,7 @@ uint32_t SchemaDescriptions::FindObjectIndex(
     const reflection::Object* object
 )
 {
-    for (auto index = 0; index < schema->objects()->size(); ++index)
+    for (flatbuffers::uoffset_t index = 0; index < schema->objects()->size(); ++index)
     {
         if (object == schema->objects()->Get(index))
         {

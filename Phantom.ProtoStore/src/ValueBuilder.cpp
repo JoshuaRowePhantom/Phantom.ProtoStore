@@ -1,4 +1,5 @@
 #include "ValueComparer.h"
+#include "Phantom.ProtoStore/numeric_cast.h"
 #include "Resources.h"
 
 namespace Phantom::ProtoStore
@@ -652,7 +653,7 @@ flatbuffers::Offset<flatbuffers::VectorOfAny> ValueBuilder::CopyVectorDag(
         auto stringVector = reinterpret_cast<const flatbuffers::Vector<Offset<flatbuffers::String>>*>(vector);
         offsets.reserve(vector->size());
 
-        for (auto i = 0; i < stringVector->size(); ++i)
+        for (uoffset_t i = 0; i < stringVector->size(); ++i)
         {
             offsets.push_back(
                 builder().CreateSharedString(
@@ -669,7 +670,7 @@ flatbuffers::Offset<flatbuffers::VectorOfAny> ValueBuilder::CopyVectorDag(
         {
             std::vector<Offset<flatbuffers::Table>> offsets;
             auto objectVector = reinterpret_cast<const flatbuffers::Vector<Offset<flatbuffers::Table>>*>(vector);
-            for (auto i = 0; i < objectVector->size(); ++i)
+            for (flatbuffers::uoffset_t i = 0; i < objectVector->size(); ++i)
             {
                 offsets.push_back(
                     CopyTableDag(
@@ -878,7 +879,7 @@ void ValueBuilder::Hash(
             auto stringView = flatbuffers::GetStringView(
                 flatbuffers::GetFieldS(*table, *field)
             );
-            uint32_t size = stringView.size();
+            uint32_t size = numeric_cast(stringView.size());
             hash.process_bytes(&size, sizeof(size));
             hash.process_bytes(stringView.data(), size);
             break;
@@ -956,10 +957,10 @@ void ValueBuilder::Hash(
     case BaseType::String:
     {
         auto stringVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector);
-        for (auto i = 0; i < vectorSize; ++i)
+        for (flatbuffers::uoffset_t i = 0; i < vectorSize; ++i)
         {
             auto stringView = flatbuffers::GetStringView(stringVector->Get(i));
-            uint32_t size = stringView.size();
+            uint32_t size = numeric_cast(stringView.size());
             hash.process_bytes(&size, sizeof(size));
             hash.process_bytes(stringView.data(), size);
         }
@@ -974,7 +975,7 @@ void ValueBuilder::Hash(
         }
 
         auto objectVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector);
-        for (auto i = 0; i < vectorSize; ++i)
+        for (flatbuffers::uoffset_t i = 0; i < vectorSize; ++i)
         {
             Hash(
                 hash,
@@ -1001,7 +1002,7 @@ void ValueBuilder::Hash(
     }
 }
 
-int32_t ValueBuilder::GetEstimatedSize(
+size_t ValueBuilder::GetEstimatedSize(
     const reflection::Schema* schema,
     const reflection::Object* object,
     const flatbuffers::Table* table)
@@ -1026,7 +1027,7 @@ int32_t ValueBuilder::GetEstimatedSize(
     // Add 4 for file identifier.
     //
     // Add 2 for each field in the vtable.
-    int32_t result = 14 + 2 * object->fields()->size();
+    size_t result = 14 + 2 * object->fields()->size();
 
     auto sortedFields = GetSortedFields(
         object);
@@ -1116,7 +1117,7 @@ int32_t ValueBuilder::GetEstimatedSize(
     return result;
 }
 
-int32_t ValueBuilder::GetEstimatedSize(
+size_t ValueBuilder::GetEstimatedSize(
     const reflection::Schema* schema,
     const reflection::Type* type,
     const flatbuffers::VectorOfAny* vector
@@ -1126,7 +1127,7 @@ int32_t ValueBuilder::GetEstimatedSize(
 
     // 4 for offset, 3 for alignment
     // 4 for size, 3 for alignment
-    int32_t result = 14;
+    size_t result = 14;
 
     auto elementObject =
         type->element() == BaseType::Obj
@@ -1142,10 +1143,10 @@ int32_t ValueBuilder::GetEstimatedSize(
     case BaseType::String:
     {
         auto stringVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector);
-        for (auto i = 0; i < vectorSize; ++i)
+        for (flatbuffers::uoffset_t i = 0; i < vectorSize; ++i)
         {
             auto stringView = flatbuffers::GetStringView(stringVector->Get(i));
-            uint32_t size = stringView.size();
+            uint32_t size = numeric_cast(stringView.size());
             // 4 for offset to string,
             // 4 for size of string, 3 for alignment
             result += 4 + 4 + 3 + size;
@@ -1161,7 +1162,7 @@ int32_t ValueBuilder::GetEstimatedSize(
         }
 
         auto objectVector = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector);
-        for (auto i = 0; i < vectorSize; ++i)
+        for (flatbuffers::uoffset_t i = 0; i < vectorSize; ++i)
         {
             result += GetEstimatedSize(
                 schema,
@@ -1364,7 +1365,7 @@ bool ValueBuilder::Equals(
     {
         auto stringVector1 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector1);
         auto stringVector2 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(vector2);
-        for (auto i = 0; i < vectorSize; ++i)
+        for (flatbuffers::uoffset_t i = 0; i < vectorSize; ++i)
         {
             auto stringView1 = flatbuffers::GetStringView(stringVector1->Get(i));
             auto stringView2 = flatbuffers::GetStringView(stringVector2->Get(i));
@@ -1385,7 +1386,7 @@ bool ValueBuilder::Equals(
 
         auto objectVector1 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector1);
         auto objectVector2 = reinterpret_cast<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(vector2);
-        for (auto i = 0; i < vectorSize; ++i)
+        for (flatbuffers::uoffset_t i = 0; i < vectorSize; ++i)
         {
             if (!Equals(
                 schema,

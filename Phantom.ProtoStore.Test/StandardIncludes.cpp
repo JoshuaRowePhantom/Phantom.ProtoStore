@@ -1,4 +1,5 @@
 #include "StandardIncludes.h"
+#include "Phantom.ProtoStore/numeric_cast.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
 
@@ -30,10 +31,10 @@ std::string MakeRandomString(
     size_t length)
 {
     std::uniform_int_distribution<int> distribution('a', 'z');
-    string randomString(' ', length);
+    string randomString(length, ' ');
     for (int stringIndex = 0; stringIndex < randomString.size(); stringIndex++)
     {
-        randomString[stringIndex] = distribution(rng);
+        randomString[stringIndex] = numeric_cast(distribution(rng));
     }
     return randomString;
 }
@@ -82,7 +83,7 @@ shared_ptr<IExtentStore> MakeFilesystemStore(
         Schedulers::Default(),
         path.string(),
         ".dat",
-        4096,
+        blockSize,
         MemoryMappedFileExtentStore::ExtentDeleteAction::Rename
         );
 

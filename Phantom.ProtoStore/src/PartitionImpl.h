@@ -27,6 +27,9 @@ template<
 >
 using BloomFilterVersion1 = BloomFilter<SeedingPrngBloomFilterHashFunction<BloomFilterV1Hash>, char, Container>;
 
+// Disable warning "inherits ... via dominance"
+#pragma warning (push)
+#pragma warning (disable: 4250)
 class Partition
     :
     public IPartition,
@@ -74,22 +77,17 @@ class Partition
         EnumerateLastReturnedKey& lastReturnedKey
     );
 
-    int FindMatchingValueIndexByWriteSequenceNumber(
+    ptrdiff_t FindMatchingValueIndexByWriteSequenceNumber(
         const FlatBuffers::PartitionTreeEntryKey* keyEntry,
         SequenceNumber readSequenceNumber);
 
-    int FindTreeEntry(
-        const FlatMessage<PartitionMessage>& treeNode,
-        const FindTreeEntryKey& key
-    );
-
-    int FindLowTreeEntryIndex(
+    ptrdiff_t FindLowTreeEntryIndex(
         const FlatMessage<PartitionMessage>& treeNode,
         KeyRangeEnd low
     );
 
-    int FindHighTreeEntryIndex(
-        int lowTreeEntryIndex,
+    ptrdiff_t FindHighTreeEntryIndex(
+        ptrdiff_t lowTreeEntryIndex,
         const FlatMessage<PartitionMessage>& treeNode,
         KeyRangeEnd high
     );
@@ -178,4 +176,6 @@ public:
         const IntegrityCheckError& errorPrototype
     ) override;
 };
+#pragma warning (pop)
+
 }

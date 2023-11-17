@@ -2,6 +2,7 @@
 #include "ExtentName.h"
 #include "ExtentStore.h"
 #include "MessageStoreImpl.h"
+#include "Phantom.ProtoStore/numeric_cast.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
@@ -232,7 +233,7 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
 
     google::protobuf::io::ArrayInputStream messageStream(
         flatMessage->Content.Payload.data(),
-        flatMessage->Content.Payload.size()
+        numeric_cast(flatMessage->Content.Payload.size())
     );
 
     message.ParseFromZeroCopyStream(
@@ -372,11 +373,7 @@ ExtentOffsetRange RandomMessageWriter::GetWriteRange(
         messageSize,
         4);
 
-    uint32_t alignedMessageSize32 = alignedMessageSize;
-    if (alignedMessageSize32 != alignedMessageSize)
-    {
-        throw std::range_error("message.Message.size()");
-    }
+    uint32_t alignedMessageSize32 = numeric_cast(alignedMessageSize);
 
     return
     {
@@ -395,7 +392,7 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
         extentOffset,
         message.Header_V1(),
         message.Content.Alignment,
-        message.Content.Payload.size(),
+        numeric_cast(message.Content.Payload.size()),
         flushBehavior,
         [&](std::span<std::byte> messageWriteBuffer)
     {
@@ -417,13 +414,13 @@ task< DataReference<StoredMessage>> RandomMessageWriter::Write(
         extentOffset,
         nullptr,
         1,
-        message.ByteSizeLong(),
+        numeric_cast(message.ByteSizeLong()),
         flushBehavior,
         [&](std::span<std::byte> messageWriteBuffer)
     {
         google::protobuf::io::ArrayOutputStream stream(
             messageWriteBuffer.data(),
-            messageWriteBuffer.size());
+            numeric_cast(messageWriteBuffer.size()));
 
         message.SerializeToZeroCopyStream(&stream);
     });
@@ -457,7 +454,7 @@ task<DataReference<StoredMessage>> SequentialMessageReader::Read(
     auto readResult = co_await Read();
     google::protobuf::io::ArrayInputStream stream(
         readResult->Content.Payload.data(),
-        readResult->Content.Payload.size()
+        numeric_cast(readResult->Content.Payload.size())
     );
     message.ParseFromZeroCopyStream(
         &stream);
@@ -487,7 +484,7 @@ task<DataReference<StoredMessage>> SequentialMessageWriter::Write(
         writeRange = m_randomMessageWriter->GetWriteRange(
             writeOffset,
             flatMessage.Content.Alignment,
-            flatMessage.Content.Payload.size());
+            numeric_cast(flatMessage.Content.Payload.size()));
     } while (!m_currentOffset.compare_exchange_weak(
         writeOffset,
         writeRange.End,
@@ -514,7 +511,7 @@ task<DataReference<StoredMessage>> SequentialMessageWriter::Write(
         writeRange = m_randomMessageWriter->GetWriteRange(
             writeOffset,
             1,
-            message.ByteSizeLong());
+            numeric_cast(message.ByteSizeLong()));
     } while (!m_currentOffset.compare_exchange_weak(
         writeOffset,
         writeRange.End,

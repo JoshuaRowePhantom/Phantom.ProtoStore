@@ -168,7 +168,7 @@ struct AlignedMessage
     explicit AlignedMessage(
         const flatbuffers::FlatBufferBuilder& builder
     ) :
-        Alignment(builder.GetBufferMinAlignment()),
+        Alignment(static_cast<uint8_t>(builder.GetBufferMinAlignment())),
         Payload(as_bytes(builder.GetBufferSpan()))
     {}
 };
@@ -506,8 +506,10 @@ public:
         {
             return static_cast<const TMessage*>(message);
         }
-
-        return nullptr;
+        else
+        {
+            return nullptr;
+        }
     }
 
     template<

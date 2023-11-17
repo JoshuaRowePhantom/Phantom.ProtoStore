@@ -92,7 +92,7 @@ row_generator RowMerger::FilterTopLevelMergeSnapshotWindowRows(
 )
 {
     ProtoValue previousKey;
-    SequenceNumber previousSequenceNumber;
+    SequenceNumber previousSequenceNumber = {};
 
     for (auto iterator = co_await source.begin();
         iterator != source.end();

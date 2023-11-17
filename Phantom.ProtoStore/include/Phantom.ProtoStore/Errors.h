@@ -30,7 +30,8 @@ struct UnresolvedTransaction
         ) = default;
 };
 
-enum class TransactionOutcome {
+enum class TransactionOutcome : uint8_t
+{
     Unknown = 0,
     Committed = 1,
     Aborted = 2,

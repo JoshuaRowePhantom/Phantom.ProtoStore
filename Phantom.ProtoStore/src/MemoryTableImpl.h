@@ -10,6 +10,9 @@
 namespace Phantom::ProtoStore
 {
 
+// Disable warning "inherits ... via dominance"
+#pragma warning (push)
+#pragma warning (disable: 4250)
 class MemoryTable
     :
     public IMemoryTable,
@@ -232,5 +235,6 @@ public:
     virtual row_generator Checkpoint(
     ) override;
 };
+#pragma warning (pop)
 
 }

@@ -69,7 +69,7 @@ struct SkipListTraits<
     }
 
     static void_tag get_value(
-        value_type& value
+        value_type&
     )
     {
         return void_tag();
@@ -138,7 +138,7 @@ private:
             typename TConstructedKey
         > Node(
             TConstructedKey&& key,
-            detail::void_tag value)
+            detail::void_tag)
             :
             Item(
                 std::forward<TConstructedKey>(key)

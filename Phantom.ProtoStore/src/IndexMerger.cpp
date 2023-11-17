@@ -284,8 +284,8 @@ task<> IndexMerger::WriteMergeProgress(
 
 task<> IndexMerger::WriteMergeCompletion(
     IInternalTransaction* operation,
-    const ExtentNameT& headerExtentName,
-    const ExtentNameT& dataExtentName,
+    const ExtentNameT& mergedHeaderExtentName,
+    const ExtentNameT& mergedDataExtentName,
     const IncompleteMerge& incompleteMerge,
     const WriteRowsResult& writeRowsResult)
 {
@@ -306,7 +306,7 @@ task<> IndexMerger::WriteMergeCompletion(
     {
         co_await WriteMergedPartitionsTableHeaderExtentNumbers(
             operation,
-            headerExtentName,
+            mergedHeaderExtentName,
             incompleteMerge);
     }
 
@@ -367,13 +367,11 @@ task<> IndexMerger::WriteMergeCompletion(
             &completePartitionsValue);
     }
 
-    PartitionNumber partitionsTablePartitionNumber;
-    
     // Add a Partitions row for the newly completed Partition.
     {
         PartitionsKeyT completePartitionsKey;
         completePartitionsKey.index_number = indexNumber;
-        completePartitionsKey.header_extent_name = copy_unique(*headerExtentName.extent_name.AsIndexHeaderExtentName());
+        completePartitionsKey.header_extent_name = copy_unique(*mergedHeaderExtentName.extent_name.AsIndexHeaderExtentName());
 
         PartitionsValueT completePartitionsValue;
         completePartitionsValue.merge_unique_id.reset(incompleteMerge.Merge.Key->UnPack());
@@ -628,8 +626,6 @@ task<> IndexMerger::GenerateMerges(
                 move(mergesRow));
         }
     }
-
-    bool result = false;
 
     for (auto indexNumberAndPartitions : partitionRowsByIndexNumber)
     {

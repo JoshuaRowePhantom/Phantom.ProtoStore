@@ -317,7 +317,7 @@ public:
         const ProtoValue& value
     ) const override;
 
-    virtual int32_t GetEstimatedSize(
+    virtual size_t GetEstimatedSize(
         const ProtoValue& value
     ) const override;
 };

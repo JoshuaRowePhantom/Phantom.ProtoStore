@@ -93,15 +93,8 @@ enum class FlushBehavior
     Flush = 1,
 };
 
-class WriteRowsResult;
+struct WriteRowsResult;
 class MergeParameters;
-
-namespace Serialization
-{
-enum TransactionOutcome;
-class UnresolvedTransactionKey;
-class UnresolvedTransactionValue;
-}
 
 namespace FlatBuffers
 {
@@ -282,8 +275,6 @@ public:
     using DataValueT = FlatBuffers::DataValueT;
     using MessageReference_V1 = FlatBuffers::MessageReference_V1;
     using MessageHeader_V1 = FlatBuffers::MessageHeader_V1;
-    using UnresolvedTransactionKey = Serialization::UnresolvedTransactionKey;
-    using UnresolvedTransactionValue = Serialization::UnresolvedTransactionValue;
 
     //using ExtentName = FlatBuffers::ExtentName;
     //using ExtentNameT = FlatBuffers::ExtentNameT;
@@ -300,7 +291,7 @@ public:
     using Offset = flatbuffers::Offset<T>;
 };
 
-class ExtentName;
+struct ExtentName;
 using TransactionId = std::string_view;
 using TransactionIdReference = std::shared_ptr<const flatbuffers::String>;
 typedef ExtentName MergeId;

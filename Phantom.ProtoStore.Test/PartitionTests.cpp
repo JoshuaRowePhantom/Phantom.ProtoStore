@@ -407,13 +407,13 @@ ASYNC_TEST_F(PartitionTests, Can_point_read_single_existing_key)
     co_await testPartitionBuilder.WriteHeader(
         "{ header: { partition_root: " + ToJson(&rootReference) + " } }");
 
-    auto schema = Schema::Make(
+    schema = std::make_shared<Schema>(Schema::Make(
         { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringKey_Object },
         { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object }
-    );
+    ));
 
     auto partition = co_await testPartitionBuilder.OpenPartition(
-        schema);
+        *schema);
 
     auto keyProto = JsonToProtoValue<FlatBuffers::FlatStringKey>(R"({ value: "hello world" })");
     auto valueProto = JsonToProtoValue<FlatBuffers::FlatStringValue>(R"({ value: "goodbye world" })");
@@ -423,8 +423,8 @@ ASYNC_TEST_F(PartitionTests, Can_point_read_single_existing_key)
         keyProto,
         ReadValueDisposition::ReadValue);
 
-    auto keyComparer = SchemaDescriptions::MakeKeyComparer(copy_shared(schema));
-    auto valueComparer = SchemaDescriptions::MakeValueComparer(copy_shared(schema));
+    keyComparer = SchemaDescriptions::MakeKeyComparer(schema);
+    auto valueComparer = SchemaDescriptions::MakeValueComparer(schema);
 
     auto iterator = co_await readResult.begin();
     EXPECT_FALSE(iterator == readResult.end());
@@ -467,13 +467,13 @@ ASYNC_TEST_F(PartitionTests, Read_of_nonexistent_key_from_one_level_returns_noth
     co_await testPartitionBuilder.WriteHeader(
         "{ header: { partition_root: " + ToJson(&rootReference) + " } }");
 
-    auto schema = Schema::Make(
+    schema = copy_shared(Schema::Make(
         { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringKey_Object },
         { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object }
-    );
+    ));
 
     auto partition = co_await testPartitionBuilder.OpenPartition(
-        schema);
+        *schema);
 
     auto key0Proto = JsonToProtoValue<FlatBuffers::FlatStringKey>(R"({ value: "hello world 0" })");
     auto key2Proto = JsonToProtoValue<FlatBuffers::FlatStringKey>(R"({ value: "hello world 2" })");
@@ -555,13 +555,13 @@ ASYNC_TEST_F(PartitionTests, Can_EnumeratePrefix_from_one_tree_node)
     co_await testPartitionBuilder.WriteHeader(
         "{ header: { partition_root: " + ToJson(&rootReference) + " } }");
 
-    auto schema = Schema::Make(
+    schema = copy_shared(Schema::Make(
         { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_TestKey_Object },
         { FlatBuffersTestSchemas::TestSchema, FlatBuffersTestSchemas::Test_FlatStringValue_Object }
-    );
+    ));
 
     auto partition = co_await testPartitionBuilder.OpenPartition(
-        schema);
+        *schema);
 
     auto key_2_1_protoValue = JsonToProtoValue<FlatBuffers::TestKey>(
         R"({ short_value: 2, ushort_value: 1 })");
@@ -580,8 +580,8 @@ ASYNC_TEST_F(PartitionTests, Can_EnumeratePrefix_from_one_tree_node)
         Prefix { key_2_2_protoValue, 4 },
         ReadValueDisposition::ReadValue);
 
-    auto keyComparer = SchemaDescriptions::MakeKeyComparer(copy_shared(schema));
-    auto valueComparer = SchemaDescriptions::MakeValueComparer(copy_shared(schema));
+    keyComparer = SchemaDescriptions::MakeKeyComparer(schema);
+    auto valueComparer = SchemaDescriptions::MakeValueComparer(schema);
 
     auto iterator = co_await readResult.begin();
     EXPECT_FALSE(iterator == readResult.end());

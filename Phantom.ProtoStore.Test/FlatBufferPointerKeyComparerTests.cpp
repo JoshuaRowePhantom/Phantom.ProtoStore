@@ -109,7 +109,7 @@ template<
     Value zero = 0;
     Value highest = std::numeric_limits<Value>::max();
 
-    return DoFlatBufferValueComparerTableFieldTest(
+    DoFlatBufferValueComparerTableFieldTest(
         member,
         lowest,
         highest
@@ -117,14 +117,14 @@ template<
 
     if (lowest != zero)
     {
-        return DoFlatBufferValueComparerTableFieldTest(
+        DoFlatBufferValueComparerTableFieldTest(
             member,
             lowest,
             zero
         );
     }
 
-    return DoFlatBufferValueComparerTableFieldTest(
+    DoFlatBufferValueComparerTableFieldTest(
         member,
         zero,
         highest
@@ -447,6 +447,59 @@ TEST(FlatBufferValueComparerTests, struct_primitive_types)
     DoFlatBufferValueComparerStructNumericTest(&TestKeyStruct::mutate_uint_value);
     DoFlatBufferValueComparerStructNumericTest(&TestKeyStruct::mutate_ulong_value);
     DoFlatBufferValueComparerStructNumericTest(&TestKeyStruct::mutate_ushort_value);
+}
+
+template<
+    typename Type,
+    uint16_t Length
+>
+void DoFlatBufferValueComparerStructNumericArrayTest(
+    ::flatbuffers::Array<Type, Length>* (TestKeyStruct::* mutableArrayAccessor)()
+)
+{
+    TestKeyT low;
+    TestKeyT zero;
+    TestKeyT high;
+
+    low.struct_value = std::make_unique<TestKeyStruct>();
+    zero.struct_value = std::make_unique<TestKeyStruct>();
+    high.struct_value = std::make_unique<TestKeyStruct>();
+
+    auto lowValue = std::numeric_limits<Type>::lowest();
+    auto highValue = std::numeric_limits<Type>::max();
+
+    (low.struct_value.get()->*mutableArrayAccessor)()->Mutate(1, lowValue);
+    (high.struct_value.get()->*mutableArrayAccessor)()->Mutate(1, highValue);
+
+    if (lowValue != 0)
+    {
+        DoFlatBufferValueComparerTest(
+            low,
+            zero);
+    }
+
+    DoFlatBufferValueComparerTest(
+        low,
+        high);
+
+    DoFlatBufferValueComparerTest(
+        zero,
+        high);
+}
+
+TEST(FlatBufferValueComparerTests, struct_array_types)
+{
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_byte_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_ubyte_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_bool_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_short_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_ushort_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_int_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_uint_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_float_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_long_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_ulong_array);
+    DoFlatBufferValueComparerStructNumericArrayTest(&TestKeyStruct::mutable_double_array);
 }
 
 TEST(FlatBufferValueComparerTests, table_primitive_descending)

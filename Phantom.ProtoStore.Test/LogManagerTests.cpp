@@ -23,7 +23,7 @@ protected:
         shared_ptr<IMessageStore> logMessageStore;
     };
 
-    LogManagerTest CreateTest(
+    task<LogManagerTest> CreateTest(
         std::string testName,
         const DatabaseHeaderT& header = DatabaseHeaderT{}
     )
@@ -41,7 +41,7 @@ protected:
             &header
         );
 
-        return LogManagerTest
+        co_return LogManagerTest
         {
             .logManager = logManager,
             .logExtentStore = logExtentStore,
@@ -53,7 +53,7 @@ protected:
 ASYNC_TEST_F(LogManagerTests, Can_create_and_destroy)
 {
     DatabaseHeaderT header;
-    auto logManagerTest = CreateTest(
+    auto logManagerTest = co_await CreateTest(
         "Can_create_and_destroy",
         header);
     co_return;
