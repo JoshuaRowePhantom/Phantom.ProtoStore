@@ -364,7 +364,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_add)
 
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_enumerate_one_row_after_checkpoint)
 {
-    auto store = co_await CreateMemoryStore();
+    auto store = co_await CreateTestStore("Can_enumerate_one_row_after_checkpoint");
 
     auto index = co_await CreateTestFlatBufferIndex(
         store);

@@ -882,7 +882,6 @@ task<> Partition::CheckChildTreeEntryIntegrity(
             auto error = errorPrototype;
             error.Code = IntegrityCheckErrorCode::Partition_KeyOutOfMaxRange;
             errorList.push_back(error);
-            errorList.push_back(error);
             co_return;
         }
     }

@@ -39,7 +39,7 @@ task<> DumpPartition(
         flatbuffers::Verifier verifier(
             span.data(),
             span.size());
-        if (!verifier.VerifyBuffer<FlatBuffers::LogRecord>())
+        if (!verifier.VerifyBuffer<FlatBuffers::PartitionMessage>())
         {
             std::cout << "Invalid message!\n";
         }
@@ -51,7 +51,7 @@ task<> DumpPartition(
                 FlatBuffers::PartitionMessageTypeTable(),
                 true,
                 true,
-                "  "),
+                "    "),
             readMessageResult->DataRange.Beginning);
     } while (true);
 

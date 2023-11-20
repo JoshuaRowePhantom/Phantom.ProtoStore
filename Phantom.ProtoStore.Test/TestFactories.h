@@ -332,6 +332,14 @@ protected:
         co_return co_await CreateStore(
             GetCreateMemoryStoreRequest());
     }
+    
+    task<shared_ptr<IProtoStore>> CreateTestStore(
+        std::string testName)
+    {
+        co_return co_await CreateStore(
+            GetCreateTestStoreRequest(
+                testName));
+    }
 
     task<shared_ptr<IProtoStore>> OpenStore(
         const OpenProtoStoreRequest& request

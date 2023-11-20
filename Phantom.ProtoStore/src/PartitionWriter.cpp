@@ -177,14 +177,14 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
     // We need to flush the next higher level IF
     // the higher level exists AND adding the highest key in this level to the next level
     // would cause it to exceed its size target.
-    if (propagateKeyToParent)
+    if (hasParent)
     {
         StackEntry& next = m_treeNodeStack[level + 1];
         auto approximateSize = current->estimatedHighestKeySize + 100;
         if (next.partitionTreeNodeValueBuilder->builder().GetSize() + approximateSize > m_writeRowsRequest.targetMessageSize
             &&
             // We must only flush key entries when there is at least two keys in it,
-            // otherwise the tree will grow indefinitely large.
+            // otherwise the tree will grow indefinitely deep.
             current->keyOffsets.size() >= 2)
         {
             // Note that we don't forward the value of "isFinishing",
@@ -222,6 +222,8 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::Flush(
         if (!parent)
         {
             parent = &m_treeNodeStack.emplace_back(StackEntry());
+            // Pushing onto the tree node stack invalidates the pointer to the current node.
+            current = &m_treeNodeStack[level];
         }
 
         parent->highestKey = std::move(current->highestKey);
@@ -268,7 +270,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
     DataValueOffset currentKeyOffset;
     PartitionTreeEntryVector currentValues;
 
-    auto& partitionTreeNodeValueBuilder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
+    auto partitionTreeNodeValueBuilder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
     auto& partitionTreeNodeBuilder = partitionTreeNodeValueBuilder->builder();
 
     for (;
@@ -291,8 +293,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             row.Value);
 
         auto approximateRowSize =
-            approximateNeededExtentSize
-            + estimatedKeySize
+            estimatedKeySize
             + estimatedValueSize
             + 100;
 
@@ -301,7 +302,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             approximateRowSize += row.TransactionId->size() + 16;
         }
 
-        if ((co_await m_dataWriter->CurrentOffset() + partitionTreeNodeBuilder.GetSize() + approximateRowSize) > m_writeRowsRequest.targetExtentSize)
+        if ((co_await m_dataWriter->CurrentOffset() + partitionTreeNodeBuilder.GetSize() + approximateRowSize + approximateNeededExtentSize) > m_writeRowsRequest.targetExtentSize)
         {
             // We need enough space left in the extent to write the bloom filter,
             // root, and remaining stack entries, 
