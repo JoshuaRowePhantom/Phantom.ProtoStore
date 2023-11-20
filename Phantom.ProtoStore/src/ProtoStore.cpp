@@ -1456,7 +1456,7 @@ task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
             index,
             headerExtentName);
 
-                auto lock = co_await partitionsMutex.scoped_lock_async();
+        auto lock = co_await partitionsMutex.scoped_lock_async();
         partitions.push_back(
             partition);
             });

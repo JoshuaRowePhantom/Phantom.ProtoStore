@@ -1,4 +1,8 @@
 #include "StandardIncludes.h"
+#include "Phantom.Coroutines/async_scope.h"
+#include "Phantom.Coroutines/static_thread_pool.h"
+#include "Phantom.Coroutines/task.h"
+#include "Phantom.Coroutines/sync_wait.h"
 #include "Phantom.ProtoStore/numeric_cast.h"
 #include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MemoryMappedFileExtentStore.h"
@@ -44,16 +48,33 @@ std::vector<std::string> MakeRandomStrings(
     size_t stringLength,
     size_t stringCount)
 {
+    Phantom::Coroutines::async_scope<> scope;
+    Phantom::Coroutines::static_thread_pool threadPool;
     std::vector<std::string> strings;
-    strings.reserve(stringCount);
+    strings.resize(stringCount);
 
-    for (int stringCounter = 0; stringCounter < stringCount; stringCounter++)
+    auto outerSeed = rng();
+    auto parallelism = threadPool.thread_count();
+    auto stringsPerThread = stringCount / parallelism;
+    auto thread = [&](size_t start, size_t end) -> task<>
     {
-        strings.push_back(
-            MakeRandomString(
-                rng,
-                stringLength));
+        co_await threadPool.schedule();
+        for (size_t stringIndex = start; stringIndex < end; ++stringIndex)
+        {
+            auto perStringRng = rng;
+            std::seed_seq seed{ outerSeed, stringIndex};
+            perStringRng.seed(seed);
+            strings[stringIndex] = MakeRandomString(
+                perStringRng,
+                stringLength);
+        }
+    };
+
+    for (size_t stringCounter = 0; stringCounter < stringCount; stringCounter += stringsPerThread)
+    {
+        scope.spawn(thread(stringCounter, std::min(stringCounter + stringsPerThread, stringCount)));
     }
+    Phantom::Coroutines::sync_wait(scope.join());
 
     return strings;
 }

@@ -1492,60 +1492,64 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
 
     cppcoro::async_scope asyncScope;
 
-    for (auto value : keys)
-    {
-        asyncScope.spawn([&](string myKey) -> task<>
+    auto addRow = [&](const string& myKey) -> task<>
         {
             co_await threadPool.schedule();
 
-        FlatStringKeyT key;
-        key.value = myKey;
-        FlatStringValueT expectedValue;
-        expectedValue.value = myKey;
+            FlatStringKeyT key;
+            key.value = myKey;
+            FlatStringValueT expectedValue;
+            expectedValue.value = myKey;
 
-        co_await store->ExecuteTransaction(
-            BeginTransactionRequest(),
-            [&](ITransaction* operation)->status_task<>
-        {
-            co_await co_await operation->AddRow(
-                WriteOperationMetadata{},
-                index,
-                &key,
-                &expectedValue);
+            co_await store->ExecuteTransaction(
+                BeginTransactionRequest(),
+                [&](ITransaction* operation)->status_task<>
+                {
+                    co_await co_await operation->AddRow(
+                        WriteOperationMetadata{},
+                        index,
+                        &key,
+                        &expectedValue);
 
-        co_return{};
-        });
-        }(value));
+                    co_return{};
+                });
+        };
+
+    for (auto& value : keys)
+    {
+        asyncScope.spawn(addRow(value));
     }
 
     co_await asyncScope.join();
 
     std::vector<task<>> tasks;
 
-    for (auto value : keys)
-    {
-        tasks.push_back([&](string myKey) -> task<>
+    auto readKey = [&](const string& myKey) -> task<>
         {
             co_await threadPool.schedule();
 
-        FlatStringKeyT key;
-        key.value = myKey;
-        FlatStringValueT expectedValue;
-        expectedValue.value = myKey;
+            FlatStringKeyT key;
+            key.value = myKey;
+            FlatStringValueT expectedValue;
+            expectedValue.value = myKey;
 
-        ReadRequest readRequest;
-        readRequest.Key = &key;
-        readRequest.Index = index;
+            ReadRequest readRequest;
+            readRequest.Key = &key;
+            readRequest.Index = index;
 
-        auto readResult = co_await store->Read(
-            readRequest
-        );
+            auto readResult = co_await store->Read(
+                readRequest
+            );
 
-        FlatStringValueT actualValue;
-        readResult->Value.unpack(&actualValue);
+            FlatStringValueT actualValue;
+            readResult->Value.unpack(&actualValue);
 
-        EXPECT_EQ(actualValue, expectedValue);
-        }(value));
+            EXPECT_EQ(actualValue, expectedValue);
+        };
+
+    for (auto& value : keys)
+    {
+        tasks.push_back(readKey(value));
     }
 
     for (auto& task : tasks)
