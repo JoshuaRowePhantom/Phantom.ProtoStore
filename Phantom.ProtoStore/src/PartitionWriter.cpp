@@ -272,6 +272,7 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
 
     auto partitionTreeNodeValueBuilder = m_treeNodeStack.front().partitionTreeNodeValueBuilder;
     auto& partitionTreeNodeBuilder = partitionTreeNodeValueBuilder->builder();
+    auto rowCountSinceFlush = 0;
 
     for (;
         iterator != m_writeRowsRequest.rows->end();
@@ -302,7 +303,9 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             approximateRowSize += row.TransactionId->size() + 16;
         }
 
-        if ((co_await m_dataWriter->CurrentOffset() + partitionTreeNodeBuilder.GetSize() + approximateRowSize + approximateNeededExtentSize) > m_writeRowsRequest.targetExtentSize)
+        if (m_writeRowsResult.rowsWritten >= 2
+            &&
+            (co_await m_dataWriter->CurrentOffset() + partitionTreeNodeBuilder.GetSize() + approximateRowSize + approximateNeededExtentSize) > m_writeRowsRequest.targetExtentSize)
         {
             // We need enough space left in the extent to write the bloom filter,
             // root, and remaining stack entries, 
@@ -314,7 +317,9 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             co_await Flush(0, false);
             break;
         }
-        if (partitionTreeNodeBuilder.GetSize() + approximateRowSize > m_writeRowsRequest.targetMessageSize)
+        if (rowCountSinceFlush > 2
+            &&
+            partitionTreeNodeBuilder.GetSize() + approximateRowSize > m_writeRowsRequest.targetMessageSize)
         {
             // We need enough space left in the message to write the key entry,
             // so finish up this message.
@@ -323,8 +328,11 @@ task<FlatBuffers::MessageReference_V1> PartitionTreeWriter::WriteRows()
             );
 
             co_await Flush(0, false);
+
+            rowCountSinceFlush = 0;
         }
 
+        ++rowCountSinceFlush;
         ++m_writeRowsResult.rowsIterated;
         ++m_writeRowsResult.rowsWritten;
         m_writeRowsResult.earliestSequenceNumber = ToSequenceNumber(std::min(

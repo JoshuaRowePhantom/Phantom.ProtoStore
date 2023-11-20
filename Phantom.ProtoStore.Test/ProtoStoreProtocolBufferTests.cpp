@@ -526,8 +526,7 @@ ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_enumerate_one_row_after_two_part
 }
 ASYNC_TEST_F(ProtoStoreProtocolBufferTests, Can_read_and_write_rows_after_checkpoints_and_merges)
 {
-    //auto createRequest = GetCreateFileStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
-    auto createRequest = GetCreateMemoryStoreRequest();
+    auto createRequest = GetCreateTestStoreRequest("Can_read_and_write_rows_after_checkpoints_and_merges");
     createRequest.DefaultMergeParameters.set_mergesperlevel(2);
     createRequest.DefaultMergeParameters.set_maxlevel(3);
     //auto createRequest = GetCreateMemoryStoreRequest();
