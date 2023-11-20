@@ -12,6 +12,7 @@ namespace Phantom::ProtoStore
 {
 
 Index::Index(
+    Schedulers schedulers,
     string indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
@@ -22,6 +23,7 @@ Index::Index(
     FlatValue<FlatBuffers::Metadata> metadata
 )
     :
+    m_schedulers(std::move(schedulers)),
     m_indexName(std::move(indexName)),
     m_indexNumber(indexNumber),
     m_createSequenceNumber(createSequenceNumber),
@@ -61,6 +63,7 @@ operation_task<PartitionNumber> Index::AddRow(
     shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome)
 {
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
+    co_await m_schedulers.LockScheduler->schedule();
 
     auto partitionNumber = m_indexDataSourcesSelector->ActiveMemoryTablePartitionNumber();
     auto row = co_await createLoggedRowWrite(
@@ -439,6 +442,7 @@ task<> Index::Join()
 }
 
 std::shared_ptr<IIndex> MakeIndex(
+    Schedulers schedulers,
     IndexName indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,
@@ -450,6 +454,7 @@ std::shared_ptr<IIndex> MakeIndex(
 )
 {
     return std::make_shared<Index>(
+        std::move(schedulers),
         std::move(indexName),
         indexNumber,
         createSequenceNumber,

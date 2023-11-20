@@ -75,6 +75,7 @@ public:
 };
 
 std::shared_ptr<IIndex> MakeIndex(
+    Schedulers schedulers,
     IndexName indexName,
     IndexNumber indexNumber,
     SequenceNumber createSequenceNumber,

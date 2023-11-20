@@ -1677,7 +1677,8 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 #ifdef NDEBUG
         int threadCount = valueCount;
 #else
-        int threadCount = 1;
+        int threadCount = valueCount;
+        //int threadCount = 1;
 #endif
         auto readItemLambda = [&](int threadNumber) -> shared_task<>
         {
@@ -1735,7 +1736,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
     };
 
     co_await readLambda();
-
+    co_return;
 
     auto readNonExistentLambda = [&]() -> task<>
     {
@@ -1744,7 +1745,8 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 #ifdef NDEBUG
         int threadCount = 50;
 #else
-        int threadCount = 1;
+        int threadCount = 50;
+        //int threadCount = 1;
 #endif
         auto readItemsLambda = [&](int threadNumber) -> shared_task<>
         {

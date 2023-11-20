@@ -33,6 +33,7 @@ task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
         schemaPtr);
 
     auto index = MakeIndex(
+        Schedulers::Inline(),
         indexName,
         indexNumber,
         ToSequenceNumber(0),

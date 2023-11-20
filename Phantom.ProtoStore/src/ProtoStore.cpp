@@ -1116,6 +1116,7 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
     );
 
     auto index = Phantom::ProtoStore::MakeIndex(
+        m_schedulers,
         indexesByNumberValue->index_name()->str(),
         indexesByNumberKey->index_number(),
         ToSequenceNumber(indexesByNumberValue->create_sequence_number()),

@@ -13,6 +13,7 @@ namespace Phantom::ProtoStore
 class Index
     : public IIndex
 {
+    const Schedulers m_schedulers;
     const shared_ptr<const Schema> m_schema;
     const shared_ptr<const ValueComparer> m_keyComparer;
     const shared_ptr<const ValueComparer> m_valueComparer;
@@ -35,6 +36,7 @@ class Index
 
 public:
     Index(
+        Schedulers m_schedulers,
         IndexName indexName,
         IndexNumber indexNumber,
         SequenceNumber createSequenceNumber,
