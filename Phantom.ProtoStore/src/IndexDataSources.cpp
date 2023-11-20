@@ -48,13 +48,19 @@ task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
         loggedCheckpoint.partition_number.push_back(m_activeMemoryTablePartitionNumber);
         m_checkpointingMemoryTables[m_activeMemoryTablePartitionNumber] = std::move(m_activeMemoryTable);
 
-        m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
+        auto activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
             m_index,
             0,
             m_activeMemoryTable);
+
+        m_activeMemoryTablePartitionNumber.store(
+            activeMemoryTablePartitionNumber,
+            std::memory_order_release);
     }
 
-    co_await UpdateIndexDataSources();
+    co_await UpdateIndexDataSources(
+        lock,
+        m_activeMemoryTablePartitionNumber.load(std::memory_order_relaxed));
 
     co_return loggedCheckpoint;
 }
@@ -101,7 +107,9 @@ task<> IndexDataSources::UpdatePartitions(
 
         m_partitions = partitions;
 
-        co_await UpdateIndexDataSources();
+        co_await UpdateIndexDataSources(
+            lock,
+            m_activeMemoryTablePartitionNumber.load(std::memory_order_relaxed));
     }
 
     for (auto& oldMemoryTable : oldMemoryTables)
@@ -110,8 +118,12 @@ task<> IndexDataSources::UpdatePartitions(
     }
 }
 
-task<> IndexDataSources::UpdateIndexDataSources()
+task<> IndexDataSources::UpdateIndexDataSources(
+    cppcoro::async_mutex::lock_type& dataSourcesLock,
+    PartitionNumber activeMemoryTablePartitionNumber)
 {
+    std::ignore = dataSourcesLock;
+
     vector<shared_ptr<IMemoryTable>> inactiveMemoryTables;
 
     for (auto memoryTable : m_checkpointingMemoryTables)
@@ -129,7 +141,7 @@ task<> IndexDataSources::UpdateIndexDataSources()
     co_await m_index->SetDataSources(
         std::make_shared<IndexDataSourcesSelector>(
             m_activeMemoryTable,
-            m_activeMemoryTablePartitionNumber,
+            activeMemoryTablePartitionNumber,
             inactiveMemoryTables,
             m_partitions));
 }
@@ -137,14 +149,26 @@ task<> IndexDataSources::UpdateIndexDataSources()
 task<> IndexDataSources::EnsureHasActiveMemoryTable(
 )
 {
-    if (!m_activeMemoryTable)
+    if (!m_activeMemoryTablePartitionNumber.load(std::memory_order_acquire))
     {
-        m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
-            m_index,
-            0,
-            m_activeMemoryTable);
+        auto lock = co_await m_dataSourcesLock.scoped_lock_async();
 
-        co_await UpdateIndexDataSources();
+        if (!m_activeMemoryTablePartitionNumber.load(std::memory_order_relaxed))
+        {
+            auto activeMemoryTablePartitionNumber = 
+                co_await m_protoStore->CreateMemoryTable(
+                    m_index,
+                    0,
+                    m_activeMemoryTable);
+
+            co_await UpdateIndexDataSources(
+                lock,
+                activeMemoryTablePartitionNumber);
+
+            m_activeMemoryTablePartitionNumber.store(
+                activeMemoryTablePartitionNumber,
+                std::memory_order_release);
+        }
     }
 }
 

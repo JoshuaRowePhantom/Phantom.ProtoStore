@@ -17,14 +17,16 @@ class IndexDataSources
 
     vector<shared_ptr<IPartition>> m_partitions;
     shared_ptr<IMemoryTable> m_activeMemoryTable;
-    PartitionNumber m_activeMemoryTablePartitionNumber;
+    std::atomic<PartitionNumber> m_activeMemoryTablePartitionNumber;
     
     std::map<PartitionNumber, shared_ptr<IMemoryTable>> m_checkpointingMemoryTables;
     std::map<PartitionNumber, shared_ptr<IMemoryTable>> m_replayedMemoryTables;
 
     shared_ptr<IIndex> m_index;
 
-    task<> UpdateIndexDataSources();
+    task<> UpdateIndexDataSources(
+        cppcoro::async_mutex::lock_type& dataSourcesLock,
+        PartitionNumber activeMemoryTablePartitionNumber);
 
 public:
     IndexDataSources(

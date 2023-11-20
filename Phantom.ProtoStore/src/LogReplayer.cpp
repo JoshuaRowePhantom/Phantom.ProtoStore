@@ -81,6 +81,7 @@ task<> LogReplayer::ReplayLog()
         {
             co_await m_handleLoggedRowWriteScopeComplete;
             co_await m_handleLoggedRowWrite_User_Indexes_Scope.join();
+            co_await m_protoStore.ReplayPartitionsForOpenedIndexes();
             m_handleLoggedRowWrite_User_Indexes_ScopeComplete.set();
         });
 
@@ -88,9 +89,11 @@ task<> LogReplayer::ReplayLog()
         {
             co_await m_handleLoggedPartitionsDataScopeComplete;
             co_await m_handleLoggedRowWriteScopeComplete;
-            co_await m_protoStore.ReplayPartitionsForOpenedIndexes();
             co_await m_protoStore.ReplayLogExtentUsageMap(
                 std::move(m_logExtentUsageMap)
+            );
+            co_await m_protoStore.ReplayGlobalSequenceNumbers(
+                m_globalSequenceNumbers
             );
         });
 
@@ -157,6 +160,10 @@ task<> LogReplayer::HandleLogMessage(
         switch (logEntry->log_entry_type())
         {
         case FlatBuffers::LogEntryUnion::LoggedCreateIndex:
+            m_globalSequenceNumbers.m_nextIndexNumber.ReplayUsedSequenceNumber(
+                logEntry->log_entry_as_LoggedCreateIndex()->index_number());
+            break;
+
         case FlatBuffers::LogEntryUnion::LoggedCreateExtent:
         case FlatBuffers::LogEntryUnion::LoggedCommitExtent:
         case FlatBuffers::LogEntryUnion::LoggedDeleteExtent:
@@ -254,6 +261,9 @@ task<> LogReplayer::HandleLoggedCommitTransaction(
 )
 {
     co_await m_schedulers.ComputeScheduler->schedule();
+
+    m_globalSequenceNumbers.m_nextLocalTransactionNumber.ReplayUsedSequenceNumber(
+        loggedCommitLocalTransaction->local_transaction_id());
 
     m_committedLocalTransactions.emplace(
         loggedCommitLocalTransaction->local_transaction_id(),

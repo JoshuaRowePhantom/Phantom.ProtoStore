@@ -260,8 +260,6 @@ task<> ProtoStore::Open(
         {},
         {});
 
-    co_await ReplayPartitionsForOpenedIndexes();
-
     co_await Replay();
 
     co_await UpdateHeader([](auto) -> task<> { co_return; });
@@ -884,7 +882,7 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
 
     ReadRequest readRequest;
     readRequest.Key = &indexesByNameKey;
-    readRequest.ReadValueDisposition = ReadValueDisposition::DontReadValue;
+    readRequest.ReadValueDisposition = ReadValueDisposition::ReadValue;
     readRequest.SequenceNumber = sequenceNumber;
 
     auto readResult = co_await m_indexesByNameIndex.Index->Read(
@@ -904,10 +902,11 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
         co_return nullptr;
     }
 
-    co_return (co_await GetIndexEntryInternal(
+    auto indexEntry = co_await GetIndexEntryInternal(
         readResult->Value.cast_if<IndexesByNameValue>()->index_number(),
-        DoReplayPartitions)
-        )->Index;
+        DoReplayPartitions);
+
+    co_return indexEntry->Index;
 }
 
 operation_task<ProtoIndex> ProtoStore::CreateIndex(
@@ -931,7 +930,7 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
 
     auto transactionResult = co_await co_await InternalExecuteTransaction(
         BeginTransactionRequest(),
-        [&](auto operation)->status_task<>
+        [&](IInternalTransaction* operation)->status_task<>
     {
         WriteOperationMetadata metadata;
 
@@ -954,6 +953,16 @@ operation_task<ProtoIndex> ProtoStore::CreateIndex(
             &indexesByNameKey,
             &indexesByNameValue
         );
+
+        operation->BuildLogRecord(
+            FlatBuffers::LogEntryUnion::LoggedCreateIndex,
+            [&](flatbuffers::FlatBufferBuilder& builder)
+            {
+                return FlatBuffers::CreateLoggedCreateIndex(
+                    builder,
+                    indexNumber
+                ).Union();
+            });
 
         co_return{};
     });
@@ -1022,6 +1031,7 @@ task<const ProtoStore::IndexEntry*> ProtoStore::GetIndexEntryInternal(
         {
             co_await ReplayPartitionsForIndex(
                 indexEntry);
+            co_await indexEntry.DataSources->EnsureHasActiveMemoryTable();
         }
         else
         {
