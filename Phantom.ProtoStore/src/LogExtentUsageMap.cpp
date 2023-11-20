@@ -15,6 +15,16 @@ size_t LogExtentUsageHash::operator()(const LogExtentUsage& usage) const noexcep
 LogExtentUsageMap::LogExtentUsageMap()
 {
 }
+
+void LogExtentUsageMap::SetCurrentLogExtent(
+    LogExtentSequenceNumber logExtentSequenceNumber
+)
+{
+    currentLogExtentSequenceNumber = logExtentSequenceNumber;
+    HandleNewLogExtent(
+        logExtentSequenceNumber);
+}
+
 void LogExtentUsageMap::HandleDatabaseHeader(
     const FlatBuffers::DatabaseHeader* databaseHeader
 )
@@ -38,6 +48,15 @@ bool LogExtentUsageMap::HandleNewLogExtent(
     return extents.emplace(
         logExtentSequenceNumber,
         std::monostate{}
+    );
+}
+
+void LogExtentUsageMap::HandleDeletedLogExtent(
+    LogExtentSequenceNumber logExtentSequenceNumber
+)
+{
+    extents.erase(
+        logExtentSequenceNumber
     );
 }
 
@@ -129,15 +148,10 @@ std::vector<LogExtentSequenceNumber> LogExtentUsageMap::GetExtentsToDelete() con
             result.insert(logExtentSequenceNumber.first);
         });
 
-    if (partitionsDataLogExtentSequenceNumber)
+    for (auto extentToReplay : GetExtentsToReplay())
     {
-        result.erase(*partitionsDataLogExtentSequenceNumber);
+        result.erase(extentToReplay);
     }
-
-    usages.cvisit_all([&](const auto& usage)
-        {
-            result.erase(usage.first.logExtentSequenceNumber);
-        });
 
     return { result.begin(), result.end() };
 }
@@ -147,6 +161,16 @@ std::vector<LogExtentSequenceNumber> LogExtentUsageMap::GetExtentsToReplay() con
     // We store the result in a set first because we need the extents to be sorted
     // and we want the unique list.
     std::set<LogExtentSequenceNumber> result;
+
+    if (currentLogExtentSequenceNumber)
+    {
+        result.insert(*currentLogExtentSequenceNumber);
+    }
+
+    if (partitionsDataLogExtentSequenceNumber)
+    {
+        result.insert(*partitionsDataLogExtentSequenceNumber);
+    }
 
     usages.cvisit_all([&](const auto& usage)
         {

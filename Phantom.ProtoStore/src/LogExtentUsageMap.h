@@ -32,9 +32,14 @@ public:
     boost::unordered::concurrent_flat_map<LogExtentUsage, std::monostate, LogExtentUsageHash> usages;
 
     std::optional<LogExtentSequenceNumber> partitionsDataLogExtentSequenceNumber;
+    std::optional<LogExtentSequenceNumber> currentLogExtentSequenceNumber;
 
 public:
     LogExtentUsageMap(
+    );
+
+    void SetCurrentLogExtent(
+        LogExtentSequenceNumber logExtentSequenceNumber
     );
 
     void HandleDatabaseHeader(
@@ -42,6 +47,10 @@ public:
     );
 
     bool HandleNewLogExtent(
+        LogExtentSequenceNumber logExtentSequenceNumber
+    );
+    
+    void HandleDeletedLogExtent(
         LogExtentSequenceNumber logExtentSequenceNumber
     );
 

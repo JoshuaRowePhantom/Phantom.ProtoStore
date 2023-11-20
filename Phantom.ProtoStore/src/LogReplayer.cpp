@@ -36,6 +36,11 @@ task<> LogReplayer::ReplayLog()
             ReadLogExtent(logExtent->log_extent_sequence_number)
         );
     }
+    for (const auto& logExtent : header->obsolete_log_extent_names)
+    {
+        m_logExtentUsageMap.HandleNewLogExtent(
+            logExtent->log_extent_sequence_number);
+    }
     co_await readLogExtentsScope.join();
 
     Phantom::Coroutines::async_scope<> tasksScope;
@@ -110,6 +115,8 @@ task<> LogReplayer::ReadLogExtent(
     {
         // If we've already started processing this log extent,
         // don't do it again!
+        // This can happen when we process the LoggedNewLogExtent log entry
+        // for a log extent that is in the database header.
         co_return;
     }
 

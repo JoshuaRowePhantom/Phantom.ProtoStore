@@ -46,5 +46,6 @@ public:
     );
 
     task<> OpenNewLogWriter();
+    task<> DeleteOldLogs();
 };
 }

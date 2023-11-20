@@ -1045,13 +1045,21 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, Checkpoint_deletes_old_logs)
         "testValue1",
         ToSequenceNumber(5));
 
-    // Checkpoint twice to ensure old log is delete.
-    co_await store->Checkpoint();
     EXPECT_EQ(true, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(0))));
+    EXPECT_EQ(true, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(1))));
+    EXPECT_EQ(false, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(2))));
+    
+    co_await store->Checkpoint();
+
+    EXPECT_EQ(false, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(0))));
+    EXPECT_EQ(true, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(1))));
+    EXPECT_EQ(false, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(2))));
 
     co_await store->Checkpoint();
 
     EXPECT_EQ(false, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(0))));
+    EXPECT_EQ(false, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(1))));
+    EXPECT_EQ(true, co_await memoryStore->ExtentExists(FlatValue(MakeLogExtentName(2))));
 }
 
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, Can_read_and_write_one_row_after_checkpoint)

@@ -9,6 +9,7 @@ table DatabaseHeader {
     next_partition_number : uint64;
     log_alignment:uint32;
     log_replay_extent_names : [LogExtentName];
+    obsolete_log_extent_names : [LogExtentName];
 }
 
 enum ExtentFormatVersion : byte {

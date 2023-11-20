@@ -1237,6 +1237,8 @@ task<> ProtoStore::InternalCheckpoint()
     {
         co_await task;
     }
+
+    co_await m_logManager.DeleteOldLogs();
 }
 
 task<> ProtoStore::Merge()
@@ -1258,12 +1260,12 @@ task<> ProtoStore::InternalMerge()
 
 task<> ProtoStore::SwitchToNewLog()
 {
-    co_await m_logManager.OpenNewLogWriter();
-
     co_await UpdateHeader([this](FlatBuffers::DatabaseHeaderT* header) -> task<>
-    {
-        co_await m_logManager.Checkpoint(header);
-    });
+        {
+            co_await m_logManager.Checkpoint(header);
+        });
+
+    co_await m_logManager.OpenNewLogWriter();
 }
 
 task<> ProtoStore::Checkpoint(

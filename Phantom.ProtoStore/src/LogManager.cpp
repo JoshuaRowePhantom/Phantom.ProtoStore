@@ -68,8 +68,13 @@ task<> LogManager::Checkpoint(
 )
 {
     auto extentsToReplay = m_logExtentUsageMap.GetExtentsToReplay();
+    auto extentsToDelete = m_logExtentUsageMap.GetExtentsToDelete();
 
-    extentsToReplay.push_back(m_nextLogExtentSequenceNumber.GetCurrentSequenceNumber());
+    // The database header is written before the next log extent is created.
+    // Even though it doesn't exist yet, ensure that the next log extent
+    // also gets replayed.
+    extentsToReplay.push_back(
+        m_nextLogExtentSequenceNumber.GetNextSequenceNumber());
 
     header->log_replay_extent_names.clear();
     for (auto logExtentSequenceNumber : extentsToReplay)
@@ -77,6 +82,15 @@ task<> LogManager::Checkpoint(
         FlatBuffers::LogExtentNameT logExtentNameT;
         logExtentNameT.log_extent_sequence_number = logExtentSequenceNumber;
         header->log_replay_extent_names.push_back(
+            copy_unique(std::move(logExtentNameT)));
+    }
+
+    header->obsolete_log_extent_names.clear();
+    for (auto logExtentSequenceNumber : extentsToDelete)
+    {
+        FlatBuffers::LogExtentNameT logExtentNameT;
+        logExtentNameT.log_extent_sequence_number = logExtentSequenceNumber;
+        header->obsolete_log_extent_names.push_back(
             copy_unique(std::move(logExtentNameT)));
     }
 
@@ -118,8 +132,28 @@ task<> LogManager::OpenNewLogWriter()
         extentName.get()
     );
 
-    m_logExtentUsageMap.HandleNewLogExtent(
+    m_logExtentUsageMap.SetCurrentLogExtent(
         nextLogExtentSequenceNumber);
+}
+
+task<> LogManager::DeleteOldLogs()
+{
+    auto extentsToDelete = m_logExtentUsageMap.GetExtentsToDelete();
+
+    for (auto logExtentSequenceNumber : extentsToDelete)
+    {
+        auto extentName = FlatMessage
+        {
+            MakeLogExtentName(
+                logExtentSequenceNumber)
+        };
+
+        co_await m_logExtentStore->DeleteExtent(
+            extentName.get());
+
+        m_logExtentUsageMap.HandleDeletedLogExtent(
+            logExtentSequenceNumber);
+    }
 }
 
 }
