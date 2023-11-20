@@ -296,6 +296,7 @@ using TransactionId = std::string_view;
 using TransactionIdReference = std::shared_ptr<const flatbuffers::String>;
 typedef ExtentName MergeId;
 using LocalTransactionNumber = uint64_t;
+using MemoryTableTransactionSequenceNumber = uint64_t;
 
 struct ResultRow
 {

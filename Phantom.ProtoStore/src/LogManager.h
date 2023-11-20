@@ -2,8 +2,10 @@
 
 #include "StandardTypes.h"
 #include "ProtoStoreInternal.pb.h"
-#include "Phantom.System/async_reader_writer_lock.h"
+#include "Phantom.Coroutines/async_sharded_reader_writer_lock.h"
+#include "LogExtentUsageMap.h"
 #include "MessageStore.h"
+#include "SequenceNumber.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 
 namespace Phantom::ProtoStore
@@ -15,72 +17,34 @@ class LogManager : SerializationTypes
     shared_ptr<IExtentStore> m_logExtentStore;
     shared_ptr<IMessageStore> m_logMessageStore;
 
-    struct LogExtentUsage
-    {
-        LogExtentSequenceNumber LogExtentSequenceNumber;
-        IndexNumber IndexNumber;
-        PartitionNumber PartitionNumber;
+    LogExtentUsageMap m_logExtentUsageMap;
 
-        auto operator <=>(const LogExtentUsage&) const = default;
-    };
-
-    struct LogExtentUsageHasher
-    {
-        size_t operator()(const LogExtentUsage& value) const;
-    };
-
-    async_reader_writer_lock m_logExtentUsageLock;
-    std::set<LogExtentSequenceNumber> m_existingLogExtentSequenceNumbers;
-    std::set<LogExtentSequenceNumber> m_logExtentSequenceNumbersToRemove;
-    std::unordered_set<LogExtentUsage, LogExtentUsageHasher> m_logExtentUsage;
-    std::map<FlatBuffers::ExtentNameT, LogExtentSequenceNumber> m_uncommittedExtentToLogExtentSequenceNumber;
-    // For each log extent, maps the log extent sequence number to the lowest partitions data checkpoint number
-    // referenced by the log extent.
-    std::unordered_map<LogExtentSequenceNumber, PartitionNumber> m_logExtentSequenceNumberToLowestPartitionsDataPartitionNumber;
-    std::set<FlatBuffers::ExtentNameT> m_partitionExtentsToDelete;
-    optional<LogExtentSequenceNumber> m_partitionsDataLogExtentSequenceNumber;
-    LoggedPartitionsDataT m_latestLoggedPartitionsData;
-
+    Phantom::Coroutines::async_sharded_reader_writer_lock<> m_logLock;
     shared_ptr<ISequentialMessageWriter> m_logMessageWriter;
-    LogExtentSequenceNumber m_currentLogExtentSequenceNumber;
-    FlatValue<FlatBuffers::LogExtentName> m_currentLogExtentName;
-
-    LogExtentSequenceNumber m_nextLogExtentSequenceNumber;
-
-    bool NeedToUpdateMaps(
-        LogExtentSequenceNumber logExtentName,
-        const LogRecord* logRecord
-    );
-
-    task<task<>> DelayedOpenNewLogWriter(
-        DatabaseHeaderT* header);
+    AtomicSequenceNumber<LogExtentSequenceNumber> m_nextLogExtentSequenceNumber;
 
     task<> DeleteExtents();
-    task<> OpenNewLogWriter();
 
 public:
     LogManager(
         Schedulers schedulers,
         shared_ptr<IExtentStore> logExtentStore,
-        shared_ptr<IMessageStore> logMessageStore,
-        const DatabaseHeaderT* header
+        shared_ptr<IMessageStore> logMessageStore
     );
 
-    void Replay(
-        const FlatBuffers::LogExtentName* extentName,
-        const LogEntry* logEntry
+    task<> ReplayLogExtentUsageMap(
+        LogExtentUsageMap logExtentUsageMap
     );
-
-    task<task<>> FinishReplay(
-        DatabaseHeaderT* header);
 
     task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecord(
         const FlatMessage<FlatBuffers::LogRecord>& logRecord,
         FlushBehavior flushBehavior = FlushBehavior::Flush
     );
 
-    task<task<>> Checkpoint(
+    task<> Checkpoint(
         DatabaseHeaderT* header
     );
+
+    task<> OpenNewLogWriter();
 };
 }

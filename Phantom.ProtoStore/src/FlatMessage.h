@@ -18,10 +18,14 @@ template<
 > class FlatMessage
 {
     DataReference<StoredMessage> m_storedMessage;
-    const Table* m_table;
+    const Table* m_table = nullptr;
+
+    template<
+        IsFlatBufferTable Table
+    > friend class FlatMessage;
 
 public:
-    FlatMessage()
+    FlatMessage() noexcept
     {}
 
     explicit FlatMessage(
@@ -50,6 +54,7 @@ public:
         DebugVerifyBuffer();
     }
 
+    // Construct a FlatMessage from a FlatMessage containing the table to represent.
     template<
         typename Other
     >
@@ -57,7 +62,7 @@ public:
         const FlatMessage<Other>& other,
         const Table* table
     ) :
-        m_storedMessage{ other },
+        m_storedMessage{ other.m_storedMessage },
         m_table{ table }
     {
         DebugVerifyTable();
@@ -129,13 +134,13 @@ public:
     >
         requires std::same_as<NativeTable, typename Table::NativeTableType>
     explicit FlatMessage(
-        const NativeTable* table
+        const NativeTable& table
     )
     {
         flatbuffers::FlatBufferBuilder builder;
         auto rootOffset = Table::Pack(
             builder,
-            table);
+            &table);
         builder.Finish(rootOffset);
 
         StoredMessage storedMessage =
@@ -223,7 +228,7 @@ public:
 
 template<
     IsNativeTable NativeTable
-> FlatMessage(const NativeTable*) -> FlatMessage<typename NativeTable::TableType>;
+> FlatMessage(const NativeTable&) -> FlatMessage<typename NativeTable::TableType>;
 
 template<
     typename Table,

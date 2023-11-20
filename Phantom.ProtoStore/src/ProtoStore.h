@@ -23,20 +23,10 @@
 namespace Phantom::ProtoStore
 {
 
-struct SystemIndexNumbers
-{
-    static constexpr IndexNumber IndexesByNumber = 1;
-    static constexpr IndexNumber IndexesByName = 2;
-    static constexpr IndexNumber Partitions = 3;
-    static constexpr IndexNumber Merges = 4;
-    static constexpr IndexNumber MergeProgress = 5;
-    static constexpr IndexNumber DistributedTransactions = 6;
-    static constexpr IndexNumber DistributedTransactionReferences = 7;
-};
-
 class ProtoStore
     :
     public IInternalProtoStore,
+    public IProtoStoreReplayTarget,
     public AsyncScopeMixin
 {
     Schedulers m_schedulers;
@@ -47,7 +37,7 @@ class ProtoStore
 
     std::set<IntegrityCheck> m_integrityChecks;
 
-    std::optional<LogManager> m_logManager;
+    LogManager m_logManager;
     
     std::unique_ptr<FlatBuffers::DatabaseHeaderT> m_header;
 
@@ -56,11 +46,9 @@ class ProtoStore
     cppcoro::inline_scheduler m_inlineScheduler;
     cppcoro::sequence_barrier<uint64_t> m_writeSequenceNumberBarrier;
     std::atomic<uint64_t> m_nextWriteSequenceNumber;
-    std::atomic<IndexNumber> m_nextIndexNumber;
-    std::atomic<PartitionNumber> m_nextPartitionNumber;
-    std::atomic<MemoryTableTransactionSequenceNumber> m_memoryTableTransactionSequenceNumber = 1;
-    std::atomic<LocalTransactionNumber> m_localTransactionNumber = 1;
-
+    GlobalSequenceNumbers m_globalSequenceNumbers;
+    AtomicSequenceNumber<MemoryTableTransactionSequenceNumber> m_memoryTableTransactionSequenceNumber = 1;
+    
     cppcoro::async_mutex m_headerMutex;
     async_reader_writer_lock m_indexesByNumberLock;
 
@@ -166,34 +154,6 @@ class ProtoStore
     );
 
     task<> Replay();
-
-    task<> Replay(
-        int phase,
-        const ExtentName* extentName);
-
-    task<> Replay(
-        const FlatMessage<LogEntry>& logEntry);
-
-    task<> Replay(
-        const FlatMessage<LoggedRowWrite>& logRecord);
-
-    task<> Replay(
-        const FlatMessage<LoggedCommitLocalTransaction>& logRecord);
-
-    task<> Replay(
-        const FlatMessage<LoggedUpdatePartitions>& logRecord);
-
-    task<> Replay(
-        const LoggedAction& logRecord);
-
-    task<> Replay(
-        const FlatMessage<LoggedCreateIndex>& logRecord);
-
-    task<> Replay(
-        const FlatMessage<LoggedCreateExtent>& logRecord);
-
-    task<> Replay(
-        const FlatMessage<LoggedPartitionsData>& logRecord);
 
     task<> ReplayPartitionsForOpenedIndexes();
     task<> CreateInitialMemoryTables();
@@ -327,6 +287,24 @@ public:
     ) override;
 
     virtual task<> Join(
+    ) override;
+
+    // IProtoStoreReplayTarget
+    virtual task<> ReplayPartitionsData(
+        const FlatMessage<FlatBuffers::LoggedPartitionsData>& loggedPartitionsData
+    ) override;
+
+    virtual task<> ReplayGlobalSequenceNumbers(
+        GlobalSequenceNumbers globalSequenceNumbers
+    ) override;
+
+    virtual task<> ReplayLogExtentUsageMap(
+        LogExtentUsageMap logExtentUsageMap
+    ) override;
+
+    virtual task<std::shared_ptr<IMemoryTable>> ReplayCreateMemoryTable(
+        IndexNumber indexNumber,
+        PartitionNumber partitionNumber
     ) override;
 };
 }

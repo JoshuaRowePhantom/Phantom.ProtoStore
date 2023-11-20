@@ -1164,9 +1164,6 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
     return size1 <=> size2;
 }
 
-#pragma warning (push)
-#pragma warning (disable: 4702)
-
 template<
     typename Value
 >
@@ -1182,19 +1179,24 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
     auto array2 = flatbuffers::GetAnyFieldAddressOf<const Value>(
         *reinterpret_cast<const flatbuffers::Struct*>(value2),
         *flatBuffersReflectionField);
-    for (uint32_t index = 0; index < elementSize; ++index)
+
+    for (uint32_t index = 0; index < fixedLength; ++index)
     {
         auto arrayValue1 = *(array1 + index);
         auto arrayValue2 = *(array2 + index);
 
-        return ComparePrimitive(
+        auto result = ComparePrimitive(
             arrayValue1,
             arrayValue2);
+
+        if (result != std::weak_ordering::equivalent)
+        {
+            return result;
+        }
     }
 
     return std::weak_ordering::equivalent;
 }
-#pragma warning (pop)
 
 template<
 >

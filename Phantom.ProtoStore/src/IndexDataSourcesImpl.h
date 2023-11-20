@@ -32,21 +32,6 @@ public:
         shared_ptr<IIndex> index
     );
 
-    virtual task<> Replay(
-        FlatMessage<LoggedRowWrite> rowWrite
-    ) override;
-    
-    virtual task<> Replay(
-        const LoggedCreateMemoryTable* loggedCreateMemoryTable
-    ) override;
-
-    virtual task<> Replay(
-        const LoggedCheckpoint* loggedCheckpoint
-    ) override;
-
-    virtual task<> FinishReplay(
-    ) override;
-
     virtual task<FlatBuffers::LoggedCheckpointT> StartCheckpoint(
     ) override;
 
@@ -61,6 +46,10 @@ public:
     ) override;
 
     virtual task<> EnsureHasActiveMemoryTable(
+    ) override;
+
+    virtual task<std::shared_ptr<IMemoryTable>> ReplayCreateMemoryTable(
+        PartitionNumber partitionNumber
     ) override;
 };
 

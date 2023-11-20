@@ -32,10 +32,6 @@ public:
     );
     
     virtual task<> Replay(
-        const FlatMessage<FlatBuffers::LoggedAbortLocalTransaction>& loggedAbortLocalTransaction
-    );
-    
-    virtual task<> Replay(
         const FlatMessage<FlatBuffers::LoggedCreateIndex>& loggedCreateIndex
     );
     

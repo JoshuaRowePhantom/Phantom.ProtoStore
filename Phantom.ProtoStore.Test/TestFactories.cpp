@@ -210,12 +210,12 @@ task<> TestFactories::TestPartitionBuilder::OpenForWrite(
         levelNumber,
         indexName);
 
-    auto headerExtentNameFlatMessage = FlatMessage{ &m_headerExtentName };
+    auto headerExtentNameFlatMessage = FlatMessage{ m_headerExtentName };
 
     m_dataExtentName = MakePartitionDataExtentName(
         headerExtentNameFlatMessage->extent_name_as_IndexHeaderExtentName());
 
-    auto dataExtentNameFlatMessage = FlatMessage{ &m_dataExtentName };
+    auto dataExtentNameFlatMessage = FlatMessage{ m_dataExtentName };
 
     m_headerWriter = co_await m_messageStore->OpenExtentForSequentialWriteAccess(
         headerExtentNameFlatMessage.get()
@@ -289,9 +289,9 @@ ExtentNameT TestFactories::TestPartitionBuilder::DataExtentName() const
 task<shared_ptr<IPartition>> TestFactories::TestPartitionBuilder::OpenPartition(
     const Schema& schema)
 {
-    auto headerExtentNameFlatMessage = FlatMessage{ &m_headerExtentName };
+    auto headerExtentNameFlatMessage = FlatMessage{ m_headerExtentName };
 
-    auto dataExtentNameFlatMessage = FlatMessage{ &m_dataExtentName };
+    auto dataExtentNameFlatMessage = FlatMessage{ m_dataExtentName };
 
     auto headerReader = co_await m_messageStore->OpenExtentForRandomReadAccess(
         headerExtentNameFlatMessage.get()

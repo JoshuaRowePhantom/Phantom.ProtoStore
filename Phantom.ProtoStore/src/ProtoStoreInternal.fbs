@@ -70,11 +70,6 @@ table LoggedCommitLocalTransaction
     write_sequence_number : uint64;
 }
 
-table LoggedAbortLocalTransaction
-{
-    local_transaction_id : uint64;
-}
-
 table LoggedCreateIndex
 {
     index_number : uint64;
@@ -120,18 +115,28 @@ table LoggedPartitionsData
     partitions_table_partition_number : uint64;
 }
 
+// This is written at the end of each log stream to indicate
+// the next log stream.
+// During replay, we replay the log streams specified by the database
+// header. If we find a LoggedNewLogExtent that isn't in the database
+// header, we replay it and later add it to the database header.
+table LoggedNewLogExtent
+{
+    new_log_extent_name : LogExtentName;
+}
+
 union LogEntryUnion
 {
     LoggedRowWrite,
     LoggedCommitLocalTransaction,
-    LoggedAbortLocalTransaction,
     LoggedCreateIndex,
     LoggedCreateExtent,
     LoggedCommitExtent,
     LoggedCheckpoint,
     LoggedDeleteExtent,
     LoggedUpdatePartitions,
-    LoggedPartitionsData
+    LoggedPartitionsData,
+    LoggedNewLogExtent
 }
 
 table LogEntry

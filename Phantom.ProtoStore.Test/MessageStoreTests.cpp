@@ -586,10 +586,12 @@ ASYNC_TEST(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error
 
     MessageStoreTestMessage actualMessage;
 
+    auto messageAsRead = co_await randomMessageReader->Read(
+        offset,
+        actualMessage);
+
     EXPECT_THROW(
-        co_await randomMessageReader->Read(
-            offset,
-            actualMessage),
+        messageAsRead->VerifyChecksum(),
         std::range_error);
 }
 }

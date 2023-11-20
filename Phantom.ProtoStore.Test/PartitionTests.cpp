@@ -196,7 +196,7 @@ ASYNC_TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     value->write_sequence_number = 0;
 
     auto treeMessageWriteResult = co_await dataWriter->Write(
-        FlatMessage{ &treeMessage }.data(),
+        FlatMessage{ treeMessage }.data(),
         FlushBehavior::Flush);
 
     PartitionMessageT bloomFilterMessage;
@@ -210,7 +210,7 @@ ASYNC_TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     );
 
     auto bloomFilterWriteResult = co_await dataWriter->Write(
-        FlatMessage{ &bloomFilterMessage }.data(),
+        FlatMessage{ bloomFilterMessage }.data(),
         FlushBehavior::Flush);
 
     PartitionMessageT partitionRootMessage;
@@ -222,7 +222,7 @@ ASYNC_TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     partitionRoot->latest_sequence_number = 10;
 
     auto partitionRootWriteResult = co_await dataWriter->Write(
-        FlatMessage{ &partitionRootMessage }.data(),
+        FlatMessage{ partitionRootMessage }.data(),
         FlushBehavior::Flush);
 
     PartitionMessageT partitionHeaderMessage;
@@ -230,11 +230,11 @@ ASYNC_TEST_F(PartitionTests, Read_can_skip_from_bloom_filter)
     partitionHeader->partition_root = copy_unique(*partitionRootWriteResult->Reference_V1());
 
     co_await dataWriter->Write(
-        FlatMessage{ &partitionHeaderMessage }.data(),
+        FlatMessage{ partitionHeaderMessage }.data(),
         FlushBehavior::Flush);
 
     co_await headerWriter->Write(
-        FlatMessage{ &partitionHeaderMessage }.data(),
+        FlatMessage{ partitionHeaderMessage }.data(),
         FlushBehavior::Flush);
 
     auto partition = co_await OpenPartition(

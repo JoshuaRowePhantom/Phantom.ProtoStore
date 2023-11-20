@@ -39,9 +39,9 @@ void DoFlatBufferValueComparerTest(
 {
     auto keyComparer = GetTestKeyFlatBufferValueComparer();
 
-    FlatMessage lesserFlatMessage{ &lesser };
-    FlatMessage lesserFlatMessage2{ &lesser };
-    FlatMessage greaterFlatMessage{ &greater };
+    FlatMessage lesserFlatMessage{ lesser };
+    FlatMessage lesserFlatMessage2{ lesser };
+    FlatMessage greaterFlatMessage{ greater };
 
     EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserFlatMessage.get(), greaterFlatMessage.get()));
     EXPECT_EQ(std::weak_ordering::less, keyComparer.Compare(lesserFlatMessage2.get(), greaterFlatMessage.get()));

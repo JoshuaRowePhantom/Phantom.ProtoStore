@@ -4,6 +4,7 @@
 #include "Index.h"
 #include "IndexMerger.h"
 #include "IndexPartitionMergeGenerator.h"
+#include "LogReplayer.h"
 #include "MessageStore.h"
 #include "PartitionImpl.h"
 #include "PartitionWriterImpl.h"
@@ -37,7 +38,8 @@ ProtoStore::ProtoStore(
         0,
         FlatBuffersSchemas::IndexHeaderExtentName_Comparers.hash,
         FlatBuffersSchemas::IndexHeaderExtentName_Comparers.equal_to
-    )
+    ),
+    m_logManager{ m_schedulers, m_extentStore, m_messageStore }
 {
     m_writeSequenceNumberBarrier.publish(0);
 }
@@ -58,8 +60,9 @@ task<> ProtoStore::Create(
     header->version = 1;
     header->log_alignment = createRequest.LogAlignment;
     header->epoch = 0;
-    header->next_index_number = 1000;
+    header->next_index_number = SystemIndexNumbers::FirstUserIndexNumber;
     header->next_partition_number = 1000;
+    header->log_replay_extent_names.push_back(copy_unique(*logExtentName.extent_name.AsLogExtentName()));
 
     // Write both copies of the header,
     // so that ordinary open operations don't get a range_error exception
@@ -87,11 +90,6 @@ task<> ProtoStore::Open(
     {
         throw std::range_error("Invalid database");
     }
-
-    m_nextPartitionNumber.store(
-        m_header->next_partition_number);
-    m_nextIndexNumber.store(
-        m_header->next_index_number);
 
     {
         FlatValue<IndexesByNumberKey> indexesByNumberKey;
@@ -255,12 +253,6 @@ task<> ProtoStore::Open(
         nullptr
         );
 
-    m_logManager.emplace(
-        m_schedulers,
-        m_extentStore,
-        m_messageStore,
-        m_header.get());
-
     // The first log record for the partitions index will be the actual
     // partitions to use, but the very first time a store is opened
     // it will have no data sources.
@@ -272,23 +264,78 @@ task<> ProtoStore::Open(
 
     co_await Replay();
 
-    auto postUpdateHeaderTask = co_await m_logManager->FinishReplay(
-        m_header.get());
-
     co_await UpdateHeader([](auto) -> task<> { co_return; });
 
-    co_await postUpdateHeaderTask;
-
     co_await CreateInitialMemoryTables();
+
+    co_await SwitchToNewLog();
 }
 
 task<> ProtoStore::ReplayPartitionsForOpenedIndexes()
 {
+    Phantom::Coroutines::async_scope<> scope;
+
     for (auto indexEntry : m_indexesByNumber)
     {
-        co_await ReplayPartitionsForIndex(
-            indexEntry.second);
+        scope.spawn(
+            ReplayPartitionsForIndex(
+                indexEntry.second));
     }
+
+    co_await scope.join();
+}
+
+task<> ProtoStore::Replay()
+{
+    LogReplayer logReplayer
+    {
+        m_schedulers,
+        *this,
+        *m_headerAccessor,
+        *m_messageStore,
+    };
+
+    co_await logReplayer.ReplayLog();
+}
+
+task<> ProtoStore::ReplayPartitionsData(
+    const FlatMessage<FlatBuffers::LoggedPartitionsData>& loggedPartitionsData
+)
+{
+    std::vector<FlatValue<FlatBuffers::IndexHeaderExtentName>> headerExtentNames;
+
+    if (loggedPartitionsData && loggedPartitionsData->header_extent_names())
+    {
+        for(auto headerExtentName : *loggedPartitionsData->header_extent_names())
+        {
+            headerExtentNames.push_back(
+                FlatValue{ headerExtentName });
+        }
+    }
+
+    auto partitions = co_await OpenPartitionsForIndex(
+        co_await GetIndex(SystemIndexNumbers::Partitions),
+        headerExtentNames);
+
+    co_await m_indexesByNumber[SystemIndexNumbers::Partitions].DataSources->UpdatePartitions(
+        LoggedCheckpointT{},
+        partitions);
+}
+
+task<> ProtoStore::ReplayGlobalSequenceNumbers(
+    GlobalSequenceNumbers globalSequenceNumbers
+)
+{
+    m_globalSequenceNumbers = globalSequenceNumbers;
+    co_return;
+}
+
+task<> ProtoStore::ReplayLogExtentUsageMap(
+    LogExtentUsageMap logExtentUsageMap
+)
+{
+    co_await m_logManager.ReplayLogExtentUsageMap(
+        logExtentUsageMap);
 }
 
 task<> ProtoStore::CreateInitialMemoryTables()
@@ -341,262 +388,11 @@ task<> ProtoStore::UpdateHeader(
         m_header.get());
 
     m_header->epoch = nextEpoch;
-    m_header->next_index_number = m_nextIndexNumber.load();
-    m_header->next_partition_number = m_nextPartitionNumber.load();
+    m_header->next_index_number = m_globalSequenceNumbers.m_nextIndexNumber.GetNextSequenceNumber();
+    m_header->next_partition_number = m_globalSequenceNumbers.m_nextPartitionNumber.GetNextSequenceNumber();
 
     co_await m_headerAccessor->WriteHeader(
         m_header.get());
-}
-
-// This function implements the
-// IsPhase1LogEntry, IsPhase2LogEntry operators
-// in LogManager.tla.
-bool ProtoStore::IsLogEntryForPhase(
-    int phase,
-    const FlatMessage<LogEntry>& logEntry
-)
-{
-    if (phase == 1)
-    {
-        if (logEntry->log_entry_as_LoggedPartitionsData())
-        {
-            return true;
-        }
-        if (auto logEntryAsWrite = logEntry->log_entry_as_LoggedRowWrite())
-        {
-            return
-                logEntryAsWrite->index_number() == SystemIndexNumbers::IndexesByNumber
-                || logEntryAsWrite->index_number() == SystemIndexNumbers::Partitions;
-        }
-        if (auto logEntryAsCheckpoint = logEntry->log_entry_as_LoggedRowWrite())
-        {
-            return
-                logEntryAsCheckpoint->index_number() == SystemIndexNumbers::IndexesByNumber
-                || logEntryAsCheckpoint->index_number() == SystemIndexNumbers::Partitions;
-        }
-        if (auto logEntryAsUpdatePartitions = logEntry->log_entry_as_LoggedUpdatePartitions())
-        {
-            return
-                logEntryAsUpdatePartitions->index_number() == SystemIndexNumbers::IndexesByNumber
-                || logEntryAsUpdatePartitions->index_number() == SystemIndexNumbers::Partitions;
-        }
-        return false;
-    }
-
-    if (phase == 2)
-    {
-        if (IsLogEntryForPhase(1, logEntry))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    // An invalid phase was passed in.
-    assert(false);
-    abort();
-}
-
-task<> ProtoStore::Replay()
-{
-    for (auto phase = 1; phase <= 2; ++phase)
-    {
-        for (auto& logReplayExtentName : m_header->log_replay_extent_names)
-        {
-            auto extentName = MakeLogExtentName(logReplayExtentName->log_extent_sequence_number);
-            auto flatExtentName = FlatMessage{ &extentName };
-
-            co_await Replay(
-                phase,
-                flatExtentName.get());
-        }
-    }
-
-    m_replayedWrites = {};
-}
-
-task<> ProtoStore::Replay(
-    int phase,
-    const ExtentName* extentName
-)
-{
-    auto logReader = co_await m_messageStore->OpenExtentForSequentialReadAccess(
-        extentName
-    );
-
-    while (true)
-    {
-        FlatMessage<LogRecord> logRecordMessage{ co_await logReader->Read() };
-
-        if (!logRecordMessage)
-        {
-            co_return;
-        }
-
-        if (!logRecordMessage->log_entries())
-        {
-            continue;
-        }
-
-        for (auto logEntry : *logRecordMessage->log_entries())
-        {
-            auto logEntryMessage = FlatMessage{ logRecordMessage, logEntry };
-
-            if (!IsLogEntryForPhase(
-                phase,
-                logEntryMessage))
-            {
-                continue;
-            }
-
-            m_logManager->Replay(
-                extentName->extent_name_as_LogExtentName(),
-                logEntry
-            );
-
-            co_await Replay(
-                logEntryMessage);
-        }
-    }
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LogEntry>& logEntry)
-{
-    auto getMessage = [&]<typename T>(tag<T>)
-    {
-        return FlatMessage{ logEntry, logEntry->log_entry_as<T>() };
-    };
-
-    switch (logEntry->log_entry_type())
-    {
-    case LogEntryUnion::LoggedRowWrite:
-        co_await Replay(getMessage(tag<LoggedRowWrite>()));
-        break;
-
-    case LogEntryUnion::LoggedCreateIndex:
-        co_await Replay(getMessage(tag<LoggedCreateIndex>()));
-        break;
-
-    case LogEntryUnion::LoggedPartitionsData:
-        co_await Replay(getMessage(tag<LoggedPartitionsData>()));
-        break;
-
-    case LogEntryUnion::LoggedCreateExtent:
-        co_await Replay(getMessage(tag<LoggedCreateExtent>()));
-        break;
-
-    case LogEntryUnion::LoggedCommitLocalTransaction:
-        co_await Replay(getMessage(tag<LoggedCommitLocalTransaction>()));
-        break;
-
-    case LogEntryUnion::LoggedUpdatePartitions:
-        co_await Replay(getMessage(tag<LoggedUpdatePartitions>()));
-        break;
-    }
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LoggedRowWrite>& logRecord
-)
-{
-    m_localTransactionNumber = std::max(
-        m_localTransactionNumber.load(std::memory_order_relaxed),
-        logRecord->local_transaction_id() + 1);
-
-    m_replayedWrites[logRecord->local_transaction_id()][logRecord->write_id()] = logRecord;
-    co_return;
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LoggedCommitLocalTransaction>& logRecord
-)
-{
-    m_localTransactionNumber = std::max(
-        m_localTransactionNumber.load(std::memory_order_relaxed),
-        logRecord->local_transaction_id() + 1);
-
-    auto& writes = m_replayedWrites[logRecord->local_transaction_id()];
-    for (auto write_id : *logRecord->write_id())
-    {
-        auto& write = writes.at(write_id);
-        
-        auto index = co_await GetIndexEntryInternal(
-            write->index_number(),
-            DontReplayPartitions);
-
-        co_await index->DataSources->Replay(
-            write);
-    }
-    m_replayedWrites.erase(logRecord->local_transaction_id());
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LoggedCreateIndex>& logRecord)
-{
-    m_nextIndexNumber = std::max(
-        m_nextIndexNumber.load(),
-        logRecord->index_number() + 1);
-    co_return;
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LoggedPartitionsData>& logRecord)
-{
-    std::vector<FlatValue<FlatBuffers::IndexHeaderExtentName>> headerExtentNames;
-
-    if (logRecord->header_extent_names())
-    {
-        for (auto headerExtentName : *logRecord->header_extent_names())
-        {
-            headerExtentNames.push_back(FlatValue{ headerExtentName });
-        }
-    }
-
-    auto partitions = co_await OpenPartitionsForIndex(
-        m_partitionsIndex.Index,
-        headerExtentNames);
-
-    co_await m_partitionsIndex.DataSources->UpdatePartitions(
-        LoggedCheckpointT(),
-        partitions);
-
-    // If DataSources changed its partitions list, 
-    // then all other indexes may have changed.
-    co_await ReplayPartitionsForOpenedIndexes();
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LoggedCreateExtent>& logRecord
-)
-{
-    auto headerExtentName = logRecord->extent_name()->extent_name_as_IndexHeaderExtentName();
-    auto dataExtentName = logRecord->extent_name()->extent_name_as_IndexDataExtentName();
-    auto indexExtentName = 
-        headerExtentName ? headerExtentName->index_extent_name() :
-        dataExtentName ? dataExtentName->index_extent_name() :
-        nullptr;
-
-    if (indexExtentName)
-{
-    m_nextPartitionNumber = std::max(
-        m_nextPartitionNumber.load(),
-            indexExtentName->partition_number());
-    }
-
-    co_return;
-}
-
-task<> ProtoStore::Replay(
-    const FlatMessage<LoggedUpdatePartitions>& logRecord)
-{
-    if (m_indexesByNumber.contains(logRecord->index_number()))
-    {
-        co_await ReplayPartitionsForIndex(
-            m_indexesByNumber[logRecord->index_number()]
-        );
-    }
 }
 
 operation_task<ProtoIndex> ProtoStore::GetIndex(
@@ -821,8 +617,9 @@ public:
 
             FlatMessage<LogRecord> logRecord(loggedRowWriteBuilder.builder());
 
-            logRecord = co_await m_protoStore.m_logManager->WriteLogRecord(
-                std::move(logRecord));
+            logRecord = co_await m_protoStore.m_logManager.WriteLogRecord(
+                logRecord,
+                FlushBehavior::DontFlush);
 
             co_return loggedRowWrite = FlatMessage<LoggedRowWrite>
             {
@@ -952,7 +749,7 @@ private:
             m_logRecordBuilder.Finish(
                 logRecordOffset);
 
-            co_await m_protoStore.m_logManager->WriteLogRecord(
+            co_await m_protoStore.m_logManager.WriteLogRecord(
                 FlatMessage<LogRecord>{ m_logRecordBuilder });
         }
 
@@ -1011,8 +808,8 @@ shared_task<OperationResult<TransactionSucceededResult>> ProtoStore::InternalExe
 )
 {
     LocalTransaction transaction(
-        m_localTransactionNumber.fetch_add(1, std::memory_order_relaxed),
-        m_memoryTableTransactionSequenceNumber.fetch_add(1, std::memory_order_relaxed),
+        m_globalSequenceNumbers.m_nextLocalTransactionNumber.AllocateNextSequenceNumber(),
+        m_memoryTableTransactionSequenceNumber.AllocateNextSequenceNumber(),
         *this,
         ToSequenceNumber(readSequenceNumber),
         ToSequenceNumber(thisWriteSequenceNumber));
@@ -1113,16 +910,11 @@ task<shared_ptr<IIndex>> ProtoStore::GetIndexInternal(
         )->Index;
 }
 
-task<IndexNumber> ProtoStore::AllocateIndexNumber()
-{
-    co_return m_nextIndexNumber.fetch_add(1);
-}
-
 operation_task<ProtoIndex> ProtoStore::CreateIndex(
     const CreateIndexRequest& createIndexRequest
 )
 {
-    auto indexNumber = co_await AllocateIndexNumber();
+    auto indexNumber = m_globalSequenceNumbers.m_nextIndexNumber.AllocateNextSequenceNumber();
 
     FlatValue<IndexesByNumberKey> indexesByNumberKey;
     FlatValue<IndexesByNumberValue> indexesByNumberValue;
@@ -1456,15 +1248,12 @@ task<> ProtoStore::InternalMerge()
 
 task<> ProtoStore::SwitchToNewLog()
 {
-    task<> postUpdateHeaderTask;
+    co_await m_logManager.OpenNewLogWriter();
 
-    co_await UpdateHeader([this, &postUpdateHeaderTask](auto header) -> task<>
+    co_await UpdateHeader([this](FlatBuffers::DatabaseHeaderT* header) -> task<>
     {
-        postUpdateHeaderTask = co_await m_logManager->Checkpoint(
-            header);
+        co_await m_logManager.Checkpoint(header);
     });
-
-    co_await postUpdateHeaderTask;
 }
 
 task<> ProtoStore::Checkpoint(
@@ -1643,18 +1432,25 @@ task<vector<shared_ptr<IPartition>>> ProtoStore::OpenPartitionsForIndex(
     const shared_ptr<IIndex>& index,
     const vector<FlatValue<FlatBuffers::IndexHeaderExtentName>>& headerExtentNames)
 {
+    Phantom::Coroutines::async_scope<> scope;
+    Phantom::Coroutines::async_mutex<> partitionsMutex;
     vector<shared_ptr<IPartition>> partitions;
 
     for (auto headerExtentName : headerExtentNames)
+    {
+        scope.spawn([&]() -> task<>
     {
         auto partition = co_await OpenPartitionForIndex(
             index,
             headerExtentName);
 
+                auto lock = co_await partitionsMutex.scoped_lock_async();
         partitions.push_back(
             partition);
+            });
     }
 
+    co_await scope.join();
     co_return partitions;
 }
 
@@ -1688,7 +1484,7 @@ task<> ProtoStore::AllocatePartitionExtents(
     ExtentNameT& out_partitionHeaderExtentName,
     ExtentNameT& out_partitionDataExtentName)
 {
-    auto partitionNumber = m_nextPartitionNumber.fetch_add(1);
+    auto partitionNumber = m_globalSequenceNumbers.m_nextPartitionNumber.AllocateNextSequenceNumber();
 
     out_partitionHeaderExtentName = MakePartitionHeaderExtentName(
         indexNumber,
@@ -1716,10 +1512,11 @@ task<> ProtoStore::AllocatePartitionExtents(
     createDataExtentLogEntry.log_entry.Set(createDataExtent);
     logRecord.log_entries.push_back(copy_unique(createDataExtentLogEntry));
 
-    FlatMessage<FlatBuffers::LogRecord> logRecordMessage{ &logRecord };
+    FlatMessage<FlatBuffers::LogRecord> logRecordMessage{ logRecord };
 
-    co_await m_logManager->WriteLogRecord(
-        logRecordMessage);
+    co_await m_logManager.WriteLogRecord(
+        logRecordMessage,
+        FlushBehavior::Flush);
 }
 
 task<PartitionNumber> ProtoStore::CreateMemoryTable(
@@ -1733,7 +1530,7 @@ task<PartitionNumber> ProtoStore::CreateMemoryTable(
     // which is a logged operation.
     if (partitionNumber == 0)
     {
-        partitionNumber = m_nextPartitionNumber.fetch_add(1);
+        partitionNumber = m_globalSequenceNumbers.m_nextPartitionNumber.AllocateNextSequenceNumber();
     }
 
     memoryTable = MakeMemoryTable(
@@ -1741,6 +1538,19 @@ task<PartitionNumber> ProtoStore::CreateMemoryTable(
         index->GetKeyComparer());
 
     co_return partitionNumber;
+}
+
+task<std::shared_ptr<IMemoryTable>> ProtoStore::ReplayCreateMemoryTable(
+    IndexNumber indexNumber,
+    PartitionNumber partitionNumber
+)
+{
+    auto indexEntry = co_await GetIndexEntryInternal(
+        indexNumber,
+        DontReplayPartitions);
+
+    co_return co_await indexEntry->DataSources->ReplayCreateMemoryTable(
+        partitionNumber);
 }
 
 task<> ProtoStore::OpenPartitionWriter(

@@ -12,21 +12,6 @@ class IMemoryTable;
 class IIndexDataSources : public SerializationTypes
 {
 public:
-    virtual task<> Replay(
-        FlatMessage<LoggedRowWrite> rowWrite
-    ) = 0;
-
-    virtual task<> Replay(
-        const LoggedCheckpoint* loggedCheckpoint
-    ) = 0;
-
-    virtual task<> Replay(
-        const LoggedCreateMemoryTable* loggedCreateMemoryTable
-    ) = 0;
-
-    virtual task<> FinishReplay(
-    ) = 0;
-
     virtual task<LoggedCheckpointT> StartCheckpoint(
     ) = 0;
 
@@ -41,6 +26,10 @@ public:
     ) = 0;
 
     virtual task<> EnsureHasActiveMemoryTable(
+    ) = 0;
+
+    virtual task<std::shared_ptr<IMemoryTable>> ReplayCreateMemoryTable(
+        PartitionNumber partitionNumber
     ) = 0;
 };
 

@@ -24,8 +24,7 @@ protected:
     };
 
     task<LogManagerTest> CreateTest(
-        std::string testName,
-        const DatabaseHeaderT& header = DatabaseHeaderT{}
+        std::string testName
     )
     {
         auto schedulers = Schedulers::Inline();
@@ -37,8 +36,7 @@ protected:
         auto logManager = std::make_shared<LogManager>(
             schedulers,
             logExtentStore,
-            logMessageStore,
-            &header
+            logMessageStore
         );
 
         co_return LogManagerTest
@@ -52,10 +50,8 @@ protected:
 
 ASYNC_TEST_F(LogManagerTests, Can_create_and_destroy)
 {
-    DatabaseHeaderT header;
     auto logManagerTest = co_await CreateTest(
-        "Can_create_and_destroy",
-        header);
+        "Can_create_and_destroy");
     co_return;
 }
 

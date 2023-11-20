@@ -3,9 +3,37 @@
 #include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
+#include "LogExtentUsageMap.h"
+#include "SequenceNumber.h"
 
 namespace Phantom::ProtoStore
 {
+
+struct SystemIndexNumbers
+{
+    static constexpr IndexNumber IndexesByNumber = 1;
+    static constexpr IndexNumber IndexesByName = 2;
+    static constexpr IndexNumber Partitions = 3;
+    static constexpr IndexNumber Merges = 4;
+    static constexpr IndexNumber MergeProgress = 5;
+    static constexpr IndexNumber DistributedTransactions = 6;
+    static constexpr IndexNumber DistributedTransactionReferences = 7;
+    static constexpr IndexNumber FirstUserIndexNumber = 1000;
+
+    static constexpr bool IsSystemIndex(
+        IndexNumber indexNumber
+    )
+    {
+        return indexNumber < FirstUserIndexNumber;
+    }
+};
+
+struct GlobalSequenceNumbers
+{
+    AtomicSequenceNumber<IndexNumber> m_nextIndexNumber = SystemIndexNumbers::FirstUserIndexNumber;
+    AtomicSequenceNumber<PartitionNumber> m_nextPartitionNumber = 1;
+    AtomicSequenceNumber<LocalTransactionNumber> m_nextLocalTransactionNumber = 1;
+};
 
 class IMemoryTable;
 
@@ -118,7 +146,34 @@ public:
         FlatBuffers::ExtentNameT& out_dataExtentName,
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) = 0;
+};
 
+struct IProtoStoreReplayTarget
+{
+public:
+    virtual task<shared_ptr<IIndex>> GetIndex(
+        google::protobuf::uint64 indexNumber
+    ) = 0;
+
+    virtual task<> ReplayPartitionsData(
+        const FlatMessage<FlatBuffers::LoggedPartitionsData>& loggedPartitionsData
+    ) = 0;
+
+    virtual task<std::shared_ptr<IMemoryTable>> ReplayCreateMemoryTable(
+        IndexNumber indexNumber,
+        PartitionNumber partitionNumber
+    ) = 0;
+
+    virtual task<> ReplayPartitionsForOpenedIndexes(
+    ) = 0;
+
+    virtual task<> ReplayGlobalSequenceNumbers(
+        GlobalSequenceNumbers globalSequenceNumbers
+    ) = 0;
+
+    virtual task<> ReplayLogExtentUsageMap(
+        LogExtentUsageMap logExtentUsageMap
+    ) = 0;
 };
 
 }

@@ -45,7 +45,6 @@ MemoryTableOutcomeAndSequenceNumber ToMemoryTableOutcomeAndSequenceNumber(
     SequenceNumber sequenceNumber,
     TransactionOutcome transactionOutcome);
 
-using MemoryTableTransactionSequenceNumber = uint64_t;
 constexpr MemoryTableTransactionSequenceNumber MemoryTableTransactionSequenceNumber_AbortAll = 0;
 constexpr MemoryTableTransactionSequenceNumber MemoryTableTransactionSequenceNumber_ResolveAll = std::numeric_limits<uint64_t>::max();
 

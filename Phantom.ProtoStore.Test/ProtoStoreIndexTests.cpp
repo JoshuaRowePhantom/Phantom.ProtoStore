@@ -26,7 +26,8 @@ public:
         store = co_await OpenStore(createStoreRequest);
     }
 
-    CreateProtoStoreRequest createStoreRequest = GetCreateMemoryStoreRequest();
+    CreateProtoStoreRequest createStoreRequest = GetCreateTestStoreRequest(
+        "ProtoStoreIndexTests");
     std::shared_ptr<IProtoStore> store;
 };
 

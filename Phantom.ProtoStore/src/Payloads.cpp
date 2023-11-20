@@ -2,6 +2,7 @@
 #include "ProtoStoreInternal.pb.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "Phantom.ProtoStore/numeric_cast.h"
+#include "Checksum.h"
 
 namespace Phantom::ProtoStore
 {
@@ -405,6 +406,20 @@ std::optional<FlatBuffers::MessageReference_V1> StoredMessage::Reference_V1() co
         std::optional{ FlatBuffers::MessageReference_V1(*Header_V1(), DataRange.Beginning) }
         :
         std::nullopt;
+}
+
+void StoredMessage::VerifyChecksum() const
+{
+    if (!this->Content && !this->Header_V1())
+    {
+        return;
+    }
+
+    auto crc = checksum_v1(this->Content.Payload);
+    if (crc != this->Header_V1()->crc32())
+    {
+        throw std::range_error("crc");
+    }
 }
 
 std::span<const std::byte> ProtoValue::as_protocol_buffer_bytes_if() const

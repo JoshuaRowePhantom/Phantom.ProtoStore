@@ -482,7 +482,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     FlatBuffers::PartitionMessageT bloomFilterPartitionMessage;
     bloomFilterPartitionMessage.bloom_filter = std::move(partitionBloomFilter);
 
-    FlatMessage<FlatBuffers::PartitionMessage> bloomFilterPartitionFlatMessage{ &bloomFilterPartitionMessage };
+    FlatMessage<FlatBuffers::PartitionMessage> bloomFilterPartitionFlatMessage{ bloomFilterPartitionMessage };
 
     auto bloomFilterReference = co_await Write(
         bloomFilterPartitionFlatMessage);
@@ -497,7 +497,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     FlatBuffers::PartitionMessageT partitionRootMessage;
     partitionRootMessage.root = std::move(partitionRoot);
 
-    FlatMessage<FlatBuffers::PartitionMessage> partitionRootFlatMessage{ &partitionRootMessage };
+    FlatMessage<FlatBuffers::PartitionMessage> partitionRootFlatMessage{ partitionRootMessage };
 
     auto partitionRootReference = co_await Write(
         partitionRootFlatMessage,
@@ -509,7 +509,7 @@ task<WriteRowsResult> PartitionWriter::WriteRows(
     FlatBuffers::PartitionMessageT partitionHeaderMessage;
     partitionHeaderMessage.header = std::move(partitionHeader);
 
-    FlatMessage<FlatBuffers::PartitionMessage> partitionHeaderFlatMessage{ &partitionHeaderMessage };
+    FlatMessage<FlatBuffers::PartitionMessage> partitionHeaderFlatMessage{ partitionHeaderMessage };
 
     // We write the partition header to both the
     // data writer and the header writer.

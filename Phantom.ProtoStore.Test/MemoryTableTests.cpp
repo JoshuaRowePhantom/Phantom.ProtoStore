@@ -91,7 +91,7 @@ protected:
             rowValueProto.as_protocol_buffer_bytes_if());
         loggedRowWrite.sequence_number = writeSequenceNumber;
 
-        FlatMessage loggedRowWriteMessage{ &loggedRowWrite };
+        FlatMessage loggedRowWriteMessage{ loggedRowWrite };
 
         auto delayedOutcome = WithOutcome(transactionSequenceNumber, outcome, writeSequenceNumber);
 

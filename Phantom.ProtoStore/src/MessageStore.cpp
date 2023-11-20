@@ -180,12 +180,6 @@ task<DataReference<StoredMessage>> RandomMessageReader::Read(
         },
     };
 
-    auto crc = checksum_v1(storedMessage.Content.Payload);
-    if (crc != messageHeader->crc32())
-    {
-        throw std::range_error("crc");
-    }
-
     co_return DataReference
     {
         std::move(envelopeReadBuffer),
@@ -437,6 +431,11 @@ SequentialMessageReader::SequentialMessageReader(
 task<DataReference<StoredMessage>> SequentialMessageReader::Read(
 )
 {
+    if (!m_randomMessageReader)
+    {
+        co_return{};
+    }
+
     auto storedMessage = co_await m_randomMessageReader->Read(
         m_currentOffset);
     if (!storedMessage)

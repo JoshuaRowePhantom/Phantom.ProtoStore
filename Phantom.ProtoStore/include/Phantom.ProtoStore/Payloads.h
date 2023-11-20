@@ -235,6 +235,9 @@ struct StoredMessage
 
     const FlatBuffers::MessageHeader_V1* Header_V1() const;
     std::optional<FlatBuffers::MessageReference_V1> Reference_V1() const;
+
+    // Throw an exception if the checksum is invalid.
+    void VerifyChecksum() const;
 };
 
 template<

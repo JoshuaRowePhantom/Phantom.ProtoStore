@@ -83,7 +83,7 @@ public:
         loggedRowWriteT.index_number = indexNumber;
         loggedRowWriteT.partition_number = partitionNumber;
 
-        FlatMessage loggedRowWrite{ &loggedRowWriteT };
+        FlatMessage loggedRowWrite{ loggedRowWriteT };
         co_await existingPartitions->Replay(
             loggedRowWrite);
     }
@@ -97,7 +97,7 @@ public:
         loggedCheckpointT.index_number = indexNumber;
         loggedCheckpointT.partition_number = partitionNumbers;
 
-        FlatMessage loggedCheckpoint{ &loggedCheckpointT };
+        FlatMessage loggedCheckpoint{ loggedCheckpointT };
         co_await existingPartitions->Replay(
             loggedCheckpoint);
     }
@@ -108,7 +108,7 @@ public:
         FlatBuffers::LoggedPartitionsDataT loggedPartitionsData;
 
         co_await existingPartitions->Replay(
-            FlatMessage{ &loggedPartitionsData });
+            FlatMessage{ loggedPartitionsData });
     }
 
     task<> LogCreateIndexHeaderExtent(
@@ -125,7 +125,7 @@ public:
         loggedCreateExtent.extent_name = copy_unique(extentName);
 
         co_await existingPartitions->Replay(
-            FlatMessage { &loggedCreateExtent });
+            FlatMessage { loggedCreateExtent });
     }
     
     task<> LogDeleteIndexHeaderExtent(
@@ -142,7 +142,7 @@ public:
         loggedDeleteExtent.extent_name = copy_unique(extentName);
 
         co_await existingPartitions->Replay(
-            FlatMessage { &loggedDeleteExtent });
+            FlatMessage { loggedDeleteExtent });
     }
 
     task<> LogCommitIndexHeaderExtent(
@@ -159,7 +159,7 @@ public:
         loggedCommitExtent.extent_name = copy_unique(extentName);
 
         co_await existingPartitions->Replay(
-            FlatMessage { &loggedCommitExtent });
+            FlatMessage { loggedCommitExtent });
     }
 };
 

@@ -35,7 +35,7 @@ protected:
 
         co_return co_await extent->Write(
             location.extentOffset,
-            FlatMessage{ &header }.data(),
+            FlatMessage{ header }.data(),
             FlushBehavior::Flush
         );
     }

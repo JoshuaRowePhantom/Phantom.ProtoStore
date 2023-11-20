@@ -17,73 +17,6 @@ IndexDataSources::IndexDataSources(
 {
 }
 
-task<> IndexDataSources::Replay(
-    FlatMessage<LoggedRowWrite> rowWrite
-)
-{
-    auto iterator = m_replayedMemoryTables.find(rowWrite->partition_number());
-    if (iterator == m_replayedMemoryTables.end())
-    {
-        m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
-            m_index,
-            rowWrite->partition_number(),
-            m_activeMemoryTable);
-        
-        iterator = m_replayedMemoryTables.insert(
-            std::pair
-            {
-                m_activeMemoryTablePartitionNumber,
-                m_activeMemoryTable
-            }
-        ).first;
-
-        co_await UpdateIndexDataSources();
-    }
-
-    co_await m_index->ReplayRow(
-        iterator->second,
-        std::move(rowWrite)
-    );
-}
-
-task<> IndexDataSources::Replay(
-    const LoggedCreateMemoryTable* loggedCreateMemoryTable
-)
-{
-    //if (m_replayedMemoryTables.find(loggedCreateMemoryTable->partition_number()) != m_replayedMemoryTables.end())
-    //{
-    //    co_return;
-    //}
-
-    //m_activeMemoryTablePartitionNumber = co_await m_protoStore->CreateMemoryTable(
-    //    m_index,
-    //    loggedCreateMemoryTable->partition_number(),
-    //    m_activeMemoryTable);
-    //m_replayedMemoryTables[m_activeMemoryTablePartitionNumber] = m_activeMemoryTable;
-
-    co_await UpdateIndexDataSources();
-
-    co_return;
-}
-
-task<> IndexDataSources::Replay(
-    const LoggedCheckpoint* loggedCheckpoint
-)
-{
-    for (auto partitionNumber : *loggedCheckpoint->partition_number())
-    {
-        m_replayedMemoryTables.erase(
-            partitionNumber);
-    }
-
-    co_return;
-}
-
-task<> IndexDataSources::FinishReplay()
-{
-    co_await UpdateIndexDataSources();
-}
-
 task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
 {
     auto lock = co_await m_dataSourcesLock.scoped_lock_async();
@@ -213,6 +146,23 @@ task<> IndexDataSources::EnsureHasActiveMemoryTable(
 
         co_await UpdateIndexDataSources();
     }
+}
+
+task<std::shared_ptr<IMemoryTable>> IndexDataSources::ReplayCreateMemoryTable(
+    PartitionNumber partitionNumber
+)
+{
+    std::shared_ptr<IMemoryTable> inactiveMemoryTable;
+    co_await m_protoStore->CreateMemoryTable(
+        m_index,
+        0,
+        inactiveMemoryTable);
+    
+    m_replayedMemoryTables.emplace(
+        partitionNumber,
+        inactiveMemoryTable);
+
+    co_return std::move(inactiveMemoryTable);
 }
 
 IndexDataSourcesSelector::IndexDataSourcesSelector(

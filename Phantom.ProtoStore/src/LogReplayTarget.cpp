@@ -48,14 +48,6 @@ task<> LogReplayTarget::Replay(
 }
 
 task<> LogReplayTarget::Replay(
-    const FlatMessage<FlatBuffers::LoggedAbortLocalTransaction>& loggedAbortLocalTransaction
-)
-{
-    std::ignore = loggedAbortLocalTransaction;
-    return getCompletedTask();
-}
-
-task<> LogReplayTarget::Replay(
     const FlatMessage<FlatBuffers::LoggedCreateIndex>& loggedCreateIndex
 )
 {
