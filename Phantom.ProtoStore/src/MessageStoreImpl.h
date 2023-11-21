@@ -133,8 +133,10 @@ class SequentialMessageWriter
     const shared_ptr<RandomMessageWriter> m_randomMessageWriter;
     std::atomic<ExtentOffset> m_currentOffset;
 
-    using incompleteWrites_type = boost::concurrent_flat_map<void*, shared_task<DataReference<StoredMessage>>>;
-    incompleteWrites_type m_incompleteWrites;
+    using incomplete_write_type = shared_task<DataReference<StoredMessage>>;
+    using incomplete_writes_map_type = boost::concurrent_flat_map<void*, incomplete_write_type>;
+    incomplete_writes_map_type m_incompleteWrites;
+    std::vector<incomplete_write_type> m_incompleteWritesVector;
     Phantom::Coroutines::batching_worker<> m_flushWorker;
 
     shared_task<DataReference<StoredMessage>> WriteNoFlush(

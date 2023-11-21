@@ -94,6 +94,7 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
 )
 {
     InsertionKey insertionKey(
+        *m_schema,
         row,
         delayedTransactionOutcome,
         readSequenceNumber);
@@ -248,6 +249,7 @@ task<> MemoryTable::ReplayRow(
 )
 {
     ReplayInsertionKey replayKey(
+        *m_schema,
         row);
 
     auto [iterator, succeeded] = m_skipList.insert(
@@ -308,8 +310,7 @@ row_generator MemoryTable::Enumerate(
 
         // No matter what, the next key to enumerate will be at least as large
         // as the current key.
-        enumerationKey.KeyLow = m_comparer.MakeProtoValueKey(
-            memoryTableValue);
+        enumerationKey.KeyLow = memoryTableValue.Key;
 
         // The rowTransactionOutcome value needs to be acquired
         // before reading the sequence number for return determination.
@@ -471,6 +472,7 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     ReplayInsertionKey&& other
 )
     :
+    Key{ move(other.Key) },
     KeyRow{ move(other.Row) },
     WriteSequenceNumber
 {
@@ -486,6 +488,7 @@ MemoryTable::MemoryTableValue::MemoryTableValue(
     InsertionKey&& other
 )
     :
+    Key{ move(other.Key) },
     KeyRow{ move(other.Row) },
     WriteSequenceNumber 
     {
@@ -585,16 +588,24 @@ SequenceNumber MemoryTable::MemoryTableValue::GetWriteSequenceNumber() const
 }
 
 MemoryTable::ReplayInsertionKey::ReplayInsertionKey(
+    const Schema& schema,
     MemoryTable::Row& row
 ) :
+    Key(SchemaDescriptions::MakeProtoValueKey(
+        schema,
+        row->key())),
     Row(row)
 {}
 
 MemoryTable::InsertionKey::InsertionKey(
+    const Schema& schema,
     MemoryTable::Row& row,
     shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
     SequenceNumber readSequenceNumber)
     :
+    Key(SchemaDescriptions::MakeProtoValueKey(
+        schema,
+        row->key())),
     Row(row),
     DelayedTransactionOutcome(delayedTransactionOutcome),
     ReadSequenceNumber(readSequenceNumber)
@@ -616,28 +627,6 @@ MemoryTable::MemoryTableRowComparer::MemoryTableRowComparer(
     m_keyComparer(std::move(keyComparer))
 {}
 
-ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
-    const MemoryTableValue& value
-) const
-{
-    return SchemaDescriptions::MakeProtoValueKey(
-        *m_schema,
-        AlignedMessageData
-        {
-            nullptr,
-            value.GetKeyMessage()
-        });
-}
-
-ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
-    const InsertionKey& value
-) const
-{
-    return SchemaDescriptions::MakeProtoValueKey(
-        *m_schema,
-        value.Row->key());
-}
-
 const ProtoValue& MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
     const EnumerationKey& value
 ) const
@@ -652,23 +641,14 @@ const ProtoValue& MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
     return value.Key;
 }
 
-ProtoValue MemoryTable::MemoryTableRowComparer::MakeProtoValueKey(
-    const ReplayInsertionKey& value
-) const
-{
-    return SchemaDescriptions::MakeProtoValueKey(
-        *m_schema,
-        value.Row->key());
-}
-
 std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const MemoryTableValue& key1,
     const MemoryTableValue& key2
     ) const
 {
     auto comparisonResult = m_keyComparer->Compare(
-        MakeProtoValueKey(key1),
-        MakeProtoValueKey(key2));
+        key1.Key,
+        key2.Key);
 
     return comparisonResult;
 }
@@ -678,9 +658,9 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     const InsertionKey& key2
     ) const
 {
-    auto comparisonResult = m_keyComparer->Compare(
-        MakeProtoValueKey(key1),
-        MakeProtoValueKey(key2));
+    auto comparisonResult = m_keyComparer->CompareNoMinMax(
+        key1.Key,
+        key2.Key);
 
     if (comparisonResult != std::weak_ordering::equivalent)
     {
@@ -716,13 +696,13 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     // the enumeration start point.
     if (key2.LastFieldId
         &&
-        m_keyComparer->IsPrefixOf(Prefix{ MakeProtoValueKey(key2), *key2.LastFieldId }, MakeProtoValueKey(key1)))
+        m_keyComparer->IsPrefixOf(Prefix{ MakeProtoValueKey(key2), *key2.LastFieldId }, key1.Key))
     {
         return std::weak_ordering::greater;
     }
         
     auto comparisonResult = m_keyComparer->Compare(
-        MakeProtoValueKey(key1),
+        key1.Key,
         MakeProtoValueKey(key2)
     );
 
@@ -771,14 +751,14 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     
     if (key2.LastFieldId
         &&
-        m_keyComparer->IsPrefixOf(Prefix { key2.Key, *key2.LastFieldId }, MakeProtoValueKey(key1)))
+        m_keyComparer->IsPrefixOf(Prefix { key2.Key, *key2.LastFieldId }, key1.Key))
     {
         comparisonResult = std::weak_ordering::equivalent;
     }
     else
     {
         comparisonResult = m_keyComparer->Compare(
-            MakeProtoValueKey(key1),
+            key1.Key,
             MakeProtoValueKey(key2)
         );
     }
@@ -799,8 +779,8 @@ std::weak_ordering MemoryTable::MemoryTableRowComparer::operator()(
     ) const
 {
     auto comparisonResult = m_keyComparer->Compare(
-        MakeProtoValueKey(key1),
-        MakeProtoValueKey(key2));
+        key1.Key,
+        key2.Key);
 
     if (comparisonResult == std::weak_ordering::equivalent)
     {

@@ -424,15 +424,24 @@ task<> SequentialMessageWriter::FlushWorker()
 {
     // Wait for all pending writes.
     // This might include more than strictly needed by the caller.
-    Phantom::Coroutines::async_scope<> incompleteWritesScope;
+    
+    // We copy the incomplete writes to a vector because
+    // trying to spawn them directly will lead to a deadlock
+    // on the m_incompleteWrites map.
     m_incompleteWrites.cvisit_all([&](auto& incompleteWrite)
         {
-            incompleteWritesScope.spawn(
-                incompleteWrite.second);
+            m_incompleteWritesVector.push_back(
+                incompleteWrite.second
+            );
         }
     );
 
-    co_await incompleteWritesScope.join();
+    for(auto& incompleteWrite : m_incompleteWritesVector)
+    {
+        co_await incompleteWrite;
+    }
+    m_incompleteWritesVector.clear();
+
     co_await m_randomMessageWriter->Flush();
 }
 

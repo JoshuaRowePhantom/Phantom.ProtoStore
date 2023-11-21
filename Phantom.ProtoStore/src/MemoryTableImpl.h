@@ -26,14 +26,17 @@ class MemoryTable
     struct ReplayInsertionKey
     {
         ReplayInsertionKey(
+            const Schema& schema,
             Row& row);
 
+        ProtoValue Key;
         Row Row;
     };
 
     struct InsertionKey
     {
         InsertionKey(
+            const Schema& schema,
             Row& row,
             shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
             SequenceNumber readSequenceNumber);
@@ -51,6 +54,7 @@ class MemoryTable
         InsertionKey& operator=(
             MemoryTableValue&& memoryTableValue);
 
+        ProtoValue Key;
         Row& Row;
         shared_ptr<DelayedMemoryTableTransactionOutcome>& DelayedTransactionOutcome;
         SequenceNumber ReadSequenceNumber;
@@ -89,6 +93,7 @@ class MemoryTable
         // The Key in it must never be replaced, as it is used in a thread-unsafe way
         // after the skip list node is created.
         // When reading, if ValueMessage is null then use the KeyMessage.
+        ProtoValue Key;
         Row KeyRow;
         Row ValueRow;
 
@@ -126,10 +131,6 @@ class MemoryTable
         const shared_ptr<const Schema> m_schema;
         const shared_ptr<const ValueComparer> m_keyComparer;
 
-        ProtoValue MakeProtoValueKey(
-            const InsertionKey&
-        ) const;
-
         const ProtoValue& MakeProtoValueKey(
             const EnumerationKey&
         ) const;
@@ -138,19 +139,11 @@ class MemoryTable
             const KeyRangeEnd&
         ) const;
 
-        ProtoValue MakeProtoValueKey(
-            const ReplayInsertionKey&
-        ) const;
-
     public:
         MemoryTableRowComparer(
             shared_ptr<const Schema> schema,
             shared_ptr<const ValueComparer> keyComparer
         );
-
-        ProtoValue MakeProtoValueKey(
-            const MemoryTableValue&
-        ) const;
 
         std::weak_ordering operator()(
             const MemoryTableValue& key1,

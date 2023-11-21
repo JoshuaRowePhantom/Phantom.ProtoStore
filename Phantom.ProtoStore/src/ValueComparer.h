@@ -326,6 +326,11 @@ public:
         const ProtoValue& value1,
         const ProtoValue& value2
     ) const;
+        
+    std::weak_ordering CompareNoMinMax(
+        const ProtoValue& value1,
+        const ProtoValue& value2
+    ) const;
 
     virtual bool IsPrefixOf(
         const Prefix& prefix,

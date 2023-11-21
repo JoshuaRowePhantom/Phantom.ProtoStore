@@ -245,6 +245,16 @@ std::weak_ordering ValueComparer::Compare(
         return to_weak_ordering(keyMinMaxComparison);
     }
 
+    return CompareNoMinMax(
+        value1,
+        value2);
+}
+
+std::weak_ordering ValueComparer::CompareNoMinMax(
+    const ProtoValue& value1,
+    const ProtoValue& value2
+) const
+{
     return CompareImpl(value1, value2);
 }
 

@@ -193,6 +193,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetFieldComparer(
             {
                 flatBuffersReflectionField,
                 elementObjectComparer,
+                flatBuffersReflectionField->offset(),
                 &InternalFieldComparer::CompareStructField<Container>
             };
         }
@@ -202,6 +203,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetFieldComparer(
             {
                 flatBuffersReflectionField,
                 elementObjectComparer,
+                flatBuffersReflectionField->offset(),
                 &InternalFieldComparer::CompareTableField
             };
         }
@@ -329,6 +331,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetPrimitiveFieldCompare
     {
         flatBuffersReflectionField,
         nullptr,
+        flatBuffersReflectionField->offset(),
         &InternalFieldComparer::ComparePrimitiveField<Container, fieldRetriever>
     };
 }
@@ -342,6 +345,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetStringFieldComparer(
     {
         flatBuffersReflectionField,
         nullptr,
+        flatBuffersReflectionField->offset(),
         &InternalFieldComparer::CompareStringField
     };
 }
@@ -375,6 +379,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetUnionFieldComparer(
     {
         *typeField,
         nullptr,
+        typeField->offset(),
         &InternalFieldComparer::CompareUnionField
     };
 
@@ -408,6 +413,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetUnionFieldComparer(
         {
             flatBuffersReflectionField,
             unionComparer,
+            flatBuffersReflectionField->offset(),
             &InternalFieldComparer::CompareUnionFieldValue
         };
 
@@ -419,6 +425,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetUnionFieldComparer(
     {
         nullptr,
         nullptr,
+        0,
         &InternalFieldComparer::CompareEmptyUnionField
     };
 
@@ -680,6 +687,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetTypedVectorFieldCompa
     {
         flatBuffersReflectionField,
         elementObjectComparer,
+        flatBuffersReflectionField->offset(),
         &InternalFieldComparer::CompareVectorField<Value>,
         flatBuffersReflectionField->type()->element_size(),
     };
@@ -820,6 +828,7 @@ FlatBufferPointerValueComparer::InternalObjectComparer::GetTypedArrayFieldCompar
     {
         flatBuffersReflectionField,
         elementObjectComparer,
+        flatBuffersReflectionField->offset(),
         &InternalFieldComparer::CompareArrayField<Value>,
         flatBuffersReflectionField->type()->element_size(),
         flatBuffersReflectionField->type()->fixed_length(),
@@ -1038,14 +1047,12 @@ std::weak_ordering FlatBufferPointerValueComparer::InternalFieldComparer::Compar
 ) const
 {
     auto fieldValue1 = flatbuffers::GetStringView(
-        flatbuffers::GetFieldS(
-            *reinterpret_cast<const flatbuffers::Table*>(value1),
-            *flatBuffersReflectionField));
+        reinterpret_cast<const flatbuffers::Table*>(value1)->GetPointer<const flatbuffers::String*>(
+            reflectionField_offset));
 
     auto fieldValue2 = flatbuffers::GetStringView(
-        flatbuffers::GetFieldS(
-            *reinterpret_cast<const flatbuffers::Table*>(value2),
-            *flatBuffersReflectionField));
+        reinterpret_cast<const flatbuffers::Table*>(value2)->GetPointer<const flatbuffers::String*>(
+            reflectionField_offset));
 
     return fieldValue1 <=> fieldValue2;
 }

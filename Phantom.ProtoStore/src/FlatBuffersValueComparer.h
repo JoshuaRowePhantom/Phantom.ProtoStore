@@ -27,6 +27,7 @@ private:
     {
         const ::reflection::Field* flatBuffersReflectionField = nullptr;
         const InternalObjectComparer* elementObjectComparer = nullptr;
+        uint16_t reflectionField_offset;
 
         using ComparerFunction = std::weak_ordering (InternalFieldComparer::*)(
             const void* value1,
