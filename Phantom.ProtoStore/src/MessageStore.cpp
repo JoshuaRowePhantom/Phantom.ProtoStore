@@ -327,6 +327,11 @@ task<DataReference<StoredMessage>> RandomMessageWriter::Write(
     };
 }
 
+task<> RandomMessageWriter::Flush()
+{
+    return m_extent->Flush();
+}
+
 ExtentOffsetRange RandomMessageWriter::GetWriteRange(
     ExtentOffset extentOffset,
     uint8_t messageAlignment,
@@ -411,12 +416,55 @@ SequentialMessageWriter::SequentialMessageWriter(
 )
     : 
     m_randomMessageWriter(randomMessageWriter),
-    m_currentOffset(0)
+    m_currentOffset(0),
+    m_flushWorker([this] { return FlushWorker(); })
 {}
+
+task<> SequentialMessageWriter::FlushWorker()
+{
+    // Wait for all pending writes.
+    // This might include more than strictly needed by the caller.
+    Phantom::Coroutines::async_scope<> incompleteWritesScope;
+    m_incompleteWrites.cvisit_all([&](auto& incompleteWrite)
+        {
+            incompleteWritesScope.spawn(
+                incompleteWrite.second);
+        }
+    );
+
+    co_await incompleteWritesScope.join();
+    co_await m_randomMessageWriter->Flush();
+}
 
 task<DataReference<StoredMessage>> SequentialMessageWriter::Write(
     const StoredMessage& flatMessage,
     FlushBehavior flushBehavior
+)
+{
+    auto resultTask = WriteNoFlush(
+        flatMessage);
+
+    m_incompleteWrites.emplace(
+        &resultTask,
+        resultTask
+    );
+
+    auto result = co_await resultTask;
+
+    m_incompleteWrites.erase(
+        &resultTask
+    );
+
+    if (flushBehavior == FlushBehavior::Flush)
+    {
+        co_await m_flushWorker.request_and_wait();
+    }
+
+    co_return std::move(result);
+}
+
+shared_task<DataReference<StoredMessage>> SequentialMessageWriter::WriteNoFlush(
+    const StoredMessage& flatMessage
 )
 {
     auto writeOffset = m_currentOffset.load(
@@ -435,10 +483,12 @@ task<DataReference<StoredMessage>> SequentialMessageWriter::Write(
         std::memory_order_relaxed
     ));
 
-    co_return co_await m_randomMessageWriter->Write(
+    auto result = co_await m_randomMessageWriter->Write(
         writeOffset,
         flatMessage,
-        flushBehavior);
+        FlushBehavior::DontFlush);
+
+    co_return result;
 }
 
 task<ExtentOffset> SequentialMessageWriter::CurrentOffset(

@@ -30,6 +30,9 @@ namespace Phantom::ProtoStore
             const StoredMessage& message,
             FlushBehavior flushBehavior
         ) = 0;
+
+        virtual task<> Flush(
+        ) = 0;
     };
 
     class ISequentialMessageReader

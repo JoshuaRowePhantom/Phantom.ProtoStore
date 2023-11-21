@@ -58,9 +58,14 @@ task<FlatMessage<FlatBuffers::LogRecord>> LogManager::WriteLogRecord(
         );
     }
 
-    co_return co_await m_logMessageWriter->Write(
+    auto result = co_await m_logMessageWriter->Write(
         logRecord.data(),
         flushBehavior);
+
+    lock.unlock();
+    co_await m_schedulers.ComputeScheduler->schedule();
+
+    co_return result;
 }
 
 task<> LogManager::Checkpoint(

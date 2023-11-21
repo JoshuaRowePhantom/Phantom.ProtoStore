@@ -1,8 +1,10 @@
 #pragma once
 
+#include "boost/unordered/concurrent_flat_map.hpp"
 #include "ExtentName.h"
 #include "MessageStore.h"
 #include "Phantom.System/async_reader_writer_lock.h"
+#include "Phantom.System/batching_worker.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "StandardTypes.h"
 #include <cppcoro/async_mutex.hpp>
@@ -105,6 +107,9 @@ public:
         const StoredMessage& message,
         FlushBehavior flushBehavior
     ) override;
+
+    virtual task<> Flush(
+    ) override;
 };
 
 class SequentialMessageReader
@@ -127,6 +132,17 @@ class SequentialMessageWriter
 {
     const shared_ptr<RandomMessageWriter> m_randomMessageWriter;
     std::atomic<ExtentOffset> m_currentOffset;
+
+    using incompleteWrites_type = boost::concurrent_flat_map<void*, shared_task<DataReference<StoredMessage>>>;
+    incompleteWrites_type m_incompleteWrites;
+    Phantom::Coroutines::batching_worker<> m_flushWorker;
+
+    shared_task<DataReference<StoredMessage>> WriteNoFlush(
+        const StoredMessage& flatMessage
+    );
+
+    task<> FlushWorker();
+
 public:
     SequentialMessageWriter(
         shared_ptr<RandomMessageWriter> randomMessageWriter);
@@ -135,7 +151,7 @@ public:
         const StoredMessage& flatMessage,
         FlushBehavior flushBehavior
     ) override;
-
+    
     virtual task<ExtentOffset> CurrentOffset(
     ) override;
 };
