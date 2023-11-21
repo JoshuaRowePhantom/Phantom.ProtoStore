@@ -150,7 +150,7 @@ class MemoryExtentStore::Impl
                     writeOperation));
         }
 
-        task<> Flush()
+        virtual task<> Flush() override
         {
             auto lock = co_await m_mutex.scoped_lock_async();
 

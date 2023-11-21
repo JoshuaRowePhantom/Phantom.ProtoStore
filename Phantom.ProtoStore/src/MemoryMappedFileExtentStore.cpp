@@ -131,6 +131,8 @@ class MemoryMappedWritableExtent
         MemoryMappedExtentStore_flush_region flushRegion
     );
 
+    virtual task<> Flush() override;
+
     task<> Flush(
         const flush_map_type& flushMap);
 
@@ -141,7 +143,6 @@ class MemoryMappedWritableExtent
         const shared_ptr<mapped_region>& mappedRegion,
         MemoryMappedExtentStore_flush_region flushRegion
     );
-
 
 public:
     MemoryMappedWritableExtent(
@@ -412,6 +413,21 @@ void MemoryMappedWritableExtent::Commit(
         });
 }
 
+task<> MemoryMappedWritableExtent::Flush()
+{
+    shared_task<> flushTask;
+
+    {
+        auto flushLock = co_await m_flushLock.reader().scoped_lock_async();
+        co_await m_schedulers.ComputeScheduler->schedule();
+        flushTask = m_flushTask;
+    }
+
+    // This lazily starts the flush task.
+    co_await flushTask;
+    co_await m_schedulers.ComputeScheduler->schedule();
+}
+
 task<> MemoryMappedWritableExtent::Flush(
     const flush_map_type& flushMap)
 {
@@ -480,19 +496,8 @@ task<> MemoryMappedWritableExtent::Flush(
     MemoryMappedExtentStore_flush_region flushRegion
 )
 {
-    shared_task<> flushTask;
-
     Commit(mappedRegion, flushRegion);
-    
-    {
-        auto flushLock = co_await m_flushLock.reader().scoped_lock_async();
-        co_await m_schedulers.ComputeScheduler->schedule();
-        flushTask = m_flushTask;
-    }
-
-    // This lazily starts the flush task.
-    co_await flushTask;
-    co_await m_schedulers.ComputeScheduler->schedule();
+    co_await Flush();
 }
 
 MemoryMappedFileExtentStore::MemoryMappedFileExtentStore(

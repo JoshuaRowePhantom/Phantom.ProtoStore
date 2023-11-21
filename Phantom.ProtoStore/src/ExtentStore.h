@@ -34,6 +34,9 @@ class IWritableExtent
 {
 public:
     virtual task<pooled_ptr<IWriteBuffer>> CreateWriteBuffer() = 0;
+
+    // Flush all writes to the extent.
+    virtual task<> Flush() = 0;
 };
 
 class IExtentStore
