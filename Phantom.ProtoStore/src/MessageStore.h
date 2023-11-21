@@ -17,15 +17,6 @@ namespace Phantom::ProtoStore
             ExtentOffset extentOffset
         ) = 0;
 
-        // Read a message at the given offset.
-        // If there is no message at that offset,
-        // return a null DataReference.
-        //[[deprecated]]
-        virtual task<DataReference<StoredMessage>> Read(
-            ExtentOffset extentOffset,
-            Message& message
-        ) = 0;
-
         virtual task<DataReference<StoredMessage>> Read(
             const FlatBuffers::MessageReference_V1* location
         ) = 0;
@@ -39,22 +30,12 @@ namespace Phantom::ProtoStore
             const StoredMessage& message,
             FlushBehavior flushBehavior
         ) = 0;
-
-        virtual task<DataReference<StoredMessage>> Write(
-            ExtentOffset extentOffset,
-            const Message& message,
-            FlushBehavior flushBehavior
-        ) = 0;
     };
 
     class ISequentialMessageReader
     {
     public:
         virtual task<DataReference<StoredMessage>> Read(
-        ) = 0;
-
-        virtual task< DataReference<StoredMessage>> Read(
-            Message& message
         ) = 0;
     };
 
@@ -63,11 +44,6 @@ namespace Phantom::ProtoStore
     public:
         virtual task<DataReference<StoredMessage>> Write(
             const StoredMessage& flatMessage,
-            FlushBehavior flushBehavior
-        ) = 0;
-
-        virtual task<DataReference<StoredMessage>> Write(
-            const Message& message,
             FlushBehavior flushBehavior
         ) = 0;
 

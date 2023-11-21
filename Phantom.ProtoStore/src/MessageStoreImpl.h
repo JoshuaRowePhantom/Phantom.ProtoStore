@@ -69,11 +69,6 @@ public:
     ) override;
 
     virtual task<DataReference<StoredMessage>> Read(
-        ExtentOffset extentOffset,
-        Message& message
-    ) override;
-
-    virtual task<DataReference<StoredMessage>> Read(
         const FlatBuffers::MessageReference_V1* location
     ) override;
 };
@@ -110,12 +105,6 @@ public:
         const StoredMessage& message,
         FlushBehavior flushBehavior
     ) override;
-
-    virtual task<DataReference<StoredMessage>> Write(
-        ExtentOffset extentOffset,
-        const Message& message,
-        FlushBehavior flushBehavior
-    ) override;
 };
 
 class SequentialMessageReader
@@ -129,10 +118,6 @@ public:
         shared_ptr<RandomMessageReader> randomMessageReader);
 
     virtual task<DataReference<StoredMessage>> Read(
-    ) override;
-
-    virtual task<DataReference<StoredMessage>> Read(
-        Message& message
     ) override;
 };
 
@@ -148,11 +133,6 @@ public:
 
     virtual task<DataReference<StoredMessage>> Write(
         const StoredMessage& flatMessage,
-        FlushBehavior flushBehavior
-    ) override;
-
-    virtual task< DataReference<StoredMessage>> Write(
-        const Message& message, 
         FlushBehavior flushBehavior
     ) override;
 

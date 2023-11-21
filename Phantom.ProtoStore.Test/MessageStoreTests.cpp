@@ -9,7 +9,51 @@
 namespace Phantom::ProtoStore
 {
 
-ASYNC_TEST(MessageStoreTests, returns_cached_readable_extent_until_replaced_by_write_operation)
+class MessageStoreTestMessages
+{
+public:
+    DataReference<StoredMessage> CreateTestStoredMessage(
+        std::string value)
+    {
+        auto valueCopy = copy_shared(value);
+        return DataReference<StoredMessage>
+        {
+            valueCopy,
+            StoredMessage
+            {
+                .Content = AlignedMessage
+                {
+                    0,
+                    std::as_bytes(std::span(valueCopy->data(), valueCopy->size()))
+                }
+            }
+        };
+    }
+
+    bool Compare(
+        DataReference<StoredMessage> message1,
+        DataReference<StoredMessage> message2
+    )
+    {
+        return std::ranges::equal(
+            message1->Content.Payload,
+            message2->Content.Payload);
+    }
+};
+
+class MessageStoreTests : 
+    public testing::Test,
+    public MessageStoreTestMessages
+{
+};
+
+class RandomReaderWriterTest : 
+    public testing::Test,
+    public MessageStoreTestMessages
+{
+};
+
+ASYNC_TEST_F(MessageStoreTests, returns_cached_readable_extent_until_replaced_by_write_operation)
 {
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -58,7 +102,7 @@ ASYNC_TEST(MessageStoreTests, returns_cached_readable_extent_until_replaced_by_w
     EXPECT_NE(nullptr, writable1_1);
 }
 
-ASYNC_TEST(MessageStoreTests, writable_extent_is_not_cached)
+ASYNC_TEST_F(MessageStoreTests, writable_extent_is_not_cached)
 {
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -79,7 +123,7 @@ ASYNC_TEST(MessageStoreTests, writable_extent_is_not_cached)
     EXPECT_NE(nullptr, writable0_2);
 }
 
-ASYNC_TEST(RandomReaderWriterTest, is_aligned_works_on_all_supported_values)
+ASYNC_TEST_F(RandomReaderWriterTest, is_aligned_works_on_all_supported_values)
 {
     struct data
     {
@@ -182,7 +226,7 @@ ASYNC_TEST(RandomReaderWriterTest, is_aligned_works_on_all_supported_values)
     co_return;
 }
 
-ASYNC_TEST(RandomReaderWriterTest, align_aligns_upward_for_supported_values)
+ASYNC_TEST_F(RandomReaderWriterTest, align_aligns_upward_for_supported_values)
 {
     struct data
     {
@@ -289,7 +333,7 @@ ASYNC_TEST(RandomReaderWriterTest, align_aligns_upward_for_supported_values)
     co_return;
 }
 
-ASYNC_TEST(RandomReaderWriterTest, Open_for_write_writes_expected_header)
+ASYNC_TEST_F(RandomReaderWriterTest, Open_for_write_writes_expected_header)
 {
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -326,10 +370,9 @@ ASYNC_TEST(RandomReaderWriterTest, Open_for_write_writes_expected_header)
         actualHeaderContent));
 }
 
-ASYNC_TEST(RandomReaderWriterTest, Can_read_what_was_written)
+ASYNC_TEST_F(RandomReaderWriterTest, Can_read_what_was_written)
 {
-    MessageStoreTestMessage expectedMessage;
-    expectedMessage.set_string_value("hello world!");
+    auto testMessage = CreateTestStoredMessage("hello world!");
 
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -341,24 +384,19 @@ ASYNC_TEST(RandomReaderWriterTest, Can_read_what_was_written)
 
     co_await randomMessageWriter->Write(
         0,
-        expectedMessage,
+        testMessage.data(),
         FlushBehavior::Flush);
 
     auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(
         FlatValue(MakeLogExtentName(0)));
 
-    MessageStoreTestMessage actualMessage;
+    auto actualStoredMessage = co_await randomMessageReader->Read(
+        ExtentOffset{ 0 });
 
-    co_await randomMessageReader->Read(
-        0,
-        actualMessage);
-
-    EXPECT_TRUE(MessageDifferencer::Equals(
-        expectedMessage,
-        actualMessage));
+    EXPECT_TRUE(Compare(actualStoredMessage, testMessage));
 }
 
-ASYNC_TEST(RandomReaderWriterTest, Reading_zeroed_data_returns_no_message)
+ASYNC_TEST_F(RandomReaderWriterTest, Reading_zeroed_data_returns_no_message)
 {
     MessageStoreTestMessage expectedMessage;
     expectedMessage.set_string_value("hello world!");
@@ -389,7 +427,7 @@ ASYNC_TEST(RandomReaderWriterTest, Reading_zeroed_data_returns_no_message)
     EXPECT_FALSE(message);
 }
 
-ASYNC_TEST(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it_back_with_envelope)
+ASYNC_TEST_F(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it_back_with_envelope)
 {
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -426,7 +464,7 @@ ASYNC_TEST(RandomReaderWriterTest, Can_write_un_enveloped_FlatBuffer_and_read_it
         actualMessage);
 }
 
-ASYNC_TEST(RandomReaderWriterTest, Can_use_returned_StoredMessage_from_Write)
+ASYNC_TEST_F(RandomReaderWriterTest, Can_use_returned_StoredMessage_from_Write)
 {
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -454,12 +492,10 @@ ASYNC_TEST(RandomReaderWriterTest, Can_use_returned_StoredMessage_from_Write)
     EXPECT_EQ(scalar, expectedMessage);
 }
 
-ASYNC_TEST(RandomReaderWriterTest, Can_read_what_was_written_after_DontFlush_then_Flush)
+ASYNC_TEST_F(RandomReaderWriterTest, Can_read_what_was_written_after_DontFlush_then_Flush)
 {
-    MessageStoreTestMessage expectedMessage1;
-    expectedMessage1.set_string_value("hello world 1!");
-    MessageStoreTestMessage expectedMessage2;
-    expectedMessage2.set_string_value("hello world 2!");
+    auto testMessage1 = CreateTestStoredMessage("hello world 1!");
+    auto testMessage2 = CreateTestStoredMessage("hello world 2!");
 
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -471,12 +507,12 @@ ASYNC_TEST(RandomReaderWriterTest, Can_read_what_was_written_after_DontFlush_the
 
     auto writeResult1 = co_await randomMessageWriter->Write(
         0,
-        expectedMessage1,
+        testMessage1.data(),
         FlushBehavior::DontFlush);
 
     auto writeResult2 = co_await randomMessageWriter->Write(
         writeResult1->DataRange.End,
-        expectedMessage2,
+        testMessage2.data(),
         FlushBehavior::Flush);
 
     auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(
@@ -486,28 +522,26 @@ ASYNC_TEST(RandomReaderWriterTest, Can_read_what_was_written_after_DontFlush_the
     MessageStoreTestMessage actualMessage2;
 
     auto readResult1 = co_await randomMessageReader->Read(
-        0,
-        actualMessage1);
+        ExtentOffset{ 0 });
 
     auto readResult2 = co_await randomMessageReader->Read(
-        readResult1->DataRange.End,
-        actualMessage2);
-
-    EXPECT_TRUE(MessageDifferencer::Equals(
-        expectedMessage1,
-        actualMessage1));
-
-    EXPECT_TRUE(MessageDifferencer::Equals(
-        expectedMessage2,
-        actualMessage2));
+        readResult1->DataRange.End);
+    
+    EXPECT_TRUE(Compare(
+        testMessage1,
+        readResult1));
+    
+    EXPECT_TRUE(Compare(
+        testMessage2,
+        readResult2));
 }
-ASYNC_TEST(RandomReaderWriterTest, ReportedOffsets_are_at_end_of_message_plus_checksum)
+
+ASYNC_TEST_F(RandomReaderWriterTest, ReportedOffsets_are_at_end_of_message_plus_checksum_plus_alignment)
 {
-    MessageStoreTestMessage expectedMessage;
-    expectedMessage.set_string_value("hello world!");
+    auto testMessage1 = CreateTestStoredMessage("hello world 1!");
 
     size_t offset = 500;
-    size_t expectedEndOfMessage = 522;
+    size_t expectedEndOfMessage = 524;
 
     auto extentStore = make_shared<MemoryExtentStore>(
         Schedulers::Default());
@@ -519,7 +553,7 @@ ASYNC_TEST(RandomReaderWriterTest, ReportedOffsets_are_at_end_of_message_plus_ch
 
     auto writeResult = co_await randomMessageWriter->Write(
         offset,
-        expectedMessage,
+        testMessage1.data(),
         FlushBehavior::Flush);
 
     EXPECT_EQ(expectedEndOfMessage, writeResult->DataRange.End);
@@ -527,23 +561,19 @@ ASYNC_TEST(RandomReaderWriterTest, ReportedOffsets_are_at_end_of_message_plus_ch
     auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(
         FlatValue(MakeLogExtentName(0)));
 
-    MessageStoreTestMessage actualMessage;
-
     auto readResult = co_await randomMessageReader->Read(
-        offset,
-        actualMessage);
+        offset);
 
-    EXPECT_TRUE(MessageDifferencer::Equals(
-        expectedMessage,
-        actualMessage));
+    EXPECT_TRUE(Compare(
+        testMessage1,
+        readResult));
 
     EXPECT_EQ(expectedEndOfMessage, readResult->DataRange.End);
 }
 
-ASYNC_TEST(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error)
+ASYNC_TEST_F(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error)
 {
-    MessageStoreTestMessage expectedMessage;
-    expectedMessage.set_string_value("hello world!");
+    auto testMessage1 = CreateTestStoredMessage("hello world 1!");
 
     size_t offset = 500;
 
@@ -559,7 +589,7 @@ ASYNC_TEST(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error
 
     auto writeExtent0Result = co_await randomMessageWriter0->Write(
         offset,
-        expectedMessage,
+        testMessage1.data(),
         FlushBehavior::Flush);
 
     // Write the same message to another extent, which shouldn't compute CRCs.
@@ -584,14 +614,11 @@ ASYNC_TEST(RandomReaderWriterTest, ReadOfInvalidMessageChecksum_reports_an_error
     auto randomMessageReader = co_await messageStore->OpenExtentForRandomReadAccess(
         FlatValue(MakeLogExtentName(1)));
 
-    MessageStoreTestMessage actualMessage;
-
-    auto messageAsRead = co_await randomMessageReader->Read(
-        offset,
-        actualMessage);
+    auto actualMessage = co_await randomMessageReader->Read(
+        offset);
 
     EXPECT_THROW(
-        messageAsRead->VerifyChecksum(),
+        actualMessage->VerifyChecksum(),
         std::range_error);
 }
 }
