@@ -3,6 +3,9 @@
 namespace Phantom::ProtoStore
 {
 
-thread_local std::ranlux48 tls_SkipListRng;
+thread_local std::minstd_rand tls_SkipListRng
+{
+    std::random_device{}()
+};
 
 }
