@@ -1566,24 +1566,6 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
 
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 {
-    CreateProtoStoreRequest createRequest;
-    createRequest.ExtentStore = UseFilesystemStore("ProtoStoreFlatBufferTests_Perf2", "Perf2", 4096);
-    createRequest.Schedulers = Schedulers::Default();
-
-#ifdef NDEBUG
-    createRequest.CheckpointLogSize = 1000000;
-#else
-    createRequest.CheckpointLogSize = 100000;
-#endif
-
-    auto store = co_await CreateStore(
-        createRequest);
-
-    auto index = co_await CreateTestFlatBufferIndex(
-        store,
-        FlatBuffers::FlatBuffersMessageEncodingOptions::EmbeddedMessage);
-        //FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage);
-
 #ifdef NDEBUG
     int valueCount = 5000000;
 #else
@@ -1604,6 +1586,24 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
         20,
         valueCount
     );
+
+    CreateProtoStoreRequest createRequest;
+    createRequest.ExtentStore = UseFilesystemStore("ProtoStoreFlatBufferTests_Perf2", "Perf2", 4096);
+    createRequest.Schedulers = Schedulers::Default();
+
+#ifdef NDEBUG
+    createRequest.CheckpointLogSize = 1000000;
+#else
+    createRequest.CheckpointLogSize = 100000;
+#endif
+
+    auto store = co_await CreateStore(
+        createRequest);
+
+    auto index = co_await CreateTestFlatBufferIndex(
+        store,
+        FlatBuffers::FlatBuffersMessageEncodingOptions::EmbeddedMessage);
+        //FlatBuffers::FlatBuffersMessageEncodingOptions::SerializedByteMessage);
 
     auto startWriteTime = chrono::high_resolution_clock::now();
 
@@ -1653,7 +1653,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
         }
     };
 
-    auto keysPerInsert = 100;
+    auto keysPerInsert = 1;
     for (size_t startKeyIndex = 0; startKeyIndex < keys.size(); startKeyIndex += keysPerInsert)
     {
         auto endKeyIndex = std::min(
