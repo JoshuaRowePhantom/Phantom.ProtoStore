@@ -1566,10 +1566,10 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, PerformanceTest(Perf1))
 
 ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 {
-#ifdef NDEBUG
+#if NDEBUG
     int valueCount = 5000000;
 #else
-    int valueCount = 10000;
+    int valueCount = 1000;
 #endif
 
     std::ranlux48 rng;
@@ -1589,6 +1589,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 
     CreateProtoStoreRequest createRequest;
     createRequest.ExtentStore = UseFilesystemStore("ProtoStoreFlatBufferTests_Perf2", "Perf2", 4096);
+    //createRequest.ExtentStore = UseMemoryExtentStore();
     createRequest.Schedulers = Schedulers::Default();
 
 #ifdef NDEBUG
