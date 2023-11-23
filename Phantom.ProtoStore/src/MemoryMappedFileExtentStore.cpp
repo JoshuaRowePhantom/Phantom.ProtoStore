@@ -392,7 +392,8 @@ task<> MemoryMappedWritableExtent::Flush(
         co_await m_schedulers.IoScheduler->schedule();
         flushMapEntry.first->flush(
             flushMapEntry.second.m_flushRegion.beginning,
-            flushMapEntry.second.m_flushRegion.end
+            flushMapEntry.second.m_flushRegion.end,
+            false
         );
     };
 
