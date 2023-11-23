@@ -12,6 +12,8 @@
 #include <cppcoro/async_scope.hpp>
 #include "Phantom.System/async_reader_writer_lock.h"
 #include "boost/unordered/concurrent_flat_map.hpp"
+#include "Phantom.Coroutines/async_sequence_barrier.h"
+#include "Phantom.Coroutines/async_sharded_reader_writer_lock.h"
 
 using boost::interprocess::file_mapping;
 using boost::interprocess::mapped_region;
@@ -99,12 +101,13 @@ class MemoryMappedWritableExtent
     string m_filename;
     size_t m_blockSize;
     
-    cppcoro::async_mutex m_lastMappedFullRegionMutex;
-    async_reader_writer_lock m_lastMappedFullRegionLock;
-    size_t m_lastMappedFullRegionSize;
-    std::atomic<size_t> m_desiredSize;
-    shared_ptr<mapped_region> m_lastFullRegion;
+    Phantom::Coroutines::async_sequence_barrier<size_t> m_requestedFileSize;
+    Phantom::Coroutines::async_sequence_barrier<size_t> m_actualFileSize;
+    Phantom::Coroutines::async_scope<> m_fileExtenderScope;
 
+    Phantom::Coroutines::async_sharded_reader_writer_lock<> m_lastMappedFullRegionLock;
+    shared_ptr<mapped_region> m_lastFullRegion;
+    
     struct atomic_flush_region
     {
         shared_ptr<mapped_region> m_mappedRegion;
@@ -143,6 +146,8 @@ class MemoryMappedWritableExtent
         const shared_ptr<mapped_region>& mappedRegion,
         MemoryMappedExtentStore_flush_region flushRegion
     );
+
+    task<> FileExtender();
 
 public:
     MemoryMappedWritableExtent(
@@ -254,11 +259,11 @@ MemoryMappedWritableExtent::MemoryMappedWritableExtent(
 ) : 
     m_schedulers(schedulers),
     m_filename(filename),
-    m_blockSize(blockSize),
-    m_lastMappedFullRegionSize(0)
+    m_blockSize(blockSize)
 {
     // Start the lazy flush task.
     m_flushTask = Flush(std::optional<shared_task<>>{});
+    m_fileExtenderScope.spawn(FileExtender());
 }
 
 task<pooled_ptr<IWriteBuffer>> MemoryMappedWritableExtent::CreateWriteBuffer()
@@ -267,92 +272,28 @@ task<pooled_ptr<IWriteBuffer>> MemoryMappedWritableExtent::CreateWriteBuffer()
         new MemoryMappedWriteBuffer(this));
 }
 
-task<> MemoryMappedWritableExtent::GetWriteRegion(
-    ExtentOffset offset,
-    size_t count,
-    shared_ptr<mapped_region>& region,
-    void*& data,
-    MemoryMappedExtentStore_flush_region& flushRegion)
+task<> MemoryMappedWritableExtent::FileExtender()
 {
-    RetryWithReadLock:
+    size_t fileSize = 0;
+    while (true)
     {
-        Phantom::Coroutines::suspend_result suspendResult;
-        auto mappedRegionLock = co_await(suspendResult << m_lastMappedFullRegionLock.reader().scoped_lock_async());
-        if (suspendResult.did_suspend())
-        {
-            co_await m_schedulers.LockScheduler->schedule();
-        }
+        m_actualFileSize.publish(fileSize);
 
-        if ((offset + count < m_lastMappedFullRegionSize))
-        {
-            region = m_lastFullRegion;
-            data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
-            flushRegion =
-            {
-                .beginning = offset,
-                .end = offset + count,
-            };
+        // Wait until we're within 10% of the requested file size.
+        size_t fileSizeToLookFor = fileSize - fileSize / 10;
+        fileSize = co_await m_requestedFileSize.wait_until_published(
+            fileSizeToLookFor);
 
-            co_return;
-        }
-    }
+        co_await m_schedulers.IoScheduler->schedule();
 
-    // We need a bigger buffer.
-    // Write the request for a bigger buffer to the atomic.
-    auto expectedDesiredSize = m_desiredSize.load(std::memory_order_relaxed);
-    auto newDesiredSize = offset + count;
-    while(
-        expectedDesiredSize < newDesiredSize
-        &&
-        !m_desiredSize.compare_exchange_weak(expectedDesiredSize, newDesiredSize, std::memory_order_relaxed))
-    {
-    }
+        // Grow an extra 25% over what is requested
+        fileSize += fileSize / 4;
 
-    {
-        // Only one thread needs to extend the extent.
-        // We send the other threads back to retry with the read lock.
-        // This thread's acquisition of the write lock will block the
-        // readers.
-        auto mappedRegionMutexLock = m_lastMappedFullRegionMutex.try_scoped_lock();
-        if (!mappedRegionMutexLock)
-        {
-            goto RetryWithReadLock;
-        }
-
-        auto mappedRegionLock = m_lastMappedFullRegionLock.writer().scoped_lock_async();
-
-        // If some other thread already extended the extent,
-        // use its result.
-        if (offset + count < m_lastMappedFullRegionSize)
-        {
-            region = m_lastFullRegion;
-            data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
-            flushRegion =
-            {
-                .beginning = offset,
-                .end = offset + count,
-            };
-
-            co_return;
-        }
-
-        auto newSize = m_lastMappedFullRegionSize;
-
-        // Always grow by at least 100%
         // Always grow by at least 1 block
-        newSize = std::max(
-            newSize + newSize / 4,
-            newSize + m_blockSize);
-
-        // Always grow to at least the requested size.
-        newSize = std::max(
-            (m_desiredSize.load(std::memory_order_relaxed)),
-            newSize);
+        fileSize += m_blockSize;
 
         // And round up to the next block size.
-        newSize = (newSize + m_blockSize - 1) / m_blockSize * m_blockSize;
-
-        assert(newSize > m_lastMappedFullRegionSize);
+        fileSize = (fileSize + m_blockSize - 1) / m_blockSize * m_blockSize;
 
         {
             // If we haven't previously mapped the file, we might need to create it.
@@ -371,7 +312,7 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
 
         std::filesystem::resize_file(
             m_filename,
-            newSize
+            fileSize
         );
 
         file_mapping fileMapping(
@@ -383,19 +324,30 @@ task<> MemoryMappedWritableExtent::GetWriteRegion(
             fileMapping,
             boost::interprocess::read_write);
 
+        auto mappedRegionLock = co_await m_lastMappedFullRegionLock.writer().scoped_lock_async();
         m_lastFullRegion = newMappedRegion;
-        m_lastMappedFullRegionSize = newSize;
-
-        region = m_lastFullRegion;
-        data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
-        flushRegion =
-        {
-            .beginning = offset,
-            .end = offset + count,
-        };
-
-        co_return;
     }
+}
+task<> MemoryMappedWritableExtent::GetWriteRegion(
+    ExtentOffset offset,
+    size_t count,
+    shared_ptr<mapped_region>& region,
+    void*& data,
+    MemoryMappedExtentStore_flush_region& flushRegion)
+{
+    m_requestedFileSize.publish(offset + count);
+    co_await m_actualFileSize.wait_until_published(offset + count);
+    co_await m_schedulers.LockScheduler->schedule();
+    auto mappedRegionLock = co_await m_lastMappedFullRegionLock.reader().scoped_lock_async();
+    co_await m_schedulers.LockScheduler->schedule();
+
+    region = m_lastFullRegion;
+    data = reinterpret_cast<char*>(m_lastFullRegion->get_address()) + offset;
+    flushRegion =
+    {
+        .beginning = offset,
+        .end = offset + count,
+    };
 }
 
 void MemoryMappedWritableExtent::Commit(
