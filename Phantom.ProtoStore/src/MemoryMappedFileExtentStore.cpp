@@ -621,6 +621,8 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
     auto filename = GetFilename(
         extentName);
 
+    std::error_code errorCode;
+
     if (m_extentDeleteAction == ExtentDeleteAction::Rename)
     {
         if (std::filesystem::exists(
@@ -634,18 +636,28 @@ task<> MemoryMappedFileExtentStore::DeleteExtent(
             ))
             {
                 std::filesystem::remove(
-                    deletedFilename);
+                    deletedFilename,
+                    errorCode);
             }
 
             std::filesystem::rename(
                 filename,
-                deletedFilename);
+                deletedFilename,
+                errorCode);
         }
     }
     else
     {
         std::filesystem::remove(
-            filename);
+            filename,
+            errorCode);
+    }
+
+    if (errorCode && std::filesystem::exists(
+        filename
+    ))
+    {
+        throw errorCode;
     }
 
     co_return;
