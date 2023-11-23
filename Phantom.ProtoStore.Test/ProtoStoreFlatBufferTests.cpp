@@ -1649,7 +1649,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 
         if (doCheckpoint)
         {
-            //co_await store->Checkpoint();
+            co_await store->Checkpoint();
             //co_await store->Merge();
         }
     };

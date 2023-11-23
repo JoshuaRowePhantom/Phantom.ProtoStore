@@ -69,6 +69,7 @@ public:
 
 std::shared_ptr<IIndexDataSources> MakeIndexDataSources(
     IInternalProtoStore* protoStore,
+    Schedulers schedulers,
     shared_ptr<IIndex> index
 );
 

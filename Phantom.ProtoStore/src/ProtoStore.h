@@ -65,6 +65,8 @@ class ProtoStore
     single_pending_task m_mergeTask;
 
     std::atomic<ExtentOffset> m_nextCheckpointLogOffset;
+    async_reader_writer_lock m_pendingSwitchLogLock;
+    std::atomic<size_t> m_pendingSwitchLogTasks;
 
     struct IndexEntry
     {
@@ -148,11 +150,6 @@ class ProtoStore
         shared_ptr<IPartitionWriter>& out_partitionWriter
     ) override;
 
-    bool IsLogEntryForPhase(
-        int phase,
-        const FlatMessage<LogEntry>& logEntry
-    );
-
     task<> Replay();
 
     task<> ReplayPartitionsForOpenedIndexes();
@@ -160,6 +157,16 @@ class ProtoStore
 
     task<> ReplayPartitionsForIndex(
         const IndexEntry& indexEntry);
+
+    task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecord(
+        const FlatMessage<FlatBuffers::LogRecord>& logRecord,
+        FlushBehavior flushBehavior
+    );
+
+    task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecordWithLock(
+        const FlatMessage<FlatBuffers::LogRecord>& logRecord,
+        FlushBehavior flushBehavior
+    );
 
     task<> SwitchToNewLog();
 

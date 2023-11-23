@@ -9,9 +9,11 @@ namespace Phantom::ProtoStore
 
 IndexDataSources::IndexDataSources(
     IInternalProtoStore* protoStore,
+    Schedulers schedulers,
     shared_ptr<IIndex> index
 ) :
     m_protoStore(protoStore),
+    m_schedulers(std::move(schedulers)),
     m_index(std::move(index)),
     m_activeMemoryTablePartitionNumber(0)
 {
@@ -20,9 +22,10 @@ IndexDataSources::IndexDataSources(
 task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
 {
     auto lock = co_await m_dataSourcesLock.scoped_lock_async();
+    co_await m_schedulers.LockScheduler->schedule();
 
     FlatBuffers::LoggedCheckpointT loggedCheckpoint;
-
+    
     loggedCheckpoint.index_number =
         m_index->GetIndexNumber();
 
@@ -43,7 +46,8 @@ task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
     // It's also possible that we'll actually write zero rows, if all the rows
     // in the memory table are transaction aborts. This is also okay and desirable:
     // The aborted rows use in-process memory, and checkpointing will free that memory.
-    if (m_activeMemoryTable->GetApproximateRowCount() > 0)
+    // Also only checkpoint tables that have a minimum row count.
+    if (m_activeMemoryTable->GetApproximateRowCount() > 50)
     {
         loggedCheckpoint.partition_number.push_back(m_activeMemoryTablePartitionNumber);
         m_checkpointingMemoryTables[m_activeMemoryTablePartitionNumber] = std::move(m_activeMemoryTable);
@@ -73,6 +77,7 @@ task<WriteRowsResult> IndexDataSources::Checkpoint(
 
     {
         auto lock = co_await m_dataSourcesLock.scoped_lock_async();
+        co_await m_schedulers.LockScheduler->schedule();
 
         for (auto partitionNumber : loggedCheckpoint.partition_number)
         {
@@ -99,6 +104,7 @@ task<> IndexDataSources::UpdatePartitions(
 
     {
         auto lock = co_await m_dataSourcesLock.scoped_lock_async();
+        co_await m_schedulers.LockScheduler->schedule();
 
         for (auto partitionNumber : loggedCheckpoint.partition_number)
         {
@@ -272,11 +278,13 @@ PartitionNumber IndexDataSourcesSelector::ActiveMemoryTablePartitionNumber(
 
 std::shared_ptr<IIndexDataSources> MakeIndexDataSources(
     IInternalProtoStore* protoStore,
+    Schedulers schedulers,
     shared_ptr<IIndex> index
 )
 {
     return std::make_shared<IndexDataSources>(
         protoStore,
+        std::move(schedulers),
         std::move(index));
 }
 

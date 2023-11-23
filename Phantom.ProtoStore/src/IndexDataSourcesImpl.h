@@ -13,6 +13,7 @@ class IndexDataSources
     public IIndexDataSources
 {
     IInternalProtoStore* m_protoStore;
+    Schedulers m_schedulers;
     cppcoro::async_mutex m_dataSourcesLock;
 
     vector<shared_ptr<IPartition>> m_partitions;
@@ -31,6 +32,7 @@ class IndexDataSources
 public:
     IndexDataSources(
         IInternalProtoStore* protoStore,
+        Schedulers schedulers,
         shared_ptr<IIndex> index
     );
 

@@ -615,7 +615,7 @@ public:
 
             FlatMessage<LogRecord> logRecord(loggedRowWriteBuilder.builder());
 
-            logRecord = co_await m_protoStore.m_logManager.WriteLogRecord(
+            logRecord = co_await m_protoStore.WriteLogRecord(
                 logRecord,
                 FlushBehavior::DontFlush);
 
@@ -747,8 +747,9 @@ private:
             m_logRecordBuilder.Finish(
                 logRecordOffset);
 
-            co_await m_protoStore.m_logManager.WriteLogRecord(
-                FlatMessage<LogRecord>{ m_logRecordBuilder });
+            co_await m_protoStore.WriteLogRecord(
+                FlatMessage<LogRecord>{ m_logRecordBuilder },
+                FlushBehavior::Flush);
         }
 
         m_delayedOperationOutcome->Complete();
@@ -1129,6 +1130,7 @@ ProtoStore::IndexEntry ProtoStore::MakeIndex(
 
     auto indexDataSources = MakeIndexDataSources(
         this,
+        m_schedulers,
         index);
 
     auto mergeGenerator = make_shared<IndexPartitionMergeGenerator>();
@@ -1216,28 +1218,20 @@ task<> ProtoStore::InternalCheckpoint()
     // to be able to clean up the current log at the next checkpoint.
     co_await SwitchToNewLog();
 
-    vector<task<>> checkpointTasks;
+    Phantom::Coroutines::async_scope<> checkpointTasks;
 
     {
         auto lock = co_await m_indexesByNumberLock.reader().scoped_lock_async();
 
         for (auto index : m_indexesByNumber)
         {
-            checkpointTasks.push_back(
+            checkpointTasks.spawn(
                 Checkpoint(
                     index.second));
         }
     }
 
-    for (auto& task : checkpointTasks)
-    {
-        co_await task.when_ready();
-    }
-
-    for (auto& task : checkpointTasks)
-    {
-        co_await task;
-    }
+    co_await checkpointTasks.join();
 
     co_await m_logManager.DeleteOldLogs();
 }
@@ -1259,14 +1253,50 @@ task<> ProtoStore::InternalMerge()
     co_await merger.Join();
 }
 
+task<FlatMessage<FlatBuffers::LogRecord>> ProtoStore::WriteLogRecord(
+    const FlatMessage<FlatBuffers::LogRecord>& logRecord,
+    FlushBehavior flushBehavior
+)
+{
+    if (m_pendingSwitchLogTasks.load(std::memory_order_relaxed))
+    {
+        return WriteLogRecordWithLock(
+            logRecord,
+            flushBehavior);
+    }
+    else
+    {
+        return m_logManager.WriteLogRecord(
+            logRecord,
+            flushBehavior);
+    }
+}
+
+task<FlatMessage<FlatBuffers::LogRecord>> ProtoStore::WriteLogRecordWithLock(
+    const FlatMessage<FlatBuffers::LogRecord>& logRecord,
+    FlushBehavior flushBehavior
+)
+{
+    auto lock = co_await m_pendingSwitchLogLock.reader().scoped_lock_async();
+    co_await m_schedulers.ComputeScheduler->schedule();
+    co_return co_await m_logManager.WriteLogRecord(
+        logRecord,
+        flushBehavior);
+}
+
 task<> ProtoStore::SwitchToNewLog()
 {
+    m_pendingSwitchLogTasks.fetch_add(1);
+    auto lock = co_await m_pendingSwitchLogLock.writer().scoped_lock_async();
+
     co_await UpdateHeader([this](FlatBuffers::DatabaseHeaderT* header) -> task<>
         {
             co_await m_logManager.Checkpoint(header);
         });
 
     co_await m_logManager.OpenNewLogWriter();
+
+    m_pendingSwitchLogTasks.fetch_sub(1);
 }
 
 task<> ProtoStore::Checkpoint(
@@ -1527,7 +1557,7 @@ task<> ProtoStore::AllocatePartitionExtents(
 
     FlatMessage<FlatBuffers::LogRecord> logRecordMessage{ logRecord };
 
-    co_await m_logManager.WriteLogRecord(
+    co_await WriteLogRecord(
         logRecordMessage,
         FlushBehavior::Flush);
 }

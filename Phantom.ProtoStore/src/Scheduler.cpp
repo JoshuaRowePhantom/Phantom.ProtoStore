@@ -7,13 +7,14 @@ namespace Phantom::ProtoStore
 
 Schedulers Schedulers::Default()
 {
-    static std::shared_ptr<IScheduler> scheduler = std::make_shared<DefaultScheduler<cppcoro::static_thread_pool>>();
+    static std::shared_ptr<IScheduler> lockAndComputeScheduler = std::make_shared<DefaultScheduler<cppcoro::static_thread_pool>>();
+    static std::shared_ptr<IScheduler> ioScheduler = std::make_shared<DefaultScheduler<cppcoro::static_thread_pool>>();
 
     static Schedulers schedulers =
     {
-        .LockScheduler = scheduler,
-        .IoScheduler = scheduler,
-        .ComputeScheduler = scheduler,
+        .LockScheduler = lockAndComputeScheduler,
+        .IoScheduler = ioScheduler,
+        .ComputeScheduler = lockAndComputeScheduler,
     };
 
     return schedulers;
