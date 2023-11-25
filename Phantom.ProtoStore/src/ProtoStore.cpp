@@ -1258,35 +1258,29 @@ task<FlatMessage<FlatBuffers::LogRecord>> ProtoStore::WriteLogRecord(
     FlushBehavior flushBehavior
 )
 {
-    if (m_pendingSwitchLogTasks.load(std::memory_order_relaxed))
-    {
-        return WriteLogRecordWithLock(
-            logRecord,
-            flushBehavior);
-    }
-    else
-    {
-        return m_logManager.WriteLogRecord(
-            logRecord,
-            flushBehavior);
-    }
-}
-
-task<FlatMessage<FlatBuffers::LogRecord>> ProtoStore::WriteLogRecordWithLock(
-    const FlatMessage<FlatBuffers::LogRecord>& logRecord,
-    FlushBehavior flushBehavior
-)
-{
     auto lock = co_await m_pendingSwitchLogLock.reader().scoped_lock_async();
     co_await m_schedulers.ComputeScheduler->schedule();
-    co_return co_await m_logManager.WriteLogRecord(
+    auto result = co_await m_logManager.WriteLogRecord(
         logRecord,
         flushBehavior);
+    lock.unlock();
+
+    if (result.data().DataRange.End > m_checkpointLogSize)
+    {
+        co_await SwitchToNewLog();
+    }
+
+    co_return result;
 }
 
 task<> ProtoStore::SwitchToNewLog()
 {
-    m_pendingSwitchLogTasks.fetch_add(1);
+    if (m_pendingSwitchLogTasks.fetch_add(1) > 0)
+    {
+        m_pendingSwitchLogTasks.fetch_sub(1);
+        co_return;
+    }
+
     auto lock = co_await m_pendingSwitchLogLock.writer().scoped_lock_async();
 
     co_await UpdateHeader([this](FlatBuffers::DatabaseHeaderT* header) -> task<>

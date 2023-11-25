@@ -163,11 +163,6 @@ class ProtoStore
         FlushBehavior flushBehavior
     );
 
-    task<FlatMessage<FlatBuffers::LogRecord>> WriteLogRecordWithLock(
-        const FlatMessage<FlatBuffers::LogRecord>& logRecord,
-        FlushBehavior flushBehavior
-    );
-
     task<> SwitchToNewLog();
 
     task<> UpdateHeader(

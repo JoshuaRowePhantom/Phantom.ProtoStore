@@ -1597,6 +1597,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 #else
     createRequest.CheckpointLogSize = 100000;
 #endif
+    Phantom::Coroutines::async_scope<> backgroundTasks;
 
     auto store = co_await CreateStore(
         createRequest);
@@ -1649,7 +1650,8 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
 
         if (doCheckpoint)
         {
-            co_await store->Checkpoint();
+            backgroundTasks.spawn(store->Checkpoint());
+            //co_await store->Checkpoint();
             //co_await store->Merge();
         }
     };
@@ -1737,6 +1739,7 @@ ASYNC_TEST_F(ProtoStoreFlatBufferTests, DebugPerformanceTest(Perf2))
     };
 
     co_await readLambda();
+    co_await backgroundTasks.join();
     co_return;
 
     auto readNonExistentLambda = [&]() -> task<>

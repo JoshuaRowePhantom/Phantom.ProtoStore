@@ -217,8 +217,8 @@ task<> MemoryTable::UpdateOutcome(
     shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome)
 {
     auto outcome = co_await delayedTransactionOutcome->GetOutcome();
-
     auto lock = co_await memoryTableValue.Mutex.scoped_lock_async();
+    
     // It's possible that another UpdateOutcome replaced the DelayedTransactionOutcome
     // because this row aborted and the other resolver updated the row.
     // 
