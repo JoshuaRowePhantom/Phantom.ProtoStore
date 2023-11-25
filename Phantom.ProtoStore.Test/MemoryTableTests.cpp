@@ -14,6 +14,10 @@ namespace Phantom::ProtoStore
 {
 class MemoryTableTests : public ::testing::Test
 {
+    static_assert(static_cast<uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeAborted) == static_cast<uint64_t>(TransactionOutcome::Aborted));
+    static_assert(static_cast<uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeCommitted) == static_cast<uint64_t>(TransactionOutcome::Committed));
+    static_assert(static_cast<uint64_t>(MemoryTableOutcomeAndSequenceNumber::OutcomeUnknown) == static_cast<uint64_t>(TransactionOutcome::Unknown));
+
 protected:
     std::shared_ptr<Schema> schema;
     std::shared_ptr<ValueComparer> keyComparer;
