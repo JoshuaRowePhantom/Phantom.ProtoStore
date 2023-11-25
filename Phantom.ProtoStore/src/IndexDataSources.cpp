@@ -46,8 +46,7 @@ task<FlatBuffers::LoggedCheckpointT> IndexDataSources::StartCheckpoint()
     // It's also possible that we'll actually write zero rows, if all the rows
     // in the memory table are transaction aborts. This is also okay and desirable:
     // The aborted rows use in-process memory, and checkpointing will free that memory.
-    // Also only checkpoint tables that have a minimum row count.
-    if (m_activeMemoryTable->GetApproximateRowCount() > 50)
+    if (m_activeMemoryTable->GetApproximateRowCount() > 0)
     {
         loggedCheckpoint.partition_number.push_back(m_activeMemoryTablePartitionNumber);
         m_checkpointingMemoryTables[m_activeMemoryTablePartitionNumber] = std::move(m_activeMemoryTable);
