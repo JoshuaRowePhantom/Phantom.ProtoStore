@@ -6,6 +6,7 @@
 #include "PartitionWriterImpl.h"
 #include "Phantom.System/utility.h"
 #include "ProtoStoreInternal.pb.h"
+#include "Resources.h"
 #include "RowMerger.h"
 #include "Schema.h"
 #include <algorithm>
@@ -441,8 +442,8 @@ task<> IndexMerger::WriteMergedPartitionsTableHeaderExtentNumbers(
         ProtoValueStlEqual
     > partitionHeaderExtentNames(
         0,
-        FlatBuffersSchemas::ExtentName_Comparers.hash,
-        FlatBuffersSchemas::ExtentName_Comparers.equal_to);
+        FlatBuffersSchemas_Comparers().ExtentName_Comparers.hash,
+        FlatBuffersSchemas_Comparers().ExtentName_Comparers.equal_to);
 
     auto existingPartitions = co_await m_protoStore->GetPartitionsForIndex(
         incompleteMerge.Merge.Key->index_number());

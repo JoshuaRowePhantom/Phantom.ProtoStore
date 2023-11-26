@@ -2,6 +2,7 @@
 #include "ExtentName.h"
 #include "ExtentStore.h"
 #include "MessageStoreImpl.h"
+#include "Resources.h"
 #include "Phantom.ProtoStore/numeric_cast.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include "StandardTypes.h"
@@ -599,8 +600,8 @@ MessageStore::MessageStore(
     m_extentStore(move(extentStore)),
     m_readableExtents(
         0,
-        FlatBuffersSchemas::ExtentName_Comparers.hash,
-        FlatBuffersSchemas::ExtentName_Comparers.equal_to
+        FlatBuffersSchemas_Comparers().ExtentName_Comparers.hash,
+        FlatBuffersSchemas_Comparers().ExtentName_Comparers.equal_to
     )
 {
 }

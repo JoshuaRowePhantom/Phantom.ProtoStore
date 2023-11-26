@@ -62,7 +62,7 @@ protected:
             FlatBuffers::PartitionsValue
         >)
         {
-            return FlatBuffersSchemas::ProtoStoreInternalSchema;
+            return FlatBuffersSchemas().ProtoStoreInternalSchema;
         }
         else if constexpr (is_in_types <
             Value, 
@@ -85,19 +85,19 @@ protected:
     {
         if constexpr (std::same_as<Value, FlatBuffers::MergesKey>)
         {
-            return FlatBuffersSchemas::MergesKey_Object;
+            return FlatBuffersSchemas().MergesKey_Object;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::MergesValue>)
         {
-            return FlatBuffersSchemas::MergesValue_Object;
+            return FlatBuffersSchemas().MergesValue_Object;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::PartitionsKey>)
         {
-            return FlatBuffersSchemas::PartitionsKey_Object;
+            return FlatBuffersSchemas().PartitionsKey_Object;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::PartitionsValue>)
         {
-            return FlatBuffersSchemas::PartitionsValue_Object;
+            return FlatBuffersSchemas().PartitionsValue_Object;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::TestKey>)
         {
@@ -124,19 +124,27 @@ protected:
 
         if constexpr (std::same_as<Value, FlatBuffers::MergesKey>)
         {
-            return FlatBuffersSchemas::MergesKey_Comparers;
+            return FlatBuffersSchemas_Comparers().MergesKey_Comparers;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::MergesValue>)
         {
-            return FlatBuffersSchemas::MergesValue_Comparers;
+            return FlatBuffersSchemas_Comparers().MergesValue_Comparers;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::PartitionsKey>)
         {
-            return FlatBuffersSchemas::PartitionsKey_Comparers;
+            return FlatBuffersSchemas_Comparers().PartitionsKey_Comparers;
         }
         else if constexpr (std::same_as<Value, FlatBuffers::PartitionsValue>)
         {
-            return FlatBuffersSchemas::PartitionsValue_Comparers;
+            return FlatBuffersSchemas_Comparers().PartitionsValue_Comparers;
+        }
+        else if constexpr (std::same_as<Value, FlatBuffers::FlatStringKey>)
+        {
+            return FlatBuffersTestSchemas::Test_FlatStringKey_Comparers;
+        }
+        else if constexpr (std::same_as<Value, FlatBuffers::FlatStringValue>)
+        {
+            return FlatBuffersTestSchemas::Test_FlatStringValue_Comparers;
         }
         else
         {
@@ -253,6 +261,16 @@ protected:
         );
     }
 
+    struct TestStringKeyValuePairRow
+    {
+        std::string Key;
+        std::optional<std::string> Value;
+        SequenceNumber WriteSequenceNumber;
+        std::optional<std::string> DistributedTransactionId;
+        TransactionOutcome LocalTransactionOutcome = TransactionOutcome::Committed;
+        LocalTransactionNumber LocalTransactionNumber = 0;
+    };
+
     class TestPartitionBuilder
     {
         shared_ptr<IMessageStore> m_messageStore;
@@ -291,6 +309,14 @@ protected:
         task<shared_ptr<IPartition>> OpenPartition(
             const Schema& schema);
     };
+
+    task<shared_ptr<IPartition>> CreateInMemoryTestPartition(
+        std::vector<TestStringKeyValuePairRow> rows
+    );
+
+    task<shared_ptr<IMemoryTable>> CreateTestMemoryTable(
+        std::vector<TestStringKeyValuePairRow> rows
+    );
 
     CreateProtoStoreRequest GetCreateMemoryStoreRequest()
     {

@@ -1,7 +1,9 @@
 #include "TestFactories.h"
 #include "Phantom.ProtoStore/src/IndexDataSourcesImpl.h"
+#include "Phantom.ProtoStore/src/MemoryExtentStore.h"
 #include "Phantom.ProtoStore/src/MessageStore.h"
 #include "Phantom.ProtoStore/src/PartitionImpl.h"
+#include "Phantom.ProtoStore/src/PartitionWriterImpl.h"
 #include "Phantom.ProtoStore/src/ProtoStore.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include "Phantom.System/utility.h"
@@ -233,8 +235,8 @@ task<FlatBuffers::MessageReference_V1> TestFactories::TestPartitionBuilder::Writ
 )
 {
     auto protoValue = JsonToProtoValue(
-        FlatBuffersSchemas::ProtoStoreInternalSchema,
-        FlatBuffersSchemas::PartitionMessage_Object,
+        FlatBuffersSchemas().ProtoStoreInternalSchema,
+        FlatBuffersSchemas().PartitionMessage_Object,
         json
     );
 
@@ -327,6 +329,118 @@ shared_ptr<ProtoStore> TestFactories::ToProtoStore(
     return std::static_pointer_cast<ProtoStore>(
         protoStore
     );
+}
+
+
+task<shared_ptr<IPartition>> TestFactories::CreateInMemoryTestPartition(
+    std::vector<TestStringKeyValuePairRow> rows
+)
+{
+    auto extentStore = co_await UseMemoryExtentStore()();
+    auto messageStore = MakeMessageStore(
+        Schedulers::Inline(),
+        extentStore);
+
+    auto headerExtentName = FlatValue{ MakePartitionHeaderExtentName(1, 1, 1, "test") };
+    auto dataExtentName = FlatValue{ MakePartitionHeaderExtentName(1, 1, 1, "test") };
+
+    auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
+        headerExtentName
+    );
+    auto dataWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
+        dataExtentName
+    );
+    auto schema = copy_shared(Schema::Make(
+        { GetSchema<FlatBuffers::FlatStringKey>(), GetObject<FlatBuffers::FlatStringKey>() },
+        { GetSchema<FlatBuffers::FlatStringValue>(), GetObject<FlatBuffers::FlatStringValue>() }
+    ));
+
+    auto keyComparer = MakeFlatBufferValueComparer(copy_shared(schema->KeySchema.AsFlatBuffersKeySchema()->ObjectSchema));
+    auto valueComparer = MakeFlatBufferValueComparer(copy_shared(schema->ValueSchema.AsFlatBuffersValueSchema()->ObjectSchema));
+
+    auto partitionWriter = PartitionWriter(
+        schema,
+        keyComparer,
+        valueComparer,
+        headerWriter,
+        dataWriter
+    );
+
+    auto rowGeneratorLambda = [&]() -> row_generator
+    {
+        for (auto& row : rows)
+        {
+            FlatBuffers::FlatStringKeyT keyT;
+            keyT.value = row.Key;
+            ProtoValue key = FlatMessage{ keyT };
+            ProtoValue value;
+            if (row.Value)
+            {
+                FlatBuffers::FlatStringValueT valueT;
+                valueT.value = *row.Value;
+                value = FlatMessage{ valueT };
+            }
+            TransactionIdReference transactionIdReference;
+            if (row.DistributedTransactionId)
+            {
+                FlatBuffers::FlatStringKeyT transactionIdHolderT;
+                transactionIdHolderT.value = *row.DistributedTransactionId;
+                auto transactionIdHolder = FlatMessage{ transactionIdHolderT };
+                transactionIdReference = MakeTransactionIdReference(
+                    transactionIdHolder,
+                    transactionIdHolder->value());
+            }
+
+            co_yield ResultRow
+            {
+                .Key = key,
+                .WriteSequenceNumber = row.WriteSequenceNumber,
+                .Value = value,
+                .TransactionId = transactionIdReference,
+            };
+        }
+    };
+
+    auto rowGenerator = rowGeneratorLambda();
+
+    WriteRowsRequest writeRowsRequest
+    {
+        .approximateRowCount = rows.size(),
+        .rows = &rowGenerator,
+        .inputSize = rows.size() * 1000,
+        .targetExtentSize = std::numeric_limits<size_t>::max(),
+        .targetMessageSize = std::numeric_limits<size_t>::max(),
+    };
+
+    auto writeRowsResult = co_await partitionWriter.WriteRows(
+        writeRowsRequest
+    );
+
+    auto headerReader = co_await messageStore->OpenExtentForRandomReadAccess(
+        headerExtentName
+    );
+
+    auto dataReader = co_await messageStore->OpenExtentForRandomReadAccess(
+        dataExtentName
+    );
+
+    auto partition = std::make_shared<Partition>(
+        schema,
+        keyComparer,
+        headerReader,
+        dataReader
+    );
+
+    co_await partition->Open();
+
+    co_return partition;
+}
+
+task<shared_ptr<IMemoryTable>> TestFactories::CreateTestMemoryTable(
+    std::vector<TestStringKeyValuePairRow> rows
+)
+{
+    throw 1;
 }
 
 }

@@ -1,5 +1,6 @@
 #include "StandardTypes.h"
 #include "ExtentName.h"
+#include "Resources.h"
 #include "Phantom.ProtoStore/ProtoStoreInternal_generated.h"
 #include <boost/functional/hash.hpp>
 
@@ -69,8 +70,8 @@ FlatValue<ExtentName> Clone(
 )
 {
     return FlatValue(extentName).Clone(
-        *FlatBuffersSchemas::ProtoStoreSchema,
-        *FlatBuffersSchemas::ExtentName_Object
+        *FlatBuffersSchemas().ProtoStoreSchema,
+        *FlatBuffersSchemas().ExtentName_Object
     );
 }
 }

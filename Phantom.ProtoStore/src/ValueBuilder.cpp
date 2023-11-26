@@ -148,8 +148,8 @@ const ValueBuilder::InternedSchemaItem& ValueBuilder::InternedSchemaItems::Inter
     if (schemaItem.schemaIdentifier() == schemaItem.schema)
     {
         key.hashCode = Hash(
-            FlatBuffersSchemas::ReflectionSchema,
-            FlatBuffersSchemas::ReflectionSchema_Schema,
+            FlatBuffersSchemas().ReflectionSchema,
+            FlatBuffersSchemas().ReflectionSchema_Schema,
             schemaItem.schema);
     }
     else
@@ -163,13 +163,13 @@ const ValueBuilder::InternedSchemaItem& ValueBuilder::InternedSchemaItems::Inter
         key.hashCode = internedSchema->hashCode
             ^
             Hash(
-                FlatBuffersSchemas::ReflectionSchema,
-                FlatBuffersSchemas::ReflectionSchema_Object,
+                FlatBuffersSchemas().ReflectionSchema,
+                FlatBuffersSchemas().ReflectionSchema_Object,
                 schemaItem.object)
             ^
             Hash(
-                FlatBuffersSchemas::ReflectionSchema,
-                FlatBuffersSchemas::ReflectionSchema_Type,
+                FlatBuffersSchemas().ReflectionSchema,
+                FlatBuffersSchemas().ReflectionSchema_Type,
                 schemaItem.type)
             ;
     }
@@ -285,15 +285,15 @@ ValueBuilder::InternedSchemaItem ValueBuilder::InternedSchemaItems::MakeInterned
         .hash = [=](const void* v)
         {
             return ValueBuilder::Hash(
-                FlatBuffersSchemas::ReflectionSchema,
-                FlatBuffersSchemas::ReflectionSchema_Schema,
+                FlatBuffersSchemas().ReflectionSchema,
+                FlatBuffersSchemas().ReflectionSchema_Schema,
                 reinterpret_cast<const flatbuffers::Table*>(v));
         },
         .equal_to = [=](const void* a, const void* b)
         {
             return ValueBuilder::Equals(
-                FlatBuffersSchemas::ReflectionSchema,
-                FlatBuffersSchemas::ReflectionSchema_Schema,
+                FlatBuffersSchemas().ReflectionSchema,
+                FlatBuffersSchemas().ReflectionSchema_Schema,
                 FlatValue{reinterpret_cast<const flatbuffers::Table*>(a)},
                 FlatValue{reinterpret_cast<const flatbuffers::Table*>(b)});
         },
@@ -397,8 +397,8 @@ bool ValueBuilder::InternedSchemaItems::InternedSchemaItemValueComparer::operato
         item1.schemaItem.schema == item2.schemaItem.schema
         ||
             Equals(
-                FlatBuffersSchemas::ReflectionSchema,
-                FlatBuffersSchemas::ReflectionSchema_Schema,
+                FlatBuffersSchemas().ReflectionSchema,
+                FlatBuffersSchemas().ReflectionSchema_Schema,
                 reinterpret_cast<const flatbuffers::Table*>(item1.schemaItem.schema),
                 reinterpret_cast<const flatbuffers::Table*>(item2.schemaItem.schema))
             )
@@ -407,8 +407,8 @@ bool ValueBuilder::InternedSchemaItems::InternedSchemaItemValueComparer::operato
             item1.schemaItem.type == item2.schemaItem.type
         ||
             Equals(
-                FlatBuffersSchemas::ReflectionSchema,
-                FlatBuffersSchemas::ReflectionSchema_Type,
+                FlatBuffersSchemas().ReflectionSchema,
+                FlatBuffersSchemas().ReflectionSchema_Type,
                 reinterpret_cast<const flatbuffers::Table*>(item1.schemaItem.type),
                 reinterpret_cast<const flatbuffers::Table*>(item2.schemaItem.type))
             )
@@ -417,8 +417,8 @@ bool ValueBuilder::InternedSchemaItems::InternedSchemaItemValueComparer::operato
             item1.schemaItem.object == item2.schemaItem.object
             ||
             Equals(
-                FlatBuffersSchemas::ReflectionSchema,
-                FlatBuffersSchemas::ReflectionSchema_Object,
+                FlatBuffersSchemas().ReflectionSchema,
+                FlatBuffersSchemas().ReflectionSchema_Object,
                 reinterpret_cast<const flatbuffers::Table*>(item1.schemaItem.object),
                 reinterpret_cast<const flatbuffers::Table*>(item2.schemaItem.object)
             )

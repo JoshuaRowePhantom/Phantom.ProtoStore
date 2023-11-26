@@ -20,8 +20,8 @@ public:
         partitionsIndex = co_await MakeInMemoryIndex(
             "Partitions",
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsValue_Object }
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().PartitionsKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().PartitionsValue_Object }
         ));
 
         existingPartitions = Phantom::ProtoStore::MakeExistingPartitions(

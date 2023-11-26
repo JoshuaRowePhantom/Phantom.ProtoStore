@@ -36,8 +36,8 @@ ProtoStore::ProtoStore(
     m_mergeTask([=] { return InternalMerge(); }),
     m_activePartitions(
         0,
-        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.hash,
-        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.equal_to
+        FlatBuffersSchemas_Comparers().IndexHeaderExtentName_Comparers.hash,
+        FlatBuffersSchemas_Comparers().IndexHeaderExtentName_Comparers.equal_to
     ),
     m_logManager{ m_schedulers, m_extentStore, m_messageStore }
 {
@@ -102,8 +102,8 @@ task<> ProtoStore::Open(
             SystemIndexNumbers::IndexesByNumber,
             SequenceNumber::Earliest,
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNumberValue_Object }),
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().IndexesByNumberKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().IndexesByNumberValue_Object }),
             {});
 
         m_indexesByNumberIndex = MakeIndex(
@@ -123,8 +123,8 @@ task<> ProtoStore::Open(
             SystemIndexNumbers::IndexesByName,
             SequenceNumber::Earliest,
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::IndexesByNameValue_Object }),
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().IndexesByNameKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().IndexesByNameValue_Object }),
             {});
 
         m_indexesByNameIndex = MakeIndex(
@@ -144,8 +144,8 @@ task<> ProtoStore::Open(
             SystemIndexNumbers::Partitions,
             SequenceNumber::Earliest,
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::PartitionsValue_Object }),
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().PartitionsKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().PartitionsValue_Object }),
             {});
 
         m_partitionsIndex = MakeIndex(
@@ -165,8 +165,8 @@ task<> ProtoStore::Open(
             SystemIndexNumbers::Merges,
             SequenceNumber::Earliest,
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergesValue_Object }),
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().MergesKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().MergesValue_Object }),
             {});
 
         m_mergesIndex = MakeIndex(
@@ -186,8 +186,8 @@ task<> ProtoStore::Open(
             SystemIndexNumbers::MergeProgress,
             SequenceNumber::Earliest,
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::MergeProgressValue_Object }),
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().MergeProgressKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().MergeProgressValue_Object }),
             {});
 
         m_mergeProgressIndex = MakeIndex(
@@ -207,8 +207,8 @@ task<> ProtoStore::Open(
             SystemIndexNumbers::DistributedTransactions,
             SequenceNumber::Earliest,
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionsValue_Object }),
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().DistributedTransactionsKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().DistributedTransactionsValue_Object }),
             {});
 
         m_distributedTransactionsIndex = MakeIndex(
@@ -228,8 +228,8 @@ task<> ProtoStore::Open(
             SystemIndexNumbers::DistributedTransactionReferences,
             SequenceNumber::Earliest,
             Schema::Make(
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesKey_Object },
-                { FlatBuffersSchemas::ProtoStoreInternalSchema, FlatBuffersSchemas::DistributedTransactionReferencesValue_Object }),
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().DistributedTransactionReferencesKey_Object },
+                { FlatBuffersSchemas().ProtoStoreInternalSchema, FlatBuffersSchemas().DistributedTransactionReferencesValue_Object }),
             {});
 
         m_distributedTransactionReferencesIndex = MakeIndex(
@@ -1079,8 +1079,8 @@ void ProtoStore::MakeIndexesByNumberRow(
 
     auto metadataOffset = metadata.Clone(
         indexesByNumberValueBuilder,
-        *FlatBuffersSchemas::ProtoStoreSchema,
-        *FlatBuffersSchemas::Metadata_Object);
+        *FlatBuffersSchemas().ProtoStoreSchema,
+        *FlatBuffersSchemas().Metadata_Object);
 
     auto indexesByNumberValueOffset = FlatBuffers::CreateIndexesByNumberValue(
         indexesByNumberValueBuilder,
@@ -1198,8 +1198,8 @@ task<shared_ptr<IPartition>> ProtoStore::OpenPartitionForIndex(
     }
 
     auto headerExtentNameClone = FlatValue(headerExtentName).Clone(
-        *FlatBuffersSchemas::ProtoStoreSchema,
-        *FlatBuffersSchemas::IndexHeaderExtentName_Object);
+        *FlatBuffersSchemas().ProtoStoreSchema,
+        *FlatBuffersSchemas().IndexHeaderExtentName_Object);
 
     m_activePartitions[headerExtentNameClone] = partition;
 

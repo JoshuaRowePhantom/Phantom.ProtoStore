@@ -391,8 +391,8 @@ flatbuffers::Offset<FlatBuffers::FlatBuffersObjectDescription> SchemaDescription
 
     auto keySchemaOffset = flatbuffers::CopyTable(
         builder,
-        *FlatBuffersSchemas::ReflectionSchema,
-        *FlatBuffersSchemas::ReflectionSchema_Schema,
+        *FlatBuffersSchemas().ReflectionSchema,
+        *FlatBuffersSchemas().ReflectionSchema_Schema,
         *reinterpret_cast<const flatbuffers::Table*>(keySchema)
     );
 

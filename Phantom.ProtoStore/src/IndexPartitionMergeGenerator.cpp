@@ -25,8 +25,8 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
     map<LevelNumber, partition_row_list_type> partitionsBySourceLevel;
     std::unordered_set<FlatValue<FlatBuffers::IndexHeaderExtentName>, ProtoValueStlHash, ProtoValueStlEqual> mergingPartitions(
         0,
-        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.hash,
-        FlatBuffersSchemas::IndexHeaderExtentName_Comparers.equal_to
+        FlatBuffersSchemas_Comparers().IndexHeaderExtentName_Comparers.hash,
+        FlatBuffersSchemas_Comparers().IndexHeaderExtentName_Comparers.equal_to
     );
 
     for (auto& ongoingMerge : ongoingMerges)
@@ -69,8 +69,8 @@ merges_row_list_type IndexPartitionMergeGenerator::GetMergeCandidates(
             ProtoValueStlEqual
         > mergeIds(
             0,
-            FlatBuffersSchemas::MergesValue_Comparers.hash,
-            FlatBuffersSchemas::MergesValue_Comparers.equal_to
+            FlatBuffersSchemas_Comparers().MergesValue_Comparers.hash,
+            FlatBuffersSchemas_Comparers().MergesValue_Comparers.equal_to
         );
 
         for (auto& partition : partitionsAtSourceLevel.second)
