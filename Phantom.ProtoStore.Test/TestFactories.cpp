@@ -21,7 +21,9 @@ IUnresolvedTransactionsTracker* TestAccessors::GetUnresolvedTransactionsTracker(
 task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
     IndexName indexName,
     const Schema& schema,
-    FlatValue<FlatBuffers::Metadata> metadata
+    FlatValue<FlatBuffers::Metadata> metadata,
+    std::vector<std::shared_ptr<IPartition>> partitions,
+    std::vector<std::shared_ptr<IMemoryTable>> inactiveMemoryTables
 )
 {
     static std::atomic<IndexNumber> nextIndexNumber = 10000;
@@ -54,8 +56,8 @@ task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
         std::make_shared<IndexDataSourcesSelector>(
             memoryTable,
             1000,
-            std::vector<std::shared_ptr<IMemoryTable>>(),
-            std::vector<std::shared_ptr<IPartition>>()
+            inactiveMemoryTables,
+            partitions
     ));
 
     co_return index;
@@ -441,6 +443,36 @@ task<shared_ptr<IMemoryTable>> TestFactories::CreateTestMemoryTable(
 )
 {
     throw 1;
+}
+
+task<TestFactories::TestInMemoryIndex> TestFactories::CreateTestInMemoryIndex(
+    std::vector<
+        std::vector<TestFactories::TestStringKeyValuePairRow>
+    > partitionRows,
+    std::vector<
+        std::vector<TestFactories::TestStringKeyValuePairRow>
+    > inactiveMemoryTableRows
+)
+{
+    std::vector<std::shared_ptr<IPartition>> partitions;
+    for(auto& partitionRowSet : partitionRows)
+    {
+        partitions.push_back(co_await CreateInMemoryTestPartition(
+            partitionRowSet
+        ));
+    }
+    std::vector<std::shared_ptr<IMemoryTable>> inactiveMemoryTables;
+
+    co_return co_await MakeInMemoryIndex(
+        "testStringKeyValueIndex",
+        Schema::Make(
+            { GetSchema<FlatBuffers::FlatStringKey>(), GetObject<FlatBuffers::FlatStringKey>() },
+            { GetSchema<FlatBuffers::FlatStringValue>(), GetObject<FlatBuffers::FlatStringValue>() }
+        ),
+        FlatValue<FlatBuffers::Metadata>{},
+        partitions,
+        inactiveMemoryTables
+    );
 }
 
 }

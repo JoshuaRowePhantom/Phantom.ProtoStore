@@ -34,7 +34,9 @@ protected:
     task<std::shared_ptr<IIndexData>> MakeInMemoryIndex(
         IndexName indexName,
         const Schema& schema,
-        FlatValue<FlatBuffers::Metadata> metadata = {}
+        FlatValue<FlatBuffers::Metadata> metadata = {},
+        std::vector<std::shared_ptr<IPartition>> partitions = {},
+        std::vector<std::shared_ptr<IMemoryTable>> inactiveMemoryTables = {}
     );
 
     task<OperationResult<>> AddRow(
@@ -316,6 +318,20 @@ protected:
 
     task<shared_ptr<IMemoryTable>> CreateTestMemoryTable(
         std::vector<TestStringKeyValuePairRow> rows
+    );
+
+    struct TestInMemoryIndex
+    {
+        std::shared_ptr<IIndexData> Index;
+    };
+
+    task<TestInMemoryIndex> CreateTestInMemoryIndex(
+        std::vector<
+            std::vector<TestStringKeyValuePairRow>
+        > partitionRows,
+        std::vector<
+            std::vector<TestStringKeyValuePairRow>
+        > inactiveMemoryTableRows
     );
 
     CreateProtoStoreRequest GetCreateMemoryStoreRequest()
