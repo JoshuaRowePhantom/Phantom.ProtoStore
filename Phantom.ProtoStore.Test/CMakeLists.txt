@@ -19,6 +19,7 @@ add_executable(
     "FlatBufferPointerKeyComparerTests.cpp"
     "HeaderAccessorTests.cpp"
     "IndexPartitionMergeGeneratorTests.cpp"
+    "IndexTests.cpp"
     "KeyComparerTests.cpp"
     "LogManagerTests.cpp"
     "MemoryMappedFileExtentStoreTests.cpp"
@@ -43,7 +44,7 @@ add_executable(
     "TestFactories.h" 
     "UnresolvedTransactionsTrackerTests.cpp"
     "ValueBuilderTests.cpp"
-)
+ )
     
 PROTOBUF_GENERATE(
     LANGUAGE cpp

@@ -44,7 +44,8 @@ protected:
         ProtoValue key,
         ProtoValue value,
         std::optional<SequenceNumber> writeSequenceNumber = std::nullopt,
-        SequenceNumber readSequenceNumber = SequenceNumber::Latest
+        SequenceNumber readSequenceNumber = SequenceNumber::Latest,
+        std::optional<std::string> distributedTransactionId = std::nullopt
     );
 
     static ProtoValue JsonToProtoValue(
@@ -263,16 +264,6 @@ protected:
         );
     }
 
-    struct TestStringKeyValuePairRow
-    {
-        std::string Key;
-        std::optional<std::string> Value;
-        SequenceNumber WriteSequenceNumber;
-        std::optional<std::string> DistributedTransactionId;
-        TransactionOutcome LocalTransactionOutcome = TransactionOutcome::Committed;
-        LocalTransactionNumber LocalTransactionNumber = 0;
-    };
-
     class TestPartitionBuilder
     {
         shared_ptr<IMessageStore> m_messageStore;
@@ -312,6 +303,16 @@ protected:
             const Schema& schema);
     };
 
+    struct TestStringKeyValuePairRow
+    {
+        std::string Key;
+        std::optional<std::string> Value;
+        SequenceNumber WriteSequenceNumber;
+        std::optional<std::string> DistributedTransactionId;
+        TransactionOutcome LocalTransactionOutcome = TransactionOutcome::Committed;
+        LocalTransactionNumber LocalTransactionNumber = 0;
+    };
+
     task<shared_ptr<IPartition>> CreateInMemoryTestPartition(
         std::vector<TestStringKeyValuePairRow> rows
     );
@@ -332,6 +333,12 @@ protected:
         std::vector<
             std::vector<TestStringKeyValuePairRow>
         > inactiveMemoryTableRows
+    );
+
+    task<OperationResult<>> AddTestRow(
+        const shared_ptr<IIndexData>& index,
+        SequenceNumber readSequenceNumber,
+        const TestStringKeyValuePairRow& row
     );
 
     CreateProtoStoreRequest GetCreateMemoryStoreRequest()

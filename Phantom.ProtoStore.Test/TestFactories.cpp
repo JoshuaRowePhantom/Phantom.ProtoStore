@@ -68,7 +68,8 @@ task<OperationResult<>> TestFactories::AddRow(
     ProtoValue key,
     ProtoValue value,
     std::optional<SequenceNumber> writeSequenceNumber,
-    SequenceNumber readSequenceNumber
+    SequenceNumber readSequenceNumber,
+    std::optional<std::string> distributedTransactionId
 )
 {
     if (!writeSequenceNumber)
@@ -87,6 +88,12 @@ task<OperationResult<>> TestFactories::AddRow(
         auto valueOffset = index->GetValueComparer()->BuildDataValue(
             valueBuilder,
             value);
+
+        flatbuffers::Offset<flatbuffers::String> distributedTransactionIdOffset;
+        if (distributedTransactionId)
+        {
+            distributedTransactionIdOffset = valueBuilder.builder().CreateString(*distributedTransactionId);
+        }
 
         auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(
             valueBuilder.builder(),
@@ -473,6 +480,32 @@ task<TestFactories::TestInMemoryIndex> TestFactories::CreateTestInMemoryIndex(
         partitions,
         inactiveMemoryTables
     );
+}
+
+task<OperationResult<>> TestFactories::AddTestRow(
+    const shared_ptr<IIndexData>& index,
+    SequenceNumber readSequenceNumber,
+    const TestStringKeyValuePairRow& row
+)
+{
+    FlatBuffers::FlatStringKeyT keyT;
+    keyT.value = row.Key;
+    ProtoValue key = FlatMessage{ keyT };
+    ProtoValue value;
+    if (row.Value)
+    {
+        FlatBuffers::FlatStringValueT valueT;
+        valueT.value = *row.Value;
+        value = FlatMessage{ valueT };
+    }
+
+    co_return co_await AddRow(
+        index,
+        key,
+        value,
+        row.WriteSequenceNumber,
+        readSequenceNumber,
+        row.DistributedTransactionId);
 }
 
 }
