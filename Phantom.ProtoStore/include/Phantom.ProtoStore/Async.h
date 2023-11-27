@@ -30,53 +30,6 @@ Phantom::Coroutines::basic_reusable_task
     >
 >;
 
-struct FailedResult;
-
-template<
-    typename Result = void
->
-using OperationResult = std::expected<Result, FailedResult>;
-
-template<
-    typename Result
-> const Result& throw_if_failed(
-    const OperationResult<Result>& operationResult
-)
-{
-    if (!operationResult)
-    {
-        operationResult.error().throw_exception();
-    }
-    return *operationResult;
-}
-
-template<
-    typename Result
-> Result& throw_if_failed(
-    OperationResult<Result>& operationResult
-)
-{
-    if (!operationResult)
-    {
-        std::move(operationResult).error().throw_exception();
-    }
-    return *operationResult;
-}
-
-template<
-    typename Result
-> Result&& throw_if_failed(
-    OperationResult<Result>&& operationResult
-)
-{
-    if (!operationResult)
-    {
-        std::move(operationResult).error().throw_exception();
-    }
-
-    return std::move(*operationResult);
-}
-
 template<
     typename Result = void
 > using operation_task =
