@@ -125,13 +125,7 @@ task<OperationResult<>> TestFactories::AddRow(
 
     if (!partitionNumber)
     {
-        co_return std::unexpected
-        {
-            FailedResult
-            {
-                make_error_code(ProtoStoreErrorCode::WriteConflict),
-            }
-        };
+        co_return std::unexpected{ partitionNumber.error() };
     }
 
     auto outcome = delayedTransactionOutcome->BeginCommit(
@@ -342,7 +336,7 @@ shared_ptr<ProtoStore> TestFactories::ToProtoStore(
 
 
 task<shared_ptr<IPartition>> TestFactories::CreateInMemoryTestPartition(
-    std::vector<TestStringKeyValuePairRow> rows
+    const TestInMemoryIndexPartitionData& data
 )
 {
     auto extentStore = co_await UseMemoryExtentStore()();
@@ -351,7 +345,7 @@ task<shared_ptr<IPartition>> TestFactories::CreateInMemoryTestPartition(
         extentStore);
 
     auto headerExtentName = FlatValue{ MakePartitionHeaderExtentName(1, 1, 1, "test") };
-    auto dataExtentName = FlatValue{ MakePartitionHeaderExtentName(1, 1, 1, "test") };
+    auto dataExtentName = FlatValue{ MakePartitionDataExtentName(headerExtentName->extent_name_as_IndexHeaderExtentName()) };
 
     auto headerWriter = co_await messageStore->OpenExtentForSequentialWriteAccess(
         headerExtentName
@@ -371,13 +365,13 @@ task<shared_ptr<IPartition>> TestFactories::CreateInMemoryTestPartition(
         schema,
         keyComparer,
         valueComparer,
-        headerWriter,
-        dataWriter
+        dataWriter,
+        headerWriter
     );
 
     auto rowGeneratorLambda = [&]() -> row_generator
     {
-        for (auto& row : rows)
+        for (auto& row : data.Rows)
         {
             FlatBuffers::FlatStringKeyT keyT;
             keyT.value = row.Key;
@@ -414,9 +408,9 @@ task<shared_ptr<IPartition>> TestFactories::CreateInMemoryTestPartition(
 
     WriteRowsRequest writeRowsRequest
     {
-        .approximateRowCount = rows.size(),
+        .approximateRowCount = data.Rows.size(),
         .rows = &rowGenerator,
-        .inputSize = rows.size() * 1000,
+        .inputSize = data.Rows.size() * 1000,
         .targetExtentSize = std::numeric_limits<size_t>::max(),
         .targetMessageSize = std::numeric_limits<size_t>::max(),
     };
@@ -453,16 +447,11 @@ task<shared_ptr<IMemoryTable>> TestFactories::CreateTestMemoryTable(
 }
 
 task<TestFactories::TestInMemoryIndex> TestFactories::CreateTestInMemoryIndex(
-    std::vector<
-        std::vector<TestFactories::TestStringKeyValuePairRow>
-    > partitionRows,
-    std::vector<
-        std::vector<TestFactories::TestStringKeyValuePairRow>
-    > inactiveMemoryTableRows
+    const TestInMemoryIndexData& data
 )
 {
     std::vector<std::shared_ptr<IPartition>> partitions;
-    for(auto& partitionRowSet : partitionRows)
+    for(auto& partitionRowSet : data.Partitions)
     {
         partitions.push_back(co_await CreateInMemoryTestPartition(
             partitionRowSet

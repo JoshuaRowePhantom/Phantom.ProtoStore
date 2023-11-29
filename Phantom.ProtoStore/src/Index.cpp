@@ -87,7 +87,6 @@ operation_task<PartitionNumber> Index::AddRow(
                 .ErrorCode = make_error_code(ProtoStoreErrorCode::WriteConflict),
                 .ErrorDetails = WriteConflict
                 {
-                    .Index = this,
                     .ConflictingSequenceNumber = conflictingSequenceNumber,
                 },
             },

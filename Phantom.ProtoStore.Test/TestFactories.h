@@ -313,26 +313,37 @@ protected:
         LocalTransactionNumber LocalTransactionNumber = 0;
     };
 
+    struct TestInMemoryIndex
+    {
+        std::shared_ptr<IIndexData> Index;
+    };
+
+    struct TestInMemoryIndexPartitionData
+    {
+        std::vector<TestStringKeyValuePairRow> Rows;
+    };
+    
+    struct TestInMemoryIndexMemoryTableData
+    {
+        std::vector<TestStringKeyValuePairRow> Rows;
+    };
+
+    struct TestInMemoryIndexData
+    {
+        std::vector<TestInMemoryIndexPartitionData> Partitions;
+        std::vector<TestInMemoryIndexMemoryTableData> InactiveMemoryTables;
+    };
+
     task<shared_ptr<IPartition>> CreateInMemoryTestPartition(
-        std::vector<TestStringKeyValuePairRow> rows
+        const TestInMemoryIndexPartitionData& rows
     );
 
     task<shared_ptr<IMemoryTable>> CreateTestMemoryTable(
         std::vector<TestStringKeyValuePairRow> rows
     );
 
-    struct TestInMemoryIndex
-    {
-        std::shared_ptr<IIndexData> Index;
-    };
-
     task<TestInMemoryIndex> CreateTestInMemoryIndex(
-        std::vector<
-            std::vector<TestStringKeyValuePairRow>
-        > partitionRows,
-        std::vector<
-            std::vector<TestStringKeyValuePairRow>
-        > inactiveMemoryTableRows
+        const TestInMemoryIndexData& data
     );
 
     task<OperationResult<>> AddTestRow(

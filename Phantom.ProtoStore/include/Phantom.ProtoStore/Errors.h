@@ -11,7 +11,6 @@ namespace Phantom::ProtoStore
 
 struct WriteConflict
 {
-    ProtoIndex Index;
     SequenceNumber ConflictingSequenceNumber;
 
     friend bool operator ==(
