@@ -944,4 +944,44 @@ ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_key_not_pr
     EXPECT_EQ(std::nullopt, result);
 }
 
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_key_was_aborted)
+{
+    co_await AddRow(
+        0,
+        "key-1",
+        "value-1",
+        5,
+        0,
+        TransactionOutcome::Aborted
+    );
+    
+    auto result = co_await CheckForWriteConflict(
+        nullptr,
+        "key-1",
+        ToSequenceNumber(1)
+    );
+
+    EXPECT_EQ(std::nullopt, result);
+}
+
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_sequence_number_if_earlier_key_was_committed)
+{
+    co_await AddRow(
+        10,
+        "key-1",
+        "value-1",
+        5,
+        0,
+        TransactionOutcome::Committed
+    );
+    
+    auto result = co_await CheckForWriteConflict(
+        nullptr,
+        "key-1",
+        ToSequenceNumber(1)
+    );
+
+    EXPECT_EQ(ToSequenceNumber(5), result);
+}
+
 }

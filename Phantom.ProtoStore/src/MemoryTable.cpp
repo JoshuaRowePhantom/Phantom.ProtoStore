@@ -446,7 +446,7 @@ task<optional<SequenceNumber>> MemoryTable::CheckForWriteConflict(
 {
     auto enumeration = Enumerate(
         delayedTransactionOutcome,
-        readSequenceNumber,
+        SequenceNumber::Latest,
         {
             .Key = key,
             .Inclusivity = Inclusivity::Inclusive,
