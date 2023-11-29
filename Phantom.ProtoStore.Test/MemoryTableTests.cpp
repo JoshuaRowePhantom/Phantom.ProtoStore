@@ -944,7 +944,7 @@ ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_key_not_pr
     EXPECT_EQ(std::nullopt, result);
 }
 
-ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_key_was_aborted)
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_later_sequence_key_was_aborted)
 {
     co_await AddRow(
         0,
@@ -964,7 +964,7 @@ ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_key_was_ab
     EXPECT_EQ(std::nullopt, result);
 }
 
-ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_sequence_number_if_earlier_key_was_committed)
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_sequence_number_if_later_sequence_key_was_committed)
 {
     co_await AddRow(
         10,
@@ -982,6 +982,66 @@ ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_sequence_number_if
     );
 
     EXPECT_EQ(ToSequenceNumber(5), result);
+}
+
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_sequence_number_if_same_sequence_key_was_committed)
+{
+    co_await AddRow(
+        10,
+        "key-1",
+        "value-1",
+        10,
+        0,
+        TransactionOutcome::Committed
+    );
+    
+    auto result = co_await CheckForWriteConflict(
+        nullptr,
+        "key-1",
+        ToSequenceNumber(10)
+    );
+
+    EXPECT_EQ(ToSequenceNumber(10), result);
+}
+
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_earlier_sequence_key_was_committed)
+{
+    co_await AddRow(
+        10,
+        "key-1",
+        "value-1",
+        10,
+        0,
+        TransactionOutcome::Committed
+    );
+    
+    auto result = co_await CheckForWriteConflict(
+        nullptr,
+        "key-1",
+        ToSequenceNumber(11)
+    );
+
+    EXPECT_EQ(std::nullopt, result);
+}
+
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_earlier_sequence_key_was_aborted)
+{
+    co_await AddRow(
+        10,
+        "key-1",
+        "value-1",
+        10,
+        0,
+        TransactionOutcome::Committed
+    );
+    
+    auto result = co_await CheckForWriteConflict(
+        nullptr,
+        "key-1",
+        ToSequenceNumber(11)
+    );
+
+    EXPECT_EQ(std::nullopt, result);
 }
 
 }
