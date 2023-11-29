@@ -221,6 +221,25 @@ protected:
 
         co_await memoryTable->Join();
     }
+
+    task<std::optional<SequenceNumber>> CheckForWriteConflict(
+        const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
+        const std::string& key,
+        SequenceNumber readSequenceNumber
+    )
+    {
+        StringKey rowKey;
+        rowKey.set_value(key);
+
+        auto rowKeyProto = ProtoValue(&rowKey).pack();
+
+        auto result = co_await memoryTable->CheckForWriteConflict(
+            delayedTransactionOutcome,
+            readSequenceNumber,
+            rowKeyProto);
+
+        co_return result;
+    }
 };
 
 ASYNC_TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
@@ -913,4 +932,16 @@ ASYNC_TEST_F(MemoryTableTests, Enumerate_prefix_selects_rows_matching_prefix_and
     co_await ++iterator;
     EXPECT_TRUE(iterator == enumeration.end());
 }
+
+ASYNC_TEST_F(MemoryTableTests, CheckForWriteConflicts_returns_null_if_key_not_present)
+{
+    auto result = co_await CheckForWriteConflict(
+        nullptr,
+        "key-1",
+        ToSequenceNumber(1)
+    );
+
+    EXPECT_EQ(std::nullopt, result);
+}
+
 }

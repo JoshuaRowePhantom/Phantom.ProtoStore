@@ -216,13 +216,20 @@ public:
     ) override;
 
     virtual row_generator Enumerate(
-        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome,
+        const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
         SequenceNumber readSequenceNumber,
         KeyRangeEnd low, 
         KeyRangeEnd high
     ) override;
 
     virtual SequenceNumber GetLatestSequenceNumber(
+    ) override;
+
+    // Given a key, return a SequenceNumber of any write conflicts.
+    virtual task<optional<SequenceNumber>> CheckForWriteConflict(
+        const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
+        SequenceNumber readSequenceNumber,
+        const ProtoValue& key
     ) override;
 
     virtual row_generator Checkpoint(

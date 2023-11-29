@@ -265,7 +265,7 @@ task<> MemoryTable::ReplayRow(
 }
 
 row_generator MemoryTable::Enumerate(
-    shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome,
+    const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
     SequenceNumber readSequenceNumber,
     KeyRangeEnd low,
     KeyRangeEnd high
@@ -435,6 +435,40 @@ void MemoryTable::UpdateSequenceNumberRange(
         std::memory_order_release,
         std::memory_order_relaxed
         );
+}
+
+// Given a key, return a SequenceNumber of any write conflicts.
+task<optional<SequenceNumber>> MemoryTable::CheckForWriteConflict(
+    const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
+    SequenceNumber readSequenceNumber,
+    const ProtoValue& key
+)
+{
+    auto enumeration = Enumerate(
+        delayedTransactionOutcome,
+        readSequenceNumber,
+        {
+            .Key = key,
+            .Inclusivity = Inclusivity::Inclusive,
+        },
+        {
+            .Key = key,
+            .Inclusivity = Inclusivity::Inclusive,
+        });
+
+    auto iterator = co_await enumeration.begin();
+    if (iterator != enumeration.end())
+    {
+        // We found a row.
+        // If its write sequence number is > the callers read sequence number,
+        // the proposed write is a conflict.
+        if (iterator->WriteSequenceNumber >= readSequenceNumber)
+        {
+            co_return iterator->WriteSequenceNumber;
+        }
+    }
+
+    co_return std::nullopt;
 }
 
 row_generator MemoryTable::Checkpoint()
