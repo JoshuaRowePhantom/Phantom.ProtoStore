@@ -319,6 +319,53 @@ ASYNC_TEST_F(MemoryTableTests, ReplayRow_updates_GetLatestSequenceNumber_to_max_
     co_await memoryTable->Join();
 }
 
+ASYNC_TEST_F(MemoryTableTests, AddRow_updates_GetLatestSequenceNumber_to_max_of_current_value_and_new_row_ignoring_transaction_outcome)
+{
+    EXPECT_EQ(ToSequenceNumber(0), memoryTable->GetLatestSequenceNumber());
+
+    auto outcome1 = co_await AddRow(
+        0,
+        "key-1",
+        "value-1",
+        5,
+        0,
+        TransactionOutcome::Unknown,
+        "transaction id"
+    );
+
+    EXPECT_EQ(ToSequenceNumber(5), memoryTable->GetLatestSequenceNumber());
+
+    auto outcome2 = co_await AddRow(
+        0,
+        "key-2",
+        "value-2",
+        3,
+        0,
+        TransactionOutcome::Unknown,
+        "transaction id"
+    );
+
+    EXPECT_EQ(ToSequenceNumber(5), memoryTable->GetLatestSequenceNumber());
+
+    auto outcome3 = co_await AddRow(
+        0,
+        "key-3",
+        "value-3",
+        10,
+        0,
+        TransactionOutcome::Unknown,
+        "transaction id"
+    );
+
+    EXPECT_EQ(ToSequenceNumber(10), memoryTable->GetLatestSequenceNumber());
+    
+    outcome1->Complete();
+    outcome2->Complete();
+    outcome3->Complete();
+
+    co_await memoryTable->Join();
+}
+
 ASYNC_TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
 {
     co_await AddRow(

@@ -171,7 +171,7 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
             }
         }
 
-        // Now we might discover there's a committed transaction.
+        // Now we might discover there's a committed conflicting transaction.
         if (previousTransactionOutcome == TransactionOutcome::Committed)
         {
             co_return ToSequenceNumber(previousMemoryTableWriteSequenceNumber);
@@ -197,6 +197,9 @@ task<std::optional<SequenceNumber>> MemoryTable::AddRow(
         succeeded = true;
         break;
     }
+
+    UpdateSequenceNumberRange(
+        ToSequenceNumber(row->sequence_number()));
 
     m_approximateRowCount.fetch_add(
         1,
