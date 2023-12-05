@@ -60,7 +60,7 @@ const IndexName& Index::GetIndexName() const
 operation_task<PartitionNumber> Index::AddRow(
     SequenceNumber readSequenceNumber,
     CreateLoggedRowWrite createLoggedRowWrite,
-    shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome)
+    const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome)
 {
     auto lock = co_await m_dataSourcesLock.reader().scoped_lock_async();
     co_await m_schedulers.LockScheduler->schedule();
@@ -72,7 +72,7 @@ operation_task<PartitionNumber> Index::AddRow(
         *m_schema,
         row->key());
 
-    auto dataSourcesSelection = m_indexDataSourcesSelector->SelectForCheckConflict(
+    auto checkConflictSelection = m_indexDataSourcesSelector->SelectForCheckConflict(
         key,
         readSequenceNumber);
 
@@ -93,7 +93,7 @@ operation_task<PartitionNumber> Index::AddRow(
         };
     };
 
-    for (auto& memoryTable : dataSourcesSelection->memoryTables)
+    for (auto& memoryTable : checkConflictSelection->memoryTables)
     {
         if (memoryTable->GetLatestSequenceNumber() < writeSequenceNumber
             &&
@@ -101,9 +101,21 @@ operation_task<PartitionNumber> Index::AddRow(
         {
             continue;
         }
+
+        auto conflictingSequenceNumber = co_await memoryTable->CheckForWriteConflict(
+            delayedTransactionOutcome,
+            readSequenceNumber,
+            SchemaDescriptions::MakeProtoValueKey(
+                *m_schema,
+                row->key()));
+
+        if (conflictingSequenceNumber.has_value())
+        {
+            co_return makeWriteConflict(*conflictingSequenceNumber);
+        }
     }
 
-    for (auto& partition : dataSourcesSelection->partitions)
+    for (auto& partition : checkConflictSelection->partitions)
     {
         if (partition->GetLatestSequenceNumber() < writeSequenceNumber
             &&
@@ -128,7 +140,7 @@ operation_task<PartitionNumber> Index::AddRow(
     auto conflictingSequenceNumber = co_await m_indexDataSourcesSelector->ActiveMemoryTable()->AddRow(
         readSequenceNumber,
         std::move(row),
-        std::move(delayedTransactionOutcome));
+        delayedTransactionOutcome);
 
     if (conflictingSequenceNumber.has_value())
     {

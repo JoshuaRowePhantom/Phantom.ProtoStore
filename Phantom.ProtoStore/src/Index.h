@@ -17,7 +17,7 @@ public:
     virtual operation_task<PartitionNumber> AddRow(
         SequenceNumber readSequenceNumber,
         CreateLoggedRowWrite loggedRowWrite,
-        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
+        const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome
     ) = 0;
 
     virtual const shared_ptr<const ValueComparer>& GetKeyComparer(

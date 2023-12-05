@@ -7,6 +7,7 @@
 #include "Phantom.ProtoStore/src/ProtoStore.h"
 #include "Phantom.ProtoStore/src/Schema.h"
 #include "Phantom.System/utility.h"
+#include "Resources.h"
 #include <flatbuffers/idl.h>
 
 namespace Phantom::ProtoStore
@@ -62,6 +63,7 @@ task<std::shared_ptr<IIndexData>> TestFactories::MakeInMemoryIndex(
 
     co_return index;
 }
+
 
 task<OperationResult<>> TestFactories::AddRow(
     const std::shared_ptr<IIndexData>& index,
@@ -440,10 +442,74 @@ task<shared_ptr<IPartition>> TestFactories::CreateInMemoryTestPartition(
 }
 
 task<shared_ptr<IMemoryTable>> TestFactories::CreateTestMemoryTable(
-    std::vector<TestStringKeyValuePairRow> rows
+    const TestInMemoryIndexMemoryTableData& tableData
 )
 {
-    throw 1;
+    auto schema = copy_shared(Schema::Make(
+        { GetSchema<FlatBuffers::FlatStringKey>(), GetObject<FlatBuffers::FlatStringKey>() },
+        { GetSchema<FlatBuffers::FlatStringValue>(), GetObject<FlatBuffers::FlatStringValue>() }
+    ));
+    auto keyComparer = SchemaDescriptions::MakeKeyComparer(
+        schema);
+    auto valueComparer = SchemaDescriptions::MakeValueComparer(
+        schema);
+
+    auto memoryTable = MakeMemoryTable(
+        schema,
+        keyComparer
+    );
+
+    for (auto& row : tableData.Rows)
+    {
+        ValueBuilder valueBuilder;
+
+        FlatBuffers::FlatStringKeyT keyT;
+        keyT.value = row.Key;
+        
+
+        auto keyOffset = keyComparer->BuildDataValue(
+            valueBuilder,
+            FlatMessage{ keyT });
+
+        flatbuffers::Offset<FlatBuffers::DataValue> valueOffset;
+
+        if (row.Value)
+        {
+            FlatBuffers::FlatStringValueT valueT;
+            valueT.value = *row.Value;
+            valueOffset = valueComparer->BuildDataValue(
+                valueBuilder,
+                FlatMessage{ valueT });
+        }
+
+        flatbuffers::Offset<flatbuffers::String> distributedTransactionIdOffset;
+        if (row.DistributedTransactionId)
+        {
+            distributedTransactionIdOffset = valueBuilder.builder().CreateString(*row.DistributedTransactionId);
+        }
+
+        auto loggedRowWriteOffset = FlatBuffers::CreateLoggedRowWrite(
+            valueBuilder.builder(),
+            1,
+            ToUint64(row.WriteSequenceNumber),
+            1,
+            keyOffset,
+            valueOffset,
+            distributedTransactionIdOffset,
+            m_nextTestLocalTransactionId.fetch_add(1),
+            m_nextTestWriteId.fetch_add(1)
+        );
+
+        valueBuilder.builder().Finish(loggedRowWriteOffset);
+
+        FlatMessage<FlatBuffers::LoggedRowWrite> loggedRowWrite(
+            std::make_shared<flatbuffers::FlatBufferBuilder>(std::move(valueBuilder.builder())));
+        
+        co_await memoryTable->ReplayRow(
+            std::move(loggedRowWrite));
+    }
+
+    co_return memoryTable;
 }
 
 task<TestFactories::TestInMemoryIndex> TestFactories::CreateTestInMemoryIndex(
@@ -458,6 +524,13 @@ task<TestFactories::TestInMemoryIndex> TestFactories::CreateTestInMemoryIndex(
         ));
     }
     std::vector<std::shared_ptr<IMemoryTable>> inactiveMemoryTables;
+
+    for (auto& inactiveMemoryTableRowSet : data.InactiveMemoryTables)
+    {
+        inactiveMemoryTables.push_back(co_await CreateTestMemoryTable(
+            inactiveMemoryTableRowSet
+        ));
+    }
 
     co_return co_await MakeInMemoryIndex(
         "testStringKeyValueIndex",

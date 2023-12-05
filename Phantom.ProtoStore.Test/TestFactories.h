@@ -332,6 +332,7 @@ protected:
     {
         std::vector<TestInMemoryIndexPartitionData> Partitions;
         std::vector<TestInMemoryIndexMemoryTableData> InactiveMemoryTables;
+        std::vector<TestStringKeyValuePairRow> ActiveMemoryTable;
     };
 
     task<shared_ptr<IPartition>> CreateInMemoryTestPartition(
@@ -339,7 +340,7 @@ protected:
     );
 
     task<shared_ptr<IMemoryTable>> CreateTestMemoryTable(
-        std::vector<TestStringKeyValuePairRow> rows
+        const TestInMemoryIndexMemoryTableData& rows
     );
 
     task<TestInMemoryIndex> CreateTestInMemoryIndex(
