@@ -70,15 +70,12 @@ protected:
         return std::move(result);
     }
 
-    task<shared_ptr<DelayedMemoryTableTransactionOutcome>> AddRow(
-        MemoryTableTransactionSequenceNumber transactionSequenceNumber,
+    task<FlatMessage<FlatBuffers::LoggedRowWrite>> MakeLoggedRowWrite(
         const Message& rowKey,
         const Message& rowValue,
         uint64_t writeSequenceNumber,
-        uint64_t readSequenceNumber,
-        TransactionOutcome outcome = TransactionOutcome::Committed,
-        std::optional<TransactionId> transactionId = {},
-        std::optional<SequenceNumber>* conflictingSequenceNumber = nullptr)
+        std::optional<TransactionId> transactionId = {}
+        )
     {
         auto rowKeyProto = ProtoValue(&rowKey).pack();
         auto rowValueProto = ProtoValue(&rowValue).pack();
@@ -95,7 +92,44 @@ protected:
             rowValueProto.as_protocol_buffer_bytes_if());
         loggedRowWrite.sequence_number = writeSequenceNumber;
 
-        FlatMessage loggedRowWriteMessage{ loggedRowWrite };
+        co_return FlatMessage{ loggedRowWrite };
+    }
+
+    task<FlatMessage<FlatBuffers::LoggedRowWrite>> MakeLoggedRowWrite(
+        string key,
+        string value,
+        uint64_t writeSequenceNumber,
+        std::optional<TransactionId> transactionId = {}
+    )
+    {
+        StringKey rowKey;
+        rowKey.set_value(key);
+        StringValue rowValue;
+        rowValue.set_value(value);
+
+        co_return co_await MakeLoggedRowWrite(
+            rowKey,
+            rowValue,
+            writeSequenceNumber,
+            transactionId
+        );
+    }
+
+    task<shared_ptr<DelayedMemoryTableTransactionOutcome>> AddRow(
+        MemoryTableTransactionSequenceNumber transactionSequenceNumber,
+        const Message& rowKey,
+        const Message& rowValue,
+        uint64_t writeSequenceNumber,
+        uint64_t readSequenceNumber,
+        TransactionOutcome outcome = TransactionOutcome::Committed,
+        std::optional<TransactionId> transactionId = {},
+        std::optional<SequenceNumber>* conflictingSequenceNumber = nullptr)
+    {
+        auto loggedRowWriteMessage = co_await MakeLoggedRowWrite(
+            rowKey,
+            rowValue,
+            writeSequenceNumber,
+            transactionId);
 
         auto delayedOutcome = WithOutcome(transactionSequenceNumber, outcome, writeSequenceNumber);
 
@@ -241,6 +275,49 @@ protected:
         co_return result;
     }
 };
+
+ASYNC_TEST_F(MemoryTableTests, GetLatestSequenceNumber_starts_at_zero)
+{
+    EXPECT_EQ(ToSequenceNumber(0), memoryTable->GetLatestSequenceNumber());
+    co_return;
+}
+
+ASYNC_TEST_F(MemoryTableTests, ReplayRow_updates_GetLatestSequenceNumber_to_max_of_current_value_and_new_row)
+{
+    EXPECT_EQ(ToSequenceNumber(0), memoryTable->GetLatestSequenceNumber());
+
+    auto loggedRow = co_await MakeLoggedRowWrite(
+        "key1",
+        "value1",
+        5);
+
+    co_await memoryTable->ReplayRow(
+        loggedRow);
+
+    EXPECT_EQ(ToSequenceNumber(5), memoryTable->GetLatestSequenceNumber());
+
+    loggedRow = co_await MakeLoggedRowWrite(
+        "key2",
+        "value2",
+        3);
+
+    co_await memoryTable->ReplayRow(
+        loggedRow);
+
+    EXPECT_EQ(ToSequenceNumber(5), memoryTable->GetLatestSequenceNumber());
+    
+    loggedRow = co_await MakeLoggedRowWrite(
+        "key3",
+        "value3",
+        10);
+
+    co_await memoryTable->ReplayRow(
+        loggedRow);
+
+    EXPECT_EQ(ToSequenceNumber(10), memoryTable->GetLatestSequenceNumber());
+    
+    co_await memoryTable->Join();
+}
 
 ASYNC_TEST_F(MemoryTableTests, Can_add_and_enumerate_one_row)
 {

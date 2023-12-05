@@ -38,7 +38,7 @@ class MemoryTable
         InsertionKey(
             const Schema& schema,
             Row& row,
-            shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
+            const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
             SequenceNumber readSequenceNumber);
 
         InsertionKey(
@@ -56,7 +56,7 @@ class MemoryTable
 
         ProtoValue Key;
         Row& Row;
-        shared_ptr<DelayedMemoryTableTransactionOutcome>& DelayedTransactionOutcome;
+        const shared_ptr<DelayedMemoryTableTransactionOutcome>& DelayedTransactionOutcome;
         SequenceNumber ReadSequenceNumber;
     };
 
@@ -208,7 +208,7 @@ public:
     virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
         Row row,
-        shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
+        const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome
     ) override;
 
     virtual task<> ReplayRow(

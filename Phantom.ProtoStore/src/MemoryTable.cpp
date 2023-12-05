@@ -90,7 +90,7 @@ size_t MemoryTable::GetApproximateRowCount()
 task<std::optional<SequenceNumber>> MemoryTable::AddRow(
     SequenceNumber readSequenceNumber,
     FlatMessage<FlatBuffers::LoggedRowWrite> row,
-    shared_ptr<DelayedMemoryTableTransactionOutcome> delayedTransactionOutcome
+    const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome
 )
 {
     InsertionKey insertionKey(
@@ -259,6 +259,9 @@ task<> MemoryTable::ReplayRow(
         1,
         std::memory_order_relaxed);
 
+    UpdateSequenceNumberRange(
+        ToSequenceNumber(row->sequence_number()));
+
     assert(succeeded);
 
     co_return;
@@ -413,11 +416,11 @@ void MemoryTable::UpdateSequenceNumberRange(
 {
     compare_exchange_weak_transform(
         m_earliestSequenceNumber,
-        [=](auto value)
+        [=](auto& value)
     {
-        return writeSequenceNumber < value 
-            ? writeSequenceNumber
-            : value;
+            value = std::min(
+                value,
+                writeSequenceNumber);
     },
         std::memory_order_relaxed,
         std::memory_order_release,
@@ -425,11 +428,11 @@ void MemoryTable::UpdateSequenceNumberRange(
 
     compare_exchange_weak_transform(
         m_latestSequenceNumber,
-        [=](auto value)
+        [=](auto& value)
     {
-        return writeSequenceNumber > value
-            ? writeSequenceNumber
-            : value;
+            value = std::max(
+                value,
+                writeSequenceNumber);
     },
         std::memory_order_relaxed,
         std::memory_order_release,
@@ -634,7 +637,7 @@ MemoryTable::ReplayInsertionKey::ReplayInsertionKey(
 MemoryTable::InsertionKey::InsertionKey(
     const Schema& schema,
     MemoryTable::Row& row,
-    shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
+    const shared_ptr<DelayedMemoryTableTransactionOutcome>& delayedTransactionOutcome,
     SequenceNumber readSequenceNumber)
     :
     Key(SchemaDescriptions::MakeProtoValueKey(

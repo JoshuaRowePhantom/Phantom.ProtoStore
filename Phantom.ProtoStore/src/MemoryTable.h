@@ -99,7 +99,7 @@ public:
     virtual task<std::optional<SequenceNumber>> AddRow(
         SequenceNumber readSequenceNumber,
         Row row,
-        shared_ptr<DelayedMemoryTableTransactionOutcome> outcome
+        const shared_ptr<DelayedMemoryTableTransactionOutcome>& outcome
     ) = 0;
 
     // Add the specified row, unconditionally.
